@@ -1,0 +1,19 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SQL_DRIVER": "ODBC Driver 18 for SQL Server",
+    "SQL_SERVER_HOST": "127.0.0.1",
+    "SQL_SERVER_PORT": "11433",
+    "SQL_SERVER_USERNAME": "ro_user",
+    "SQL_SERVER_PASSWORD": "&Oc'68;?Q|U8",
+    "DEFAULT_QUERY_TIMEOUT_SECONDS": "30",
+    "MAX_QUERY_TIMEOUT_SECONDS": "120",
+    "DEFAULT_MAX_ROWS": "200",
+    "MAX_ALLOWED_ROWS": "1000",
+    "MAX_INLINE_BINARY_BYTES": "65536",
+    "ALLOWED_DATABASES": "[\"master\",\"ruesma_rep\",\"ruesma\"]",
+    "ALLOWED_QUERY_PREFIXES": "[\"SELECT\",\"WITH\"]"
+  }
+}
