@@ -8,7 +8,7 @@ import pyodbc
 
 from config.settings import Settings
 from domain.models.document_models import RawDocumentRecord
-from domain.models.sql_models import SqlReadRequest
+from domain.models.sql_models import SqlReadRequest, SqlWriteRequest
 from domain.ports.sql_repository import SqlRepository
 from infrastructure.security.identifier_guard import IdentifierGuard
 
@@ -17,6 +17,9 @@ class SqlServerRepository(SqlRepository):
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
+    # ------------------------------------------------------------------ #
+    # Conexión de LECTURA (ro_user) — SIN CAMBIOS respecto al original
+    # ------------------------------------------------------------------ #
     @contextmanager
     def _connect(self, *, database: str, timeout_seconds: int) -> Iterator[pyodbc.Connection]:
         password = self._settings.sql_server_password.replace("}", "}}")
@@ -35,6 +38,37 @@ class SqlServerRepository(SqlRepository):
         finally:
             connection.close()
 
+    # ------------------------------------------------------------------ #
+    # Conexión de ESCRITURA (rw_user) — autocommit=False (transaccional)
+    # ------------------------------------------------------------------ #
+    @contextmanager
+    def _connect_write(self, *, database: str, timeout_seconds: int) -> Iterator[pyodbc.Connection]:
+        username = self._settings.sql_server_write_username
+        password = self._settings.sql_server_write_password
+        if not username or not password:
+            raise ValueError(
+                "Escritura no configurada: faltan SQL_SERVER_WRITE_USERNAME / "
+                "SQL_SERVER_WRITE_PASSWORD."
+            )
+        escaped_password = password.replace("}", "}}")
+        connection_string = (
+            f"DRIVER={{{self._settings.sql_driver}}};"
+            f"SERVER=tcp:{self._settings.sql_server_host},{self._settings.sql_server_port};"
+            f"DATABASE={database};"
+            f"UID={username};"
+            f"PWD={{{escaped_password}}};"
+            "Encrypt=yes;"
+            "TrustServerCertificate=yes;"
+        )
+        connection = pyodbc.connect(connection_string, timeout=timeout_seconds, autocommit=False)
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    # ------------------------------------------------------------------ #
+    # Lectura — SIN CAMBIOS respecto al original
+    # ------------------------------------------------------------------ #
     def execute_read_query(self, request: SqlReadRequest) -> tuple[list[str], list[tuple[Any, ...]], bool]:
         timeout_seconds = request.timeout_seconds or self._settings.default_query_timeout_seconds
         max_rows = request.max_rows or self._settings.default_max_rows
@@ -50,6 +84,54 @@ class SqlServerRepository(SqlRepository):
             rows = rows[:max_rows]
         return columns, rows, truncated
 
+    # ------------------------------------------------------------------ #
+    # Escritura — batch atómico (una conexión, una transacción, un commit)
+    # ------------------------------------------------------------------ #
+    def execute_write_command(self, request: SqlWriteRequest) -> list[int]:
+        timeout_seconds = request.timeout_seconds or self._settings.default_write_timeout_seconds
+        cap = request.max_affected_rows or self._settings.default_max_affected_rows
+
+        affected_per_statement: list[int] = []
+        running_total = 0
+
+        with self._connect_write(database=request.database, timeout_seconds=timeout_seconds) as connection:
+            cursor = connection.cursor()
+            try:
+                for statement in request.statements:
+                    if statement.parameter_sets:
+                        if self._settings.use_fast_executemany:
+                            cursor.fast_executemany = True
+                        cursor.executemany(statement.sql, statement.parameter_sets)
+                        affected = cursor.rowcount
+                        if affected is None or affected < 0:
+                            affected = len(statement.parameter_sets)
+                    else:
+                        cursor.execute(statement.sql, *statement.parameters)
+                        affected = cursor.rowcount if cursor.rowcount is not None else -1
+
+                    affected_per_statement.append(affected)
+                    if affected > 0:
+                        running_total += affected
+
+                    if running_total > cap:
+                        connection.rollback()
+                        raise ValueError(
+                            f"El batch afectaría a {running_total} filas y supera el máximo "
+                            f"permitido ({cap}). Se hizo ROLLBACK y no se aplicó ningún cambio."
+                        )
+
+                connection.commit()
+                return affected_per_statement
+            except Exception:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+                raise
+
+    # ------------------------------------------------------------------ #
+    # Documentos (BLOB) — SIN CAMBIOS respecto al original
+    # ------------------------------------------------------------------ #
     def read_document(
         self,
         *,

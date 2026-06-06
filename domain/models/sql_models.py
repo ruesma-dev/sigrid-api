@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from config.settings import get_settings
@@ -13,8 +13,6 @@ class SqlReadRequest(BaseModel):
     database: str = Field(..., min_length=1)
     sql: str = Field(..., min_length=1)
     parameters: list[Any] = Field(default_factory=list)
-    # validate_default=True hace que el validator se ejecute también cuando el
-    # cliente NO envía el campo, permitiendo resolver el default desde settings.
     timeout_seconds: int | None = Field(default=None, ge=1, validate_default=True)
     max_rows: int | None = Field(default=None, ge=1, validate_default=True)
 
@@ -31,23 +29,10 @@ class SqlReadRequest(BaseModel):
     @field_validator("max_rows")
     @classmethod
     def _validate_max_rows(cls, value: int | None) -> int:
-        """
-        Aplica el cap de filas y el default leyendo de settings.
-
-        Reemplaza al antiguo `Field(le=10000)` hardcoded para que el límite
-        operacional viva en una única fuente de verdad: la env var
-        MAX_ALLOWED_ROWS (vía config/settings.py).
-
-        - Si el cliente no envía max_rows → usa settings.default_max_rows.
-        - Si excede el cap → error 400 con estructura compatible con clientes
-          que ya parsean PydanticV2 less_than_equal (mantiene ctx.le e input).
-        """
         settings = get_settings()
         if value is None:
             return settings.default_max_rows
         if value > settings.max_allowed_rows:
-            # Mantenemos el "type=less_than_equal" para compatibilidad con
-            # clientes existentes que parsean este error específico.
             raise PydanticCustomError(
                 "less_than_equal",
                 "Input should be less than or equal to {le}",
@@ -58,13 +43,6 @@ class SqlReadRequest(BaseModel):
     @field_validator("timeout_seconds")
     @classmethod
     def _validate_timeout_seconds(cls, value: int | None) -> int:
-        """
-        Aplica el cap de timeout y el default leyendo de settings.
-
-        Reemplaza al antiguo `Field(le=600)` hardcoded. El cap real viene de
-        la env var MAX_QUERY_TIMEOUT_SECONDS y el default de
-        DEFAULT_QUERY_TIMEOUT_SECONDS.
-        """
         settings = get_settings()
         if value is None:
             return settings.default_query_timeout_seconds
@@ -84,6 +62,115 @@ class SqlReadResponse(BaseModel):
     rows: list[list[Any]]
     row_count: int
     truncated: bool
+
+
+class SqlWriteStatement(BaseModel):
+    """
+    Una sentencia de escritura dentro de un batch.
+
+    Dos modos de parametrización:
+      - parameters: una única ejecución (cursor.execute).
+      - parameter_sets: ejecución masiva (cursor.executemany) con
+        fast_executemany; ideal para insertar/actualizar muchas filas rápido.
+    """
+
+    sql: str = Field(..., min_length=1)
+    parameters: list[Any] = Field(default_factory=list)
+    parameter_sets: list[list[Any]] | None = Field(default=None)
+
+    @field_validator("sql")
+    @classmethod
+    def _normalize_sql(cls, value: str) -> str:
+        return value.strip()
+
+
+class SqlWriteRequest(BaseModel):
+    """
+    Petición de escritura. Soporta:
+      - Una sola sentencia (atajo): `sql` + `parameters`.
+      - Varias sentencias (posiblemente a tablas distintas): `statements`.
+
+    Todo el batch se ejecuta en UNA conexión y UNA transacción (atómico):
+    o se aplican todas las sentencias o ninguna (rollback).
+    """
+
+    database: str = Field(..., min_length=1)
+    statements: list[SqlWriteStatement] = Field(default_factory=list)
+
+    # Atajo single-statement (retrocompatible).
+    sql: str | None = Field(default=None)
+    parameters: list[Any] = Field(default_factory=list)
+
+    timeout_seconds: int | None = Field(default=None, ge=1, validate_default=True)
+    # Tope de filas afectadas ACUMULADAS en el batch; si se supera → ROLLBACK.
+    max_affected_rows: int | None = Field(default=None, ge=1, validate_default=True)
+
+    @field_validator("database")
+    @classmethod
+    def _normalize_database(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("timeout_seconds")
+    @classmethod
+    def _validate_timeout_seconds(cls, value: int | None) -> int:
+        settings = get_settings()
+        if value is None:
+            return settings.default_write_timeout_seconds
+        if value > settings.max_write_timeout_seconds:
+            raise PydanticCustomError(
+                "less_than_equal",
+                "Input should be less than or equal to {le}",
+                {"le": settings.max_write_timeout_seconds, "input": value},
+            )
+        return value
+
+    @field_validator("max_affected_rows")
+    @classmethod
+    def _validate_max_affected_rows(cls, value: int | None) -> int:
+        settings = get_settings()
+        if value is None:
+            return settings.default_max_affected_rows
+        if value > settings.max_affected_rows:
+            raise PydanticCustomError(
+                "less_than_equal",
+                "Input should be less than or equal to {le}",
+                {"le": settings.max_affected_rows, "input": value},
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _fold_single_into_statements(self) -> "SqlWriteRequest":
+        """Normaliza el atajo single-statement a la lista `statements`."""
+        has_single = bool(self.sql and self.sql.strip())
+        has_batch = bool(self.statements)
+
+        if has_single and has_batch:
+            raise ValueError("Usa 'sql' (atajo) o 'statements' (batch), no ambos.")
+        if not has_single and not has_batch:
+            raise ValueError("Debes indicar 'sql' o al menos una sentencia en 'statements'.")
+
+        if has_single:
+            self.statements = [
+                SqlWriteStatement(sql=self.sql.strip(), parameters=self.parameters)
+            ]
+            self.sql = None
+            self.parameters = []
+
+        return self
+
+
+class SqlWriteStatementResult(BaseModel):
+    operation: str
+    affected_rows: int
+
+
+class SqlWriteResponse(BaseModel):
+    ok: bool = True
+    database: str
+    statements: int
+    results: list[SqlWriteStatementResult]
+    total_affected_rows: int
+    committed: bool
 
 
 class DocumentReadRequest(BaseModel):

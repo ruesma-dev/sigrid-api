@@ -7,13 +7,15 @@ from functools import lru_cache
 import azure.functions as func
 from pydantic import ValidationError
 
+from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
 from application.use_cases.read_document_use_case import ReadDocumentUseCase
 from config.settings import Settings, get_settings
-from domain.models.sql_models import DocumentReadRequest, SqlReadRequest
+from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
 from infrastructure.repositories.sql_server_repository import SqlServerRepository
 from infrastructure.security.identifier_guard import IdentifierValidationError
 from infrastructure.security.sql_query_guard import QueryValidationError
+from infrastructure.security.sql_write_guard import WriteValidationError
 from interface_adapters.http.http_response_factory import (
     binary_file_response,
     error_response,
@@ -25,18 +27,25 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 @lru_cache(maxsize=1)
-def build_dependencies() -> tuple[Settings, SqlServerRepository, ExecuteSqlQueryUseCase, ReadDocumentUseCase]:
+def build_dependencies() -> tuple[
+    Settings,
+    SqlServerRepository,
+    ExecuteSqlQueryUseCase,
+    ReadDocumentUseCase,
+    ExecuteSqlCommandUseCase,
+]:
     settings = get_settings()
     repository = SqlServerRepository(settings)
     sql_use_case = ExecuteSqlQueryUseCase(repository, settings)
     document_use_case = ReadDocumentUseCase(repository)
-    return settings, repository, sql_use_case, document_use_case
+    command_use_case = ExecuteSqlCommandUseCase(repository, settings)
+    return settings, repository, sql_use_case, document_use_case, command_use_case
 
 
 @app.route(route="sql/read", methods=["POST"])
 def sql_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, sql_use_case, _ = build_dependencies()
+        _, _, sql_use_case, _, _ = build_dependencies()
         body = req.get_json()
         request_model = SqlReadRequest.model_validate(body)
         response_model = sql_use_case.run(request_model)
@@ -70,10 +79,49 @@ def sql_read(req: func.HttpRequest) -> func.HttpResponse:
             details={"type": type(exc).__name__, "exception": str(exc)},
         )
 
+
+@app.route(route="sql/write", methods=["POST"])
+def sql_write(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        _, _, _, _, command_use_case = build_dependencies()
+        body = req.get_json()
+        request_model = SqlWriteRequest.model_validate(body)
+        response_model = command_use_case.run(request_model)
+        return json_response(response_model)
+    except WriteValidationError as exc:
+        logger.warning("WriteValidationError en sql/write: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except ValidationError as exc:
+        logger.warning("ValidationError en sql/write: %s", exc)
+        return error_response(
+            "Solicitud inválida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    except ValueError as exc:
+        logger.warning("ValueError en sql/write: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sql/write")
+        return error_response(
+            "Error interno ejecutando sql/write.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
 @app.route(route="documents/read", methods=["POST"])
 def documents_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, _, document_use_case = build_dependencies()
+        _, _, _, document_use_case, _ = build_dependencies()
         body = req.get_json()
         request_model = DocumentReadRequest.model_validate(body)
         response_model = document_use_case.run(request_model)
@@ -111,6 +159,7 @@ def documents_read(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             details={"type": type(exc).__name__, "exception": str(exc)},
         )
+
 
 @app.route(route="diagnostics/tcp", methods=["GET"])
 def diagnostics_tcp(req: func.HttpRequest) -> func.HttpResponse:

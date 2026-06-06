@@ -1,0 +1,1 @@
+[{"name":"ALLOWED_WRITE_DATABASES","value":"[\"ruesma\"]","slotSetting":false},{"name":"ALLOWED_WRITE_PREFIXES","value":"[\"INSERT\",\"UPDATE\",\"DELETE\"]","slotSetting":false}]
