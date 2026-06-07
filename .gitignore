@@ -27,3 +27,5 @@ terraform.tfstate.backup
 *.example
 *.pem
 *.pdf
+*.txt
+*.zip
