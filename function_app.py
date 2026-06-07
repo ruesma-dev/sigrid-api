@@ -8,10 +8,12 @@ import azure.functions as func
 from pydantic import ValidationError
 
 from application.use_cases.add_contract_lines_use_case import AddContractLinesUseCase
+from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
 from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
 from application.use_cases.read_document_use_case import ReadDocumentUseCase
 from config.settings import Settings, get_settings
+from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
 from infrastructure.repositories.sql_server_repository import SqlServerRepository
@@ -36,6 +38,7 @@ def build_dependencies() -> tuple[
     ReadDocumentUseCase,
     ExecuteSqlCommandUseCase,
     AddContractLinesUseCase,
+    CreatePurchaseAlbaranUseCase,
 ]:
     settings = get_settings()
     repository = SqlServerRepository(settings)
@@ -43,13 +46,17 @@ def build_dependencies() -> tuple[
     document_use_case = ReadDocumentUseCase(repository)
     command_use_case = ExecuteSqlCommandUseCase(repository, settings)
     contract_lines_use_case = AddContractLinesUseCase(repository, settings)
-    return settings, repository, sql_use_case, document_use_case, command_use_case, contract_lines_use_case
+    albaran_use_case = CreatePurchaseAlbaranUseCase(repository, settings)
+    return (
+        settings, repository, sql_use_case, document_use_case,
+        command_use_case, contract_lines_use_case, albaran_use_case,
+    )
 
 
 @app.route(route="sql/read", methods=["POST"])
 def sql_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, sql_use_case, _, _, _ = build_dependencies()
+        _, _, sql_use_case, _, _, _, _ = build_dependencies()
         body = req.get_json()
         request_model = SqlReadRequest.model_validate(body)
         response_model = sql_use_case.run(request_model)
@@ -87,7 +94,7 @@ def sql_read(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sql/write", methods=["POST"])
 def sql_write(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, _, _, command_use_case, _ = build_dependencies()
+        _, _, _, _, command_use_case, _, _ = build_dependencies()
         body = req.get_json()
         request_model = SqlWriteRequest.model_validate(body)
         response_model = command_use_case.run(request_model)
@@ -130,7 +137,7 @@ def sigrid_contrato_lineas(req: func.HttpRequest) -> func.HttpResponse:
     defecto (commit=false): no escribe, solo previsualiza filas y totales.
     """
     try:
-        _, _, _, _, _, contract_lines_use_case = build_dependencies()
+        _, _, _, _, _, contract_lines_use_case, _ = build_dependencies()
         body = req.get_json()
         request_model = AddContractLinesRequest.model_validate(body)
         response_model = contract_lines_use_case.run(request_model)
@@ -158,10 +165,54 @@ def sigrid_contrato_lineas(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 
+@app.route(route="sigrid/albaran", methods=["POST"])
+def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Crea un albaran de compra (recepcion) a partir de un contrato de compra
+    existente, localizado por (codigo de contrato + codigo de obra + CIF del
+    proveedor). Replica TODAS las lineas del contrato: las recibidas con su
+    cantidad, el resto con cantidad 0. Inserta la cabecera (con + dca), las
+    lineas (dcapro), la trazabilidad contrato->albaran (ctrprodes), los
+    movimientos de stock (mov), actualiza ctrpro.canser y recalcula los
+    estados estser/estfac de la cabecera del contrato.
+
+    DRY-RUN por defecto (commit=false): no escribe, solo previsualiza la
+    cabecera resultante, lineas, movimientos de stock y nuevos estados del
+    contrato, reservando los identificadores que se usarian.
+    """
+    try:
+        _, _, _, _, _, _, albaran_use_case = build_dependencies()
+        body = req.get_json()
+        request_model = AddPurchaseAlbaranRequest.model_validate(body)
+        response_model = albaran_use_case.run(request_model)
+        return json_response(response_model)
+    except ValidationError as exc:
+        logger.warning("ValidationError en sigrid/albaran: %s", exc)
+        return error_response(
+            "Solicitud invalida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/albaran: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/albaran")
+        return error_response(
+            "Error interno ejecutando sigrid/albaran.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
 @app.route(route="documents/read", methods=["POST"])
 def documents_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, _, document_use_case, _, _ = build_dependencies()
+        _, _, _, document_use_case, _, _, _ = build_dependencies()
         body = req.get_json()
         request_model = DocumentReadRequest.model_validate(body)
         response_model = document_use_case.run(request_model)

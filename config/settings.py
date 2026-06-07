@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     applock_timeout_ms: int = Field(10000, alias="APPLOCK_TIMEOUT_MS")
     domain_write_max_retries: int = Field(3, alias="DOMAIN_WRITE_MAX_RETRIES")
 
+    # Empleado (empide) por defecto en la cabecera de un albaran creado por la
+    # API; sobreescribible por peticion. 2425207 = GRIS MARTINEZ, PABLO.
+    sigrid_albaran_empide: int = Field(2425207, alias="SIGRID_ALBARAN_EMPIDE")
+
     model_config = SettingsConfigDict(
         extra="ignore",
         case_sensitive=False,
