@@ -8,11 +8,13 @@ import azure.functions as func
 from pydantic import ValidationError
 
 from application.use_cases.add_contract_lines_use_case import AddContractLinesUseCase
+from application.use_cases.create_direct_albaran_use_case import CreateDirectAlbaranUseCase
 from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
 from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
 from application.use_cases.read_document_use_case import ReadDocumentUseCase
 from config.settings import Settings, get_settings
+from domain.models.albaran_directo_models import AddDirectAlbaranRequest
 from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
@@ -204,6 +206,46 @@ def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
         logger.exception("Error inesperado en sigrid/albaran")
         return error_response(
             "Error interno ejecutando sigrid/albaran.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
+@app.route(route="sigrid/albaran-directo", methods=["POST"])
+def sigrid_albaran_directo(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Crea un albaran de compra DIRECTO (no asociado a un contrato). El proveedor
+    se resuelve por CIF, la obra por su codigo, y cada linea aporta producto +
+    cantidad + precio (almacen/IVA/cuenta se heredan de la ultima dcapro del
+    producto, salvo override). Inserta con + dca + dcapro + mov (NO ctrprodes,
+    NO toca canser ni estados de contrato). DRY-RUN por defecto.
+    """
+    try:
+        deps = build_dependencies()
+        settings, repository = deps[0], deps[1]
+        use_case = CreateDirectAlbaranUseCase(repository, settings)
+        body = req.get_json()
+        request_model = AddDirectAlbaranRequest.model_validate(body)
+        response_model = use_case.run(request_model)
+        return json_response(response_model)
+    except ValidationError as exc:
+        logger.warning("ValidationError en sigrid/albaran-directo: %s", exc)
+        return error_response(
+            "Solicitud invalida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/albaran-directo: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/albaran-directo")
+        return error_response(
+            "Error interno ejecutando sigrid/albaran-directo.",
             status_code=500,
             details={"type": type(exc).__name__, "exception": str(exc)},
         )
