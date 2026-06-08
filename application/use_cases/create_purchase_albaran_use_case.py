@@ -73,14 +73,15 @@ class CreatePurchaseAlbaranUseCase:
     contrato de compra existente, replicando fielmente lo que hace Sigrid:
 
       - Inserta el concepto (con) + cabecera (dca), con `cod` de la serie AC.
-      - Copia TODAS las lineas del contrato como `dcapro` (las recibidas con su
-        cantidad; el resto con can=0), enlazandolas al contrato por
+      - Crea como `dcapro` SOLO las lineas indicadas en `lineas_recibidas`
+        (las no indicadas NO se replican), enlazandolas al contrato por
         docoritip/docoriide/linoriide.
-      - Crea el enlace contrato->albaran en `ctrprodes`.
-      - Genera el ledger de stock `mov` (una fila por linea), recalculando
-        almcan (stock) y almpma (PMP) en orden por (producto, almacen).
+      - Crea el enlace contrato->albaran en `ctrprodes` (una fila por linea).
+      - Genera el ledger de stock `mov` (una fila por linea incluida),
+        recalculando almcan (stock) y almpma (PMP) en orden por (producto, almacen).
       - Actualiza `ctrpro.canser` de las lineas servidas y recalcula
-        `ctr.estser`/`ctr.estfac`.
+        `ctr.estser`/`ctr.estfac` (sumando sobre TODAS las lineas del contrato,
+        no solo las del albaran).
 
     DRY-RUN por defecto: no escribe; devuelve el preview completo. El COMMIT
     requiere SIGRID_DOMAIN_WRITE_ENABLED y base permitida; va en UNA transaccion
@@ -234,7 +235,10 @@ class CreatePurchaseAlbaranUseCase:
                 )
             received_map[rl.ctrpro_ide] = received_map.get(rl.ctrpro_ide, 0.0) + float(rl.cantidad)
         if not received_map:
-            warnings.append("No se indico ninguna linea recibida: el albaran se creara con todas las lineas a can=0.")
+            raise ValueError(
+                "Debes indicar al menos una linea en 'lineas_recibidas': el albaran "
+                "solo incluye las lineas indicadas."
+            )
         for line_ide, qty in received_map.items():
             line = line_by_ide[line_ide]
             pend = _r2(line.get("can")) - _r2(line.get("canser"))
@@ -276,7 +280,11 @@ class CreatePurchaseAlbaranUseCase:
         sum_iva = 0.0
         served_updates: list[tuple[int, float]] = []  # (ctrpro_ide, recibido) para canser += recibido
 
-        for i, line in enumerate(contract_lines):
+        # El albaran SOLO incluye las lineas indicadas en lineas_recibidas, en el
+        # orden del contrato (por pos). Las no indicadas no se replican.
+        lines_to_process = [l for l in contract_lines if int(l["ide"]) in received_map]
+
+        for i, line in enumerate(lines_to_process):
             line_ide = int(line["ide"])
             proide = int(line.get("proide") or 0)
             almide = int(line.get("almide") or ctr_almide)
@@ -460,7 +468,8 @@ class CreatePurchaseAlbaranUseCase:
         totales = {
             "impbru": sum_tot, "impnet": sum_tot, "totbas": sum_tot,
             "totiva": sum_iva, "totdoc": tot_doc, "tot": tot_doc, "totpag": tot_doc,
-            "n_lineas": len(contract_lines), "n_recibidas": len(served_updates),
+            "n_lineas": len(dcapro_rows), "n_recibidas": len(served_updates),
+            "n_lineas_contrato": len(contract_lines),
         }
         contrato_info = {
             "ctride": ctride, "obride": obride, "cod_contrato": request.cod_contrato,
