@@ -47,3 +47,7 @@ coverage.json
 # Los requirements sí se versionan, pese a la regla *.txt de arriba.
 !requirements.txt
 !requirements-dev.txt
+
+# Salidas de los scripts de consulta: datos de negocio y de contacto de
+# proveedores. No entran al repositorio.
+*.csv
