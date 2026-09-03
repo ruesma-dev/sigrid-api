@@ -1,61 +1,86 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## 2026-09-03 · Instalación del arnés y spike de `ruesma_rep`
+## F-003 · El guardia valida también las bases nombradas dentro del SQL
 
-**Rama:** `chore/instalar-arnes` (no es rama de feature: la instalación del
-arnés no pasa por el flujo SDD).
+| | |
+|---|---|
+| **Estado** | `in_progress` · rigor `critico` |
+| **Rama** | `feature/F-003-guardia-bases-cruzadas` |
+| **Spec** | `specs/F-003-guardia-bases-cruzadas/` (R1–R11) |
+| **Implementación** | [`progress/impl_F-003.md`](impl_F-003.md) |
+| **Revisión** | [`progress/review_F-003.md`](review_F-003.md) — **RECHAZADO en la pasada 1** |
+| **Condición innegociable del humano** | «No puede fallar la escritura/lectura que se hace ahora» |
 
-### Hecho
+### Dónde está
 
-1. **Arnés v1.7.8 instalado y adaptado** (commit `240257d`). `bash
-   harness/init.sh` termina en **ENTORNO LISTO**: 341 tests en verde, 1 skip;
-   `ruff` avisa de 79 puntos de deuda previa, que no bloquean
-   (`LINT_BLOQUEA=0`, como recomienda la guía para repos con historia).
-   Se añadió `requirements-dev.txt` (pytest, ruff, coverage), que el arnés
-   necesita y el despliegue no.
+El código está hecho y el reviewer confirma que **la condición del humano se
+cumple**: comprobó por su cuenta que ninguna consulta legítima del ecosistema
+empieza a fallar, que los tests no se engañan (26 caen al neutralizar el
+detector) y que no se relajó ninguna defensa anterior. Lo que rechazó fue el
+**papeleo del rigor `critico`** y dos falsos positivos no previstos.
 
-2. **Spike de F-002 adelantado, solo con lecturas y una prueba de permisos que
-   no escribe filas.** Resultado en
-   **[`progress/explore_ruesma_rep.md`](explore_ruesma_rep.md)**. En corto:
-   - `ruesma_rep` es `READ_WRITE`, misma instancia que `ruesma`, sin
-     replicación, y el ERP le escribe ~200 filas cada día laborable.
-   - **`user_rw` ya puede insertar en `ruesma_rep.dbo.gra`.** No hace falta
-     ningún `GRANT`.
-   - La base documental tiene **una sola tabla**, `dbo.gra`, con índice único
-     por `(emp, cod)`.
-   - El motor es **SQL Server 2012**: `HASHBYTES` no sirve para el binario, el
-     `sha256` hay que calcularlo en Python.
+### Atendido de los seis cambios requeridos
 
-### Parada: el portero está en ROJO y hacen falta dos cosas del humano
+| # | Cambio | Estado |
+|---|---|---|
+| 1 | Campaña de mutación | **PENDIENTE** — es lo único que queda |
+| 2 | Completar «Evidencias» del impl | pendiente, necesita los datos de la campaña |
+| 3 | Marcar `tasks.md` | hecho (T1–T7, T9–T12; T8 queda por ser MANUAL) |
+| 4 | Reescribir este fichero con T8 y su comando | hecho, es esto |
+| 5 | Renombrar los tests a `test_f003_rN_...` | hecho, 106 tests recogidos por `-k f003` |
+| 6 | Anotar los dos falsos positivos | hecho, y además **corregidos** (ver abajo) |
 
-1. **Aprobar la spec de F-003** (`specs/F-003-guardia-bases-cruzadas/`), que
-   está en `spec_ready`. Con «F-003 aprobada, pásala a in_progress y continúa»
-   arranca el implementer.
-2. **Mergear `chore/instalar-arnes` a `dev`.** Mientras el arnés no esté en la
-   rama base, la puerta de cobertura compara la rama de feature contra un `dev`
-   sin arnés y mide **625 líneas cambiadas con 0 % de cobertura**, que son las
-   del propio arnés, no las de la feature. `bash harness/init.sh` termina en
-   rojo por eso y solo por eso. El merge lo hace el humano, nunca el agente.
+**Los dos falsos positivos se corrigieron en vez de solo anotarse**, porque van
+justo en la dirección de la condición del humano —que nada legítimo se rechace—
+y ninguno abre un agujero:
 
-### Pendiente de decisión del humano
+- `SELECT dbo.con.*` se leía como tres partes. Ahora una última parte vacía se
+  descarta, salvo la del medio de `base..tabla`, que sí cuenta.
+- `SELECT [Client's Name] ...` moría con «literal sin cerrar», porque el
+  apóstrofo dentro de un identificador entre corchetes arrancaba un literal
+  falso. Ahora el neutralizador conoce el corchete como delimitador, con su
+  escape `]]`.
 
-- **Hallazgo de seguridad**: `SqlWriteGuard` valida el campo `database` de la
-  petición, no las bases nombradas dentro del SQL. La política «`ruesma_rep`
-  no se escribe» no está realmente aplicada. Ver §3.3 del informe.
-- **`ALLOWED_DATABASES` incluye `master`** en la Function App desplegada.
+### Verificaciones MANUAL
+
+**T8 — comprobar contra la API ya desplegada que la lectura cruzada sigue
+funcionando.** Solo se puede hacer **después** de desplegar la feature, y la
+ejecuta el humano. Comando exacto:
+
+```bash
+cd C:/Users/pgris/PycharmProjects/albaranes-persistencia
+python scripts/diagnose_sigrid_contrato_docs.py
+```
+
+Ese script usa `LEFT JOIN {database_rep}.dbo.gra`, que es justo el patrón que
+el guardia nuevo tiene que seguir dejando pasar. **Criterio:** devuelve lo
+mismo que antes del despliegue, sin ningún error de «base de datos no
+permitida». Si fallara, la causa sería que `ruesma_rep` no está en
+`ALLOWED_DATABASES` de la Function App, no el guardia.
+
+### Lo siguiente, por orden
+
+1. `python -m harness.mutacion --feature F-003` con el árbol limpio (la campaña
+   paralela crea worktrees desde HEAD y aborta si hay cambios sin commitear).
+   Rigor `critico` exige **cero supervivientes**. Estimado: ~102 mutantes.
+2. Completar «Evidencias» del informe con mutantes, supervivientes, workers y
+   tiempo de la suite.
+3. Volver a pasar el reviewer.
+
+### Pendiente de decisión del humano, fuera de F-003
+
+- **`ALLOWED_DATABASES` incluye `master`** en la Function App desplegada, y
+  ningún consumidor lo necesita. Quitarlo es una línea de configuración.
 - **`MAX_ALLOWED_ROWS = 500000`** desplegado, frente a los 1.000 que documenta
-  `azure-apps/sigrid_api.md`.
-- Si se sigue adelante con el endpoint de adjuntar documento, hay que
-  actualizar `docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md`: sus
-  Q1, Q2, Q3 y Q6 ya están medidas, y la de SQL Server 2012 le cambia el
-  diseño de idempotencia.
-- **Corregir `azure-apps/`**: `dedicacion.md`, `partes.md` y `remesas.md`
-  llaman a `ruesma_rep` «réplica que no admite escritura». Está medido que es
-  falso.
-
-### No hecho, deliberadamente
-
-- **Ninguna fila escrita en Sigrid.** Las tres sentencias de prueba llevaban
-  `WHERE 1 = 0`.
-- F-001 y F-002 siguen en `pending`: el flujo SDD no se ha arrancado todavía.
+  `azure-apps/sigrid_api.md`. Uno de los dos está mal.
+- **`user_rw` tiene `UPDATE` sobre `ruesma_rep.dbo.gra`**, donde vive la única
+  copia de los 359.438 documentos, en una base con recuperación `SIMPLE`. No se
+  probó si tiene `DELETE`. Merece una conversación con quien administre el
+  motor.
+- **`azure-apps/sigrid_api.md` está modificado y sin commitear** en su
+  repositorio: §2.1 y §5.1, corregidas por esta feature.
+- **Mejora del arnés propuesta por el reviewer**: `init.sh` no avisa de que
+  falte `progress/mutacion_F-XXX.md` en rigor `critico` o `estandar`. Este
+  rechazo se habría evitado con ese aviso. Si se hace, hay que portarlo a
+  `arnes-base`.

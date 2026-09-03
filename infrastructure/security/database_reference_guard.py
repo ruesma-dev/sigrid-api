@@ -95,6 +95,14 @@ class DatabaseReferenceGuard:
         for match in cls._CADENA_RE.finditer(limpio):
             texto = match.group(0)
             partes = cls._partir(texto)
+            # Una última parte vacía significa que el punto final no separa dos
+            # identificadores, sino que lo sigue algo que no lo es: el caso
+            # real es `dbo.con.*`, SQL perfectamente válido que sin esto se
+            # leía como tres partes y se rechazaba. Ojo: solo se descarta la
+            # ÚLTIMA, porque en `base..tabla` la vacía es la del medio y ahí sí
+            # hay tres partes.
+            if len(partes) > 1 and not partes[-1]:
+                partes = partes[:-1]
             if len(partes) <= 2:
                 continue
             if len(partes) >= 4:
@@ -160,6 +168,30 @@ class DatabaseReferenceGuard:
 
         while indice < total:
             caracter = sql[indice]
+
+            # Un identificador entre corchetes se copia tal cual, y ANTES de
+            # mirar la comilla simple: dentro de `[Client's Name]` el apóstrofo
+            # es una letra más, no el principio de un literal. Sin esto, un
+            # identificador así arrancaba un literal falso que se comía el
+            # resto de la sentencia y acababa en «literal sin cerrar».
+            # SQL Server escapa el corchete de cierre duplicándolo (`]]`).
+            if caracter == "[":
+                fin = indice + 1
+                while fin < total:
+                    if sql[fin] == "]":
+                        if fin + 1 < total and sql[fin + 1] == "]":
+                            fin += 2
+                            continue
+                        break
+                    fin += 1
+                if fin >= total:
+                    raise DatabaseReferenceError(
+                        "la sentencia tiene un identificador entre corchetes sin cerrar; "
+                        "no se puede analizar con seguridad y se rechaza."
+                    )
+                salida.append(sql[indice : fin + 1])
+                indice = fin + 1
+                continue
 
             if caracter == "'":
                 fin = indice + 1

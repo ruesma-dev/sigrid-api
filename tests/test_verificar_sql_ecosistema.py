@@ -37,13 +37,13 @@ def escribir(carpeta: Path, nombre: str, contenido: str) -> Path:
 # --- extraer_sql ------------------------------------------------------------
 
 
-def test_reconoce_una_consulta_normal() -> None:
+def test_f003_r10_reconoce_una_consulta_normal() -> None:
     assert extraer_sql('sql = "SELECT ide FROM dbo.con WHERE tip = ?"') == [
         "SELECT ide FROM dbo.con WHERE tip = ?"
     ]
 
 
-def test_reconoce_una_consulta_de_varias_lineas() -> None:
+def test_f003_r10_reconoce_una_consulta_de_varias_lineas() -> None:
     texto = 'SQL = """\nSELECT ide, cod\nFROM dbo.con\nWHERE tip = ?\n"""'
     encontrados = extraer_sql(texto)
     assert len(encontrados) == 1
@@ -65,7 +65,7 @@ def test_reconoce_una_consulta_de_varias_lineas() -> None:
         '"   Comprueba en SSMS: SELECT TOP 5 cif FROM prv"',
     ],
 )
-def test_descarta_lo_que_no_es_sql_enviado(texto: str) -> None:
+def test_f003_r10_descarta_lo_que_no_es_sql_enviado(texto: str) -> None:
     """
     Cada uno de estos salió del ecosistema real y llenaba el informe de ruido.
     Un verificador con 42 falsos positivos no lo mira nadie.
@@ -84,7 +84,7 @@ def test_descarta_lo_que_no_es_sql_enviado(texto: str) -> None:
         "SELECT ide FROM $SigridBaseDocumental.dbo.gra",
     ],
 )
-def test_las_interpolaciones_se_sustituyen_por_el_peor_caso(sql: str) -> None:
+def test_f003_r10_las_interpolaciones_se_sustituyen_por_el_peor_caso(sql: str) -> None:
     """
     El nombre de la base viaja en una variable en los cinco scripts reales que
     la interpolan. Si el verificador no la sustituye, no ve nada.
@@ -95,7 +95,7 @@ def test_las_interpolaciones_se_sustituyen_por_el_peor_caso(sql: str) -> None:
 # --- revisar_fichero --------------------------------------------------------
 
 
-def test_ignora_un_fichero_que_no_habla_con_esta_api(tmp_path: Path) -> None:
+def test_f003_r10_ignora_un_fichero_que_no_habla_con_esta_api(tmp_path: Path) -> None:
     ruta = escribir(
         tmp_path,
         "pg_repository.py",
@@ -106,7 +106,7 @@ def test_ignora_un_fichero_que_no_habla_con_esta_api(tmp_path: Path) -> None:
     assert rechazos == []
 
 
-def test_acepta_la_lectura_cruzada_de_los_scripts_reales(tmp_path: Path) -> None:
+def test_f003_r8_acepta_la_lectura_cruzada_de_los_scripts_reales(tmp_path: Path) -> None:
     ruta = escribir(
         tmp_path,
         "diagnose.py",
@@ -118,7 +118,7 @@ def test_acepta_la_lectura_cruzada_de_los_scripts_reales(tmp_path: Path) -> None
     assert rechazos == []
 
 
-def test_delata_una_lectura_contra_una_base_ajena(tmp_path: Path) -> None:
+def test_f003_r7_delata_una_lectura_contra_una_base_ajena(tmp_path: Path) -> None:
     ruta = escribir(
         tmp_path, "malo.py", CONSUMIDOR + 'SQL = "SELECT ide FROM msdb.dbo.sysjobs"\n'
     )
@@ -127,7 +127,7 @@ def test_delata_una_lectura_contra_una_base_ajena(tmp_path: Path) -> None:
     assert "msdb" in rechazos[0][1]
 
 
-def test_delata_una_escritura_contra_la_documental(tmp_path: Path) -> None:
+def test_f003_r1_delata_una_escritura_contra_la_documental(tmp_path: Path) -> None:
     """La escritura se mide contra ALLOWED_WRITE_DATABASES, más estrecha."""
     ruta = escribir(
         tmp_path,
@@ -140,7 +140,7 @@ def test_delata_una_escritura_contra_la_documental(tmp_path: Path) -> None:
     assert "escritura" in rechazos[0][1]
 
 
-def test_una_lectura_de_la_documental_si_pasa(tmp_path: Path) -> None:
+def test_f003_r8_una_lectura_de_la_documental_si_pasa(tmp_path: Path) -> None:
     """Misma base, distinto verbo, distinta lista: es la asimetría del diseño."""
     ruta = escribir(
         tmp_path,
@@ -151,7 +151,7 @@ def test_una_lectura_de_la_documental_si_pasa(tmp_path: Path) -> None:
     assert rechazos == []
 
 
-def test_un_literal_partido_por_el_extractor_no_cuenta_como_rechazo(tmp_path: Path) -> None:
+def test_f003_r10_un_literal_partido_por_el_extractor_no_cuenta_como_rechazo(tmp_path: Path) -> None:
     """
     `print("... LIKE '%" + cif + "%'")` deja una comilla sin cerrar al
     extraerlo. Es ruido del extractor, no SQL que se envíe así.
@@ -168,7 +168,7 @@ def test_un_literal_partido_por_el_extractor_no_cuenta_como_rechazo(tmp_path: Pa
 # --- recorrer ---------------------------------------------------------------
 
 
-def test_no_entra_en_las_carpetas_ignoradas(tmp_path: Path) -> None:
+def test_f003_r10_no_entra_en_las_carpetas_ignoradas(tmp_path: Path) -> None:
     escribir(tmp_path, "bueno.py", "x = 1")
     escribir(tmp_path, ".venv/malo.py", "x = 1")
     escribir(tmp_path, "node_modules/malo.js", "x = 1")
@@ -180,7 +180,7 @@ def test_no_entra_en_las_carpetas_ignoradas(tmp_path: Path) -> None:
 # --- main -------------------------------------------------------------------
 
 
-def test_main_devuelve_cero_cuando_no_hay_nada_que_romper(tmp_path, capsys) -> None:
+def test_f003_r10_main_devuelve_cero_cuando_no_hay_nada_que_romper(tmp_path, capsys) -> None:
     escribir(
         tmp_path,
         "ok.py",
@@ -190,7 +190,7 @@ def test_main_devuelve_cero_cuando_no_hay_nada_que_romper(tmp_path, capsys) -> N
     assert "ninguna consulta del ecosistema sería rechazada" in capsys.readouterr().out
 
 
-def test_main_devuelve_uno_cuando_algo_se_rompe(tmp_path, capsys) -> None:
+def test_f003_r10_main_devuelve_uno_cuando_algo_se_rompe(tmp_path, capsys) -> None:
     escribir(
         tmp_path, "mal.py", CONSUMIDOR + 'SQL = "SELECT ide FROM msdb.dbo.sysjobs"\n'
     )
@@ -200,5 +200,5 @@ def test_main_devuelve_uno_cuando_algo_se_rompe(tmp_path, capsys) -> None:
     assert "msdb" in salida
 
 
-def test_main_avisa_si_la_raiz_no_existe(tmp_path, capsys) -> None:
+def test_f003_r10_main_avisa_si_la_raiz_no_existe(tmp_path, capsys) -> None:
     assert main(["--raiz", str(tmp_path / "no_existe")]) == 2

@@ -88,7 +88,7 @@ class TestConsultasRealesDelEcosistema:
             "SELECT name FROM master.dbo.spt_values WHERE type = ?",
         ],
     )
-    def test_las_consultas_que_hoy_funcionan_siguen_pasando(self, sql: str) -> None:
+    def test_f003_r8_las_consultas_que_hoy_funcionan_siguen_pasando(self, sql: str) -> None:
         guardia().validate(peticion(sql))
 
     @pytest.mark.parametrize(
@@ -101,7 +101,7 @@ class TestConsultasRealesDelEcosistema:
             "SELECT ide FROM dbo.gra WHERE nom = 'parte.firmado.pdf'",
         ],
     )
-    def test_las_consultas_de_una_y_dos_partes_ni_se_tocan(self, sql: str) -> None:
+    def test_f003_r5_las_consultas_de_una_y_dos_partes_ni_se_tocan(self, sql: str) -> None:
         guardia().validate(peticion(sql))
 
 
@@ -116,19 +116,19 @@ class TestConsultasRealesDelEcosistema:
         "SELECT ide FROM tempdb..cosa",
     ],
 )
-def test_rechaza_una_base_fuera_de_allowed_databases(sql: str) -> None:
+def test_f003_r7_rechaza_una_base_fuera_de_allowed_databases(sql: str) -> None:
     with pytest.raises(QueryValidationError) as excinfo:
         guardia().validate(peticion(sql))
     assert "lectura" in str(excinfo.value)
 
 
-def test_rechaza_los_nombres_de_cuatro_partes_tambien_en_lectura() -> None:
+def test_f003_r4_rechaza_los_nombres_de_cuatro_partes_tambien_en_lectura() -> None:
     with pytest.raises(QueryValidationError) as excinfo:
         guardia().validate(peticion("SELECT ide FROM servidor.ruesma.dbo.con"))
     assert "cuatro partes" in str(excinfo.value).lower()
 
 
-def test_si_se_quitara_ruesma_rep_de_la_lista_la_lectura_cruzada_se_rechaza() -> None:
+def test_f003_r7_si_se_quitara_ruesma_rep_de_la_lista_la_lectura_cruzada_se_rechaza() -> None:
     """
     Documenta la dependencia: la lectura cruzada de los scripts de diagnóstico
     funciona porque `ruesma_rep` está en ALLOWED_DATABASES. Si alguien la quita,
@@ -141,13 +141,13 @@ def test_si_se_quitara_ruesma_rep_de_la_lista_la_lectura_cruzada_se_rechaza() ->
         )
 
 
-def test_las_palabras_prohibidas_siguen_actuando() -> None:
+def test_f003_r10_las_palabras_prohibidas_siguen_actuando() -> None:
     with pytest.raises(QueryValidationError) as excinfo:
         guardia().validate(peticion("SELECT ide FROM dbo.con WHERE ide = 1 DROP TABLE dbo.con"))
     assert "no permitida" in str(excinfo.value)
 
 
-def test_la_sentencia_unica_sigue_actuando_antes_que_todo_lo_demas() -> None:
+def test_f003_r10_la_sentencia_unica_sigue_actuando_antes_que_todo_lo_demas() -> None:
     with pytest.raises(QueryValidationError) as excinfo:
         guardia().validate(peticion("SELECT ide FROM dbo.con; SELECT ide FROM dbo.gra"))
     assert "única sentencia" in str(excinfo.value)

@@ -147,11 +147,34 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
    alcance de F-003.
 3. **Merge de la rama a `dev`**, que lo hace el humano.
 
-## 7 · Deuda que se deja anotada
+## 7 · Falsos positivos: los previstos, y los dos que encontró el reviewer
+
+**Corregidos tras la pasada 1 de revisión** (los encontró el reviewer probando
+47 formas de T-SQL, no una lectura del código):
+
+- **`SELECT dbo.con.*`** se leía como tres partes, siendo SQL válido y
+  corriente. Ahora se descarta la última parte cuando está vacía. Solo la
+  última: en `base..tabla` la vacía es la del medio y ahí sí hay tres partes,
+  y `ruesma_rep.dbo.gra.*` sigue detectándose.
+- **`SELECT [Client's Name] FROM dbo.con`** moría con «literal sin cerrar»:
+  el apóstrofo dentro de un identificador entre corchetes arrancaba un literal
+  falso que se comía el resto de la sentencia. Ahora el neutralizador conoce el
+  corchete como delimitador, con su escape `]]`.
+
+Se corrigieron en vez de solo anotarse porque van en la dirección de la
+condición del humano —que nada legítimo se rechace— y ninguno abre un agujero:
+ambos **reducen** los rechazos sin ampliar lo que pasa el filtro.
+
+**Deuda que sí se queda, y con motivo:**
 
 - El detector **rechaza `base.esquema.tabla.columna`**, que es SQL válido de
-  cuatro partes sin ser un servidor vinculado. Nadie lo usa en el ecosistema
-  (verificado en §3), y el mensaje de error es explícito, pero si algún día
-  aparece, el arreglo es distinguir por la posición dentro de la sentencia.
+  cuatro partes sin ser un servidor vinculado, y `t.col.value(...)` /
+  `c.doc.nodes(...)` de XML y CLR. Nadie los usa en el ecosistema (verificado
+  en §3) y el mensaje de error es explícito. Distinguirlos exigiría saber la
+  posición dentro de la sentencia, es decir, un analizador: el precio no
+  compensa mientras nadie los escriba.
+- **Punto ciego del verificador**, señalado por el reviewer: un fragmento sin
+  verbo (`"JOIN ruesma_rep.dbo.gra ..."` concatenado aparte) no llega a ser
+  candidato. Lo cubre el inventario manual del §3a, no el script.
 - Los avisos `RUF012` y `SIM102` de los dos guardias son **anteriores** a esta
   feature y no se tocan: no es su sitio.

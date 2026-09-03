@@ -53,7 +53,7 @@ def peticion(sql: str, database: str = "ruesma") -> PeticionDoble:
 # --- R1: el agujero que cierra esta feature ---------------------------------
 
 
-def test_rechaza_escribir_en_la_documental_aunque_el_campo_database_este_permitido() -> None:
+def test_f003_r1_rechaza_escribir_en_la_documental_aunque_el_campo_database_este_permitido() -> None:
     """
     Es exactamente la petición con la que se midió el agujero el 2026-09-03:
     database permitido, pero la sentencia nombra la base documental.
@@ -79,12 +79,12 @@ def test_rechaza_escribir_en_la_documental_aunque_el_campo_database_este_permiti
         "INSERT INTO master.dbo.spt_monitor (lastrun) SELECT GETDATE() WHERE 1 = 0",
     ],
 )
-def test_rechaza_cualquier_forma_de_nombrar_una_base_no_permitida(sql: str) -> None:
+def test_f003_r3_rechaza_cualquier_forma_de_nombrar_una_base_no_permitida(sql: str) -> None:
     with pytest.raises(WriteValidationError):
         guardia().validate(peticion(sql))
 
 
-def test_rechaza_aunque_la_sentencia_culpable_no_sea_la_primera() -> None:
+def test_f003_r1_rechaza_aunque_la_sentencia_culpable_no_sea_la_primera() -> None:
     lote = PeticionDoble(
         database="ruesma",
         statements=[
@@ -116,11 +116,11 @@ def test_rechaza_aunque_la_sentencia_culpable_no_sea_la_primera() -> None:
         "UPDATE g SET g.res = ? FROM dbo.gra g WHERE g.ide = ?",
     ],
 )
-def test_sigue_aceptando_las_escrituras_normales(sql: str) -> None:
+def test_f003_r10_sigue_aceptando_las_escrituras_normales(sql: str) -> None:
     guardia().validate(peticion(sql))
 
 
-def test_acepta_la_documental_si_alguien_la_pone_en_la_lista() -> None:
+def test_f003_r2_acepta_la_documental_si_alguien_la_pone_en_la_lista() -> None:
     """
     El guardia aplica la política, no la decide. Si mañana se decide abrir la
     documental, se abre en la configuración y el guardia obedece.
@@ -133,7 +133,7 @@ def test_acepta_la_documental_si_alguien_la_pone_en_la_lista() -> None:
 # --- R4 ---------------------------------------------------------------------
 
 
-def test_rechaza_los_nombres_de_cuatro_partes() -> None:
+def test_f003_r4_rechaza_los_nombres_de_cuatro_partes() -> None:
     with pytest.raises(WriteValidationError) as excinfo:
         guardia(allowed_write_databases=["ruesma", "servidor"]).validate(
             peticion("INSERT INTO servidor.ruesma.dbo.gra (ide) VALUES (?)")
@@ -144,7 +144,7 @@ def test_rechaza_los_nombres_de_cuatro_partes() -> None:
 # --- R6: el mensaje ayuda y no filtra nada ----------------------------------
 
 
-def test_el_mensaje_nombra_la_base_y_la_lista_sin_filtrar_credenciales() -> None:
+def test_f003_r6_el_mensaje_nombra_la_base_y_la_lista_sin_filtrar_credenciales() -> None:
     with pytest.raises(WriteValidationError) as excinfo:
         guardia().validate(peticion("INSERT INTO ruesma_rep.dbo.gra (ide) VALUES (?)"))
     mensaje = str(excinfo.value).lower()
@@ -157,14 +157,14 @@ def test_el_mensaje_nombra_la_base_y_la_lista_sin_filtrar_credenciales() -> None
 # --- Las comprobaciones anteriores siguen mandando --------------------------
 
 
-def test_la_lista_de_prefijos_sigue_actuando_antes() -> None:
+def test_f003_r10_la_lista_de_prefijos_sigue_actuando_antes() -> None:
     """Un SELECT se rechaza por prefijo, no por base: el orden no cambió."""
     with pytest.raises(WriteValidationError) as excinfo:
         guardia().validate(peticion("SELECT ide FROM ruesma_rep.dbo.gra"))
     assert "comiencen por" in str(excinfo.value)
 
 
-def test_el_where_obligatorio_sigue_actuando() -> None:
+def test_f003_r10_el_where_obligatorio_sigue_actuando() -> None:
     with pytest.raises(WriteValidationError) as excinfo:
         guardia().validate(peticion("UPDATE dbo.gra SET res = ?"))
     assert "WHERE" in str(excinfo.value)

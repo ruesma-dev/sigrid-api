@@ -32,7 +32,7 @@ PERMITIDAS = ["ruesma"]
         "SELECT t.valor FROM dbo.tabla t WHERE t.ide = ?",
     ],
 )
-def test_sin_referencias_a_otra_base(sql: str) -> None:
+def test_f003_r5_sin_referencias_a_otra_base(sql: str) -> None:
     assert DatabaseReferenceGuard.extract_database_references(sql) == []
     DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="escritura")
 
@@ -57,11 +57,11 @@ def test_sin_referencias_a_otra_base(sql: str) -> None:
         ("SELECT ide FROM master.dbo.spt_values", "master"),
     ],
 )
-def test_detecta_la_base_de_un_nombre_de_tres_partes(sql: str, esperada: str) -> None:
+def test_f003_r3_detecta_la_base_de_un_nombre_de_tres_partes(sql: str, esperada: str) -> None:
     assert DatabaseReferenceGuard.extract_database_references(sql) == [esperada]
 
 
-def test_detecta_varias_bases_distintas_sin_repetir() -> None:
+def test_f003_r3_detecta_varias_bases_distintas_sin_repetir() -> None:
     sql = (
         "SELECT n.ide FROM ruesma.dbo.gra n "
         "JOIN ruesma_rep.dbo.gra d ON d.cod = n.cod "
@@ -73,7 +73,7 @@ def test_detecta_varias_bases_distintas_sin_repetir() -> None:
 # --- R1 / R2 / R7: la lista blanca ------------------------------------------
 
 
-def test_rechaza_una_base_fuera_de_la_lista() -> None:
+def test_f003_r1_rechaza_una_base_fuera_de_la_lista() -> None:
     sql = "INSERT INTO ruesma_rep.dbo.gra (ide) SELECT 0 WHERE 1 = 0"
     with pytest.raises(DatabaseReferenceError) as excinfo:
         DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="escritura")
@@ -84,25 +84,25 @@ def test_rechaza_una_base_fuera_de_la_lista() -> None:
     assert "escritura" in mensaje
 
 
-def test_acepta_una_base_que_si_esta_en_la_lista() -> None:
+def test_f003_r2_acepta_una_base_que_si_esta_en_la_lista() -> None:
     sql = "INSERT INTO ruesma.dbo.gra (ide) SELECT 0 WHERE 1 = 0"
     DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="escritura")
 
 
-def test_acepta_lectura_cruzada_cuando_las_dos_bases_estan_permitidas() -> None:
+def test_f003_r8_acepta_lectura_cruzada_cuando_las_dos_bases_estan_permitidas() -> None:
     sql = "SELECT d.cod FROM ruesma_rep.dbo.gra d JOIN ruesma.dbo.gra n ON n.cod = d.cod"
     DatabaseReferenceGuard.validate(
         sql, allowed=["ruesma", "ruesma_rep"], contexto="lectura"
     )
 
 
-def test_la_comparacion_no_distingue_mayusculas() -> None:
+def test_f003_r3_la_comparacion_no_distingue_mayusculas() -> None:
     sql = "SELECT ide FROM RUESMA.DBO.CON"
     DatabaseReferenceGuard.validate(sql, allowed=["ruesma"], contexto="lectura")
     DatabaseReferenceGuard.validate(sql, allowed=["RuEsMa"], contexto="lectura")
 
 
-def test_lista_vacia_rechaza_cualquier_referencia_cualificada() -> None:
+def test_f003_r1_lista_vacia_rechaza_cualquier_referencia_cualificada() -> None:
     sql = "SELECT ide FROM ruesma.dbo.con"
     with pytest.raises(DatabaseReferenceError):
         DatabaseReferenceGuard.validate(sql, allowed=[], contexto="escritura")
@@ -120,7 +120,7 @@ def test_lista_vacia_rechaza_cualquier_referencia_cualificada() -> None:
         "INSERT INTO otro.ruesma.dbo.gra (ide) SELECT 0 WHERE 1 = 0",
     ],
 )
-def test_rechaza_siempre_los_nombres_de_cuatro_partes(sql: str) -> None:
+def test_f003_r4_rechaza_siempre_los_nombres_de_cuatro_partes(sql: str) -> None:
     with pytest.raises(DatabaseReferenceError) as excinfo:
         DatabaseReferenceGuard.validate(sql, allowed=["ruesma", "servidor", "otro"], contexto="lectura")
     assert "cuatro partes" in str(excinfo.value).lower() or "servidor" in str(excinfo.value).lower()
@@ -140,11 +140,11 @@ def test_rechaza_siempre_los_nombres_de_cuatro_partes(sql: str) -> None:
         "SELECT ide FROM dbo.gra WHERE res = 'no es ''ruesma_rep.dbo.gra'' de verdad'",
     ],
 )
-def test_los_literales_y_comentarios_no_cuentan(sql: str) -> None:
+def test_f003_r5_los_literales_y_comentarios_no_cuentan(sql: str) -> None:
     assert DatabaseReferenceGuard.extract_database_references(sql) == []
 
 
-def test_una_referencia_real_junto_a_un_literal_si_cuenta() -> None:
+def test_f003_r3_una_referencia_real_junto_a_un_literal_si_cuenta() -> None:
     sql = "SELECT ide FROM ruesma_rep.dbo.gra WHERE nom = 'a.b.c'"
     assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
 
@@ -152,7 +152,7 @@ def test_una_referencia_real_junto_a_un_literal_si_cuenta() -> None:
 # --- R11: ante la duda, rechaza ---------------------------------------------
 
 
-def test_un_literal_sin_cerrar_no_deja_pasar_la_referencia_de_despues() -> None:
+def test_f003_r11_un_literal_sin_cerrar_no_deja_pasar_la_referencia_de_despues() -> None:
     """
     Un SQL con una comilla sin cerrar es basura que el motor rechazaría, pero el
     detector no puede saber dónde acaba el literal. Ante la duda, rechaza.
@@ -162,11 +162,66 @@ def test_un_literal_sin_cerrar_no_deja_pasar_la_referencia_de_despues() -> None:
         DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="escritura")
 
 
-def test_un_comentario_de_bloque_sin_cerrar_tambien_rechaza() -> None:
+def test_f003_r11_un_comentario_de_bloque_sin_cerrar_tambien_rechaza() -> None:
     sql = "SELECT ide FROM dbo.gra /* sin cerrar"
     with pytest.raises(DatabaseReferenceError):
         DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="escritura")
 
 
-def test_el_sql_vacio_no_rompe() -> None:
+def test_f003_r5_el_sql_vacio_no_rompe() -> None:
     assert DatabaseReferenceGuard.extract_database_references("") == []
+
+
+# --- Falsos positivos que encontró el reviewer (F-003, pasada 1) -------------
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # `esquema.tabla.*` es SQL válido y se leía como tres partes.
+        "SELECT dbo.con.* FROM dbo.con",
+        "SELECT dbo.con.*, dbo.obr.* FROM dbo.con JOIN dbo.obr ON obr.ide = con.ide",
+    ],
+)
+def test_f003_r5_el_asterisco_cualificado_no_es_una_base(sql: str) -> None:
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r3_el_asterisco_no_esconde_una_base_de_verdad() -> None:
+    """Descartar la parte vacía final no puede servir para colarse."""
+    sql = "SELECT ruesma_rep.dbo.gra.* FROM ruesma_rep.dbo.gra"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # Un apóstrofo dentro de corchetes es una letra, no un literal.
+        "SELECT [Client's Name] FROM dbo.con",
+        "SELECT ide FROM dbo.con WHERE [Owner's Id] = ?",
+        # Y con un literal de verdad detrás, que sí debe neutralizarse.
+        "SELECT [Client's Name] FROM dbo.con WHERE res = 'a.b.c'",
+    ],
+)
+def test_f003_r5_un_apostrofo_entre_corchetes_no_abre_un_literal(sql: str) -> None:
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r3_una_base_sigue_viendose_junto_a_un_identificador_con_apostrofo() -> None:
+    sql = "SELECT [Client's Name] FROM ruesma_rep.dbo.gra"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
+
+
+def test_f003_r11_un_corchete_sin_cerrar_rechaza() -> None:
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(
+            "SELECT [sin cerrar FROM dbo.con", allowed=PERMITIDAS, contexto="lectura"
+        )
+
+
+def test_f003_r3_el_corchete_de_cierre_escapado_no_confunde() -> None:
+    """SQL Server escapa `]` duplicándolo dentro del identificador."""
+    sql = "SELECT [raro]]nombre] FROM ruesma_rep.dbo.gra"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
