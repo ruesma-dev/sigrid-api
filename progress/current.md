@@ -27,6 +27,17 @@ arnés no pasa por el flujo SDD).
    - El motor es **SQL Server 2012**: `HASHBYTES` no sirve para el binario, el
      `sha256` hay que calcularlo en Python.
 
+### Parada: el portero está en ROJO y hacen falta dos cosas del humano
+
+1. **Aprobar la spec de F-003** (`specs/F-003-guardia-bases-cruzadas/`), que
+   está en `spec_ready`. Con «F-003 aprobada, pásala a in_progress y continúa»
+   arranca el implementer.
+2. **Mergear `chore/instalar-arnes` a `dev`.** Mientras el arnés no esté en la
+   rama base, la puerta de cobertura compara la rama de feature contra un `dev`
+   sin arnés y mide **625 líneas cambiadas con 0 % de cobertura**, que son las
+   del propio arnés, no las de la feature. `bash harness/init.sh` termina en
+   rojo por eso y solo por eso. El merge lo hace el humano, nunca el agente.
+
 ### Pendiente de decisión del humano
 
 - **Hallazgo de seguridad**: `SqlWriteGuard` valida el campo `database` de la

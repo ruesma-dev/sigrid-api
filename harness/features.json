@@ -58,7 +58,7 @@
         "Tests unitarios sin red ni BBDD que fijen cada caso",
         "bash harness/init.sh en verde"
       ],
-      "status": "pending",
+      "status": "spec_ready",
       "sdd": true,
       "rigor": "critico",
       "priority": 3,

@@ -10,7 +10,7 @@ Resumen: **4 features**, 3 abiertas, 1 terminadas.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-003 | El guardia de escritura debe validar tambien las bases nombradas dentro del SQL | 3 | pendiente | critico | `feature/F-003-guardia-bases-cruzadas` |
+| F-003 | El guardia de escritura debe validar tambien las bases nombradas dentro del SQL | 3 | spec lista | critico | `feature/F-003-guardia-bases-cruzadas` |
 | F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | pendiente | critico | `feature/F-004-endpoint-concepto-grafico` |
 
 ## Terminadas
@@ -29,7 +29,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-003 · El guardia de escritura debe validar tambien las bases nombradas dentro del SQL
 
-estado **pendiente** · prioridad 3 · rigor `critico` · SDD sí · rama `feature/F-003-guardia-bases-cruzadas`
+estado **spec lista** · prioridad 3 · rigor `critico` · SDD sí · rama `feature/F-003-guardia-bases-cruzadas`
 
 SqlWriteGuard valida el campo 'database' de la peticion, pero no los identificadores de base que aparecen dentro de la sentencia. Por eso hoy se puede escribir en ruesma_rep pidiendo database='ruesma' y nombrando ruesma_rep.dbo.gra en el SQL: medido el 2026-09-03. La politica de ALLOWED_WRITE_DATABASES no esta realmente aplicada. Va antes que F-004 porque F-004 depende de que la documental siga cerrada a sql/write.
 
