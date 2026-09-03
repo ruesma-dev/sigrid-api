@@ -39,7 +39,7 @@ RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 if str(RAIZ_PROYECTO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROYECTO))
 
-from infrastructure.security.database_reference_guard import (  # noqa: E402
+from infrastructure.security.database_reference_guard import (
     DatabaseReferenceError,
     DatabaseReferenceGuard,
 )
@@ -54,6 +54,10 @@ CARPETAS_IGNORADAS = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".idea", ".vscode",
     "dist", ".dist", "build", ".pytest_cache", ".ruff_cache", "site-packages",
     ".tmp", "worktrees",
+    # Los tests no envían SQL a la API: llevan sentencias de ejemplo, muchas
+    # pensadas justo para que el guardia las rechace. Sin esta exclusión, el
+    # verificador se delata a sí mismo y el informe deja de significar nada.
+    "tests",
 }
 
 # Solo interesa el SQL que va a ESTA API. Media docena de proyectos del
@@ -66,8 +70,14 @@ SENAL_DE_LA_API = re.compile(
 )
 
 # Una cadena que parece SQL: lleva un verbo y una cláusula de tabla.
+#
+# `VALUES` está en la segunda alternancia porque sin él un
+# `INSERT INTO t (a) VALUES (?)` no casaba —el `INTO` lo consume el primer
+# grupo y no queda ninguna otra palabra clave detrás—, y el verificador se
+# saltaba en silencio las escrituras, que son justo las que más importan. Lo
+# encontró `tests/test_verificar_sql_ecosistema.py`, no una lectura del código.
 PARECE_SQL = re.compile(
-    r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|WITH)\b.*?\b(FROM|INTO|JOIN|SET)\b",
+    r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|WITH)\b.*?\b(FROM|INTO|JOIN|SET|VALUES)\b",
     re.IGNORECASE | re.DOTALL,
 )
 ES_ESCRITURA = re.compile(r"^\s*(INSERT|UPDATE|DELETE|MERGE)\b", re.IGNORECASE)
@@ -165,7 +175,7 @@ def recorrer(raiz: Path):
         yield ruta
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--raiz",
@@ -175,7 +185,7 @@ def main() -> int:
     parser.add_argument(
         "--detalle", action="store_true", help="Muestra el SQL completo de cada rechazo."
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     raiz = Path(args.raiz)
     if not raiz.is_dir():

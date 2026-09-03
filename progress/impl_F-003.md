@@ -8,7 +8,7 @@
 |---|---|
 | **Rama** | `feature/F-003-guardia-bases-cruzadas` |
 | **Rigor** | `critico` |
-| **Portero** | `bash harness/init.sh` en **ENTORNO LISTO**, 418 tests |
+| **Portero** | `bash harness/init.sh` en **ENTORNO LISTO**: 438 tests, cobertura **98,2 %** sobre las líneas cambiadas (umbral 80 %) |
 | **Condición del humano** | «No puede fallar la escritura/lectura que se hace ahora» — **verificada, no supuesta**. Ver §3 |
 
 ---
@@ -72,12 +72,24 @@ guardia real con la configuración **real** de la Function App
 `ALLOWED_WRITE_DATABASES = ruesma`). Resultado:
 
 ```
-Ficheros recorridos: 14396
-De ellos, hablan con esta API: 281
+Ficheros recorridos: 13633
+De ellos, hablan con esta API: 256
 
 RESULTADO: ninguna consulta del ecosistema sería rechazada por el
 guardia nuevo. Lo que hoy funciona seguirá funcionando.
 ```
+
+**Y el verificador tiene sus propios tests**
+(`tests/test_verificar_sql_ecosistema.py`, 20 casos), porque una verificación
+que se rompe en silencio es peor que no tenerla: seguiría diciendo «ningún
+rechazo» sin haber mirado nada.
+
+Esos tests **encontraron un fallo real que una lectura del código no vio**: el
+extractor no reconocía `INSERT INTO t (a) VALUES (?)` como SQL —el `INTO` lo
+consumía el primer grupo de la expresión regular y no quedaba ninguna otra
+palabra clave detrás—, así que **el verificador se estaba saltando en silencio
+todas las escrituras con `VALUES`**, que son justo las que más importan.
+Corregido, el barrido se repitió y siguió dando cero.
 
 Se ejecuta con `python scripts/verificar_sql_ecosistema.py` y devuelve 1 si
 algo se rompería, así que sirve igual la próxima vez que se toque una lista
@@ -100,7 +112,8 @@ verificador.
 **Creados:** `infrastructure/security/database_reference_guard.py`,
 `tests/test_database_reference_guard.py` (37 casos),
 `tests/test_sql_write_guard_bases.py` (21), `tests/test_sql_query_guard_bases.py`
-(18), `scripts/verificar_sql_ecosistema.py`.
+(18), `scripts/verificar_sql_ecosistema.py` y
+`tests/test_verificar_sql_ecosistema.py` (20).
 
 **Modificados:** `sql_write_guard.py` y `sql_query_guard.py` (import + una
 llamada al final de la validación, sin tocar el orden de las comprobaciones
@@ -115,9 +128,9 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 
 | Qué | Resultado |
 |---|---|
-| Suite completa | **418 pasan**, 1 skip. Los 341 previos siguen en verde |
-| `ruff` | **79 avisos**, los mismos de antes. Los 6 que introduje se corrigieron |
-| Puerta de cobertura | mide tras el commit; antes daba N/A por no haber commiteado |
+| Suite completa | **438 pasan**, 1 skip. Los 341 previos siguen en verde |
+| `ruff` | **79 avisos**, los mismos de antes. Los 7 que introduje se corrigieron |
+| Puerta de cobertura | **98,2 %** (219/223 líneas cambiadas), umbral 80 % |
 | Puerta de tamaño | requirements 83/150, design 142/250 |
 | T7 · `scripts/` de este repo | ningún nombre de tres partes |
 | T8 · MANUAL | **pendiente del humano**, ver §6 |
