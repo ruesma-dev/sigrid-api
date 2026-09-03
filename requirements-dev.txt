@@ -1,0 +1,7 @@
+# requirements-dev.txt
+# Herramientas de desarrollo y del arnés. NO se despliegan con la Function App
+# (el despliegue usa requirements.txt): sin esto, harness/init.sh degrada a
+# avisos las puertas de lint, tests y cobertura.
+pytest==9.1.1
+ruff
+coverage

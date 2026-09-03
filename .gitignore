@@ -29,3 +29,21 @@ terraform.tfstate.backup
 *.pdf
 *.txt
 *.zip
+
+# >>> ARNES-BASE: reglas anadidas por el instalador del arnes. >>>
+.arnes_cache/
+.coverage
+coverage.json
+*.docx
+*.xlsx
+*.pptx
+*.doc
+*.xls
+*.ppt
+*.py[cod]
+.ruff_cache/
+# <<< ARNES-BASE: fin del bloque. <<<
+
+# Los requirements sí se versionan, pese a la regla *.txt de arriba.
+!requirements.txt
+!requirements-dev.txt

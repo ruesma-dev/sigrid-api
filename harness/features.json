@@ -1,0 +1,50 @@
+{
+  "$schema_doc": "Estados: pending -> spec_ready (aprueba humano) -> in_progress -> done. 'blocked' = parada con motivo en progress/current.md. Máximo UNA in_progress (lo valida init.sh). sdd=false salta la spec: 'acceptance' hace de mini-spec y el reviewer valida contra ella.",
+  "$rigor_doc": "El campo 'rigor' de cada feature declara cuanta evidencia se le exige: documental, estandar o critico (ver CHECKPOINTS.md y harness/rigor.json). Si una feature NO lo declara se le aplica el 'nivel_por_defecto' de harness/rigor.json (hoy estandar): omitirlo no libra de las puertas, pero 'critico' se declara, no se hereda.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_init_green_to_close": true,
+    "valid_status": [
+      "pending",
+      "spec_ready",
+      "in_progress",
+      "done",
+      "blocked"
+    ]
+  },
+  "features": [
+    {
+      "id": "F-001",
+      "title": "Test de calentamiento: el guardia de escritura rechaza una base no permitida",
+      "description": "Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.",
+      "acceptance": [
+        "Existe un test en tests/ que verifica que una escritura contra una base fuera de ALLOWED_WRITE_DATABASES es rechazada",
+        "El test no toca red ni base de datos (el puerto SqlRepository se dobla)",
+        "No se modifica ningun fichero de infrastructure/security/",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": false,
+      "rigor": "estandar",
+      "priority": 1,
+      "branch": "feature/F-001-calentamiento"
+    },
+    {
+      "id": "F-002",
+      "title": "Spike: viabilidad de escribir en la base documental ruesma_rep",
+      "description": "Averiguar si es posible, y con que garantias, escribir adjuntos en ruesma_rep (base documental de Sigrid). Hoy esta deliberadamente fuera de ALLOWED_WRITE_DATABASES y solo se lee. Incluye: modelo real de las tablas documentales, permisos del usuario user_rw sobre esa base, como enlaza Sigrid un documento con su concepto, y que haria falta en la API. Prerrequisito de la propuesta docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md. Solo lectura y diagnostico salvo autorizacion expresa del humano para una escritura concreta.",
+      "acceptance": [
+        "Documentado el modelo de las tablas documentales de ruesma_rep (tablas, columnas, como se enlaza un documento a un concepto de ruesma)",
+        "Verificado con evidencia real que permisos tiene user_rw sobre ruesma_rep",
+        "Conclusion explicita: es viable o no, y que cambios exigiria en la API (configuracion, guardias, endpoint de dominio)",
+        "Ninguna escritura ejecutada sin autorizacion expresa del humano para esa accion concreta",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 2,
+      "branch": "feature/F-002-spike-escritura-ruesma-rep"
+    }
+  ]
+}
