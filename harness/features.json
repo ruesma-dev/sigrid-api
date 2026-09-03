@@ -32,7 +32,7 @@
     {
       "id": "F-002",
       "title": "Spike: viabilidad de escribir en la base documental ruesma_rep",
-      "description": "Averiguar si es posible, y con que garantias, escribir adjuntos en ruesma_rep (base documental de Sigrid). Hoy esta deliberadamente fuera de ALLOWED_WRITE_DATABASES y solo se lee. Incluye: modelo real de las tablas documentales, permisos del usuario user_rw sobre esa base, como enlaza Sigrid un documento con su concepto, y que haria falta en la API. Prerrequisito de la propuesta docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md. Solo lectura y diagnostico salvo autorizacion expresa del humano para una escritura concreta.",
+      "description": "Averiguar si es posible, y con que garantias, escribir adjuntos en ruesma_rep (base documental de Sigrid). Hoy esta deliberadamente fuera de ALLOWED_WRITE_DATABASES y solo se lee. Incluye: modelo real de las tablas documentales, permisos del usuario user_rw sobre esa base, como enlaza Sigrid un documento con su concepto, y que haria falta en la API. Prerrequisito de la propuesta docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md. Solo lectura y diagnostico salvo autorizacion expresa del humano para una escritura concreta. RESUELTO el 2026-09-03: ruesma_rep es READ_WRITE, misma instancia, sin replicacion, y user_rw ya tiene INSERT sobre su unica tabla dbo.gra (medido con INSERT ... WHERE 1=0 y control negativo que devuelve 229). No hace falta ningun GRANT. Informe completo en progress/explore_ruesma_rep.md.",
       "acceptance": [
         "Documentado el modelo de las tablas documentales de ruesma_rep (tablas, columnas, como se enlaza un documento a un concepto de ruesma)",
         "Verificado con evidencia real que permisos tiene user_rw sobre ruesma_rep",
@@ -40,11 +40,51 @@
         "Ninguna escritura ejecutada sin autorizacion expresa del humano para esa accion concreta",
         "bash harness/init.sh en verde"
       ],
-      "status": "pending",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 2,
       "branch": "feature/F-002-spike-escritura-ruesma-rep"
+    },
+    {
+      "id": "F-003",
+      "title": "El guardia de escritura debe validar tambien las bases nombradas dentro del SQL",
+      "description": "SqlWriteGuard valida el campo 'database' de la peticion, pero no los identificadores de base que aparecen dentro de la sentencia. Por eso hoy se puede escribir en ruesma_rep pidiendo database='ruesma' y nombrando ruesma_rep.dbo.gra en el SQL: medido el 2026-09-03. La politica de ALLOWED_WRITE_DATABASES no esta realmente aplicada. Va antes que F-004 porque F-004 depende de que la documental siga cerrada a sql/write.",
+      "acceptance": [
+        "Una sentencia de sql/write que nombre una base fuera de ALLOWED_WRITE_DATABASES es rechazada por el guardia, aunque el campo database si este permitido",
+        "Se cubren los nombres de tres y cuatro partes, con y sin corchetes, y con distinta capitalizacion",
+        "Las sentencias que solo usan la base permitida siguen funcionando igual (sin regresion)",
+        "El mismo criterio se revisa para SqlQueryGuard y ALLOWED_DATABASES",
+        "Tests unitarios sin red ni BBDD que fijen cada caso",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 3,
+      "branch": "feature/F-003-guardia-bases-cruzadas"
+    },
+    {
+      "id": "F-004",
+      "title": "Endpoint de dominio para adjuntar un documento a un concepto de Sigrid",
+      "description": "Implementar POST /api/sigrid/concepto-grafico segun docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md, actualizada con lo medido en F-002. Hace las tres escrituras en una sola transaccion local (binario en ruesma_rep.gra, metadatos en ruesma.gra con el mismo cod, enlace en ruesma.rcg) y no abre sql/write a la base documental. Dry-run por defecto. Lo pide postventa-incidencias F-012.",
+      "acceptance": [
+        "El endpoint escribe las tres filas en UNA transaccion; ante error, ninguna queda",
+        "Dry-run por defecto: sin commit:true no escribe nada y devuelve el preview completo",
+        "Idempotencia apoyada en el indice unico (emp, cod) de dbo.gra, no en una comprobacion previa",
+        "El sha256 se calcula en Python: HASHBYTES no sirve, el motor es SQL Server 2012",
+        "Guards: tipo de concepto, gratipide, firma binaria, tamano maximo; listas vacias por defecto",
+        "Ninguna App Setting existente cambia de valor: ALLOWED_WRITE_DATABASES sigue siendo solo ruesma",
+        "Tests unitarios del constructor de sentencias sin red ni BBDD, comparando el SQL generado",
+        "Verificacion de punta a punta con documents/read, comparando el sha256 devuelto",
+        "azure-apps/sigrid_api.md actualizado, y corregidos dedicacion.md, partes.md y remesas.md, que llaman replica a ruesma_rep",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 4,
+      "branch": "feature/F-004-endpoint-concepto-grafico"
     }
   ]
 }

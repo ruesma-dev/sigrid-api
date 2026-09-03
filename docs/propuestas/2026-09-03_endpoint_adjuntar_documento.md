@@ -6,12 +6,34 @@ base documental.**
 
 | | |
 |---|---|
-| **Estado** | PROPUESTA — no implementada, no aprobada |
-| **Fecha** | 2026-09-03 |
+| **Estado** | **PROPUESTA APROBADA en dirección** el 2026-09-03. Pendiente de spec. Es la feature **F-004** del arnés, y va **detrás de F-003** |
+| **Fecha** | 2026-09-03 · **revisada el 2026-09-03 con mediciones contra el ERP** |
 | **Repositorio destino** | `sigrid-api` (v1, el desplegado). Ver [§1](#1--contra-qué-repositorio-se-especifica) |
 | **Lo pide** | `postventa-incidencias`, feature **F-012** (`blocked`) |
-| **Autor** | Redactada por un agente a petición del humano, sobre documentación y código. **No se ha ejecutado ni una llamada** contra Sigrid, la Function desplegada, el PostgreSQL compartido ni SharePoint |
+| **Autor** | Redactada por un agente a petición del humano, sobre documentación y código. En la primera versión **no se había ejecutado ni una llamada**; la revisión del mismo día sí midió contra el ERP (ver el aviso de abajo) |
 | **Secretos** | Ninguno. Los identificadores de Azure, hosts y credenciales van como marcadores |
+
+> ## ⚠ Revisión del 2026-09-03 · las tres preguntas bloqueantes están resueltas
+>
+> Este documento se escribió **sin ejecutar nada**. Después se midió, con
+> lecturas y con tres `INSERT ... WHERE 1 = 0` que no insertan ninguna fila.
+> El informe completo está en
+> [`progress/explore_ruesma_rep.md`](../../progress/explore_ruesma_rep.md), y
+> lo que cambia respecto a lo escrito más abajo es esto:
+>
+> | | Estado real |
+> |---|---|
+> | **Q1** · ¿Es `ruesma_rep` `READ_WRITE` y está en la misma instancia? | **SÍ a las dos. [MEDIDO]** `Updateability = READ_WRITE`, `ONLINE`, sin replicación ni HADR, mismo `@@SERVERNAME`, ambas creadas el 2024-10-14 con 3 minutos de diferencia. Y recibe entre 94 y 248 filas cada día laborable |
+> | **Q2** · ¿Tiene `user_rw` permisos en la documental? | **YA LOS TIENE. [MEDIDO]** `INSERT` sobre `ruesma_rep.dbo.gra` concedido. **§12.2 de este documento ya no aplica: no hace falta ningún `CREATE USER` ni `GRANT`, ni intervención de DBA** |
+> | **Q3** · ¿Cómo es la tabla documental? | **[MEDIDO]** `ruesma_rep` tiene **una sola tabla**, `dbo.gra`, con las mismas 29 columnas que la de negocio, `ima` de tipo `image`, e **índice ÚNICO sobre `(emp, cod)`** |
+> | **Q6** · ¿Versión del motor? | **SQL Server 2012** (`11.0.6020.0`, Standard). **Obliga a cambiar §9: `HASHBYTES` está limitado a 8.000 bytes hasta 2016, así que el `sha256` se calcula en Python, no en SQL** |
+>
+> **Y un hallazgo que no estaba previsto y va antes que esta propuesta:**
+> `SqlWriteGuard` valida el campo `database` de la petición pero **no las bases
+> nombradas dentro del SQL**. Hoy se puede escribir en la documental pidiendo
+> `database: "ruesma"` y escribiendo `ruesma_rep.dbo.gra` en la sentencia. Esta
+> propuesta **depende de que la documental siga cerrada a `sql/write`**, y hoy
+> no lo está de verdad. Cerrarlo es **F-003**, y es prerrequisito.
 
 > **Convención de este documento.** Cada afirmación va marcada como
 > **[MEDIDO]** (comprobado contra el ERP o leído en código/configuración, con
@@ -68,10 +90,15 @@ documental; al contrario, la propuesta depende de que siga cerrada.
 Consecuencia directa: la transacción puede abarcar las dos bases **sin MSDTC**,
 porque una transacción entre bases de la misma instancia es local.
 
-Y la pieza que falta para poder implementar: **`user_rw` casi con seguridad no
-tiene ningún permiso en `ruesma_rep` hoy**, y concedérselo (SELECT + INSERT
-sobre **una sola tabla**) es una acción de administrador de base de datos que
-esta propuesta describe pero no ejecuta.
+~~Y la pieza que falta para poder implementar: **`user_rw` casi con seguridad
+no tiene ningún permiso en `ruesma_rep` hoy**, y concedérselo (SELECT + INSERT
+sobre una sola tabla) es una acción de administrador de base de datos que esta
+propuesta describe pero no ejecuta.~~
+
+**Corregido el 2026-09-03: `user_rw` YA tiene `INSERT` sobre
+`ruesma_rep.dbo.gra`. [MEDIDO]** No falta ninguna pieza de permisos y no hay
+que esperar a ningún DBA. Lo único que impide escribir por la puerta buena es
+la lista blanca de la pasarela.
 
 ---
 
@@ -787,8 +814,18 @@ WHERE r.con = ?
 Es más caro (lee los binarios de los gráficos ya colgados de ese concepto, que
 son pocos: los 13.450 gráficos se reparten entre miles de reclamaciones) pero
 **no repurpone ninguna columna del ERP**, que es la propiedad que importa.
-`HASHBYTES` acepta `varbinary(max)` desde SQL Server 2016 **[INFERIDO: falta
-confirmar la versión del motor, Q6]**.
+
+> **⚠ Corregido el 2026-09-03: este plan B, tal cual, NO FUNCIONA.**
+> `HASHBYTES` solo acepta entradas de más de 8.000 bytes **desde SQL Server
+> 2016**, y el motor de Sigrid es **SQL Server 2012** (`11.0.6020.0`,
+> Standard) **[MEDIDO]**. Sobre un PDF de 242 KB devolvería error, no un hash.
+>
+> **El plan B pasa a ser:** el `sha256` se calcula **en Python**, sobre los
+> bytes que llegan en la petición, y la comparación se hace trayendo el
+> binario candidato con `documents/read` o con un `SELECT` acotado. Como los
+> gráficos por reclamación son pocos, sigue siendo viable, pero **es trabajo
+> del lado de la API, no del motor**. Lo mismo vale para cualquier otro uso de
+> `HASHBYTES` sobre `ima` en este documento.
 
 ---
 
@@ -897,7 +934,29 @@ por **fichero JSON** en ASCII sin BOM (`az … --settings "@fichero"`), nunca
 inline; y tras `appsettings set`, el worker puede tardar en recogerlas
 (`stop` + `start` si un flag «no aplica»).
 
-### 12.2 · Permisos de base de datos: la acción del DBA
+### 12.2 · Permisos de base de datos: ~~la acción del DBA~~ ya están concedidos
+
+> **⚠ Esta sección quedó obsoleta el 2026-09-03, el mismo día en que se
+> escribió. NO HAY QUE HACER NADA DE LO QUE SIGUE.**
+>
+> Está **medido** que `user_rw` ya entra en la base documental y ya tiene
+> `INSERT` sobre `dbo.gra`: no hace falta `CREATE USER`, ni `GRANT`, ni
+> esperar a un administrador del motor. Ver
+> [`progress/explore_ruesma_rep.md`](../../progress/explore_ruesma_rep.md) §3.
+>
+> **Lo que sí queda pendiente de comprobar** antes de implementar, porque la
+> prueba solo cubrió `INSERT`:
+>
+> - **¿Tiene también `SELECT` sobre `ruesma_rep.dbo.gra`?** Hace falta para la
+>   reserva de `ide` (`SELECT MAX(ide) … WITH (UPDLOCK, HOLDLOCK)`) y para la
+>   guarda de `cod` duplicado. Se mide igual, con una escritura que no escribe:
+>   `INSERT INTO ruesma_rep.dbo.gra (ide) SELECT MAX(ide) FROM ruesma_rep.dbo.gra WHERE 1 = 0`.
+> - **¿Tiene `UPDATE` o `DELETE`?** Interesa que **no** los tenga. Si los
+>   tuviera, el permiso está más abierto de lo que debería y conviene
+>   acotarlo, que es la conversación inversa a la de esta sección.
+>
+> El texto original se conserva abajo por si algún día hiciera falta rehacer
+> el mapeo, o para otro entorno.
 
 Sin esto el endpoint devuelve `permiso_denegado_en_documental` y no escribe
 nada. Lo ejecuta **una persona con permisos de administrador en el motor**, una
@@ -1112,21 +1171,23 @@ Sin código: solo el mapa, para dimensionar.
 ## 17 · Preguntas abiertas, y la consulta que responde cada una
 
 Ninguna se puede contestar leyendo. Todas son de **lectura** salvo donde se
-indica. Las tres primeras son **bloqueantes**: sin ellas no se empieza a
-implementar.
+indica. Las tres primeras eran **bloqueantes**, y **las tres están resueltas**
+desde el 2026-09-03 (más Q6). Ver
+[`progress/explore_ruesma_rep.md`](../../progress/explore_ruesma_rep.md).
 
 | # | Pregunta | Cómo se responde | Bloqueante |
 |---|---|---|---|
-| **Q1** | ¿Es `ruesma_rep` `READ_WRITE` y está en la misma instancia que `ruesma`? | Las dos consultas de [§2.5](#25--la-comprobación-que-convierte-la-inferencia-en-dato), por `sql/read`. **Coste: dos llamadas** | **Sí** |
-| **Q2** | ¿Tiene `user_rw` usuario y permisos en la base documental? | Las consultas de [§3](#3--permisos-del-login-de-escritura-sobre-la-documental), por un administrador del motor. La pasarela no puede: `sql/read` usa siempre credenciales de lectura | **Sí** |
-| **Q3** | ¿Qué columnas rellena Sigrid en la fila de la base **documental**? Está medido que `cod` e `ima` sí; del resto no hay medida | `SELECT TOP (1) ide, cod, emp, res, nom, nomori, gratipide, vin, usu, fec, cla, guid, DATALENGTH(ima) AS bytes FROM dbo.gra WHERE cod = ?` con `database` = la documental, sobre el `cod` del parte de ejemplo. **Si el ERP rellena más columnas, hay que replicarlas o el documento podría no abrirse desde la ficha** | **Sí** |
+| ~~**Q1**~~ | ¿Es `ruesma_rep` `READ_WRITE` y está en la misma instancia que `ruesma`? | **RESUELTA: sí a las dos. [MEDIDO]** `READ_WRITE`, `ONLINE`, sin replicación ni HADR, mismo `@@SERVERNAME`. La transacción es local, sin MSDTC | ~~Sí~~ |
+| ~~**Q2**~~ | ¿Tiene `user_rw` usuario y permisos en la base documental? | **RESUELTA: `INSERT` sobre `dbo.gra` ya concedido. [MEDIDO]** No hizo falta DBA: se midió con `INSERT ... WHERE 1 = 0` por `sql/write`, con control negativo (`229` sobre `master.dbo.spt_monitor`). **Queda por medir si tiene también `SELECT`** —hace falta para reservar el `ide`— y si tiene `UPDATE`/`DELETE`, que sería mala noticia | Parcial |
+| ~~**Q3**~~ | ¿Qué columnas rellena Sigrid en la fila de la base **documental**? | **RESUELTA. [MEDIDO]** `ruesma_rep` tiene **una sola tabla**, `dbo.gra`, con las mismas 29 columnas que la de negocio. En las filas recientes: `res` vacío, `vin = 3`, `gratipide` 0 o 34, `cod` = sello `AAAAMMDDHHMMSS` + 4 dígitos + `.` + login, `nom`/`nomori` con el nombre del fichero, `ima` siempre relleno. **Índice ÚNICO sobre `(emp, cod)`**: la idempotencia la da el motor | ~~Sí~~ |
 | **Q4** | ¿Significan algo los 4 dígitos de `gra.cod` entre el sello de tiempo y el punto? | `SELECT TOP (200) cod FROM dbo.gra WHERE cod LIKE '2026%' ORDER BY ide DESC` y mirar si son secuenciales por día, por usuario, o aleatorios | No, pero cambia cómo se genera el `cod` |
 | **Q5** | ¿Usa Sigrid la columna `gra.guid` para algo? | `SELECT COUNT(*) AS con_guid FROM dbo.gra WHERE guid IS NOT NULL AND guid <> ''` + `SELECT TOP (20) ide, cod, guid, graant FROM dbo.gra WHERE guid <> ''` | No: hay plan B ([§9.3](#93--el-riesgo-de-reutilizar-graguid-y-su-plan-b)) |
-| **Q6** | ¿Qué versión de SQL Server es? (`HASHBYTES` sobre `varbinary(max)` necesita 2016+) | `SELECT @@VERSION, SERVERPROPERTY('ProductMajorVersion')` | No |
+| ~~**Q6**~~ | ¿Qué versión de SQL Server es? | **RESUELTA: SQL Server 2012** (`11.0.6020.0`, Standard 64-bit). **[MEDIDO]** Anterior a 2016, así que `HASHBYTES` no sirve para el binario: el `sha256` se calcula en Python. Cambia §9 | Ya no |
 | **Q7** | ¿Escribe Sigrid en `dbo.log` al importar un gráfico? | `SELECT TOP (20) * FROM dbo.log WHERE tab = 'gra' ORDER BY ide DESC` y `SELECT COUNT(*) FROM dbo.log WHERE tab = 'gra'` | No, pero decide [§11.3](#113--auditoría) |
 | **Q8** | ¿Hay `cod` duplicados en alguna de las dos `gra`? No hay índice único declarado | `SELECT TOP (20) cod, COUNT(*) c FROM dbo.gra GROUP BY cod HAVING COUNT(*) > 1`, en las dos bases | No: la guarda de [§8.3](#83--el-cod-que-es-la-correspondencia-entre-las-dos-filas) lo cubre |
 | **Q9** | ¿Cuál es el tamaño real de los partes firmados? El único medido son 242.534 bytes | `SELECT MIN(DATALENGTH(ima)), AVG(CAST(DATALENGTH(ima) AS bigint)), MAX(DATALENGTH(ima)) FROM dbo.gra` en la documental, acotado a los `cod` de posventa | No: dimensiona el tope de [§10](#10--límites-y-por-qué-esos) |
-| **Q10** | ¿Existe un entorno de pruebas de Sigrid? | Preguntar. Cambiaría entero [§14](#14--verificación-sin-dejar-basura-en-producción) | No |
+| ~~**Q10**~~ | ¿Existe un entorno de pruebas de Sigrid? | **RESUELTA: no.** Solo hay producción, y no hay endpoint de borrado: una fila de prueba en la documental se queda hasta que la quite un DBA. §14 sigue vigente entera | No |
+| **Q11** | ¿Tiene `user_rw` también `SELECT`, y ojalá que no `UPDATE`/`DELETE`, sobre `ruesma_rep.dbo.gra`? | La misma técnica de §12.2, con `SELECT MAX(ide)` dentro del `INSERT ... WHERE 1 = 0` | **Sí** |
 
 ---
 
