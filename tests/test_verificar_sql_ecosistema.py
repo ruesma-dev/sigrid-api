@@ -262,6 +262,8 @@ def test_f003_r10_la_cabecera_declara_las_listas_con_las_que_se_midio(tmp_path, 
     assert "Escritura permit. : ruesma" in salida
     assert ("=" * 78) in salida
     assert ("=" * 79) not in salida
+    assert ("-" * 78) in salida
+    assert ("-" * 79) not in salida
 
 
 def test_f003_r10_el_sql_largo_se_recorta_salvo_con_detalle(tmp_path, capsys) -> None:
@@ -272,6 +274,7 @@ def test_f003_r10_el_sql_largo_se_recorta_salvo_con_detalle(tmp_path, capsys) ->
     main(["--raiz", str(tmp_path)])
     recortado = capsys.readouterr().out
     assert largo[:150] in recortado
+    assert largo[:151] not in recortado
     assert largo not in recortado
 
     main(["--raiz", str(tmp_path), "--detalle"])
@@ -283,3 +286,20 @@ def test_f003_r10_una_cadena_de_veinte_caracteres_todavia_es_sql() -> None:
     sql = "SELECT a FROM bb.c.d"
     assert len(sql) == 20
     assert extraer_sql(f'S = "{sql}"') == [sql]
+
+
+def test_f003_r10_un_fichero_ilegible_no_cuenta_como_consumidor(tmp_path, monkeypatch) -> None:
+    """
+    Mata el `return False, []` del `except OSError`, que ningún test recorría.
+    Un fichero que no se puede leer no puede declararse consumidor de la API:
+    diría que se revisó algo que nadie miró.
+    """
+    ruta = escribir(tmp_path, "ilegible.py", CONSUMIDOR)
+
+    def explota(*args, **kwargs):
+        raise OSError("permiso denegado")
+
+    monkeypatch.setattr(Path, "read_text", explota)
+    habla, rechazos = revisar_fichero(ruta)
+    assert habla is False
+    assert rechazos == []

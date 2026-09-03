@@ -337,3 +337,31 @@ def test_f003_r2_los_espacios_sobrantes_de_la_lista_se_ignoran() -> None:
 def test_f003_r5_un_sql_vacio_o_en_blanco_no_rompe(sql: str) -> None:
     assert DatabaseReferenceGuard.extract_database_references(sql) == []
     DatabaseReferenceGuard.validate(sql, allowed=[], contexto="lectura")
+
+
+# --- Supervivientes de la campaña 2 (F-003) ---------------------------------
+
+
+def test_f003_r3_una_base_se_detecta_aunque_solo_aparezca_con_asterisco() -> None:
+    """
+    Mata el mutante `partes[:-1] -> partes[:-2]`. El test anterior no lo mataba
+    porque el mismo SQL nombraba la base otra vez sin asterisco: bastaba la
+    segunda aparición para que el resultado saliera bien por casualidad.
+    """
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT ruesma_rep.dbo.gra.* FROM otra"
+    ) == ["ruesma_rep"]
+
+
+def test_f003_r11_una_comilla_escapada_no_cierra_el_literal_antes_de_tiempo() -> None:
+    """
+    Si el escape `''` se leyera desalineado, el literal cerraría antes y el
+    texto de dentro pasaría a analizarse como SQL: una base inventada.
+    """
+    sql = "SELECT ide FROM dbo.gra WHERE res = 'x''ruesma_rep.dbo.gra'"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+
+
+def test_f003_r11_un_literal_escapado_no_esconde_la_base_que_viene_despues() -> None:
+    sql = "SELECT ide FROM ruesma_rep.dbo.gra WHERE res = 'x''y' AND z = 1"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
