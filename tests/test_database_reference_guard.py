@@ -365,3 +365,63 @@ def test_f003_r11_una_comilla_escapada_no_cierra_el_literal_antes_de_tiempo() ->
 def test_f003_r11_un_literal_escapado_no_esconde_la_base_que_viene_despues() -> None:
     sql = "SELECT ide FROM ruesma_rep.dbo.gra WHERE res = 'x''y' AND z = 1"
     assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
+
+
+# --- Propiedad: una base prohibida no se cuela nunca ------------------------
+#
+# Los mutantes que sobreviven viven casi todos en la aritmética de los escapes
+# del neutralizador (`''` dentro de un literal, `]]` dentro de un identificador).
+# Lo que hay que garantizar no es cada índice, sino la PROPIEDAD que sostiene la
+# defensa entera: por mucho literal, comentario o corchete que rodee a una
+# referencia real, la referencia se ve. Este test la recorre a lo bruto sobre
+# todas las combinaciones, que es la forma honesta de defender lo que queda.
+
+_ENTORNOS = [
+    "",
+    "WHERE res = 'texto'",
+    "WHERE res = 'con ''comilla'' dentro'",
+    "WHERE res = 'punto.y.punto'",
+    "-- comentario con ruesma_rep.dbo.gra dentro\n",
+    "/* bloque con a.b.c dentro */",
+    "WHERE [Client's Name] = ?",
+    "WHERE [raro]]nombre] = ?",
+    "WHERE a = '' AND b = ''",
+    "/**/",
+    "WHERE res = 'x''y'",
+]
+
+_REFERENCIAS = [
+    "otra_base.dbo.tabla",
+    "[otra_base].[dbo].[tabla]",
+    "otra_base..tabla",
+    "OTRA_BASE.DBO.TABLA",
+    "[otra_base]..tabla",
+]
+
+
+@pytest.mark.parametrize("referencia", _REFERENCIAS)
+@pytest.mark.parametrize("antes", _ENTORNOS)
+@pytest.mark.parametrize("despues", _ENTORNOS)
+def test_f003_r1_una_base_prohibida_nunca_se_cuela(
+    referencia: str, antes: str, despues: str
+) -> None:
+    """
+    Sea cual sea el contexto, `otra_base` no está en la lista y la sentencia
+    debe rechazarse. Un falso positivo sería molesto; un falso NEGATIVO aquí
+    sería el agujero que esta feature vino a cerrar.
+    """
+    sql = f"SELECT ide FROM {referencia} {antes} {despues}"
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+@pytest.mark.parametrize("antes", _ENTORNOS)
+@pytest.mark.parametrize("despues", _ENTORNOS)
+def test_f003_r5_una_consulta_limpia_nunca_se_rechaza(antes: str, despues: str) -> None:
+    """
+    La otra mitad de la propiedad, y la que protege la condición del humano: sin
+    referencia cualificada, ningún contexto puede provocar un rechazo.
+    """
+    sql = f"SELECT ide FROM dbo.con {antes} {despues}"
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
