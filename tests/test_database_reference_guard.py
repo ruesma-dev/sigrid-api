@@ -225,3 +225,115 @@ def test_f003_r3_el_corchete_de_cierre_escapado_no_confunde() -> None:
     """SQL Server escapa `]` duplicándolo dentro del identificador."""
     sql = "SELECT [raro]]nombre] FROM ruesma_rep.dbo.gra"
     assert DatabaseReferenceGuard.extract_database_references(sql) == ["ruesma_rep"]
+
+
+# --- Robustez del neutralizador (mutación F-003, pasada 1) ------------------
+#
+# El neutralizador promete en su docstring «sustituye por espacios el contenido
+# de literales y comentarios, CONSERVANDO LAS POSICIONES». Esa promesa importa:
+# si el relleno no midiera lo mismo que lo sustituido, dos identificadores
+# separados por un literal podrían quedar pegados y formar una referencia que
+# no existe, o al revés. Estos tests la fijan.
+
+NEUTRALIZAR = DatabaseReferenceGuard._neutralizar_literales_y_comentarios
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT ide FROM dbo.gra WHERE cod = 'ruesma_rep.dbo.gra'",
+        "SELECT ide FROM dbo.gra WHERE res = 'con ''comilla'' dentro'",
+        "SELECT ide FROM dbo.gra -- comentario hasta el final\nWHERE ide = ?",
+        "SELECT ide FROM dbo.gra /* bloque */ WHERE ide = ?",
+        "SELECT [Client's Name] FROM dbo.gra WHERE res = 'x'",
+        "SELECT ide FROM [ruesma_rep].[dbo].[gra]",
+        "SELECT ide FROM dbo.gra WHERE a = '' AND b = ''",
+        "SELECT ide FROM dbo.gra /**/ WHERE ide = ?",
+        "SELECT ide FROM dbo.gra WHERE res = 'a' /* c */ -- fin\n",
+    ],
+)
+def test_f003_r11_el_neutralizador_conserva_la_longitud(sql: str) -> None:
+    assert len(NEUTRALIZAR(sql)) == len(sql)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT ide FROM dbo.gra WHERE cod = 'ruesma_rep.dbo.gra'",
+        "SELECT ide FROM dbo.gra /* ruesma_rep.dbo.gra */ WHERE ide = ?",
+    ],
+)
+def test_f003_r11_el_neutralizador_borra_el_contenido_pero_no_el_sql(sql: str) -> None:
+    limpio = NEUTRALIZAR(sql)
+    assert "ruesma_rep" not in limpio
+    assert "FROM dbo.gra" in limpio
+
+
+def test_f003_r11_el_neutralizador_conserva_los_corchetes_tal_cual() -> None:
+    """El identificador entre corchetes NO se borra: el detector lo necesita."""
+    assert NEUTRALIZAR("SELECT x FROM [ruesma_rep].[dbo].[gra]") == (
+        "SELECT x FROM [ruesma_rep].[dbo].[gra]"
+    )
+
+
+# Casos límite de los escapes: un carácter de más o de menos al buscar el
+# cierre y el análisis se desalinea entero.
+
+
+@pytest.mark.parametrize(
+    ("sql", "esperada"),
+    [
+        # Literal vacío: las dos comillas son apertura y cierre, no un escape.
+        ("SELECT ide FROM ruesma_rep.dbo.gra WHERE a = ''", ["ruesma_rep"]),
+        ("SELECT ide FROM dbo.gra WHERE a = '' AND b = 'x.y.z'", []),
+        # Comilla escapada pegada al cierre.
+        ("SELECT ide FROM ruesma_rep.dbo.gra WHERE a = 'x'''", ["ruesma_rep"]),
+        # Identificador entre corchetes vacío.
+        ("SELECT [] FROM ruesma_rep.dbo.gra", ["ruesma_rep"]),
+        # Corchete de cierre escapado, y una base de verdad detrás.
+        ("SELECT [a]]b] FROM ruesma_rep.dbo.gra", ["ruesma_rep"]),
+        # Comentario de línea sin salto final.
+        ("SELECT ide FROM ruesma_rep.dbo.gra -- final", ["ruesma_rep"]),
+        ("SELECT ide FROM dbo.gra -- ruesma_rep.dbo.gra", []),
+        # Comentario de bloque vacío.
+        ("SELECT ide FROM ruesma_rep.dbo.gra /**/", ["ruesma_rep"]),
+        ("SELECT ide FROM dbo.gra /*ruesma_rep.dbo.gra*/", []),
+    ],
+)
+def test_f003_r3_los_escapes_no_desalinean_el_analisis(sql: str, esperada: list) -> None:
+    assert DatabaseReferenceGuard.extract_database_references(sql) == esperada
+
+
+# --- La lista blanca, en sus bordes -----------------------------------------
+
+
+def test_f003_r6_con_lista_vacia_el_mensaje_dice_ninguna() -> None:
+    with pytest.raises(DatabaseReferenceError) as excinfo:
+        DatabaseReferenceGuard.validate(
+            "SELECT ide FROM ruesma.dbo.con", allowed=[], contexto="lectura"
+        )
+    assert "(ninguna)" in str(excinfo.value)
+
+
+def test_f003_r6_las_entradas_vacias_de_la_lista_no_cuentan_como_base() -> None:
+    """
+    Una lista mal escrita (`ALLOWED_WRITE_DATABASES=",,"`) no puede acabar
+    autorizando nada, ni ensuciar el mensaje de error.
+    """
+    with pytest.raises(DatabaseReferenceError) as excinfo:
+        DatabaseReferenceGuard.validate(
+            "SELECT ide FROM ruesma.dbo.con", allowed=["", "   ", None], contexto="lectura"
+        )
+    assert "(ninguna)" in str(excinfo.value)
+
+
+def test_f003_r2_los_espacios_sobrantes_de_la_lista_se_ignoran() -> None:
+    DatabaseReferenceGuard.validate(
+        "SELECT ide FROM ruesma.dbo.con", allowed=["  ruesma  "], contexto="lectura"
+    )
+
+
+@pytest.mark.parametrize("sql", ["", "   ", "\n\t "])
+def test_f003_r5_un_sql_vacio_o_en_blanco_no_rompe(sql: str) -> None:
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+    DatabaseReferenceGuard.validate(sql, allowed=[], contexto="lectura")

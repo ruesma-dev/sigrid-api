@@ -202,3 +202,84 @@ def test_f003_r10_main_devuelve_uno_cuando_algo_se_rompe(tmp_path, capsys) -> No
 
 def test_f003_r10_main_avisa_si_la_raiz_no_existe(tmp_path, capsys) -> None:
     assert main(["--raiz", str(tmp_path / "no_existe")]) == 2
+
+
+# --- El resumen que se lee al final (mutación F-003, pasada 1) --------------
+#
+# Los números del resumen son la conclusión del verificador: si un contador
+# miente, el informe dice «256 consumidores revisados» habiendo mirado otra
+# cosa, y nadie lo notaría. Por eso se comprueban uno a uno.
+
+
+def _arbol_conocido(carpeta: Path) -> None:
+    """Tres consumidores (uno con dos rechazos) y dos ficheros ajenos."""
+    escribir(carpeta, "c1.py", CONSUMIDOR + 'S = "SELECT ide FROM dbo.con WHERE tip = ?"\n')
+    escribir(carpeta, "c2.py", CONSUMIDOR + 'S = "SELECT ide FROM ruesma_rep.dbo.gra"\n')
+    escribir(
+        carpeta,
+        "c3.py",
+        CONSUMIDOR
+        + 'A = "SELECT ide FROM msdb.dbo.sysjobs"\n'
+        + 'B = "INSERT INTO ruesma_rep.dbo.gra (ide) VALUES (?)"\n',
+    )
+    escribir(carpeta, "ajeno.py", 'import psycopg\nS = "SELECT ide FROM tempdb.dbo.x"\n')
+    escribir(carpeta, "otro.py", "x = 1\n")
+
+
+def test_f003_r10_el_resumen_cuenta_bien_los_ficheros_y_los_consumidores(tmp_path, capsys) -> None:
+    _arbol_conocido(tmp_path)
+    main(["--raiz", str(tmp_path)])
+    salida = capsys.readouterr().out
+    assert "Ficheros recorridos: 5" in salida
+    assert "De ellos, hablan con esta API: 3" in salida
+
+
+def test_f003_r10_el_resumen_cuenta_bien_los_rechazos(tmp_path, capsys) -> None:
+    _arbol_conocido(tmp_path)
+    main(["--raiz", str(tmp_path)])
+    salida = capsys.readouterr().out
+    assert "Ficheros con rechazos: 1" in salida
+    assert "sentencias rechazadas: 2" in salida
+
+
+def test_f003_r10_un_arbol_limpio_no_cuenta_rechazos(tmp_path, capsys) -> None:
+    escribir(tmp_path, "c1.py", CONSUMIDOR + 'S = "SELECT ide FROM dbo.con WHERE tip = ?"\n')
+    assert main(["--raiz", str(tmp_path)]) == 0
+    salida = capsys.readouterr().out
+    assert "Ficheros recorridos: 1" in salida
+    assert "De ellos, hablan con esta API: 1" in salida
+    assert "Ficheros con rechazos" not in salida
+
+
+def test_f003_r10_la_cabecera_declara_las_listas_con_las_que_se_midio(tmp_path, capsys) -> None:
+    """
+    Sin saber contra qué listas se midió, el «cero rechazos» no significa nada.
+    """
+    escribir(tmp_path, "c1.py", CONSUMIDOR + 'S = "SELECT ide FROM dbo.con WHERE tip = ?"\n')
+    main(["--raiz", str(tmp_path)])
+    salida = capsys.readouterr().out
+    assert "Lectura permitida : master, ruesma_rep, ruesma" in salida
+    assert "Escritura permit. : ruesma" in salida
+    assert ("=" * 78) in salida
+    assert ("=" * 79) not in salida
+
+
+def test_f003_r10_el_sql_largo_se_recorta_salvo_con_detalle(tmp_path, capsys) -> None:
+    largo = "SELECT " + ", ".join(f"columna_{i}" for i in range(30)) + " FROM msdb.dbo.sysjobs"
+    assert len(largo) > 200
+    escribir(tmp_path, "c1.py", CONSUMIDOR + f'S = "{largo}"\n')
+
+    main(["--raiz", str(tmp_path)])
+    recortado = capsys.readouterr().out
+    assert largo[:150] in recortado
+    assert largo not in recortado
+
+    main(["--raiz", str(tmp_path), "--detalle"])
+    assert largo in capsys.readouterr().out
+
+
+def test_f003_r10_una_cadena_de_veinte_caracteres_todavia_es_sql() -> None:
+    """El corte por longitud es `< 20`, no `<= 20`: el borde importa."""
+    sql = "SELECT a FROM bb.c.d"
+    assert len(sql) == 20
+    assert extraer_sql(f'S = "{sql}"') == [sql]
