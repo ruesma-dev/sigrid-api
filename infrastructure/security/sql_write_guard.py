@@ -5,6 +5,10 @@ import re
 
 from config.settings import Settings
 from domain.models.sql_models import SqlWriteRequest
+from infrastructure.security.database_reference_guard import (
+    DatabaseReferenceError,
+    DatabaseReferenceGuard,
+)
 
 
 class WriteValidationError(ValueError):
@@ -118,6 +122,19 @@ class SqlWriteGuard:
                     f"{operation} sin cláusula WHERE no está permitido. Añade un WHERE "
                     "explícito (o desactiva REQUIRE_WHERE_ON_UPDATE_DELETE bajo tu responsabilidad)."
                 )
+
+        # La base de la conexión ya se validó arriba, pero una sentencia puede
+        # saltar a otra base de la misma instancia cualificando el nombre
+        # (`otra_base.dbo.tabla`). Sin esta comprobación,
+        # ALLOWED_WRITE_DATABASES no aplica la política que dice aplicar.
+        try:
+            DatabaseReferenceGuard.validate(
+                normalized_sql,
+                allowed=self._settings.allowed_write_databases,
+                contexto="escritura",
+            )
+        except DatabaseReferenceError as exc:
+            raise WriteValidationError(str(exc)) from exc
 
         return operation
 

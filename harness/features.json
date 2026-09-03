@@ -51,6 +51,7 @@
       "title": "El guardia de escritura debe validar tambien las bases nombradas dentro del SQL",
       "description": "SqlWriteGuard valida el campo 'database' de la peticion, pero no los identificadores de base que aparecen dentro de la sentencia. Por eso hoy se puede escribir en ruesma_rep pidiendo database='ruesma' y nombrando ruesma_rep.dbo.gra en el SQL: medido el 2026-09-03. La politica de ALLOWED_WRITE_DATABASES no esta realmente aplicada. Va antes que F-004 porque F-004 depende de que la documental siga cerrada a sql/write.",
       "acceptance": [
+        "CONDICION DURA DEL HUMANO: ninguna lectura ni escritura que hoy funcione puede empezar a fallar. Se demuestra pasando por el guardia nuevo todo el SQL real que los consumidores envian hoy a la API, no solo los tests",
         "Una sentencia de sql/write que nombre una base fuera de ALLOWED_WRITE_DATABASES es rechazada por el guardia, aunque el campo database si este permitido",
         "Se cubren los nombres de tres y cuatro partes, con y sin corchetes, y con distinta capitalizacion",
         "Las sentencias que solo usan la base permitida siguen funcionando igual (sin regresion)",
@@ -58,7 +59,7 @@
         "Tests unitarios sin red ni BBDD que fijen cada caso",
         "bash harness/init.sh en verde"
       ],
-      "status": "spec_ready",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "critico",
       "priority": 3,
