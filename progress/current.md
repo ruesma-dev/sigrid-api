@@ -24,8 +24,8 @@ detector) y que no se relajó ninguna defensa anterior. Lo que rechazó fue el
 
 | # | Cambio | Estado |
 |---|---|---|
-| 1 | Campaña de mutación | **PENDIENTE** — es lo único que queda |
-| 2 | Completar «Evidencias» del impl | pendiente, necesita los datos de la campaña |
+| 1 | Campaña de mutación | hecho: 129 mutantes, **110 muertos, 13 supervivientes**, 6 timeouts, 8 workers, 22,7 min |
+| 2 | Completar «Evidencias» del impl | hecho, §5 y §5.1 |
 | 3 | Marcar `tasks.md` | hecho (T1–T7, T9–T12; T8 queda por ser MANUAL) |
 | 4 | Reescribir este fichero con T8 y su comando | hecho, es esto |
 | 5 | Renombrar los tests a `test_f003_rN_...` | hecho, 106 tests recogidos por `-k f003` |
@@ -59,14 +59,21 @@ mismo que antes del despliegue, sin ningún error de «base de datos no
 permitida». Si fallara, la causa sería que `ruesma_rep` no está en
 `ALLOWED_DATABASES` de la Function App, no el guardia.
 
-### Lo siguiente, por orden
+### Lo siguiente, y hace falta el humano
 
-1. `python -m harness.mutacion --feature F-003` con el árbol limpio (la campaña
-   paralela crea worktrees desde HEAD y aborta si hay cambios sin commitear).
-   Rigor `critico` exige **cero supervivientes**. Estimado: ~102 mutantes.
-2. Completar «Evidencias» del informe con mutantes, supervivientes, workers y
-   tiempo de la suite.
-3. Volver a pasar el reviewer.
+**Los 13 supervivientes necesitan que el humano acepte su justificación.** El
+rigor `critico` exige cero supervivientes **o justificación escrita aceptada**,
+y esa aceptación no la puede dar un agente. Están analizados uno a uno en
+[`mutacion_F-003.md`](mutacion_F-003.md): tres guardas de atajo equivalentes,
+dos de `_normalizar_identificador` equivalentes por construcción, siete de
+aritmética de escapes cuyo resultado observable no cambia, y uno de
+`sys.path.insert` del script verificador, que no es lógica del guardia.
+
+Se pasó de **52 a 13** en tres campañas, y por el camino la mutación encontró
+un test que pasaba por casualidad. Lo que queda está defendido por un test de
+propiedad, no por una casualidad.
+
+Después: reviewer, y el merge a `dev`, que hace el humano.
 
 ### Pendiente de decisión del humano, fuera de F-003
 

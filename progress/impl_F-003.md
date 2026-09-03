@@ -8,7 +8,8 @@
 |---|---|
 | **Rama** | `feature/F-003-guardia-bases-cruzadas` |
 | **Rigor** | `critico` |
-| **Portero** | `bash harness/init.sh` en **ENTORNO LISTO**: 438 tests, cobertura **98,2 %** sobre las líneas cambiadas (umbral 80 %) |
+| **Portero** | `bash harness/init.sh` en **ENTORNO LISTO** |
+| **Pasada de revisión** | 1ª: RECHAZADO ([`review_F-003.md`](review_F-003.md)). Los seis cambios requeridos, atendidos |
 | **Condición del humano** | «No puede fallar la escritura/lectura que se hace ahora» — **verificada, no supuesta**. Ver §3 |
 
 ---
@@ -38,8 +39,8 @@ adivinar: es R11, ante la duda no se deja pasar.
 | T5 | `13 failed` en lectura, incluidos casos triviales de dos partes → **no era el guardia, era el doble**: al `SettingsDoble` le faltaba `max_rows`. Corregido el doble, no el guardia |
 
 El fallo de T5 merece quedar escrito: un test que falla por su propio andamiaje
-se parece mucho a un test que encuentra un fallo real, y la diferencia estaba en
-que fallaban también los casos que no tenían nada que ver.
+se parece a uno que encuentra un fallo real; la diferencia estaba en que caían
+también los casos que no tenían nada que ver.
 
 ## 3 · La condición del humano: verificada sobre el ecosistema entero
 
@@ -96,16 +97,13 @@ algo se rompería, así que sirve igual la próxima vez que se toque una lista
 blanca.
 
 **Honestidad sobre el camino:** la primera pasada dio 42 rechazos en 29
-ficheros. Se revisaron **uno a uno** y todos eran artefactos del extractor, no
-del guardia: proyectos que hablan con PostgreSQL y no pasan por estos guardias;
-bloques de código Python embebidos en here-strings de PowerShell; docstrings que
-describen sentencias (`UPDATE ... FROM` en un texto en español, cuyos puntos
-suspensivos parecen cualificación); y `print()` de ayuda con una concatenación
-partida por la mitad (`... LIKE '%" + cif[-6:] + "%'`). El verificador se afinó
-con tres reglas —solo ficheros que hablen con esta API, la cadena debe empezar
-por un verbo SQL, y un literal sin cerrar es ruido de extracción— hasta dejar el
-informe en cero. **Ninguna de esas tres reglas toca el guardia**: son del
-verificador.
+ficheros; se revisaron **uno a uno** y todos eran artefactos del extractor, no
+del guardia (proyectos de PostgreSQL, código embebido en here-strings,
+docstrings cuyos puntos suspensivos parecen cualificación, un `print()` de
+ayuda con la cadena partida). Se afinó con tres reglas —solo ficheros que
+hablen con esta API, la cadena empieza por verbo SQL, y un literal sin cerrar
+es ruido de extracción— hasta dejarlo en cero. **Ninguna toca el guardia.** El
+reviewer las auditó desactivándolas una a una: no esconden ningún caso real.
 
 ## 4 · Ficheros
 
@@ -124,16 +122,58 @@ variable de entorno**: un interruptor de seguridad configurable acaba
 apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 `function_app.py`.
 
-## 5 · Verificaciones
+## 5 · Evidencias
 
 | Qué | Resultado |
 |---|---|
-| Suite completa | **438 pasan**, 1 skip. Los 341 previos siguen en verde |
-| `ruff` | **79 avisos**, los mismos de antes. Los 7 que introduje se corrigieron |
-| Puerta de cobertura | **98,2 %** (219/223 líneas cambiadas), umbral 80 % |
-| Puerta de tamaño | requirements 83/150, design 142/250 |
+| **Suite completa** | **1.210 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
+| **Tiempo de la suite** | 32,4 s en el árbol principal; 32,5 s la línea base medida por la campaña |
+| **`ruff`** | **79 avisos**, exactamente los de antes de la feature. Los 7 que introduje se corrigieron |
+| **Cobertura** | **98,4 %** de las líneas cambiadas (242/246), umbral 80 % del nivel `critico` |
+| **Mutación · mutantes** | **129** generados y evaluados, alcance 513 líneas en 4 ficheros |
+| **Mutación · muertos** | **110** |
+| **Mutación · supervivientes** | **13**, los trece analizados uno a uno en [`mutacion_F-003.md`](mutacion_F-003.md) |
+| **Mutación · timeouts** | **6**, repasados en serie; son bucles infinitos (`fin += 1` → `fin -= 1`), que la suite mata colgándose |
+| **Mutación · workers** | **8** worktrees en paralelo; el repaso de timeouts, en serie |
+| **Mutación · tiempo** | 1.363,6 s (22,7 min) |
+| **Verificador del ecosistema** | 13.639 ficheros recorridos, 256 consumidores, **0 rechazos**, exit 0 |
+| Puerta de tamaño | requirements 83/150, design 142/250, impl dentro del tope |
 | T7 · `scripts/` de este repo | ningún nombre de tres partes |
 | T8 · MANUAL | **pendiente del humano**, ver §6 |
+
+### 5.1 · Las tres campañas, y qué enseñó cada una
+
+| Campaña | Muertos | Supervivientes | Qué la movió |
+|---|---|---|---|
+| 1 | 73 | **52** | El punto de partida. Los supervivientes del guardia vivían **todos** en el neutralizador de literales, cuya promesa —sustituir por espacios *conservando las posiciones*— no fijaba ningún test |
+| 2 | 105 | **18** | Tests de la invariante de longitud y de los casos límite de los escapes. Los 18 del verificador cayeron enteros con los tests del resumen numérico |
+| 3 | **110** | **13** | Cuatro muertos más, y el test de propiedad |
+
+**Un test que pasaba por casualidad**, encontrado por la campaña y no por
+lectura: el que debía verificar `SELECT ruesma_rep.dbo.gra.*` nombraba la base
+**dos veces** en el mismo SQL, así que la segunda aparición hacía que el
+resultado saliera bien aunque la lógica estuviera rota. Es exactamente el fallo
+que la mutación existe para encontrar.
+
+**Método para los supervivientes:** en vez de reejecutar 23 minutos de campaña
+por cada idea, se aplicó cada mutante a mano y se midió si la suite lo mataba.
+Los trece que quedan son equivalentes por construcción o de coste
+desproporcionado, y su análisis está escrito uno a uno.
+
+**La defensa de lo que queda vivo es una propiedad, no una casualidad.** Siete
+de los trece son aritmética de escapes (`''` en un literal, `]]` en un
+identificador). Perseguirlos de uno en uno lleva a tests acoplados a un índice
+interno, que no valen nada. En su lugar hay un test de propiedad que recorre
+las dos direcciones —una base prohibida se ve rodeada de lo que sea; sin
+referencia, ningún contexto provoca un rechazo— sobre 55 combinaciones de once
+contextos y cinco formas de escribir la referencia. Esa segunda mitad es la que
+protege la condición del humano.
+
+**Incidente que conviene saber:** el script auxiliar que prueba mutantes se pasó
+del límite de tiempo a mitad de una prueba y dejó un fichero mutado en el árbol
+(`sys.path.insert(0)` → `insert(1)`). Se detectó con `git status`, se revirtió
+con `git checkout` y se comprobó que no quedaba nada. **Ningún commit lo
+incluye.**
 
 ## 6 · Lo que queda, y es del humano
 

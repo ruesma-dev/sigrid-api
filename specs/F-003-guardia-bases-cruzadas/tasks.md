@@ -13,4 +13,4 @@
 - [x] T10: Ejecutar `bash harness/init.sh` en verde.  |  Verificación: termina en ENTORNO LISTO
 - [x] T11: Corregir los dos falsos positivos que encontró el reviewer (`esquema.tabla.*` y el apóstrofo dentro de `[corchetes]`), con sus tests.  |  Verificación: `python -m pytest tests/test_database_reference_guard.py -q` en verde
 - [x] T12: Renombrar los tests a la convención trazable `test_fXXX_rN_...` de `docs/CONVENTIONS.md`.  |  Verificación: `python -m pytest -k f003 -q` recoge 106 tests
-- [ ] T13: Campaña de mutación con cero supervivientes.  |  Verificación: `python -m harness.mutacion --feature F-003` -> `progress/mutacion_F-003.md`
+- [x] T13: Campaña de mutación con cero supervivientes.  |  Verificación: `python -m harness.mutacion --feature F-003` -> `progress/mutacion_F-003.md`
