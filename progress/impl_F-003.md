@@ -38,9 +38,9 @@ adivinar: es R11, ante la duda no se deja pasar.
 | T3 | `10 failed, 11 passed`. Fallaban **exactamente** los diez que exigen rechazo; los once de no regresión ya pasaban, que es la señal de que el test no se estaba engañando |
 | T5 | `13 failed` en lectura, incluidos casos triviales de dos partes → **no era el guardia, era el doble**: al `SettingsDoble` le faltaba `max_rows`. Corregido el doble, no el guardia |
 
-El fallo de T5 merece quedar escrito: un test que falla por su propio andamiaje
-se parece a uno que encuentra un fallo real; la diferencia estaba en que caían
-también los casos que no tenían nada que ver.
+El fallo de T5 merece quedar escrito: un test que falla por su andamiaje se
+parece a uno que encuentra un fallo real; los delataba que caían también los
+casos que no tenían nada que ver.
 
 ## 3 · La condición del humano: verificada sobre el ecosistema entero
 
@@ -188,15 +188,15 @@ historial.
    alcance de F-003.
 3. **Merge de la rama a `dev`**, que lo hace el humano.
 
-## 7 · Falsos positivos: los previstos y los tres que hubo que corregir
+## 7 · Falsos positivos y agujeros: los seis que hubo que corregir
 
 Los encontró el reviewer probando T-SQL, no leyendo el código, y **casi todos
 son la misma clase de fallo**: neutralizador y reconocedor leyendo los
-identificadores delimitados con reglas distintas. Cada vez que difieren en algo
-—un apóstrofo, un escape `]]`, un `--`, un salto de línea— el análisis se
-desincroniza y una referencia puede esconderse dentro de un falso identificador.
-Se parchearon caso a caso durante tres rondas hasta tratarlo de raíz: **una sola
-regla, en un solo sitio**. Debió estar así desde el primer arreglo.
+delimitados con reglas distintas. Cada vez que difieren en algo —un apóstrofo,
+un escape `]]`, un `--`, un salto de línea— el análisis se desincroniza y una
+referencia puede esconderse dentro de un falso identificador. Se parchearon caso
+a caso durante tres rondas hasta tratarlo de raíz: **una sola regla, en un solo
+sitio**, como debió estar desde el primer arreglo.
 
 | Caso | Qué hacía | Arreglo |
 |---|---|---|
@@ -215,8 +215,6 @@ en la pasada 2. Los tres últimos dejaban pasar en vez de rechazar de más, que 
 el lado malo. Detalle en `review_F-003_reconocedor.md`.
 
 **Deuda que se queda, y con motivo:** el detector rechaza
-`base.esquema.tabla.columna` y las notaciones XML/CLR (`t.col.value(...)`).
-Nadie las usa en el ecosistema y el mensaje es explícito; distinguirlas exigiría
-un analizador. El verificador tiene un punto ciego con los fragmentos sin verbo,
-cubierto por el inventario manual. Los avisos `RUF012` y `SIM102` de los dos
-guardias son anteriores a esta feature.
+`base.esquema.tabla.columna` y las notaciones XML/CLR (`t.col.value(...)`);
+nadie las usa en el ecosistema y el mensaje es explícito. El verificador tiene
+un punto ciego con los fragmentos sin verbo, cubierto por el inventario manual.
