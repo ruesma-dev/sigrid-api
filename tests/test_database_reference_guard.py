@@ -598,3 +598,73 @@ def test_f003_r5_un_comentario_de_verdad_sigue_comentando() -> None:
     assert DatabaseReferenceGuard.extract_database_references(
         "SELECT 1 -- , j.name FROM msdb.dbo.sysjobs j"
     ) == []
+
+
+# --- Los cuatro fallos de la auditoría del reconocedor (pasada 3, encargo 1) -
+#
+# La causa de fondo de H1 es la que más importa: el neutralizador y el
+# reconocedor leían los identificadores delimitados con reglas DISTINTAS. Con
+# eso basta para desincronizarlos y esconder una referencia dentro de un falso
+# identificador. La regla es una sola y ahora está en un solo sitio.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # H1 · un salto de línea dentro de un alias delimitado.
+        'SELECT 1 AS "a\n", name FROM msdb.dbo.sysjobs AS "z"',
+        'SELECT 1 AS "a\r", name FROM msdb.dbo.sysjobs AS "z"',
+        'SELECT 1 AS [a\n"b], name FROM msdb.dbo.sysjobs AS [j"]',
+        'SELECT 1 AS "a""b\nc", name FROM msdb.dbo.sysjobs AS "w"',
+        # H2 · un comentario de línea cerrado solo por CR.
+        "SELECT --x\r name FROM msdb.dbo.sysjobs",
+        "SELECT --x\x0b name FROM msdb.dbo.sysjobs",
+        "SELECT --x\x0c name FROM msdb.dbo.sysjobs",
+        "SELECT --x\x85 name FROM msdb.dbo.sysjobs",
+        # H3 · una base delimitada que no se puede leer.
+        "SELECT * FROM [].dbo.t",
+        'SELECT * FROM "".dbo.t',
+        "SELECT * FROM [ ].dbo.t",
+        # H4 · `X.Y.*` donde X no es un esquema, sino una base.
+        "SELECT msdb.dbo.* FROM x",
+        "SELECT msdb.dbo. * FROM x",
+        "SELECT tempdb.sys.* FROM x",
+    ],
+)
+def test_f003_r7_ninguna_forma_esconde_la_referencia(sql: str) -> None:
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # `esquema.tabla.*` sí es inocente, y debe seguir pasando.
+        "SELECT dbo.con.* FROM dbo.con",
+        "SELECT sys.objects.* FROM sys.objects",
+        # Un alias multilínea sin referencia detrás tampoco puede estorbar.
+        'SELECT 1 AS "a\nb", ide FROM dbo.con',
+        "SELECT 1 AS [a\nb], ide FROM dbo.con",
+        # Un comentario con CR que no esconde nada.
+        "SELECT ide --nota\r FROM dbo.con",
+    ],
+)
+def test_f003_r5_los_arreglos_no_rompen_lo_legitimo(sql: str) -> None:
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r3_una_base_delimitada_de_verdad_se_sigue_leyendo() -> None:
+    """El rechazo de H3 es por base ilegible, no por venir delimitada."""
+    assert DatabaseReferenceGuard.extract_database_references(
+        'SELECT * FROM "ruesma_rep".dbo.gra'
+    ) == ["ruesma_rep"]
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT * FROM [ruesma_rep].dbo.gra"
+    ) == ["ruesma_rep"]
+
+
+def test_f003_r3_con_cuatro_partes_el_asterisco_no_es_ambiguo() -> None:
+    """`base.esquema.tabla.*` sí nombra base, y se lee sin heurística."""
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT ruesma_rep.dbo.gra.* FROM x"
+    ) == ["ruesma_rep"]

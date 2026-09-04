@@ -190,21 +190,29 @@ historial.
 
 ## 7 · Falsos positivos: los previstos y los tres que hubo que corregir
 
-Los tres los encontró el reviewer probando T-SQL, no leyendo el código, y los
-tres son **la misma clase de fallo**: un delimitador cuyo contenido no debe
-interpretarse. Se parchearon uno a uno hasta que la pasada 3 obligó a tratarlo
-de raíz con una tabla de delimitados. Debió existir desde el primero.
+Los encontró el reviewer probando T-SQL, no leyendo el código, y **casi todos
+son la misma clase de fallo**: neutralizador y reconocedor leyendo los
+identificadores delimitados con reglas distintas. Cada vez que difieren en algo
+—un apóstrofo, un escape `]]`, un `--`, un salto de línea— el análisis se
+desincroniza y una referencia puede esconderse dentro de un falso identificador.
+Se parchearon caso a caso durante tres rondas hasta tratarlo de raíz: **una sola
+regla, en un solo sitio**. Debió estar así desde el primer arreglo.
 
 | Caso | Qué hacía | Arreglo |
 |---|---|---|
 | `SELECT dbo.con.*` | Se leía como tres partes y se rechazaba | Se descarta la parte vacía final, **solo si lo siguiente es un `*`** |
 | `SELECT [Client's Name] …` | El apóstrofo abría un literal falso que se comía la sentencia → «literal sin cerrar» | El corchete es delimitador, con su escape `]]` |
 | `SELECT 1 AS "z--", … FROM msdb.…` | El `--` se leía como comentario y **la referencia se colaba** | La comilla doble también es delimitador, con su escape `""` |
+| `SELECT 1 AS "a⏎", … FROM msdb.…` | El reconocedor prohibía saltos de línea dentro del delimitado, lo desmontaba y **la referencia quedaba dentro de un falso identificador** | `_IDENT` lee el delimitado con la MISMA regla que el neutralizador |
+| `SELECT --x␍ … FROM msdb.…` | El `--` solo se cerraba con `
+`, así que con CR se blanqueaba la sentencia entera | El comentario lo cierra cualquier terminador de línea |
+| `SELECT * FROM [].dbo.t` | Base ilegible descartada en silencio | Se rechaza: hay tres partes, luego hay base, y no se sabe cuál |
+| `SELECT msdb.dbo.*` | Se recortaba a dos partes sin mirar si la primera era base | Con tres partes solo se recorta si la primera es un esquema conocido |
 
-El primer arreglo, tal como se hizo al principio, **amplió lo que pasaba el
-filtro**: descartaba la parte vacía **siempre**, y ocho formas hostiles pasaban
-de rechazarse a colarse (`tempdb..#t` entre ellas). Corregido en la pasada 2.
-El tercero es el único que dejaba pasar en vez de rechazar de más.
+El primer arreglo **amplió lo que pasaba el filtro** (descartaba la parte vacía
+siempre, y ocho formas hostiles se colaban, `tempdb..#t` entre ellas); corregido
+en la pasada 2. Los tres últimos dejaban pasar en vez de rechazar de más, que es
+el lado malo. Detalle en `review_F-003_reconocedor.md`.
 
 **Deuda que se queda, y con motivo:** el detector rechaza
 `base.esquema.tabla.columna` y las notaciones XML/CLR (`t.col.value(...)`).

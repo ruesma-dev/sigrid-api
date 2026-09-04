@@ -33,11 +33,24 @@ class DatabaseReferenceGuard:
     # Un identificador de SQL Server en las formas que admitimos: normal,
     # entre corchetes o entre comillas dobles.
     #
-    # El corchete entiende su escape `]]`, y no es un detalle: sin él,
-    # `[x]]ruesma_rep.dbo.gra]` se partía en `[x]` más un resto suelto, y el
-    # contenido del identificador se analizaba como si fuera SQL. Eso no dejaba
-    # pasar nada —rechazaba de más— pero era un falso positivo evitable.
-    _IDENT = r"(?:\[(?:[^\]\r\n]|\]\])*\]|\"[^\"\r\n]*\"|[A-Za-z_][A-Za-z0-9_$#@]*)"
+    # Los delimitados se leen aquí EXACTAMENTE con la misma regla que en
+    # `_neutralizar_literales_y_comentarios`: con su escape (`]]`, `""`) y sin
+    # prohibir saltos de línea dentro. Que las dos reglas coincidan no es
+    # cosmética: es la propiedad de la que depende todo.
+    #
+    # Si el reconocedor prohíbe `\n` dentro del delimitado y el neutralizador
+    # no, un alias partido en dos líneas (`AS "a\n"`) desmonta el identificador,
+    # deja una comilla suelta que se empareja con la siguiente de la línea, y la
+    # referencia que hay en medio queda dentro de ese falso identificador y no
+    # se analiza. Con eso se colaba `msdb`. Lo mismo pasa si uno entiende el
+    # escape `""` y el otro no.
+    _IDENT = (
+        r"(?:"
+        r"\[(?:[^\]]|\]\])*\]"        # [identificador], con su escape ]]
+        r'|"(?:[^"]|"")*"'           # "identificador", con su escape ""
+        r"|[A-Za-z_][A-Za-z0-9_$#@]*"   # identificador normal
+        r")"
+    )
 
     # Una cadena cualificada: un identificador y al menos un punto más. La
     # parte tras el punto es opcional para cubrir `base..tabla`, que es SQL
@@ -57,6 +70,15 @@ class DatabaseReferenceGuard:
     #: una letra más y no el principio de un literal ni de un comentario.
     _APERTURA_DE_DELIMITADO = MappingProxyType({"[": "]", '"': '"'})
 
+    #: Todo lo que SQL Server acepta como fin de un comentario `--`.
+    _FIN_DE_LINEA = ("\n", "\r", "\x0b", "\x0c", "\x85", "\u2028", "\u2029")
+
+    #: Esquemas conocidos. Solo sirven para desempatar `X.Y.*`, que es ambiguo:
+    #: `dbo.con.*` es esquema.tabla.* y `msdb.dbo.*` es base.esquema.*. Si la
+    #: primera parte no es un esquema conocido, se trata como base y se valida
+    #: (R11: ante la duda, rechaza).
+    _ESQUEMAS_CONOCIDOS = frozenset({"dbo", "sys", "information_schema", "guest"})
+
     # --- API pública --------------------------------------------------------
 
     @classmethod
@@ -68,7 +90,7 @@ class DatabaseReferenceGuard:
         Informativo: no incluye los nombres de cuatro o más partes, que
         `validate()` rechaza aparte. Para decidir, usa `validate()`.
         """
-        bases, _ = cls._analizar(sql)
+        bases, _, _ = cls._analizar(sql)
         return bases
 
     @classmethod
@@ -79,7 +101,14 @@ class DatabaseReferenceGuard:
 
         `contexto` es "lectura" o "escritura", y solo sirve para el mensaje.
         """
-        bases, cualificadas_de_mas = cls._analizar(sql)
+        bases, cualificadas_de_mas, ilegibles = cls._analizar(sql)
+
+        if ilegibles:
+            raise DatabaseReferenceError(
+                f"la sentencia usa el nombre cualificado '{ilegibles[0]}', cuya base no se "
+                "puede leer. No se permite: una referencia de tres partes nombra una base, y "
+                "si no se sabe cuál, no se puede comprobar contra la lista."
+            )
 
         if cualificadas_de_mas:
             raise DatabaseReferenceError(
@@ -100,15 +129,19 @@ class DatabaseReferenceGuard:
     # --- Interior -----------------------------------------------------------
 
     @classmethod
-    def _analizar(cls, sql: str) -> tuple[list[str], list[str]]:
-        """Devuelve (bases de tres partes, nombres de cuatro o más partes)."""
+    def _analizar(cls, sql: str) -> tuple[list[str], list[str], list[str]]:
+        """
+        Devuelve (bases de tres partes, nombres de cuatro o más partes,
+        referencias cuya base no se puede leer).
+        """
         if not sql or not sql.strip():
-            return [], []
+            return [], [], []
 
         limpio = cls._neutralizar_literales_y_comentarios(sql)
 
         bases: list[str] = []
         de_mas: list[str] = []
+        ilegibles: list[str] = []
         for match in cls._ESCANEO_RE.finditer(limpio):
             texto = match.group("cadena")
             if texto is None:
@@ -133,6 +166,12 @@ class DatabaseReferenceGuard:
                 len(partes) > 1
                 and not partes[-1]
                 and limpio[match.end() : match.end() + 1] == "*"
+                # `X.Y.*` es ambiguo: `dbo.con.*` es esquema.tabla.* y no
+                # nombra base, pero `msdb.dbo.*` sí la nombra. Con tres partes
+                # solo se recorta si la primera es un esquema conocido; si no,
+                # se trata como base y se valida. Con cuatro o más no hay
+                # ambigüedad: la primera es la base.
+                and (len(partes) != 3 or cls._normalizar_identificador(partes[0]) in cls._ESQUEMAS_CONOCIDOS)
             ):
                 partes = partes[:-1]
             if len(partes) <= 2:
@@ -141,10 +180,16 @@ class DatabaseReferenceGuard:
                 de_mas.append(texto.strip())
                 continue
             base = cls._normalizar_identificador(partes[0])
-            if base and base not in bases:
+            if not base:
+                # `[].dbo.t` o `"".dbo.t`: hay tres partes, luego hay una base,
+                # pero no se sabe cuál. Descartarla en silencio era dejarla
+                # pasar. R11: se rechaza.
+                ilegibles.append(texto.strip())
+                continue
+            if base not in bases:
                 bases.append(base)
 
-        return bases, de_mas
+        return bases, de_mas, ilegibles
 
     @staticmethod
     def _partir(cadena: str) -> list[str]:
@@ -253,9 +298,18 @@ class DatabaseReferenceGuard:
                 continue
 
             if sql.startswith("--", indice):
-                fin = sql.find("\n", indice)
-                if fin == -1:
-                    fin = total
+                # SQL Server cierra el comentario de línea con cualquier
+                # terminador, no solo `\n`. Buscando únicamente `\n`, una
+                # sentencia con finales de línea CR se blanqueaba ENTERA y
+                # escondía la referencia que viniera después.
+                fin = min(
+                    (
+                        pos
+                        for pos in (sql.find(marca, indice) for marca in cls._FIN_DE_LINEA)
+                        if pos != -1
+                    ),
+                    default=total,
+                )
                 salida.append(" " * (fin - indice))
                 indice = fin
                 continue
