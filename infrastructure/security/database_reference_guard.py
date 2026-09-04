@@ -31,12 +31,25 @@ class DatabaseReferenceGuard:
 
     # Un identificador de SQL Server en las formas que admitimos: normal,
     # entre corchetes o entre comillas dobles.
-    _IDENT = r"(?:\[[^\]\r\n]*\]|\"[^\"\r\n]*\"|[A-Za-z_][A-Za-z0-9_$#@]*)"
+    #
+    # El corchete entiende su escape `]]`, y no es un detalle: sin él,
+    # `[x]]ruesma_rep.dbo.gra]` se partía en `[x]` más un resto suelto, y el
+    # contenido del identificador se analizaba como si fuera SQL. Eso no dejaba
+    # pasar nada —rechazaba de más— pero era un falso positivo evitable.
+    _IDENT = r"(?:\[(?:[^\]\r\n]|\]\])*\]|\"[^\"\r\n]*\"|[A-Za-z_][A-Za-z0-9_$#@]*)"
 
     # Una cadena cualificada: un identificador y al menos un punto más. La
     # parte tras el punto es opcional para cubrir `base..tabla`, que es SQL
     # válido con el esquema omitido.
-    _CADENA_RE = re.compile(rf"{_IDENT}(?:\s*\.\s*(?:{_IDENT})?)+")
+    #
+    # La alternativa `suelto` no se usa para nada, y por eso está: hace que el
+    # escaneo CONSUMA también los identificadores que no forman cadena, en vez
+    # de saltárselos. Sin ella, `finditer` podía empezar a buscar DENTRO de un
+    # identificador delimitado —en `[x]]ruesma_rep.dbo.gra]` encontraba
+    # `ruesma_rep.dbo.gra`— y rechazaba por una referencia que no existía.
+    _ESCANEO_RE = re.compile(
+        rf"(?P<cadena>{_IDENT}(?:\s*\.\s*(?:{_IDENT})?)+)|(?P<suelto>{_IDENT})"
+    )
 
     _COMILLAS_DELIMITADORAS = ('[', ']', '"')
 
@@ -92,8 +105,11 @@ class DatabaseReferenceGuard:
 
         bases: list[str] = []
         de_mas: list[str] = []
-        for match in cls._CADENA_RE.finditer(limpio):
-            texto = match.group(0)
+        for match in cls._ESCANEO_RE.finditer(limpio):
+            texto = match.group("cadena")
+            if texto is None:
+                # Un identificador suelto: se consume y no dice nada.
+                continue
             partes = cls._partir(texto)
             # Una última parte vacía significa que el punto final no separa dos
             # identificadores. Solo hay un caso en que eso es inocente: que lo
@@ -109,9 +125,12 @@ class DatabaseReferenceGuard:
             #
             # Ojo: solo se mira la ÚLTIMA parte. En `base..tabla` la vacía es
             # la del medio y ahí sí hay tres partes de verdad.
-            if len(partes) > 1 and not partes[-1]:
-                if limpio[match.end() : match.end() + 1] == "*":
-                    partes = partes[:-1]
+            if (
+                len(partes) > 1
+                and not partes[-1]
+                and limpio[match.end() : match.end() + 1] == "*"
+            ):
+                partes = partes[:-1]
             if len(partes) <= 2:
                 continue
             if len(partes) >= 4:

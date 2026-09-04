@@ -503,3 +503,41 @@ def test_f003_r5_un_comentario_pegado_a_un_operador_no_confunde() -> None:
     sql = "SELECT a*/*ruesma_rep.dbo.gra*/b FROM dbo.con"
     assert DatabaseReferenceGuard.extract_database_references(sql) == []
     DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r1_una_referencia_seguida_de_un_asterisco_de_multiplicar_no_se_pierde() -> None:
+    """
+    La excepción del `*` vale solo cuando la última parte está VACÍA. Si no se
+    comprobaran las dos cosas, `ruesma_rep.dbo.gra*2` perdería la última parte,
+    quedaría en dos y la base se colaría.
+    """
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT ruesma_rep.dbo.gra*2 FROM x"
+    ) == ["ruesma_rep"]
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(
+            "SELECT ruesma_rep.dbo.gra*2 FROM x", allowed=PERMITIDAS, contexto="lectura"
+        )
+
+
+@pytest.mark.parametrize(
+    ("sql", "esperada"),
+    [
+        ("SELECT [a]]b] FROM ruesma_rep.dbo.gra", ["ruesma_rep"]),
+        ("SELECT [a]]] FROM ruesma_rep.dbo.gra", ["ruesma_rep"]),
+        ("SELECT [a]]b]]c] FROM ruesma_rep.dbo.gra", ["ruesma_rep"]),
+        ("SELECT [x]]ruesma_rep.dbo.gra] FROM dbo.con", []),
+    ],
+)
+def test_f003_r3_el_escape_de_corchete_no_desalinea(sql: str, esperada: list) -> None:
+    assert DatabaseReferenceGuard.extract_database_references(sql) == esperada
+
+
+def test_f003_r11_dos_identificadores_delimitados_pegados_no_cuelgan() -> None:
+    """
+    `[a][b]` no es T-SQL válido, pero el detector no puede colgarse con ello:
+    un guardia que se cuelga es una denegación de servicio con la function key.
+    """
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT [a][b] FROM ruesma_rep.dbo.gra"
+    ) == ["ruesma_rep"]

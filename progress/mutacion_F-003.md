@@ -1,7 +1,7 @@
 <!-- progress/mutacion_F-003.md -->
 # F-003 · Campaña de mutación
 
-Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-04 01:42.
+Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-04 11:14.
 
 ## Alcance
 
@@ -9,56 +9,40 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 | Fichero | Líneas en alcance |
 |---|---|
-| `infrastructure/security/database_reference_guard.py` | 237 |
+| `infrastructure/security/database_reference_guard.py` | 246 |
 | `infrastructure/security/sql_query_guard.py` | 18 |
 | `infrastructure/security/sql_write_guard.py` | 17 |
 | `scripts/verificar_sql_ecosistema.py` | 241 |
-| **Total** | **513** |
+| **Total** | **522** |
 
 ## Totales
 
 | Métrica | Valor |
 |---|---|
-| Mutantes generados | 129 |
-| Mutantes evaluados | 129 |
-| Muertos | 110 |
-| Supervivientes | 13 |
-| Timeouts | 6 |
-| Timeouts repasados en serie | 6 — 0 con veredicto tras el repaso, 6 en timeout todavía |
+| Mutantes generados | 132 |
+| Mutantes evaluados | 132 |
+| Muertos | 116 |
+| Supervivientes | 10 |
+| Timeouts | 5 |
+| Timeouts repasados en serie | 6 — 1 con veredicto tras el repaso, 5 en timeout todavía |
 | Sin veredicto (base rota) | 0 |
-| Tiempo total | 1363.6 s |
-| SHA de HEAD medido | `539f1f63ecfb823cd8160f7afc5baf8d4e40ae8a` |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_0` | 51.9 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_1` | 51.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_2` | 53.3 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_3` | 52.2 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_4` | 53.4 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_5` | 53.1 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_6` | 52.1 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_gzfo6lub/wk_7` | 54.6 |
-| Media por mutante evaluado (s) | 10.6 |
+| Tiempo total | 2340.8 s |
+| SHA de HEAD medido | `41357abd74252517319d59676d1b7f5a21fa39e8` |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_0` | 52.3 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_1` | 54.8 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_2` | 54.3 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_3` | 50.3 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_4` | 51.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_5` | 51.5 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_6` | 52.9 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_7` | 51.5 |
+| Media por mutante evaluado (s) | 17.7 |
 | Timeout efectivo por mutante (s) | 120 — derivado de la línea base × 2.0 |
 | Suelo configurado (s) | 120 |
 | Workers | 8 |
 | Muestreo | no: campaña completa |
 
 ## Supervivientes
-
-> ### ✅ Justificación ACEPTADA por el humano · 2026-09-04
->
-> El rigor `critico` exige cero supervivientes **o** justificación escrita
-> aceptada por el humano. El humano revisó el resumen de los trece —tres
-> guardas de atajo equivalentes, dos de `_normalizar_identificador`
-> equivalentes por construcción, siete de aritmética de escapes cuyo resultado
-> observable no cambia, y uno de `sys.path.insert` que no es lógica del
-> guardia— y **aceptó cerrar con ellos vivos**.
->
-> Se le señaló cuál es el más débil de los trece, para que la decisión no fuera
-> en bloque: el **nº 12** (`fin = sql.find("*/", indice - 2)`), que solo
-> difiere si hubiera un `*/` pegado justo delante de un `/*`. Aceptado también.
->
-> Recorrido de las tres campañas: **52 → 18 → 13** supervivientes.
-
 
 Cada superviviente es una línea que ningún test comprueba de verdad, o una mutación equivalente. Distinguirlo es trabajo del implementer: ningún análisis puede quedarse sin completar al cerrar la feature.
 
@@ -77,7 +61,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > **Decisión: EQUIVALENTE.** Matarlo exigiría un test que compruebe *por qué
 > ruta* se llegó al resultado, que es acoplarse al interior.
 
-### 2. `infrastructure/security/database_reference_guard.py:104` [comparacion]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 2. `infrastructure/security/database_reference_guard.py:112` [comparacion]
 
 - Original: `if len(partes) > 1 and not partes[-1]:`
 - Mutado:   `if len(partes) >= 1 and not partes[-1]:`
@@ -90,7 +76,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > `len >= 2` garantizado, `> 1` y `>= 1` son la misma condición.
 > **Decisión: EQUIVALENTE por construcción.**
 
-### 3. `infrastructure/security/database_reference_guard.py:104` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 3. `infrastructure/security/database_reference_guard.py:112` [entero]
 
 - Original: `if len(partes) > 1 and not partes[-1]:`
 - Mutado:   `if len(partes) > 2 and not partes[-1]:`
@@ -103,7 +91,19 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > terminan en `len(partes) <= 2`, es decir, en «esto no nombra una base».**
 > **Decisión: EQUIVALENTE**, los dos desembocan en la misma rama.
 
-### 4. `infrastructure/security/database_reference_guard.py:147` [logico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 4. `infrastructure/security/database_reference_guard.py:112` [logico]
+
+- Original: `if len(partes) > 1 and not partes[-1]:`
+- Mutado:   `if len(partes) > 1 or not partes[-1]:`
+
+#### Análisis (PENDIENTE del implementer)
+
+> Por qué ningún test lo caza: PENDIENTE.
+> Decisión: ¿test nuevo o mutante equivalente justificado?
+
+### 5. `infrastructure/security/database_reference_guard.py:156` [logico]
 
 - Original: `delimitado = (identificador.startswith("[") and identificador.endswith("]")) or (`
 - Mutado:   `delimitado = (identificador.startswith("[") or identificador.endswith("]")) or (`
@@ -117,7 +117,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > alcanzable. **Decisión: EQUIVALENTE por construcción.** Para matarlo haría
 > falta llamar al método privado con una entrada que la regex nunca produce.
 
-### 5. `infrastructure/security/database_reference_guard.py:148` [logico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 6. `infrastructure/security/database_reference_guard.py:157` [logico]
 
 - Original: `identificador.startswith('"') and identificador.endswith('"')`
 - Mutado:   `identificador.startswith('"') or identificador.endswith('"')`
@@ -130,7 +132,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 ]*"` también está balanceado por construcción.
 > **Decisión: EQUIVALENTE por construcción.**
 
-### 6. `infrastructure/security/database_reference_guard.py:179` [aritmetico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 7. `infrastructure/security/database_reference_guard.py:188` [aritmetico]
 
 - Original: `fin = indice + 1`
 - Mutado:   `fin = indice - 1`
@@ -144,49 +148,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > T-SQL válido: entre dos identificadores va siempre un punto, una coma o un
 > espacio. **Decisión: EQUIVALENTE para toda entrada que el motor aceptaría.**
 
-### 7. `infrastructure/security/database_reference_guard.py:182` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-- Original: `if fin + 1 < total and sql[fin + 1] == "]":`
-- Mutado:   `if fin + 2 < total and sql[fin + 1] == "]":`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** mueve el límite del `and` en vez del
-> índice, y solo cambia el comportamiento en el último carácter de la cadena,
-> donde un `]` final no puede formar un escape porque no hay nada detrás.
-> **Decisión: EQUIVALENTE.**
-
-### 8. `infrastructure/security/database_reference_guard.py:182` [aritmetico]
-
-- Original: `if fin + 1 < total and sql[fin + 1] == "]":`
-- Mutado:   `if fin + 1 < total and sql[fin - 1] == "]":`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** mira el carácter anterior en vez del
-> siguiente para decidir si hay escape. Un `]` inmediatamente antes del cierre
-> significa que ya se procesó como parte del identificador, así que la decisión
-> resultante coincide en toda entrada balanceada.
-> **Decisión: EQUIVALENTE en el resultado observable**, y cubierto por el test
-> de propiedad.
-
-### 9. `infrastructure/security/database_reference_guard.py:182` [entero]
-
-- Original: `if fin + 1 < total and sql[fin + 1] == "]":`
-- Mutado:   `if fin + 1 < total and sql[fin + 2] == "]":`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** afecta al escape `]]` dentro de un
-> identificador. Si el escape no se reconoce, el identificador cierra antes y
-> el resto se vuelve a analizar; como los corchetes están balanceados, las
-> zonas que quedan protegidas son las mismas y el conjunto de bases detectadas
-> no cambia. Lo comprueban
-> `test_f003_r3_el_corchete_de_cierre_escapado_no_confunde` y el test de
-> propiedad, que incluye `[raro]]nombre]` entre sus contextos.
-> **Decisión: EQUIVALENTE en el resultado observable.**
-
-### 10. `infrastructure/security/database_reference_guard.py:183` [entero]
+### 8. `infrastructure/security/database_reference_guard.py:192` [entero]
 
 - Original: `fin += 2`
 - Mutado:   `fin += 3`
@@ -200,7 +164,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > cadena cualificada nueva. **Decisión: EQUIVALENTE en el resultado
 > observable.**
 
-### 11. `infrastructure/security/database_reference_guard.py:201` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 9. `infrastructure/security/database_reference_guard.py:210` [entero]
 
 - Original: `if fin + 1 < total and sql[fin + 1] == "'":`
 - Mutado:   `if fin + 2 < total and sql[fin + 1] == "'":`
@@ -214,22 +180,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > `test_f003_r11_una_comilla_escapada_no_cierra_el_literal_antes_de_tiempo`.
 > **Decisión: EQUIVALENTE.**
 
-### 12. `infrastructure/security/database_reference_guard.py:224` [aritmetico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-- Original: `fin = sql.find("*/", indice + 2)`
-- Mutado:   `fin = sql.find("*/", indice - 2)`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** busca el `*/` de cierre dos posiciones
-> antes de donde debería. Como la búsqueda arranca antes de la apertura `/*`,
-> encuentra el mismo cierre salvo que hubiera un `*/` pegado justo delante, lo
-> que exige un comentario cerrado inmediatamente antes y sin separación
-> (`*//*...*/`). Ni el ecosistema ni el generador de la API producen eso.
-> **Decisión: EQUIVALENTE para toda entrada realista**, anotado como el más
-> débil de los trece.
-
-### 13. `scripts/verificar_sql_ecosistema.py:40` [entero]
+### 10. `scripts/verificar_sql_ecosistema.py:40` [entero]
 
 - Original: `sys.path.insert(0, str(RAIZ_PROYECTO))`
 - Mutado:   `sys.path.insert(1, str(RAIZ_PROYECTO))`
@@ -242,14 +195,15 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > elemento de `sys.path` contuviera otro paquete llamado igual, y durante los
 > tests el proyecto ya está importado. **Decisión: EQUIVALENTE.**
 
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
 ## Timeouts
 
 Estos agotaron el reloj **también al repasarlos en serie**, uno a uno y sin nadie compitiendo por la máquina: la contención ya no los explica. Míralos como un cuelgue de verdad, no como ruido.
 
-- `infrastructure/security/database_reference_guard.py:183` [aritmetico] fin += 2 -> fin -= 2
-- `infrastructure/security/database_reference_guard.py:186` [aritmetico] fin += 1 -> fin -= 1
-- `infrastructure/security/database_reference_guard.py:202` [aritmetico] fin += 2 -> fin -= 2
-- `infrastructure/security/database_reference_guard.py:217` [comparacion] if fin == -1: -> if fin != -1:
-- `infrastructure/security/database_reference_guard.py:217` [entero] if fin == -1: -> if fin == -2:
-- `infrastructure/security/database_reference_guard.py:225` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:195` [aritmetico] fin += 1 -> fin -= 1
+- `infrastructure/security/database_reference_guard.py:211` [aritmetico] fin += 2 -> fin -= 2
+- `infrastructure/security/database_reference_guard.py:226` [comparacion] if fin == -1: -> if fin != -1:
+- `infrastructure/security/database_reference_guard.py:226` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:234` [entero] if fin == -1: -> if fin == -2:
 
