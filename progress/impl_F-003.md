@@ -47,23 +47,16 @@ también los casos que no tenían nada que ver.
 No bastaba con que los tests pasaran: había que demostrar que **ninguna
 consulta que hoy funciona empieza a fallar**. Se hizo en dos pasos.
 
-**a) Inventario.** Un subagente barrió `C:\Users\pgris\PycharmProjects\`
-buscando SQL enviado a esta API. Encontró **seis ficheros** con nombres de tres
-partes, todos de **lectura** contra `ruesma_rep`, ninguno de escritura, ninguno
-de cuatro partes, ninguno a una base ajena:
-
-- `albaranes-persistencia/scripts/` — `diagnose_sigrid_contrato_docs.py`,
-  `diagnose_sigrid_contrato_docs_v2.py`,
-  `diagnose_sigrid_contrato_gra_modificado.py`, `trace_sigrid_rcg_dual.py`
-  (y su copia idéntica dentro del monorepo `albaranes`).
-- `postventa-incidencias/infra/13_caracterizacion_grafico_url.ps1`.
-
-Todos interpolan el nombre de la base en un f-string (`{database_rep}.dbo.gra`,
-`$SigridBaseDocumental.dbo.gra`), así que **un grep del literal `ruesma_rep.dbo`
-no los habría encontrado**. Como `ruesma_rep` está en `ALLOWED_DATABASES`,
-siguen funcionando. Los siete están en
-`tests/test_sql_query_guard_bases.py::TestConsultasRealesDelEcosistema`, con el
-fichero de origen anotado en cada uno.
+**a) Inventario.** Un subagente barrió los repositorios buscando SQL enviado a
+esta API. Encontró **seis ficheros** con nombres de tres partes —cuatro
+scripts de `albaranes-persistencia` (y su copia en el monorepo) y un `.ps1` de
+`postventa-incidencias`—, todos de **lectura** contra `ruesma_rep`, ninguno de
+escritura, ninguno de cuatro partes, ninguno a una base ajena. Todos
+**interpolan** el nombre de la base en un f-string, así que un grep del literal
+no los habría encontrado. Como `ruesma_rep` está en `ALLOWED_DATABASES` siguen
+funcionando, y los siete casos están fijados en
+`tests/test_sql_query_guard_bases.py::TestConsultasRealesDelEcosistema` con su
+fichero de origen anotado.
 
 **b) Verificador reproducible.** `scripts/verificar_sql_ecosistema.py` recorre
 los repositorios, extrae las cadenas que parecen SQL destinado a esta API,
@@ -151,6 +144,22 @@ y el análisis de los que quedan vivos, en
 lectura: el que verificaba `SELECT ruesma_rep.dbo.gra.*` nombraba la base **dos
 veces** en el mismo SQL, y la segunda aparición tapaba una lógica rota.
 
+**Un agujero que dejaba pasar, encontrado en la pasada 3.** El neutralizador
+trataba los corchetes como delimitador pero **no las comillas dobles**, así que
+en `SELECT 1 AS "z--", j.name FROM msdb.dbo.sysjobs` —T-SQL válido— veía el
+`--` de dentro del alias como un comentario, se comía el resto de la línea y la
+referencia a `msdb` **se colaba**. Es el peor tipo de fallo de un guardia. Los
+delimitados están ahora unificados en una sola tabla, cada uno con su escape
+(`]]` y `""`), y un barrido de 44 combinaciones —cuatro formas de envolver un
+alias por once construcciones capaces de tragarse la sentencia— no deja ninguna
+pasando salvo el `--` que comenta de verdad.
+
+> **La lección, y va escrita porque se repitió tres veces:** el apóstrofo en
+> corchetes, el escape `]]` y el `--` en comillas dobles son **el mismo
+> problema** —un delimitador cuyo contenido no debe interpretarse— y se
+> parchearon caso a caso en vez de tratarse de raíz. La tabla de delimitados
+> debió existir desde el primer arreglo.
+
 **Cuatro «equivalentes» que no lo eran.** El reviewer reprodujo los trece —no
 la muestra de uno que pide RM5— y midió que los supervivientes 7, 8, 9 y 12
 **fallaban abiertos** ante un corchete mal cerrado o un comentario pegado a un
@@ -179,42 +188,27 @@ historial.
    alcance de F-003.
 3. **Merge de la rama a `dev`**, que lo hace el humano.
 
-## 7 · Falsos positivos: los previstos, y los dos que encontró el reviewer
+## 7 · Falsos positivos: los previstos y los tres que hubo que corregir
 
-**Corregidos tras la pasada 1 de revisión** (los encontró el reviewer probando
-47 formas de T-SQL, no una lectura del código):
+Los tres los encontró el reviewer probando T-SQL, no leyendo el código, y los
+tres son **la misma clase de fallo**: un delimitador cuyo contenido no debe
+interpretarse. Se parchearon uno a uno hasta que la pasada 3 obligó a tratarlo
+de raíz con una tabla de delimitados. Debió existir desde el primero.
 
-- **`SELECT dbo.con.*`** se leía como tres partes, siendo SQL válido y
-  corriente. Ahora se descarta la última parte cuando está vacía. Solo la
-  última: en `base..tabla` la vacía es la del medio y ahí sí hay tres partes,
-  y `ruesma_rep.dbo.gra.*` sigue detectándose.
-- **`SELECT [Client's Name] FROM dbo.con`** moría con «literal sin cerrar»:
-  el apóstrofo dentro de un identificador entre corchetes arrancaba un literal
-  falso que se comía el resto de la sentencia. Ahora el neutralizador conoce el
-  corchete como delimitador, con su escape `]]`.
+| Caso | Qué hacía | Arreglo |
+|---|---|---|
+| `SELECT dbo.con.*` | Se leía como tres partes y se rechazaba | Se descarta la parte vacía final, **solo si lo siguiente es un `*`** |
+| `SELECT [Client's Name] …` | El apóstrofo abría un literal falso que se comía la sentencia → «literal sin cerrar» | El corchete es delimitador, con su escape `]]` |
+| `SELECT 1 AS "z--", … FROM msdb.…` | El `--` se leía como comentario y **la referencia se colaba** | La comilla doble también es delimitador, con su escape `""` |
 
-Se corrigieron en vez de solo anotarse porque van en la dirección de la
-condición del humano: que nada legítimo se rechace.
+El primer arreglo, tal como se hizo al principio, **amplió lo que pasaba el
+filtro**: descartaba la parte vacía **siempre**, y ocho formas hostiles pasaban
+de rechazarse a colarse (`tempdb..#t` entre ellas). Corregido en la pasada 2.
+El tercero es el único que dejaba pasar en vez de rechazar de más.
 
-> **Corrección de la pasada 2: lo que decía aquí era falso.** El arreglo de
-> `dbo.con.*` **sí amplió lo que pasaba el filtro**, porque descartaba la parte
-> vacía final **siempre**, sin mirar qué seguía al punto: ocho formas hostiles
-> pasaban de rechazarse a colarse, entre ellas `tempdb..#t`, T-SQL válido
-> contra una base fuera de `ALLOWED_DATABASES`. No era la vulnerabilidad que
-> F-003 vino a cerrar —`ruesma_rep` seguía bloqueada— pero era justo lo que R11
-> prohíbe. Corregido: la parte vacía se descarta **solo si lo siguiente es un
-> `*`**. Lo encontró el reviewer comparando 26 formas hostiles antes y después,
-> no leyendo el código.
-
-**Deuda que sí se queda, y con motivo:**
-
-- El detector **rechaza `base.esquema.tabla.columna`**, que es SQL válido de
-  cuatro partes sin ser un servidor vinculado, y `t.col.value(...)` /
-  `c.doc.nodes(...)` de XML y CLR. Nadie los usa en el ecosistema (verificado
-  en §3) y el mensaje de error es explícito. Distinguirlos exigiría saber la
-  posición dentro de la sentencia, es decir, un analizador: el precio no
-  compensa mientras nadie los escriba.
-- **Punto ciego del verificador** (lo señaló el reviewer): un fragmento sin
-  verbo no llega a ser candidato. Lo cubre el inventario manual del §3a.
-- Los avisos `RUF012` y `SIM102` de los dos guardias son **anteriores** a esta
-  feature y no se tocan: no es su sitio.
+**Deuda que se queda, y con motivo:** el detector rechaza
+`base.esquema.tabla.columna` y las notaciones XML/CLR (`t.col.value(...)`).
+Nadie las usa en el ecosistema y el mensaje es explícito; distinguirlas exigiría
+un analizador. El verificador tiene un punto ciego con los fragmentos sin verbo,
+cubierto por el inventario manual. Los avisos `RUF012` y `SIM102` de los dos
+guardias son anteriores a esta feature.

@@ -541,3 +541,60 @@ def test_f003_r11_dos_identificadores_delimitados_pegados_no_cuelgan() -> None:
     assert DatabaseReferenceGuard.extract_database_references(
         "SELECT [a][b] FROM ruesma_rep.dbo.gra"
     ) == ["ruesma_rep"]
+
+
+# --- El agujero de la pasada 3: un delimitador que se traga la sentencia -----
+#
+# `SELECT 1 AS "z--", j.name FROM msdb.dbo.sysjobs` es T-SQL válido. El
+# neutralizador trataba los corchetes como delimitador pero NO las comillas
+# dobles, así que veía el `--` de dentro del alias como un comentario, se comía
+# el resto de la línea y la referencia a `msdb` **se colaba**. Es el peor tipo
+# de fallo de un guardia: dejar pasar, no rechazar de más.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        'SELECT 1 AS "z--", j.name FROM msdb.dbo.sysjobs j',
+        'SELECT 1 AS "z/*", j.name FROM msdb.dbo.sysjobs j',
+        'SELECT 1 AS "z\'", j.name FROM msdb.dbo.sysjobs j',
+        'SELECT 1 AS "z""--", j.name FROM msdb.dbo.sysjobs j',
+        'SELECT "a--b" FROM msdb.dbo.sysjobs',
+        "SELECT 1 AS [z--], j.name FROM msdb.dbo.sysjobs j",
+        "SELECT 1 AS [z/*], j.name FROM msdb.dbo.sysjobs j",
+    ],
+)
+def test_f003_r7_un_delimitador_no_puede_esconder_la_referencia(sql: str) -> None:
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        'SELECT 1 AS "z--", n FROM dbo.con',
+        'SELECT "a--b", "c/*d" FROM dbo.con',
+        "SELECT [a--b] FROM dbo.con",
+    ],
+)
+def test_f003_r5_un_delimitador_con_signos_dentro_no_provoca_rechazo(sql: str) -> None:
+    """La otra mitad: tampoco puede empezar a fallar una consulta legítima."""
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+
+
+def test_f003_r11_un_delimitado_por_comillas_sin_cerrar_rechaza() -> None:
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(
+            'SELECT "sin cerrar FROM dbo.con', allowed=PERMITIDAS, contexto="lectura"
+        )
+
+
+def test_f003_r5_un_comentario_de_verdad_sigue_comentando() -> None:
+    """
+    Aquí el `--` NO está dentro de un delimitador: comenta el resto de la línea
+    de verdad, y el motor tampoco leería lo que viene detrás.
+    """
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT 1 -- , j.name FROM msdb.dbo.sysjobs j"
+    ) == []

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from types import MappingProxyType
 
 
 class DatabaseReferenceError(ValueError):
@@ -51,7 +52,10 @@ class DatabaseReferenceGuard:
         rf"(?P<cadena>{_IDENT}(?:\s*\.\s*(?:{_IDENT})?)+)|(?P<suelto>{_IDENT})"
     )
 
-    _COMILLAS_DELIMITADORAS = ('[', ']', '"')
+    #: Identificadores delimitados: apertura -> cierre. El contenido no se
+    #: analiza, se copia tal cual, porque dentro de ellos cualquier carácter es
+    #: una letra más y no el principio de un literal ni de un comentario.
+    _APERTURA_DE_DELIMITADO = MappingProxyType({"[": "]", '"': '"'})
 
     # --- API pública --------------------------------------------------------
 
@@ -179,8 +183,8 @@ class DatabaseReferenceGuard:
             identificador = identificador[1:-1]
         return identificador.strip().lower()
 
-    @staticmethod
-    def _neutralizar_literales_y_comentarios(sql: str) -> str:
+    @classmethod
+    def _neutralizar_literales_y_comentarios(cls, sql: str) -> str:
         """
         Sustituye por espacios el contenido de literales de cadena y de
         comentarios, conservando las posiciones. Sin esto, un
@@ -197,25 +201,33 @@ class DatabaseReferenceGuard:
         while indice < total:
             caracter = sql[indice]
 
-            # Un identificador entre corchetes se copia tal cual, y ANTES de
-            # mirar la comilla simple: dentro de `[Client's Name]` el apóstrofo
-            # es una letra más, no el principio de un literal. Sin esto, un
-            # identificador así arrancaba un literal falso que se comía el
-            # resto de la sentencia y acababa en «literal sin cerrar».
-            # SQL Server escapa el corchete de cierre duplicándolo (`]]`).
-            if caracter == "[":
+            # Un identificador DELIMITADO se copia tal cual, y ANTES de mirar
+            # nada más. Dentro de `[Client's Name]` el apóstrofo es una letra,
+            # no el principio de un literal; dentro de `"z--"` los guiones son
+            # letras, no un comentario.
+            #
+            # Sin esto, `SELECT 1 AS "z--", j.name FROM msdb.dbo.sysjobs` se
+            # comía el resto de la línea como si fuera un comentario y la
+            # referencia a `msdb` **se colaba**. Lo encontró el reviewer en la
+            # pasada 3, y es el peor tipo de fallo: dejar pasar, no rechazar.
+            #
+            # SQL Server escapa el delimitador de cierre duplicándolo: `]]`
+            # dentro de corchetes, `""` dentro de comillas dobles.
+            if caracter in cls._APERTURA_DE_DELIMITADO:
+                cierre = cls._APERTURA_DE_DELIMITADO[caracter]
                 fin = indice + 1
                 while fin < total:
-                    if sql[fin] == "]":
-                        if fin + 1 < total and sql[fin + 1] == "]":
+                    if sql[fin] == cierre:
+                        if fin + 1 < total and sql[fin + 1] == cierre:
                             fin += 2
                             continue
                         break
                     fin += 1
                 if fin >= total:
                     raise DatabaseReferenceError(
-                        "la sentencia tiene un identificador entre corchetes sin cerrar; "
-                        "no se puede analizar con seguridad y se rechaza."
+                        f"la sentencia tiene un identificador delimitado por "
+                        f"{caracter}{cierre} sin cerrar; no se puede analizar con "
+                        "seguridad y se rechaza."
                     )
                 salida.append(sql[indice : fin + 1])
                 indice = fin + 1
