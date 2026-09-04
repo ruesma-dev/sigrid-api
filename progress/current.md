@@ -61,7 +61,9 @@ permitida». Si fallara, la causa sería que `ruesma_rep` no está en
 
 ### Lo siguiente, y hace falta el humano
 
-**Los 7 supervivientes necesitan una aceptación NUEVA.** La que se dio el
+**Los 7 supervivientes están ACEPTADOS por el humano el 2026-09-04**, en una
+aceptación nueva y sobre hechos verificados por el reviewer. La anterior, que
+cubría trece, quedó anulada. Detalle de por qué: la que se dio el
 2026-09-04 cubría trece, y la pasada 2 demostró que **cuatro de aquellos
 análisis eran falsos**: no eran equivalentes, hacían que el guardia fallara
 abierto y eran matables con un test de una línea. Esa aceptación queda anulada

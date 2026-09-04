@@ -60,9 +60,19 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 >
 > **Quedan 7**, y son exactamente los que el reviewer verificó de forma
 > independiente como equivalentes, con 0 diferencias en 4.050 entradas cada
-> uno. Hace falta una **aceptación nueva del humano** sobre estos siete.
+> uno.
 >
 > Recorrido: **52 → 18 → 13 → 10 → 7**.
+>
+> ### ✅ Aceptación NUEVA del humano · 2026-09-04
+>
+> El humano aceptó **estos siete**, después de que se le dijera expresamente que
+> la aceptación anterior quedaba anulada y por qué. A diferencia de aquella,
+> esta se apoya en una verificación **independiente**: los siete los reprodujo
+> el reviewer, que no los escribió, midiendo cada uno sobre 4.050 entradas.
+>
+> Se le expuso también la razón de no perseguirlos más: matarlos exige tests
+> acoplados al interior del reconocedor, peores que el código que protegen.
 
 ### 1. `infrastructure/security/database_reference_guard.py:101` [logico]
 
