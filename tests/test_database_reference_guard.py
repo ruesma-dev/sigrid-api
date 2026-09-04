@@ -425,3 +425,81 @@ def test_f003_r5_una_consulta_limpia_nunca_se_rechaza(antes: str, despues: str) 
     sql = f"SELECT ide FROM dbo.con {antes} {despues}"
     DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
     assert DatabaseReferenceGuard.extract_database_references(sql) == []
+
+
+# --- Lo que destapó la pasada 2 de revisión ---------------------------------
+#
+# El arreglo de `dbo.con.*` descartaba la parte vacía final SIEMPRE, sin mirar
+# qué seguía al punto. Eso abrió el guardia: `tempdb..#t` es T-SQL válido, y al
+# no saber leer `#t` la referencia se leía como dos partes y la base se colaba.
+# R11 dice justo lo contrario: ante lo que no se entiende, se rechaza.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # Tablas temporales: el `#` no es un identificador que el reconocedor
+        # sepa leer, pero la referencia a la base es real.
+        "SELECT * FROM tempdb..#t",
+        "SELECT * FROM tempdb.dbo.##global",
+        "SELECT * FROM ruesma_rep.dbo.#t",
+        # Otros terceros elementos que tampoco casan como identificador.
+        "SELECT * FROM ruesma_rep.dbo.$x",
+        "SELECT * FROM ruesma_rep.dbo.9tabla",
+        "SELECT * FROM ruesma_rep.dbo. ",
+    ],
+)
+def test_f003_r11_un_tercer_elemento_ilegible_no_deja_pasar_la_base(sql: str) -> None:
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT dbo.con.* FROM dbo.con",
+        "SELECT dbo.con. * FROM dbo.con",
+    ],
+)
+def test_f003_r5_el_asterisco_sigue_siendo_la_unica_excepcion(sql: str) -> None:
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r3_el_asterisco_no_esconde_la_base_ni_con_el_arreglo() -> None:
+    assert DatabaseReferenceGuard.extract_database_references(
+        "SELECT ruesma_rep.dbo.gra.* FROM otra"
+    ) == ["ruesma_rep"]
+
+
+# --- Fallo cerrado ante un delimitador mal formado (R11) --------------------
+#
+# Estos matan los supervivientes 7, 8, 9 y 12, que el análisis daba por
+# equivalentes y no lo eran: los cuatro hacen que el guardia falle ABIERTO ante
+# un corchete sin cerrar o un comentario pegado a un operador.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT [a]] FROM x",
+        "SELECT * FROM [gra]]",
+        "SELECT [a]]b FROM x",
+    ],
+)
+def test_f003_r11_un_corchete_mal_cerrado_falla_cerrado(sql: str) -> None:
+    """
+    `[a]]` es un identificador que empieza y nunca termina: el `]]` es un
+    corchete escapado, no un cierre. No se puede analizar, así que se rechaza.
+    """
+    with pytest.raises(DatabaseReferenceError):
+        DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")
+
+
+def test_f003_r5_un_comentario_pegado_a_un_operador_no_confunde() -> None:
+    """
+    `a*/*...*/b` es T-SQL corriente: un `*` de multiplicar pegado a la apertura
+    de un comentario. El contenido del comentario no es una referencia.
+    """
+    sql = "SELECT a*/*ruesma_rep.dbo.gra*/b FROM dbo.con"
+    assert DatabaseReferenceGuard.extract_database_references(sql) == []
+    DatabaseReferenceGuard.validate(sql, allowed=PERMITIDAS, contexto="lectura")

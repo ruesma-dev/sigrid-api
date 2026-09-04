@@ -13,4 +13,5 @@
 - [x] T10: Ejecutar `bash harness/init.sh` en verde.  |  Verificación: termina en ENTORNO LISTO
 - [x] T11: Corregir los dos falsos positivos que encontró el reviewer (`esquema.tabla.*` y el apóstrofo dentro de `[corchetes]`), con sus tests.  |  Verificación: `python -m pytest tests/test_database_reference_guard.py -q` en verde
 - [x] T12: Renombrar los tests a la convención trazable `test_fXXX_rN_...` de `docs/CONVENTIONS.md`.  |  Verificación: `python -m pytest -k f003 -q` recoge 106 tests
-- [x] T13: Campaña de mutación con cero supervivientes.  |  Verificación: `python -m harness.mutacion --feature F-003` -> `progress/mutacion_F-003.md`
+- [x] T13: Campaña de mutación, con cero supervivientes o justificación escrita aceptada por el humano.  |  Verificación: `python -m harness.mutacion --feature F-003` -> `progress/mutacion_F-003.md`, con el análisis de cada superviviente
+- [x] T14: Cerrar el agujero que abrió el arreglo de `dbo.con.*` (descartaba la parte vacía final sin mirar qué seguía al punto) y matar los supervivientes 7, 8, 9 y 12, cuyo análisis daba por equivalentes mutantes que no lo eran.  |  Verificación: `SELECT * FROM tempdb..#t` rechaza y `SELECT dbo.con.*` pasa; los cuatro mutantes mueren al aplicarlos a mano

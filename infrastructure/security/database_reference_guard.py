@@ -96,13 +96,22 @@ class DatabaseReferenceGuard:
             texto = match.group(0)
             partes = cls._partir(texto)
             # Una última parte vacía significa que el punto final no separa dos
-            # identificadores, sino que lo sigue algo que no lo es: el caso
-            # real es `dbo.con.*`, SQL perfectamente válido que sin esto se
-            # leía como tres partes y se rechazaba. Ojo: solo se descarta la
-            # ÚLTIMA, porque en `base..tabla` la vacía es la del medio y ahí sí
-            # hay tres partes.
+            # identificadores. Solo hay un caso en que eso es inocente: que lo
+            # siguiente sea un `*`, como en `dbo.con.*`, SQL corriente que sin
+            # esto se leía como tres partes y se rechazaba.
+            #
+            # Se comprueba QUÉ sigue, y no se descarta a ciegas, porque hay
+            # terceros elementos que el reconocedor no sabe leer y que sí son
+            # tabla: `tempdb..#t`, `tempdb.dbo.##global`, `dbo.$x`, `dbo.9tabla`.
+            # Descartándolos a ciegas, esas referencias pasaban a leerse como
+            # dos partes y la base se colaba. Ante un tercer elemento que no se
+            # entiende, se trata como referencia y se rechaza (R11).
+            #
+            # Ojo: solo se mira la ÚLTIMA parte. En `base..tabla` la vacía es
+            # la del medio y ahí sí hay tres partes de verdad.
             if len(partes) > 1 and not partes[-1]:
-                partes = partes[:-1]
+                if limpio[match.end() : match.end() + 1] == "*":
+                    partes = partes[:-1]
             if len(partes) <= 2:
                 continue
             if len(partes) >= 4:

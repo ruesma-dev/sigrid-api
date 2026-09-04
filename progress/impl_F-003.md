@@ -129,7 +129,7 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 | **Suite completa** | **1.210 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
 | **Tiempo de la suite** | 32,4 s en el árbol principal; 32,5 s la línea base medida por la campaña |
 | **`ruff`** | **79 avisos**, exactamente los de antes de la feature. Los 7 que introduje se corrigieron |
-| **Cobertura** | **98,4 %** de las líneas cambiadas (242/246), umbral 80 % del nivel `critico` |
+| **Cobertura** | **99,2 %** de las líneas cambiadas (244/246), umbral 80 % del nivel `critico` |
 | **Mutación · mutantes** | **129** generados y evaluados, alcance 513 líneas en 4 ficheros |
 | **Mutación · muertos** | **110** |
 | **Mutación · supervivientes** | **13**, los trece analizados uno a uno en [`mutacion_F-003.md`](mutacion_F-003.md) |
@@ -141,39 +141,32 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 | T7 · `scripts/` de este repo | ningún nombre de tres partes |
 | T8 · MANUAL | **pendiente del humano**, ver §6 |
 
-### 5.1 · Las tres campañas, y qué enseñó cada una
+### 5.1 · Recorrido de las campañas
 
-| Campaña | Muertos | Supervivientes | Qué la movió |
-|---|---|---|---|
-| 1 | 73 | **52** | El punto de partida. Los supervivientes del guardia vivían **todos** en el neutralizador de literales, cuya promesa —sustituir por espacios *conservando las posiciones*— no fijaba ningún test |
-| 2 | 105 | **18** | Tests de la invariante de longitud y de los casos límite de los escapes. Los 18 del verificador cayeron enteros con los tests del resumen numérico |
-| 3 | **110** | **13** | Cuatro muertos más, y el test de propiedad |
+**52 → 18 → 13 → 9** supervivientes en cuatro campañas. El detalle de cada una
+y el análisis de los que quedan vivos, en
+[`mutacion_F-003.md`](mutacion_F-003.md). Tres cosas que merecen quedar aquí:
 
-**Un test que pasaba por casualidad**, encontrado por la campaña y no por
+**Un test que pasaba por casualidad**, encontrado por la mutación y no por
 lectura: el que debía verificar `SELECT ruesma_rep.dbo.gra.*` nombraba la base
 **dos veces** en el mismo SQL, así que la segunda aparición hacía que el
-resultado saliera bien aunque la lógica estuviera rota. Es exactamente el fallo
-que la mutación existe para encontrar.
+resultado saliera bien aunque la lógica estuviera rota.
 
-**Método para los supervivientes:** en vez de reejecutar 23 minutos de campaña
-por cada idea, se aplicó cada mutante a mano y se midió si la suite lo mataba.
-Los trece que quedan son equivalentes por construcción o de coste
-desproporcionado, y su análisis está escrito uno a uno.
+**Cuatro «equivalentes» que no lo eran.** El reviewer reprodujo los trece —no
+la muestra de uno que pide RM5— y midió que los supervivientes 7, 8, 9 y 12
+**fallaban abiertos** ante un corchete mal cerrado o un comentario pegado a un
+operador. Se matan con tests de una línea que fijan el fallo cerrado, que era
+lo correcto y estaba al alcance. Corregido en la pasada 2.
 
-**La defensa de lo que queda vivo es una propiedad, no una casualidad.** Siete
-de los trece son aritmética de escapes (`''` en un literal, `]]` en un
-identificador). Perseguirlos de uno en uno lleva a tests acoplados a un índice
-interno, que no valen nada. En su lugar hay un test de propiedad que recorre
-las dos direcciones —una base prohibida se ve rodeada de lo que sea; sin
-referencia, ningún contexto provoca un rechazo— sobre 55 combinaciones de once
-contextos y cinco formas de escribir la referencia. Esa segunda mitad es la que
-protege la condición del humano.
+**La defensa de lo que sigue vivo es una propiedad**, no una casualidad: un
+test recorre las dos direcciones —una base prohibida se ve rodeada de lo que
+sea; sin referencia, ningún contexto provoca rechazo— sobre 55 combinaciones.
 
-**Incidente que conviene saber:** el script auxiliar que prueba mutantes se pasó
-del límite de tiempo a mitad de una prueba y dejó un fichero mutado en el árbol
-(`sys.path.insert(0)` → `insert(1)`). Se detectó con `git status`, se revirtió
-con `git checkout` y se comprobó que no quedaba nada. **Ningún commit lo
-incluye.**
+**Incidente:** el script auxiliar que prueba mutantes se pasó del límite de
+tiempo y dejó un fichero mutado en el árbol (`sys.path.insert(0)` →
+`insert(1)`). Se detectó con `git status` y se revirtió. **Ningún commit lo
+incluye**, comprobado por el reviewer con `git log -S` sobre todo el
+historial.
 
 ## 6 · Lo que queda, y es del humano
 
@@ -202,8 +195,17 @@ incluye.**
   corchete como delimitador, con su escape `]]`.
 
 Se corrigieron en vez de solo anotarse porque van en la dirección de la
-condición del humano —que nada legítimo se rechace— y ninguno abre un agujero:
-ambos **reducen** los rechazos sin ampliar lo que pasa el filtro.
+condición del humano: que nada legítimo se rechace.
+
+> **Corrección de la pasada 2: lo que decía aquí era falso.** El arreglo de
+> `dbo.con.*` **sí amplió lo que pasaba el filtro**, porque descartaba la parte
+> vacía final **siempre**, sin mirar qué seguía al punto: ocho formas hostiles
+> pasaban de rechazarse a colarse, entre ellas `tempdb..#t`, T-SQL válido
+> contra una base fuera de `ALLOWED_DATABASES`. No era la vulnerabilidad que
+> F-003 vino a cerrar —`ruesma_rep` seguía bloqueada— pero era justo lo que R11
+> prohíbe. Corregido: la parte vacía se descarta **solo si lo siguiente es un
+> `*`**. Lo encontró el reviewer comparando 26 formas hostiles antes y después,
+> no leyendo el código.
 
 **Deuda que sí se queda, y con motivo:**
 
@@ -213,8 +215,7 @@ ambos **reducen** los rechazos sin ampliar lo que pasa el filtro.
   en §3) y el mensaje de error es explícito. Distinguirlos exigiría saber la
   posición dentro de la sentencia, es decir, un analizador: el precio no
   compensa mientras nadie los escriba.
-- **Punto ciego del verificador**, señalado por el reviewer: un fragmento sin
-  verbo (`"JOIN ruesma_rep.dbo.gra ..."` concatenado aparte) no llega a ser
-  candidato. Lo cubre el inventario manual del §3a, no el script.
+- **Punto ciego del verificador** (lo señaló el reviewer): un fragmento sin
+  verbo no llega a ser candidato. Lo cubre el inventario manual del §3a.
 - Los avisos `RUF012` y `SIM102` de los dos guardias son **anteriores** a esta
   feature y no se tocan: no es su sitio.
