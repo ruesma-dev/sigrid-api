@@ -148,9 +148,8 @@ y el análisis de los que quedan vivos, en
 [`mutacion_F-003.md`](mutacion_F-003.md). Tres cosas que merecen quedar aquí:
 
 **Un test que pasaba por casualidad**, encontrado por la mutación y no por
-lectura: el que debía verificar `SELECT ruesma_rep.dbo.gra.*` nombraba la base
-**dos veces** en el mismo SQL, así que la segunda aparición hacía que el
-resultado saliera bien aunque la lógica estuviera rota.
+lectura: el que verificaba `SELECT ruesma_rep.dbo.gra.*` nombraba la base **dos
+veces** en el mismo SQL, y la segunda aparición tapaba una lógica rota.
 
 **Cuatro «equivalentes» que no lo eran.** El reviewer reprodujo los trece —no
 la muestra de uno que pide RM5— y midió que los supervivientes 7, 8, 9 y 12
