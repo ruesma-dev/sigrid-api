@@ -44,6 +44,22 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 ## Supervivientes
 
+> ### ✅ Justificación ACEPTADA por el humano · 2026-09-04
+>
+> El rigor `critico` exige cero supervivientes **o** justificación escrita
+> aceptada por el humano. El humano revisó el resumen de los trece —tres
+> guardas de atajo equivalentes, dos de `_normalizar_identificador`
+> equivalentes por construcción, siete de aritmética de escapes cuyo resultado
+> observable no cambia, y uno de `sys.path.insert` que no es lógica del
+> guardia— y **aceptó cerrar con ellos vivos**.
+>
+> Se le señaló cuál es el más débil de los trece, para que la decisión no fuera
+> en bloque: el **nº 12** (`fin = sql.find("*/", indice - 2)`), que solo
+> difiere si hubiera un `*/` pegado justo delante de un `/*`. Aceptado también.
+>
+> Recorrido de las tres campañas: **52 → 18 → 13** supervivientes.
+
+
 Cada superviviente es una línea que ningún test comprueba de verdad, o una mutación equivalente. Distinguirlo es trabajo del implementer: ningún análisis puede quedarse sin completar al cerrar la feature.
 
 ### 1. `infrastructure/security/database_reference_guard.py:88` [logico]
@@ -109,7 +125,8 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 #### Análisis
 
 > **Por qué ningún test lo caza:** idéntico al anterior, con comillas dobles
-> en vez de corchetes: `"[^"
+> en vez de corchetes: `"[^"
+
 ]*"` también está balanceado por construcción.
 > **Decisión: EQUIVALENTE por construcción.**
 
