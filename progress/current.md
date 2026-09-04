@@ -61,19 +61,18 @@ permitida». Si fallara, la causa sería que `ruesma_rep` no está en
 
 ### Lo siguiente, y hace falta el humano
 
-**Los 13 supervivientes necesitan que el humano acepte su justificación.** El
-rigor `critico` exige cero supervivientes **o justificación escrita aceptada**,
-y esa aceptación no la puede dar un agente. Están analizados uno a uno en
-[`mutacion_F-003.md`](mutacion_F-003.md): tres guardas de atajo equivalentes,
-dos de `_normalizar_identificador` equivalentes por construcción, siete de
-aritmética de escapes cuyo resultado observable no cambia, y uno de
-`sys.path.insert` del script verificador, que no es lógica del guardia.
+**Los 7 supervivientes necesitan una aceptación NUEVA.** La que se dio el
+2026-09-04 cubría trece, y la pasada 2 demostró que **cuatro de aquellos
+análisis eran falsos**: no eran equivalentes, hacían que el guardia fallara
+abierto y eran matables con un test de una línea. Esa aceptación queda anulada
+por apoyarse en hechos incorrectos; los cuatro están muertos y otros dos
+desaparecieron al corregir el reconocedor.
 
-Se pasó de **52 a 13** en tres campañas, y por el camino la mutación encontró
-un test que pasaba por casualidad. Lo que queda está defendido por un test de
-propiedad, no por una casualidad.
+Los **siete** que quedan son exactamente los que el reviewer verificó de forma
+independiente como equivalentes, con **0 diferencias en 4.050 entradas cada
+uno**. Recorrido completo: **52 → 18 → 13 → 10 → 7**.
 
-Después: reviewer, y el merge a `dev`, que hace el humano.
+Después: tercera revisión, y el merge a `dev`, que hace el humano.
 
 ### Pendiente de decisión del humano, fuera de F-003
 

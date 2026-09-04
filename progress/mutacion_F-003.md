@@ -1,7 +1,7 @@
 <!-- progress/mutacion_F-003.md -->
 # F-003 · Campaña de mutación
 
-Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-04 11:14.
+Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-04 11:54.
 
 ## Alcance
 
@@ -9,34 +9,34 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 | Fichero | Líneas en alcance |
 |---|---|
-| `infrastructure/security/database_reference_guard.py` | 246 |
+| `infrastructure/security/database_reference_guard.py` | 265 |
 | `infrastructure/security/sql_query_guard.py` | 18 |
 | `infrastructure/security/sql_write_guard.py` | 17 |
 | `scripts/verificar_sql_ecosistema.py` | 241 |
-| **Total** | **522** |
+| **Total** | **541** |
 
 ## Totales
 
 | Métrica | Valor |
 |---|---|
-| Mutantes generados | 132 |
-| Mutantes evaluados | 132 |
-| Muertos | 116 |
-| Supervivientes | 10 |
-| Timeouts | 5 |
-| Timeouts repasados en serie | 6 — 1 con veredicto tras el repaso, 5 en timeout todavía |
+| Mutantes generados | 133 |
+| Mutantes evaluados | 133 |
+| Muertos | 119 |
+| Supervivientes | 7 |
+| Timeouts | 7 |
+| Timeouts repasados en serie | 7 — 0 con veredicto tras el repaso, 7 en timeout todavía |
 | Sin veredicto (base rota) | 0 |
-| Tiempo total | 2340.8 s |
-| SHA de HEAD medido | `41357abd74252517319d59676d1b7f5a21fa39e8` |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_0` | 52.3 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_1` | 54.8 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_2` | 54.3 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_3` | 50.3 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_4` | 51.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_5` | 51.5 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_6` | 52.9 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_f13a4z_i/wk_7` | 51.5 |
-| Media por mutante evaluado (s) | 17.7 |
+| Tiempo total | 1528.3 s |
+| SHA de HEAD medido | `4b0f4b664c27a13da615c8110b35714581e1c60f` |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_0` | 50.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_1` | 49.0 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_2` | 49.2 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_3` | 50.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_4` | 48.7 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_5` | 50.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_6` | 50.8 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_7` | 49.0 |
+| Media por mutante evaluado (s) | 11.5 |
 | Timeout efectivo por mutante (s) | 120 — derivado de la línea base × 2.0 |
 | Suelo configurado (s) | 120 |
 | Workers | 8 |
@@ -44,9 +44,27 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 ## Supervivientes
 
-Cada superviviente es una línea que ningún test comprueba de verdad, o una mutación equivalente. Distinguirlo es trabajo del implementer: ningún análisis puede quedarse sin completar al cerrar la feature.
+> ### ⚠ La aceptación del 2026-09-04 se apoyaba en hechos incorrectos
+>
+> El humano aceptó cerrar con **13 supervivientes**. La pasada 2 de revisión
+> demostró que **cuatro de aquellos análisis eran falsos**: los mutantes 7, 8,
+> 9 y 12 no eran equivalentes, hacían que el guardia **fallara abierto** ante un
+> corchete mal cerrado o un comentario pegado a un operador, y eran matables con
+> un test de una línea. **Esa aceptación queda anulada**, porque se pidió sobre
+> hechos que no eran.
+>
+> Los cuatro están **muertos**. Y otros dos que también se justificaron mal
+> —`fin += 3`, que difiere en 27 de 4.000 entradas, y `fin = indice - 1`, que
+> se cuelga con `[a][b]`— desaparecieron al corregir el reconocedor de
+> identificadores.
+>
+> **Quedan 7**, y son exactamente los que el reviewer verificó de forma
+> independiente como equivalentes, con 0 diferencias en 4.050 entradas cada
+> uno. Hace falta una **aceptación nueva del humano** sobre estos siete.
+>
+> Recorrido: **52 → 18 → 13 → 10 → 7**.
 
-### 1. `infrastructure/security/database_reference_guard.py:88` [logico]
+### 1. `infrastructure/security/database_reference_guard.py:101` [logico]
 
 - Original: `if not sql or not sql.strip():`
 - Mutado:   `if not sql and not sql.strip():`
@@ -63,47 +81,36 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 2. `infrastructure/security/database_reference_guard.py:112` [comparacion]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-- Original: `if len(partes) > 1 and not partes[-1]:`
-- Mutado:   `if len(partes) >= 1 and not partes[-1]:`
+### 2. `infrastructure/security/database_reference_guard.py:129` [comparacion]
+
+- Original: `len(partes) > 1`
+- Mutado:   `len(partes) >= 1`
 
 #### Análisis
 
 > **Por qué ningún test lo caza:** `partes` nunca tiene menos de dos
-> elementos. La expresión regular exige al menos un punto para formar una
-> cadena cualificada, así que `_partir` siempre devuelve dos o más. Con
-> `len >= 2` garantizado, `> 1` y `>= 1` son la misma condición.
-> **Decisión: EQUIVALENTE por construcción.**
+> elementos, porque la expresión regular exige al menos un punto para formar
+> una cadena cualificada. Con `len >= 2` garantizado, `> 1` y `>= 1` son la
+> misma condición. **Decisión: EQUIVALENTE por construcción.** Confirmado por
+> el reviewer en la pasada 2: 0 diferencias en 4.050 entradas.
 
-> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+### 3. `infrastructure/security/database_reference_guard.py:129` [entero]
 
-### 3. `infrastructure/security/database_reference_guard.py:112` [entero]
-
-- Original: `if len(partes) > 1 and not partes[-1]:`
-- Mutado:   `if len(partes) > 2 and not partes[-1]:`
+- Original: `len(partes) > 1`
+- Mutado:   `len(partes) > 2`
 
 #### Análisis
 
 > **Por qué ningún test lo caza:** solo difieren cuando hay exactamente dos
-> partes y la última está vacía (`dbo.`). Con `> 1` se descarta la vacía y
-> queda una parte; con `> 2` no se descarta y quedan dos. **Ambos caminos
-> terminan en `len(partes) <= 2`, es decir, en «esto no nombra una base».**
-> **Decisión: EQUIVALENTE**, los dos desembocan en la misma rama.
+> partes y la última está vacía (`dbo.`). Con `> 1` se descarta la vacía y queda
+> una parte; con `> 2` no se descarta y quedan dos. **Ambos caminos terminan en
+> `len(partes) <= 2`**, es decir, en «esto no nombra una base».
+> **Decisión: EQUIVALENTE.** Confirmado por el reviewer en la pasada 2: 0
+> diferencias en 4.050 entradas.
 
-> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
-
-### 4. `infrastructure/security/database_reference_guard.py:112` [logico]
-
-- Original: `if len(partes) > 1 and not partes[-1]:`
-- Mutado:   `if len(partes) > 1 or not partes[-1]:`
-
-#### Análisis (PENDIENTE del implementer)
-
-> Por qué ningún test lo caza: PENDIENTE.
-> Decisión: ¿test nuevo o mutante equivalente justificado?
-
-### 5. `infrastructure/security/database_reference_guard.py:156` [logico]
+### 4. `infrastructure/security/database_reference_guard.py:175` [logico]
 
 - Original: `delimitado = (identificador.startswith("[") and identificador.endswith("]")) or (`
 - Mutado:   `delimitado = (identificador.startswith("[") or identificador.endswith("]")) or (`
@@ -119,7 +126,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 6. `infrastructure/security/database_reference_guard.py:157` [logico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 5. `infrastructure/security/database_reference_guard.py:176` [logico]
 
 - Original: `identificador.startswith('"') and identificador.endswith('"')`
 - Mutado:   `identificador.startswith('"') or identificador.endswith('"')`
@@ -134,39 +143,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 7. `infrastructure/security/database_reference_guard.py:188` [aritmetico]
-
-- Original: `fin = indice + 1`
-- Mutado:   `fin = indice - 1`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** empieza a buscar el `]` de cierre una
-> posición antes del `[`. El bucle avanza igual y encuentra el mismo cierre,
-> salvo que el carácter justo anterior al `[` sea otro `]`, es decir, dos
-> identificadores delimitados pegados sin nada en medio (`[a][b]`), que no es
-> T-SQL válido: entre dos identificadores va siempre un punto, una coma o un
-> espacio. **Decisión: EQUIVALENTE para toda entrada que el motor aceptaría.**
-
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 8. `infrastructure/security/database_reference_guard.py:192` [entero]
-
-- Original: `fin += 2`
-- Mutado:   `fin += 3`
-
-#### Análisis
-
-> **Por qué ningún test lo caza:** salta un carácter de más tras un escape
-> `]]`. Dentro de un identificador delimitado el contenido se copia tal cual y
-> no se analiza, así que adelantar de más solo puede terminar el identificador
-> antes; el texto sobrante vuelve al análisis general, donde no forma ninguna
-> cadena cualificada nueva. **Decisión: EQUIVALENTE en el resultado
-> observable.**
-
-> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
-
-### 9. `infrastructure/security/database_reference_guard.py:210` [entero]
+### 6. `infrastructure/security/database_reference_guard.py:229` [entero]
 
 - Original: `if fin + 1 < total and sql[fin + 1] == "'":`
 - Mutado:   `if fin + 2 < total and sql[fin + 1] == "'":`
@@ -182,7 +161,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 10. `scripts/verificar_sql_ecosistema.py:40` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 7. `scripts/verificar_sql_ecosistema.py:40` [entero]
 
 - Original: `sys.path.insert(0, str(RAIZ_PROYECTO))`
 - Mutado:   `sys.path.insert(1, str(RAIZ_PROYECTO))`
@@ -197,13 +178,17 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
 ## Timeouts
 
 Estos agotaron el reloj **también al repasarlos en serie**, uno a uno y sin nadie compitiendo por la máquina: la contención ya no los explica. Míralos como un cuelgue de verdad, no como ruido.
 
-- `infrastructure/security/database_reference_guard.py:195` [aritmetico] fin += 1 -> fin -= 1
+- `infrastructure/security/database_reference_guard.py:207` [aritmetico] fin = indice + 1 -> fin = indice - 1
 - `infrastructure/security/database_reference_guard.py:211` [aritmetico] fin += 2 -> fin -= 2
-- `infrastructure/security/database_reference_guard.py:226` [comparacion] if fin == -1: -> if fin != -1:
-- `infrastructure/security/database_reference_guard.py:226` [entero] if fin == -1: -> if fin == -2:
-- `infrastructure/security/database_reference_guard.py:234` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:214` [aritmetico] fin += 1 -> fin -= 1
+- `infrastructure/security/database_reference_guard.py:230` [aritmetico] fin += 2 -> fin -= 2
+- `infrastructure/security/database_reference_guard.py:245` [comparacion] if fin == -1: -> if fin != -1:
+- `infrastructure/security/database_reference_guard.py:245` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:253` [entero] if fin == -1: -> if fin == -2:
 

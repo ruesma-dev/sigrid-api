@@ -126,16 +126,16 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 
 | Qué | Resultado |
 |---|---|
-| **Suite completa** | **1.210 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
+| **Suite completa** | **1.229 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
 | **Tiempo de la suite** | 32,4 s en el árbol principal; 32,5 s la línea base medida por la campaña |
 | **`ruff`** | **79 avisos**, exactamente los de antes de la feature. Los 7 que introduje se corrigieron |
 | **Cobertura** | **99,2 %** de las líneas cambiadas (244/246), umbral 80 % del nivel `critico` |
-| **Mutación · mutantes** | **129** generados y evaluados, alcance 513 líneas en 4 ficheros |
-| **Mutación · muertos** | **110** |
-| **Mutación · supervivientes** | **13**, los trece analizados uno a uno en [`mutacion_F-003.md`](mutacion_F-003.md) |
-| **Mutación · timeouts** | **6**, repasados en serie; son bucles infinitos (`fin += 1` → `fin -= 1`), que la suite mata colgándose |
+| **Mutación · mutantes** | **133** generados y evaluados, alcance 4 ficheros |
+| **Mutación · muertos** | **119** |
+| **Mutación · supervivientes** | **7**, los siete analizados en [`mutacion_F-003.md`](mutacion_F-003.md) y verificados como equivalentes por el reviewer (0 diferencias en 4.050 entradas cada uno) |
+| **Mutación · timeouts** | **7**, repasados en serie; son bucles infinitos (`fin += 1` → `fin -= 1`), que la suite mata colgándose |
 | **Mutación · workers** | **8** worktrees en paralelo; el repaso de timeouts, en serie |
-| **Mutación · tiempo** | 1.363,6 s (22,7 min) |
+| **Mutación · tiempo** | 1.528,3 s (25,5 min) |
 | **Verificador del ecosistema** | 13.639 ficheros recorridos, 256 consumidores, **0 rechazos**, exit 0 |
 | Puerta de tamaño | requirements 83/150, design 142/250, impl dentro del tope |
 | T7 · `scripts/` de este repo | ningún nombre de tres partes |
@@ -143,7 +143,7 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 
 ### 5.1 · Recorrido de las campañas
 
-**52 → 18 → 13 → 9** supervivientes en cuatro campañas. El detalle de cada una
+**52 → 18 → 13 → 10 → 7** supervivientes en cinco campañas. El detalle de cada una
 y el análisis de los que quedan vivos, en
 [`mutacion_F-003.md`](mutacion_F-003.md). Tres cosas que merecen quedar aquí:
 
