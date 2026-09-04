@@ -80,8 +80,10 @@ Después: tercera revisión, y el merge a `dev`, que hace el humano.
 
 - **`ALLOWED_DATABASES` incluye `master`** en la Function App desplegada, y
   ningún consumidor lo necesita. Quitarlo es una línea de configuración.
-- **`MAX_ALLOWED_ROWS = 500000`** desplegado, frente a los 1.000 que documenta
-  `azure-apps/sigrid_api.md`. Uno de los dos está mal.
+- ~~`MAX_ALLOWED_ROWS`~~ **corregido el 2026-09-04: no había tal desajuste.**
+  `azure-apps/sigrid_api.md` §4.1 ya recoge que la instancia `dev` lo tiene en
+  500.000 frente a los 1.000 del código. El apunte anterior era mío y era
+  falso.
 - **`user_rw` tiene `UPDATE` sobre `ruesma_rep.dbo.gra`**, donde vive la única
   copia de los 359.438 documentos, en una base con recuperación `SIMPLE`. No se
   probó si tiene `DELETE`. Merece una conversación con quien administre el
