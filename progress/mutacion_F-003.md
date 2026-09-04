@@ -1,7 +1,7 @@
 <!-- progress/mutacion_F-003.md -->
 # F-003 · Campaña de mutación
 
-Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-04 11:54.
+Generado por `python -m harness.mutacion --feature F-003 --workers 8` el 2026-09-05 00:01.
 
 ## Alcance
 
@@ -9,72 +9,60 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 | Fichero | Líneas en alcance |
 |---|---|
-| `infrastructure/security/database_reference_guard.py` | 265 |
+| `infrastructure/security/database_reference_guard.py` | 277 |
 | `infrastructure/security/sql_query_guard.py` | 18 |
 | `infrastructure/security/sql_write_guard.py` | 17 |
 | `scripts/verificar_sql_ecosistema.py` | 241 |
-| **Total** | **541** |
+| **Total** | **553** |
 
 ## Totales
 
 | Métrica | Valor |
 |---|---|
-| Mutantes generados | 133 |
-| Mutantes evaluados | 133 |
-| Muertos | 119 |
+| Mutantes generados | 132 |
+| Mutantes evaluados | 132 |
+| Muertos | 118 |
 | Supervivientes | 7 |
 | Timeouts | 7 |
 | Timeouts repasados en serie | 7 — 0 con veredicto tras el repaso, 7 en timeout todavía |
 | Sin veredicto (base rota) | 0 |
-| Tiempo total | 1528.3 s |
-| SHA de HEAD medido | `4b0f4b664c27a13da615c8110b35714581e1c60f` |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_0` | 50.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_1` | 49.0 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_2` | 49.2 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_3` | 50.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_4` | 48.7 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_5` | 50.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_6` | 50.8 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_8p4ulz8u/wk_7` | 49.0 |
-| Media por mutante evaluado (s) | 11.5 |
-| Timeout efectivo por mutante (s) | 120 — derivado de la línea base × 2.0 |
+| Tiempo total | 1724.0 s |
+| SHA de HEAD medido | `04a511113d69e779251e65f1de91c294dbd39d58` |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_0` | 70.7 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_1` | 70.5 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_2` | 68.3 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_3` | 68.7 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_4` | 72.4 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_5` | 69.5 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_6` | 69.0 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-003_4slf4hr4/wk_7` | 73.5 |
+| Media por mutante evaluado (s) | 13.1 |
+| Timeout efectivo por mutante (s) | 147 — derivado de la línea base × 2.0 |
 | Suelo configurado (s) | 120 |
 | Workers | 8 |
 | Muestreo | no: campaña completa |
 
 ## Supervivientes
 
-> ### ⚠ La aceptación del 2026-09-04 se apoyaba en hechos incorrectos
+> ### ✅ Los mismos 7, aceptados por el humano el 2026-09-04
 >
-> El humano aceptó cerrar con **13 supervivientes**. La pasada 2 de revisión
-> demostró que **cuatro de aquellos análisis eran falsos**: los mutantes 7, 8,
-> 9 y 12 no eran equivalentes, hacían que el guardia **fallara abierto** ante un
-> corchete mal cerrado o un comentario pegado a un operador, y eran matables con
-> un test de una línea. **Esa aceptación queda anulada**, porque se pidió sobre
-> hechos que no eran.
+> Esta campaña corre sobre el código **final**, con el neutralizador de
+> delimitados ya unificado (pasada 3). Devuelve **exactamente los mismos siete
+> supervivientes** que la anterior: ninguno nuevo, ninguno menos. La aceptación
+> del humano sigue valiendo tal cual, y su verificación también: el reviewer los
+> reprodujo uno a uno en la pasada 2 midiendo **0 diferencias en 4.050 entradas**
+> cada uno.
 >
-> Los cuatro están **muertos**. Y otros dos que también se justificaron mal
-> —`fin += 3`, que difiere en 27 de 4.000 entradas, y `fin = indice - 1`, que
-> se cuelga con `[a][b]`— desaparecieron al corregir el reconocedor de
-> identificadores.
+> **Nota sobre una aceptación anterior, anulada.** El 2026-09-04 se aceptaron
+> primero **13**, y esa aceptación quedó ANULADA: la pasada 2 demostró que
+> cuatro de aquellos análisis eran falsos —no eran equivalentes, hacían fallar
+> el guardia ABIERTO y eran matables con un test de una línea—, así que se había
+> pedido sobre hechos que no eran. Los cuatro están muertos, y otros dos
+> desaparecieron al corregir el reconocedor.
 >
-> **Quedan 7**, y son exactamente los que el reviewer verificó de forma
-> independiente como equivalentes, con 0 diferencias en 4.050 entradas cada
-> uno.
->
-> Recorrido: **52 → 18 → 13 → 10 → 7**.
->
-> ### ✅ Aceptación NUEVA del humano · 2026-09-04
->
-> El humano aceptó **estos siete**, después de que se le dijera expresamente que
-> la aceptación anterior quedaba anulada y por qué. A diferencia de aquella,
-> esta se apoya en una verificación **independiente**: los siete los reprodujo
-> el reviewer, que no los escribió, midiendo cada uno sobre 4.050 entradas.
->
-> Se le expuso también la razón de no perseguirlos más: matarlos exige tests
-> acoplados al interior del reconocedor, peores que el código que protegen.
+> Recorrido: **52 → 18 → 13 → 10 → 7 → 7**.
 
-### 1. `infrastructure/security/database_reference_guard.py:101` [logico]
+### 1. `infrastructure/security/database_reference_guard.py:105` [logico]
 
 - Original: `if not sql or not sql.strip():`
 - Mutado:   `if not sql and not sql.strip():`
@@ -93,7 +81,9 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 2. `infrastructure/security/database_reference_guard.py:129` [comparacion]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 2. `infrastructure/security/database_reference_guard.py:133` [comparacion]
 
 - Original: `len(partes) > 1`
 - Mutado:   `len(partes) >= 1`
@@ -106,7 +96,9 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 > misma condición. **Decisión: EQUIVALENTE por construcción.** Confirmado por
 > el reviewer en la pasada 2: 0 diferencias en 4.050 entradas.
 
-### 3. `infrastructure/security/database_reference_guard.py:129` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 3. `infrastructure/security/database_reference_guard.py:133` [entero]
 
 - Original: `len(partes) > 1`
 - Mutado:   `len(partes) > 2`
@@ -120,7 +112,9 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 > **Decisión: EQUIVALENTE.** Confirmado por el reviewer en la pasada 2: 0
 > diferencias en 4.050 entradas.
 
-### 4. `infrastructure/security/database_reference_guard.py:175` [logico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 4. `infrastructure/security/database_reference_guard.py:179` [logico]
 
 - Original: `delimitado = (identificador.startswith("[") and identificador.endswith("]")) or (`
 - Mutado:   `delimitado = (identificador.startswith("[") or identificador.endswith("]")) or (`
@@ -138,7 +132,9 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 5. `infrastructure/security/database_reference_guard.py:176` [logico]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 5. `infrastructure/security/database_reference_guard.py:180` [logico]
 
 - Original: `identificador.startswith('"') and identificador.endswith('"')`
 - Mutado:   `identificador.startswith('"') or identificador.endswith('"')`
@@ -155,7 +151,9 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
-### 6. `infrastructure/security/database_reference_guard.py:229` [entero]
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
+### 6. `infrastructure/security/database_reference_guard.py:241` [entero]
 
 - Original: `if fin + 1 < total and sql[fin + 1] == "'":`
 - Mutado:   `if fin + 2 < total and sql[fin + 1] == "'":`
@@ -168,6 +166,8 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 > murió, con
 > `test_f003_r11_una_comilla_escapada_no_cierra_el_literal_antes_de_tiempo`.
 > **Decisión: EQUIVALENTE.**
+
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
@@ -190,15 +190,17 @@ Origen del diff: **rama** (`f1946d928f8fadd346e1c4dd14370dd7606b9cb2` .. `featur
 
 > _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
 
+> _Análisis traído de la campaña anterior de esta feature: el mutante volvió a sobrevivir con el mismo operador y el mismo texto. Reléelo si el código de alrededor ha cambiado._
+
 ## Timeouts
 
 Estos agotaron el reloj **también al repasarlos en serie**, uno a uno y sin nadie compitiendo por la máquina: la contención ya no los explica. Míralos como un cuelgue de verdad, no como ruido.
 
-- `infrastructure/security/database_reference_guard.py:207` [aritmetico] fin = indice + 1 -> fin = indice - 1
-- `infrastructure/security/database_reference_guard.py:211` [aritmetico] fin += 2 -> fin -= 2
-- `infrastructure/security/database_reference_guard.py:214` [aritmetico] fin += 1 -> fin -= 1
-- `infrastructure/security/database_reference_guard.py:230` [aritmetico] fin += 2 -> fin -= 2
-- `infrastructure/security/database_reference_guard.py:245` [comparacion] if fin == -1: -> if fin != -1:
-- `infrastructure/security/database_reference_guard.py:245` [entero] if fin == -1: -> if fin == -2:
-- `infrastructure/security/database_reference_guard.py:253` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:218` [aritmetico] fin = indice + 1 -> fin = indice - 1
+- `infrastructure/security/database_reference_guard.py:222` [aritmetico] fin += 2 -> fin -= 2
+- `infrastructure/security/database_reference_guard.py:225` [aritmetico] fin += 1 -> fin -= 1
+- `infrastructure/security/database_reference_guard.py:242` [aritmetico] fin += 2 -> fin -= 2
+- `infrastructure/security/database_reference_guard.py:257` [comparacion] if fin == -1: -> if fin != -1:
+- `infrastructure/security/database_reference_guard.py:257` [entero] if fin == -1: -> if fin == -2:
+- `infrastructure/security/database_reference_guard.py:265` [entero] if fin == -1: -> if fin == -2:
 
