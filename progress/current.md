@@ -1,96 +1,134 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+> **Sesión cortada el 2026-09-05 por contexto agotado, con el árbol limpio y
+> todo commiteado.** El prompt para retomar está al final de este fichero.
+
 ## F-003 · El guardia valida también las bases nombradas dentro del SQL
 
 | | |
 |---|---|
-| **Estado** | `in_progress` · rigor `critico` |
-| **Rama** | `feature/F-003-guardia-bases-cruzadas` |
+| **Estado** | `in_progress` · rigor `critico` · **falta solo la revisión final** |
+| **Rama** | `feature/F-003-guardia-bases-cruzadas`, 20 commits sobre `dev` |
 | **Spec** | `specs/F-003-guardia-bases-cruzadas/` (R1–R11) |
-| **Implementación** | [`progress/impl_F-003.md`](impl_F-003.md) |
-| **Revisión** | [`progress/review_F-003.md`](review_F-003.md) — **RECHAZADO en la pasada 1** |
+| **Implementación** | [`impl_F-003.md`](impl_F-003.md) |
+| **Revisiones** | [`review_F-003.md`](review_F-003.md) (pasadas 1 y 2) · [`review_F-003_reconocedor.md`](review_F-003_reconocedor.md) (auditoría del código) |
+| **Mutación** | [`mutacion_F-003.md`](mutacion_F-003.md) |
 | **Condición innegociable del humano** | «No puede fallar la escritura/lectura que se hace ahora» |
 
-### Dónde está
+### Qué hace la feature
 
-El código está hecho y el reviewer confirma que **la condición del humano se
-cumple**: comprobó por su cuenta que ninguna consulta legítima del ecosistema
-empieza a fallar, que los tests no se engañan (26 caen al neutralizar el
-detector) y que no se relajó ninguna defensa anterior. Lo que rechazó fue el
-**papeleo del rigor `critico`** y dos falsos positivos no previstos.
+`SqlWriteGuard` y `SqlQueryGuard` validaban el campo `database` de la petición,
+que es la base de la **conexión**. Como en SQL Server una sentencia salta a otra
+base de la misma instancia con solo cualificar el nombre, con
+`database: "ruesma"` se podía escribir en `ruesma_rep`: la política que
+`ALLOWED_WRITE_DATABASES` decía aplicar **no estaba aplicada**.
 
-### Atendido de los seis cambios requeridos
+Lo cierra `infrastructure/security/database_reference_guard.py`, un reconocedor
+de nombres cualificados —no un analizador de T-SQL—. Tres o más partes se
+validan contra la lista blanca; cuatro o más se rechazan siempre. Sin variable
+de entorno para desactivarlo, a propósito.
 
-| # | Cambio | Estado |
+### Estado de verificación: todo en verde
+
+| Qué | Resultado |
+|---|---|
+| `bash harness/init.sh` | **ENTORNO LISTO** |
+| Suite | **1.262 pasan**, 1 skip |
+| Cobertura | **99,2 %** (254/256), umbral 80 % |
+| `ruff` | **79 avisos**, los mismos que antes de la feature |
+| Verificador del ecosistema | **0 rechazos** sobre 13.639 ficheros, 256 consumidores |
+| Puerta de tamaño | los cuatro ficheros dentro de sus topes |
+
+### Lo que queda, por orden
+
+1. **Relanzar la campaña de mutación.** El código cambió después de la última
+   (se tocaron `_IDENT`, el cierre del comentario `--` y dos condiciones), así
+   que `mutacion_F-003.md` describe un código que ya no existe.
+   `python -m harness.mutacion --feature F-003 --workers 8`, unos 25 min, con el
+   árbol limpio. Si salen supervivientes nuevos, analizarlos **midiendo**, no
+   leyendo: aplicar cada mutante a mano y ver si la suite lo mata.
+2. **Segundo encargo al reviewer**, el del papeleo: `CHECKPOINTS.md` entero, los
+   informes y `tasks.md`. **Trocearlo**: una revisión se colgó por agotar su
+   tiempo con un encargo demasiado grande, y la que mejor funcionó fue la
+   acotada a un solo fichero con una sola pregunta.
+3. Cerrar la feature y **merge a `dev`, que lo hace el humano**.
+
+### Los 7 supervivientes de mutación, aceptados
+
+El humano los aceptó el 2026-09-04, verificados de forma independiente por el
+reviewer (0 diferencias en 4.050 entradas cada uno). **Una aceptación anterior,
+de 13, quedó ANULADA** porque cuatro de aquellos análisis eran falsos. Consta
+en `mutacion_F-003.md`.
+
+### Historia de los fallos, y la lección
+
+Cuatro rondas de revisión, **seis fallos encontrados**, tres de ellos agujeros
+que **dejaban pasar**:
+
+| # | Fallo | Cómo se encontró |
 |---|---|---|
-| 1 | Campaña de mutación | hecho: 129 mutantes, **110 muertos, 13 supervivientes**, 6 timeouts, 8 workers, 22,7 min |
-| 2 | Completar «Evidencias» del impl | hecho, §5 y §5.1 |
-| 3 | Marcar `tasks.md` | hecho (T1–T7, T9–T12; T8 queda por ser MANUAL) |
-| 4 | Reescribir este fichero con T8 y su comando | hecho, es esto |
-| 5 | Renombrar los tests a `test_f003_rN_...` | hecho, 106 tests recogidos por `-k f003` |
-| 6 | Anotar los dos falsos positivos | hecho, y además **corregidos** (ver abajo) |
+| 1 | `SELECT dbo.con.*` se rechazaba | Reviewer, pasada 1 |
+| 2 | `[Client's Name]` moría con «literal sin cerrar» | Reviewer, pasada 1 |
+| 3 | El arreglo de (1) **abrió** el guardia: `tempdb..#t` se colaba | Reviewer, pasada 2 |
+| 4 | `SELECT 1 AS "z--", … FROM msdb.…` **se colaba** | Reviewer, pasada 3 |
+| 5 | Un salto de línea en un alias delimitado **escondía la referencia** | Auditoría del reconocedor |
+| 6 | Un `--` cerrado solo por CR blanqueaba la sentencia entera | Auditoría del reconocedor |
 
-**Los dos falsos positivos se corrigieron en vez de solo anotarse**, porque van
-justo en la dirección de la condición del humano —que nada legítimo se rechace—
-y ninguno abre un agujero:
+**Cinco de los seis eran la misma causa:** el neutralizador y el reconocedor
+leían los identificadores delimitados con **reglas distintas**. Cada vez que
+difieren en algo —un apóstrofo, un escape `]]`, un `--`, un salto de línea— el
+análisis se desincroniza y una referencia puede esconderse dentro de un falso
+identificador. Se parchearon caso a caso durante tres rondas hasta unificarlos,
+y esa unificación debió ser el primer arreglo.
 
-- `SELECT dbo.con.*` se leía como tres partes. Ahora una última parte vacía se
-  descarta, salvo la del medio de `base..tabla`, que sí cuenta.
-- `SELECT [Client's Name] ...` moría con «literal sin cerrar», porque el
-  apóstrofo dentro de un identificador entre corchetes arrancaba un literal
-  falso. Ahora el neutralizador conoce el corchete como delimitador, con su
-  escape `]]`.
+> **Si aparece un séptimo de la misma familia, no lo parchees.** La
+> recomendación es reemplazar el reconocedor por un **tokenizador propio** de
+> unas veinte líneas que recorra la sentencia una sola vez y clasifique cada
+> tramo (literal, comentario, delimitado, identificador). Es más código, pero
+> elimina la clase entera de fallos por construcción en vez de perseguirla.
 
-### Verificaciones MANUAL
+### Verificación MANUAL pendiente, y la hace el humano
 
-**T8 — comprobar contra la API ya desplegada que la lectura cruzada sigue
-funcionando.** Solo se puede hacer **después** de desplegar la feature, y la
-ejecuta el humano. Comando exacto:
+**T8 — solo se puede hacer DESPUÉS de desplegar.** Comprobar contra la API ya
+desplegada que la lectura cruzada sigue funcionando:
 
 ```bash
 cd C:/Users/pgris/PycharmProjects/albaranes-persistencia
 python scripts/diagnose_sigrid_contrato_docs.py
 ```
 
-Ese script usa `LEFT JOIN {database_rep}.dbo.gra`, que es justo el patrón que
-el guardia nuevo tiene que seguir dejando pasar. **Criterio:** devuelve lo
-mismo que antes del despliegue, sin ningún error de «base de datos no
-permitida». Si fallara, la causa sería que `ruesma_rep` no está en
-`ALLOWED_DATABASES` de la Function App, no el guardia.
+Usa `LEFT JOIN {database_rep}.dbo.gra`, que es el patrón que el guardia tiene
+que seguir dejando pasar. **Criterio:** devuelve lo mismo que antes, sin ningún
+error de «base de datos no permitida».
 
-### Lo siguiente, y hace falta el humano
+## Pendiente de decisión del humano, fuera de F-003
 
-**Los 7 supervivientes están ACEPTADOS por el humano el 2026-09-04**, en una
-aceptación nueva y sobre hechos verificados por el reviewer. La anterior, que
-cubría trece, quedó anulada. Detalle de por qué: la que se dio el
-2026-09-04 cubría trece, y la pasada 2 demostró que **cuatro de aquellos
-análisis eran falsos**: no eran equivalentes, hacían que el guardia fallara
-abierto y eran matables con un test de una línea. Esa aceptación queda anulada
-por apoyarse en hechos incorrectos; los cuatro están muertos y otros dos
-desaparecieron al corregir el reconocedor.
-
-Los **siete** que quedan son exactamente los que el reviewer verificó de forma
-independiente como equivalentes, con **0 diferencias en 4.050 entradas cada
-uno**. Recorrido completo: **52 → 18 → 13 → 10 → 7**.
-
-Después: tercera revisión, y el merge a `dev`, que hace el humano.
-
-### Pendiente de decisión del humano, fuera de F-003
-
-- **`ALLOWED_DATABASES` incluye `master`** en la Function App desplegada, y
-  ningún consumidor lo necesita. Quitarlo es una línea de configuración.
-- ~~`MAX_ALLOWED_ROWS`~~ **corregido el 2026-09-04: no había tal desajuste.**
-  `azure-apps/sigrid_api.md` §4.1 ya recoge que la instancia `dev` lo tiene en
-  500.000 frente a los 1.000 del código. El apunte anterior era mío y era
-  falso.
-- **`user_rw` tiene `UPDATE` sobre `ruesma_rep.dbo.gra`**, donde vive la única
+- **`ALLOWED_DATABASES` incluye `master`** en la Function App, y ningún
+  consumidor lo necesita. Quitarlo es una línea de configuración.
+- **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`, donde vive la única
   copia de los 359.438 documentos, en una base con recuperación `SIMPLE`. No se
   probó si tiene `DELETE`. Merece una conversación con quien administre el
   motor.
-- **`azure-apps/sigrid_api.md` está modificado y sin commitear** en su
-  repositorio: §2.1 y §5.1, corregidas por esta feature.
-- **Mejora del arnés propuesta por el reviewer**: `init.sh` no avisa de que
-  falte `progress/mutacion_F-XXX.md` en rigor `critico` o `estandar`. Este
-  rechazo se habría evitado con ese aviso. Si se hace, hay que portarlo a
-  `arnes-base`.
+- **Mejoras del arnés propuestas por el reviewer**, sin aplicar: `init.sh` no
+  avisa de que falte `mutacion_F-XXX.md` en rigor `critico`; y RM5 pide
+  reproducir **un** equivalente, cuando reproducirlos todos costó 15 min y
+  destapó cuatro análisis falsos. Si se hacen, **hay que portarlas a
+  `arnes-base`**.
+- **F-004** (endpoint `sigrid/concepto-grafico`) espera a que cierre F-003. Su
+  propuesta está actualizada con lo medido, y entre sus criterios está corregir
+  `dedicacion.md`, `partes.md` y `remesas.md` de `azure-apps`, que siguen
+  llamando «réplica que no admite escritura» a `ruesma_rep`.
+
+## Estado de los repositorios
+
+- `sigrid-api`: rama `feature/F-003-guardia-bases-cruzadas`, 20 commits sobre
+  `dev`. `dev` está **7 commits por delante de `origin/dev`**, sin empujar.
+- `azure-apps`: 1 commit local (`5967cd8`), sin empujar.
+- **Nada se ha empujado a ningún remoto**, como manda el protocolo.
+
+## Prompt para retomar
+
+> Lee `CLAUDE.md` y `progress/current.md` y retoma F-003. Está todo commiteado
+> y en verde; falta relanzar la campaña de mutación y pasar al reviewer el
+> segundo encargo, el del papeleo, troceado.
