@@ -99,3 +99,22 @@ Los cuatro documentos del contrato 2441136 (§C) descargados de `ruesma_rep` por
 | 217644 | por `ide` = `rcg.gra` (script de T8) | `RS23.080002.pdf` | 151.735 | (imagen escaneada, sin texto) — una reclamación de Posventa de 2023 |
 
 Los dos scripts de `albaranes-persistencia`, con el código delante: `diagnose_sigrid_contrato_gra.py` (contratos por obra) resuelve la documental **por `cod`** (línea 410) y su ejemplo `--download-ide 274282` es el documento correcto; `diagnose_sigrid_contrato_docs.py` (el de T8) hace `JOIN ruesma_rep.dbo.gra g ON rcg.gra = g.ide` en las cuatro vías (líneas 286, 312, 341, 368). El texto del binario cierra la cuestión: el join por `ide` devuelve documentos de otra obra.
+
+## H · El código de producción de `albaranes-persistencia` y ocho contratos de otras obras (2026-09-05) [MEDIDO]
+
+`infrastructure/sigrid/sigrid_api_contrato_client.py` (el que alimenta la app de albaranes, no un script): `_SQL_GRA_COD_BY_CONTRATO` saca `gra.cod` con `rcg.gra = gra.ide` en `ruesma`; `_SQL_GRA_REP_BY_COD` (`SELECT ide … FROM gra WHERE cod = ?`) lo resuelve en `ruesma_rep`; y `documents/read` descarga por ese `ide` documental (`id_column: "ide"`, línea 597). **Resuelve por `cod`**, igual que lo medido. Matiz: no lleva `emp` en el `WHERE cod = ?` (hay 8 `cod` repetidos entre empresas, todos `.doc` de 2017-2020); la cabecera sí filtra `emp = 1`.
+
+Ocho contratos recientes (alta del gráfico el 2026-09-04) de obras distintas de 0695, resueltos por los dos caminos:
+
+| Contrato · obra | `rcg.gra` | negocio `nom` | por `(emp,cod)`: doc. `ide` · `nom` | por `ide`: doc. `nom` |
+|---|---|---|---|---|
+| CTSB26/0511 · 0709 | 298409 | `CTR_01_CTSB26_0511-RCL.IND1.pdf` | 359564 · **igual** | `MV9.pdf` |
+| CTSB26/0469 · 0712 | 298408 | `CTR_01_CTSB26_0469-RCL.IND1.pdf` | 359563 · **igual** | `ZANELA_IND1_firmado.pdf` |
+| CTSB25/0709 · 0676-B | 298400 | `CTR_01_CTSB25_0709_7.doc` | 359555 · (`nom` vacío, 91.648 B) | `MV1 FIRMADA.pdf` |
+| CTSU26/0333 · 0727 | 298314 | `CTR_01_CTSU26_0333.doc` | 359467 · (`nom` vacío, 87.040 B) | `FRANS_BONHOMME_ESPAÑA.PED1.pdf` |
+| CTSU24/0454 · 0696 | 298309 | `FEYMACO.PED1.AMP5.pdf` | 359459 · **igual** | un `.jpeg` |
+| CTSU24/0454 · 0696 | 298308 | `FEYMACO.PED1.AMP5.doc` | 359458 · **igual** | un correo `.msg` de otra obra |
+| CTSU24/0518 · 0696 | 298307 | `HORMIGON SIERRA MADRID.PED1.AMP2.pdf` | 359457 · **igual** | `Presupuestos_251371.pdf` |
+| CTSU24/0518 · 0696 | 298306 | `HORMIGON SIERRA MADRID.PED1.AMP2.doc` | 359456 · **igual** | una oferta de otro proveedor |
+
+Ocho de ocho: por `(emp,cod)` sale el documento del contrato; por `ide` sale siempre uno ajeno. Las dos filas `.doc` con `cod` = nombre de fichero traen `nom` vacío en la documental (importación masiva de contratos, clase 9): el `cod` sigue siendo la clave.
