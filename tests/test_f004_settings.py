@@ -5,9 +5,16 @@ F-004 · R4 y R5: las siete App Settings nuevas del endpoint
 
 Sin red y sin base de datos. `Settings` se construye con los argumentos
 mínimos por su alias (los kwargs de `__init__` mandan sobre el entorno en
-pydantic-settings), y las claves nuevas se borran del entorno antes de cada
-test para que lo que se mide sea el defecto del código y no lo que tenga
-puesta la máquina.
+pydantic-settings), y ANTES de cada test se borra del entorno *toda* clave
+que `Settings` reconozca, para que lo que se mide sea el defecto del código
+y no lo que tenga puesta la máquina.
+
+El aislamiento total no es cosmético: `EnvSettingsSource` intenta
+`json.loads` sobre los campos de tipo lista ANTES de que corra el validador
+`parse_string_list`, así que un `ALLOWED_DATABASES=master,ruesma` exportado
+en el entorno hace reventar la construcción con `SettingsError` aunque el
+test no toque esa clave. Ocurre de verdad: la campaña de mutación vuelca el
+`.env` al entorno del proceso y dejaba este fichero entero en rojo.
 """
 from __future__ import annotations
 
@@ -42,15 +49,32 @@ _CLAVES_NUEVAS = (
 )
 
 
+def _claves_que_settings_reconoce() -> frozenset[str]:
+    """Los nombres de entorno que `Settings` lee, sacados de los alias del
+    propio modelo y no de una lista escrita a mano: así el aislamiento cubre
+    también los campos que se añadan en el futuro. `Settings` declara
+    `case_sensitive=False`, de modo que se devuelven las tres grafías."""
+    nombres: set[str] = set()
+    for nombre, campo in Settings.model_fields.items():
+        for candidato in (nombre, campo.alias, campo.validation_alias):
+            if isinstance(candidato, str):
+                nombres.update({candidato, candidato.upper(), candidato.lower()})
+    return frozenset(nombres)
+
+
+_CLAVES_RECONOCIDAS = _claves_que_settings_reconoce()
+
+
 @pytest.fixture(autouse=True)
 def _entorno_limpio(monkeypatch: pytest.MonkeyPatch) -> None:
-    for clave in _CLAVES_NUEVAS:
+    for clave in _CLAVES_RECONOCIDAS | set(_CLAVES_NUEVAS):
         monkeypatch.delenv(clave, raising=False)
-    monkeypatch.delenv("ALLOWED_WRITE_DATABASES", raising=False)
 
 
 def ajustes(**extra: object) -> Settings:
-    return Settings(**{**_MINIMO, **extra})
+    # `_env_file=None` cierra la otra puerta al entorno: aunque mañana
+    # `Settings.model_config` declare un `env_file`, estos tests no lo leerán.
+    return Settings(_env_file=None, **{**_MINIMO, **extra})
 
 
 # --- R4: los siete ajustes nuevos, con defecto seguro ------------------------

@@ -27,27 +27,22 @@
 **No se tocó**: ningún guardia existente (`sql_write_guard`, `sql_query_guard`,
 `identifier_guard`, `database_reference_guard` **se usan**, no se editan),
 `sql_server_repository.py` (bastaron `execute_read_query`, `peek_next_ide` y
-`run_in_write_transaction`), `ALLOWED_WRITE_DATABASES`. `requirements.txt` sí:
-+`tzdata` en la ronda §8.
+`run_in_write_transaction`), `ALLOWED_WRITE_DATABASES`. Sí `requirements.txt`: +`tzdata` (§8).
 
 ## 2 · Decisiones de diseño que no estaban escritas en la spec
 
-1. **La hora de Madrid, sin `zoneinfo`** (regla europea escrita a mano, fija
-   desde 1996, siete casos de test). **SUPERADA en la ronda §8.1**: hoy la vía
-   normal es `ZoneInfo` con `tzdata` y esa regla es solo el respaldo.
-2. **`SqlReadRequest.model_construct`** en vez de `model_validate`: los
-   validadores del modelo llaman a `get_settings()`, que leería el `.env` de la
-   máquina dentro de un test unitario. El SQL es constante y los parámetros los
-   pone el caso de uso, así que no hay nada que validar.
+1. **La hora de Madrid, sin `zoneinfo`** (regla europea a mano, fija desde 1996,
+   siete casos). **SUPERADA en §8.1**: hoy la vía normal es `ZoneInfo` + `tzdata`.
+2. **`SqlReadRequest.model_construct`** en vez de `model_validate`: sus
+   validadores llaman a `get_settings()`, que leería el `.env` de la máquina
+   dentro de un test. El SQL es constante y los parámetros los pone el caso de uso.
 3. **El base64 se valida en dos sitios y a propósito.** El modelo comprueba la
-   **forma** (alfabeto y múltiplo de 4) sin decodificar, para no materializar un
-   fichero enorme antes de mirar el tope (R1 + R8); el guardia decodifica en modo
-   estricto. Uno mal formado sale como `ValueError` (400 con su mensaje), no con
-   `codigo`: la lista de R3 es cerrada y ese caso es de R1.
+   **forma** (alfabeto, múltiplo de 4) sin decodificar, para no materializar un
+   fichero enorme antes del tope (R1 + R8); el guardia decodifica estricto. Uno
+   mal formado sale como `ValueError` (400), no con `codigo`: R3 es lista cerrada.
 4. **`committed` es honesto.** En el caso idempotente vale `false` con
-   `filas_afectadas: 0`, porque no se escribió ninguna fila, y `dry_run` sigue
-   siendo `not commit`. `EnlacePreview.pos` es `None` ahí: se conoce el enlace
-   existente, no su posición (L5 no la devuelve).
+   `filas_afectadas: 0` (no se escribió nada) y `dry_run` sigue siendo `not
+   commit`. `EnlacePreview.pos` es `None` ahí: L5 no devuelve la posición.
 5. **Se borró la propiedad `documental`** del constructor de sentencias: nadie
    la usaba y era la única línea sin cubrir de ese módulo.
 
@@ -76,10 +71,9 @@ E   ModuleNotFoundError: No module named 'domain.models.concepto_grafico_models'
 !!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
 ```
 
-Idéntico para `infrastructure.security.document_write_guard`,
-`application.use_cases.concepto_grafico_statements` y
-`...attach_concepto_grafico_use_case`. Es evidencia válida pero **débil** (un
-error de colección, no una aserción rota); las de la ronda §8 sí lo son.
+Idéntico para `document_write_guard`, `concepto_grafico_statements` y
+`attach_concepto_grafico_use_case`. Evidencia válida pero **débil** (error de
+colección, no aserción rota); las de §8.1, §8.2 y §8.7 sí lo son.
 
 **T13** (`R3`, la ruta) — `python -m pytest tests/test_f004_route.py -q`
 
@@ -89,13 +83,12 @@ E       AttributeError: <module 'function_app' ...> has no attribute 'AttachConc
 7 failed, 1 warning in 1.25s
 ```
 
-**Tres tests míos estaban mal escritos y se corrigieron tras ver el verde** (no
-se cambió código de producción por ellos): `..._r16_ninguna_sentencia_cuenta_por_
-cod...` prohibía `cod = ?` en toda sentencia previa y **L3 lee `usu.cod`
-legítimamente** (ahora prohíbe `COUNT(*)` + `cod = ?`, que es lo que dice R16);
-`..._r19_el_constructor_se_autovalida` esperaba que `documental="msdb"` fuera
-rechazado, imposible por construcción (se sustituyó por un **espía** sobre
-`DatabaseReferenceGuard.validate`); y dos constantes tenían la cuenta mal a mano.
+**Tres tests míos estaban mal escritos y se corrigieron tras ver el verde** (sin
+tocar producción): el de R16 prohibía `cod = ?` en toda sentencia y **L3 lee
+`usu.cod` legítimamente** (ahora prohíbe `COUNT(*)` + `cod = ?`, que es lo que dice
+R16); el de R19 esperaba rechazo de `documental="msdb"`, imposible por construcción
+(se sustituyó por un **espía** sobre `DatabaseReferenceGuard.validate`); y dos
+constantes tenían la cuenta mal a mano.
 
 ## 4 · Lo que garantizan los tests (175, seis ficheros; ninguno toca red ni BBDD: repositorio, cursor y `Settings` son dobles, y la ruta se invoca con un `func.HttpRequest` construido a mano)
 
@@ -111,58 +104,50 @@ rechazado, imposible por construcción (se sustituyó por un **espía** sobre
 ## 5 · Lo que NO se hizo (y por qué)
 
 - **T15, la campaña de mutación**: fuera del encargo; la lanza el líder.
-- **T18-T22**: manuales del humano (despliegue, App Settings, dry-run contra
-  producción, primer `commit:true` autorizado y su repetición idempotente).
-  Hasta T20 **nadie ha escrito nunca** en `ruesma_rep` por esta vía.
-- **Sin sondear el driver**: que `pyodbc` convierta `bytes` → `image` en E4 no
-  se puede comprobar sin escribir. Si el motor lo rechazara, fallaría en E4 con
-  `ROLLBACK` y nada escrito; el arreglo sería `CAST(? AS image)`. Riesgo vivo
-  que T20 despeja.
-- **Fuera de alcance de la spec**: borrar o sustituir adjuntos, reparar
-  huérfanas, versionado (`graant`), `multipart`, `dbo.log`, abrir `sql/write`
-  a la documental.
+- **T18-T22**: manuales del humano (despliegue, App Settings, dry-run en producción,
+  primer `commit:true` y su repetición). Hasta T20 **nadie ha escrito nunca** ahí.
+- **Sin sondear el driver**: que `pyodbc` convierta `bytes` → `image` en E4 no se
+  puede comprobar sin escribir. Si el motor lo rechazara: fallo en E4, `ROLLBACK`,
+  nada escrito; el arreglo sería `CAST(? AS image)`. Riesgo vivo que T20 despeja.
+- **Fuera de alcance de la spec**: borrar o sustituir adjuntos, reparar huérfanas,
+  versionado (`graant`), `multipart`, `dbo.log`, abrir `sql/write` a la documental.
 
 ## 6 · Evidencias
 
-**Las cifras vigentes están en §8.6**, remedidas tras la ronda de correcciones.
-Las de la primera entrega (SHA `87098d6`): 1.437 tests, 175 de F-004, suite en
-51,35 s, cobertura 100,0 % de 455 líneas cambiadas, tamaño `[OK]`, 79 avisos de
-`ruff` (los mismos que antes de la feature; los 21 que introdujo F-004 se
-corrigieron), `ENTORNO LISTO`.
+**Las cifras vigentes están en §8.6**, remedidas tras las rondas. Primera entrega
+(SHA `87098d6`): 1.437 tests, 175 de F-004, suite 51,35 s, cobertura 100,0 % de 455
+líneas cambiadas, tamaño `[OK]`, 79 avisos de `ruff` (los previos), `ENTORNO LISTO`.
 
 | Evidencia | Valor |
 |---|---|
 | **Mutantes generados y supervivientes** | **PENDIENTE — T15, fuera de este encargo.** La lanza el líder con `python -m harness.mutacion --feature F-004` → `progress/mutacion_F-004.md`. Es la única evidencia del nivel `critico` que este informe no puede cerrar |
 | **Verificaciones MANUAL pendientes** | T18-T22 (`tasks.md`), todas del humano. R23 (comprobar el `sha256` con `documents/read`) depende de T20 |
-| **Escrituras contra el ERP** | **ninguna**, en las dos rondas |
 
 ## 7 · Cierre
 
 **Commits** (uno por tarea, ninguno en `dev` ni en `main`, sin `git push`):
 T3 `d714964` · T4 `00f6140` · T5 `308fa2b` · T6 `d285e38` · T7 `4f21c73` ·
 T8 `5a7edf6` · T9 `15ce980` · T10 `80fc7cb` · T11 `9e1aeac` · T12 `0d9e8d1` ·
-T13 (ruta) · T14 `a39b075` + `a8b4c17` · T16 `4d3bcf1` · T17 `87098d6` y, en
-`azure-apps`, `a40684f`. Ronda posterior (§8): `bb92507`, `7f0bcfb`, `aed7ef8` y,
-en `azure-apps`, `157b392`. Un commit **ajeno a F-004** (`658b8fb`) recoge
-`progress/impl_albaranes_script_docs.md`, que apareció en el árbol durante esta
-implementación y se separó para no mezclarlo con la feature.
+T13 (ruta) · T14 `a39b075` + `a8b4c17` · T16 `4d3bcf1` · T17 `87098d6`; en
+`azure-apps`, `a40684f`. Rondas §8: `bb92507`, `7f0bcfb`, `aed7ef8`, T14c (§8.7) y,
+en `azure-apps`, `157b392`. `658b8fb` es **ajeno a F-004** (recoge
+`progress/impl_albaranes_script_docs.md`, aparecido en el árbol y separado aparte).
 
 ## 8 · Ronda tras revisión (2026-09-05)
 
 Las tres revisiones APROBARON; el humano incorporó cuatro mejoras antes de la
-campaña de mutación. **Nada más**: ni guardias, ni repositorio, ni
-`ALLOWED_WRITE_DATABASES`, ni el resto del caso de uso.
+campaña de mutación y una quinta (§8.7) al arrancarla. **Nada más**: ni guardias,
+ni repositorio, ni `ALLOWED_WRITE_DATABASES`, ni el resto del caso de uso.
 
 **8.1 · `tzdata` + `ZoneInfo`, con la regla manual de respaldo** — `bb92507`.
-`requirements.txt` +`tzdata==2026.3` (fijada) e instalada en el venv.
+`requirements.txt` +`tzdata==2026.3` (fijada, instalada en el venv).
 `hora_local_de_madrid()` usa `ZoneInfo("Europe/Madrid")` y **solo** ante
-`ZoneInfoNotFoundError` cae a `_hora_por_la_regla_de_respaldo()`, la regla de
-antes intacta. Motivo (review del constructor §3): si la UE deroga el cambio de
-hora, la regla a mano se pudre en silencio; con `tzdata` llega sola. Los siete
-casos corren ahora por los **dos** caminos (fixture `camino_horario`, que en
-`respaldo` monkeypatchea `ZoneInfo` para que lance) y uno nuevo prueba que con
-`tzdata` **no** se pasa por la regla manual. Control propio: los dos caminos
-comparados en **788.976 instantes** de 1996-2040 → **0 discrepancias**.
+`ZoneInfoNotFoundError` cae a `_hora_por_la_regla_de_respaldo()`, intacta. Motivo
+(review del constructor §3): si la UE deroga el cambio de hora, la regla a mano se
+pudre en silencio; con `tzdata` llega sola. Los siete casos corren por los **dos**
+caminos (fixture `camino_horario`, que en `respaldo` hace lanzar a `ZoneInfo`) y uno
+nuevo prueba que con `tzdata` **no** se pasa por la manual. Control propio: los dos
+caminos comparados en **788.976 instantes** de 1996-2040 → **0 discrepancias**.
 RED — `pytest tests/test_f004_statements.py -q -k "hora_de_madrid or sin_zona or tzdata"`:
 
 ```
@@ -174,14 +159,13 @@ E       AttributeError: module 'application.use_cases.concepto_grafico_statement
 (los 8 errores son el fixture del camino `respaldo`: tampoco halla qué sustituir)
 
 **8.2 · `max_rows` explícito en L5 y L6** — `7f0bcfb`. `_leer(..., max_rows=None)`;
-L5 y L6 pasan `MAX_ALLOWED_ROWS` (1.000). El tope real era `DEFAULT_MAX_ROWS`
-(200) y `_truncado` se descartaba: más de 200 binarios del mismo tamaño en un
-concepto dejarían fuera al candidato y R17 duplicaría el adjunto **en silencio**.
-**Ningún código de R3 encaja** —describen fallos de la petición o de la
-escritura, y `filas_afectadas_inesperadas` es la relectura de R14, filas
-*escritas*, no *leídas*— y la lista es cerrada a propósito, así que sube un
-`ValueError` con mensaje claro que la ruta ya saca como 400, **sin ampliar R3**.
-Pasa antes de abrir transacción (el test exige `repositorio.transacciones == []`).
+L5 y L6 pasan `MAX_ALLOWED_ROWS` (1.000). El tope real era `DEFAULT_MAX_ROWS` (200)
+y `_truncado` se descartaba: más de 200 binarios del mismo tamaño en un concepto
+dejarían fuera al candidato y R17 duplicaría el adjunto **en silencio**. **Ningún
+código de R3 encaja** (describen fallos de la petición o de la escritura, y
+`filas_afectadas_inesperadas` es la relectura de R14, filas *escritas*) y la lista
+es cerrada a propósito: sube un `ValueError` que la ruta ya saca como 400, **sin
+ampliar R3**, antes de abrir transacción (`repositorio.transacciones == []`).
 RED — `pytest tests/test_f004_use_case.py -q -k "tope_maximo or truncada"`:
 
 ```
@@ -195,11 +179,10 @@ E   Failed: DID NOT RAISE ValueError
 **8.3 · Constantes** — `aed7ef8`. `vin=3` → `VIN_REPOSITORIO` y el `64` de
 respaldo de `_leer_posicion` → `POS_PASO`. Sin cambio de comportamiento.
 
-**8.4 · `committed:false` documentado** — `azure-apps` `157b392`. §8.8 avisa de
-que con `commit:true` sobre un documento ya adjunto la respuesta es `ok:true`,
-`idempotente:true`, `committed:false`, `filas_afectadas:0`, y da la
-comprobación correcta: **`ok && (committed || idempotente)`**. Commit aparte,
-sin remoto y sin `push`.
+**8.4 · `committed:false` documentado** — `azure-apps` `157b392`. §8.8 avisa de que
+con `commit:true` sobre un documento ya adjunto la respuesta es `ok:true`,
+`idempotente:true`, `committed:false`, `filas_afectadas:0`, y da la comprobación
+correcta: **`ok && (committed || idempotente)`**. Commit aparte, sin remoto ni `push`.
 
 **8.5 · Fuera de esta ronda.** La recomendación 2 de la review del caso de uso
 (`ALLOWED_WRITE_DATABASES` vacía **falla abierto**, aquí y en otros tres casos
@@ -212,8 +195,25 @@ de uso) **no se toca**: es un cambio de seguridad que merece feature propia.
 | **Tests ejecutados** | **1.449 pasan**, 1 se salta, 0 fallan (+12 sobre la entrega anterior); de F-004, **187** (`-k f004`) |
 | **Tiempo de la suite** | **45,12 s** y **60,21 s** bajo `coverage`, en las dos ejecuciones de cierre de `init.sh` (misma máquina, sin cambios entre ambas) |
 | **Cobertura de líneas cambiadas** | **100,0 %** — `PUERTA COBERTURA: 100.0% de 465 líneas cambiadas cubiertas (465/465, umbral 80%, nivel critico)` |
-| **Puerta de tamaño** | `[OK]` — requirements 150/150, design 250/250, impl dentro de 220 |
+| **Puerta de tamaño** e **`init.sh`** | `[OK]` — requirements 150/150, design 250/250, impl dentro de 220 · **ENTORNO LISTO** |
 | **`ruff`** | **79 avisos, los mismos que antes de esta ronda** (deuda previa en `harness/`, `scripts/`, `config/`…). En los cuatro ficheros tocados: `All checks passed!` |
 | **Mutación** | sigue **PENDIENTE**: T15, la lanza el líder sobre este SHA |
-| **`bash harness/init.sh`** | **ENTORNO LISTO** |
 | **Contra el ERP o la API** | **nada** |
+
+**8.7 · Los tests de settings se aíslan del entorno** — commit `F-004 T14c`. Al
+arrancar T15 la campaña abortó con la **línea base en rojo**: en sus worktrees
+fallaban 25 tests de `tests/test_f004_settings.py` que en el árbol principal pasan.
+La campaña vuelca el `.env` al entorno (arnés ≥1.7.7) y `EnvSettingsSource` hace
+`json.loads` de `ALLOWED_DATABASES=master,…` **antes** que `parse_string_list`: reventaba todo `Settings` real aunque el test no tocara esa clave. RED:
+
+```
+E   pydantic_settings.sources.SettingsError: error parsing value for field "allowed_databases" from source "EnvSettingsSource"
+25 failed, 1 passed in 4.00s  →  exit 1
+```
+
+Arreglo: `_entorno_limpio` borra **toda** clave que `Settings` reconozca (alias de
+`model_fields`, no a mano: así cubre los campos futuros, en sus tres grafías) y
+`ajustes()` pasa `_env_file=None`. Solo ese fichero —único con un `Settings` real
+(`grep "Settings("` en `tests/test_f004_*.py`)—; **cero producción**. Verde: `exit 0`, `26 passed`; y `26 passed` sin entorno exportado.
+**Lección:** un test con `Settings` real debe aislar el entorno **entero**, no solo
+las claves que toca, porque la campaña de mutación exporta el `.env` de la máquina.
