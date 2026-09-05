@@ -59,7 +59,7 @@
         "Tests unitarios sin red ni BBDD que fijen cada caso",
         "bash harness/init.sh en verde"
       ],
-      "status": "in_progress",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 3,
