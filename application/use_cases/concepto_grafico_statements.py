@@ -160,10 +160,6 @@ class ConceptoGraficoStatements:
                 contexto="escritura",
             )
 
-    @property
-    def documental(self) -> str:
-        return self._documental
-
     def todas_las_sentencias(self) -> tuple[str, ...]:
         return (
             self._l1, self._l2, self._l3, self._l4, self._l5, self._l6,

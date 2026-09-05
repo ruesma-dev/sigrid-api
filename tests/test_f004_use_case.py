@@ -495,6 +495,23 @@ def test_f004_r17_un_binario_del_mismo_tamano_pero_distinto_no_es_idempotente() 
     assert respuesta.idempotente is False
 
 
+def test_f004_r17_un_candidato_sin_binario_se_ignora_en_vez_de_reventar() -> None:
+    """Defensa: L5 hace INNER JOIN y `DATALENGTH(NULL)` nunca casa, pero si el
+    motor devolviera un `ima` NULL, hashearlo reventaria la peticion entera."""
+    repositorio = RepositorioDoble(
+        lecturas={
+            **_LECTURAS_FELICES,
+            "idempotencia": [
+                (1, "sin.binario", 2, None),
+                (_IDE_NEGOCIO, "202608181140392614.aechevarria", _IDE_ENLACE, _PDF),
+            ],
+        }
+    )
+    respuesta, _ = ejecutar(repositorio)
+    assert respuesta.idempotente is True
+    assert respuesta.grafico.ide_negocio == _IDE_NEGOCIO
+
+
 def test_f004_r17_la_idempotencia_se_revisa_otra_vez_dentro_de_la_transaccion() -> None:
     """Bajo el applock: entre la lectura y el commit puede haberlo colgado otro."""
     repositorio = RepositorioDoble(
