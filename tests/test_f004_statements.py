@@ -44,7 +44,14 @@ _GRA_29 = (
 _RCG_7 = ("ide", "con", "gra", "pos", "cla", "feclee", "fecalt")
 
 _SHA = "1a2b3c4d" + "0" * 56
-_AHORA = datetime(2026, 9, 5, 12, 30, 45)
+
+
+def local(*partes: int) -> datetime:
+    """Hora local de Madrid: naive a proposito, es lo que sella Sigrid."""
+    return datetime(*partes)  # noqa: DTZ001
+
+
+_AHORA = local(2026, 9, 5, 12, 30, 45)
 
 
 @pytest.fixture
@@ -106,10 +113,12 @@ def test_f004_r18_l5_busca_la_idempotencia_cruzando_por_emp_y_cod(
     """El JOIN va por `(emp, cod)`: por `ide` devuelve documentos ajenos el
     99,85 % de las veces [MEDIDO]."""
     assert sentencias.buscar_idempotencia(2811179, 242534) == (
-        "SELECT n.ide, n.cod, r.ide, CAST(d.ima AS varbinary(max)) FROM dbo.rcg r "
-        "JOIN dbo.gra n ON n.ide = r.gra "
-        "JOIN [ruesma_rep].dbo.gra d ON d.emp = n.emp AND d.cod = n.cod "
-        "WHERE r.con = ? AND DATALENGTH(d.ima) = ?",
+        (
+            "SELECT n.ide, n.cod, r.ide, CAST(d.ima AS varbinary(max)) FROM dbo.rcg r "
+            "JOIN dbo.gra n ON n.ide = r.gra "
+            "JOIN [ruesma_rep].dbo.gra d ON d.emp = n.emp AND d.cod = n.cod "
+            "WHERE r.con = ? AND DATALENGTH(d.ima) = ?"
+        ),
         [2811179, 242534],
     )
 
@@ -118,10 +127,12 @@ def test_f004_r18_l6_lista_las_huerfanas_del_concepto(
     sentencias: ConceptoGraficoStatements,
 ) -> None:
     assert sentencias.buscar_huerfanas(2811179) == (
-        "SELECT n.ide, n.cod FROM dbo.rcg r "
-        "JOIN dbo.gra n ON n.ide = r.gra "
-        "LEFT JOIN [ruesma_rep].dbo.gra d ON d.emp = n.emp AND d.cod = n.cod "
-        "WHERE r.con = ? AND d.ide IS NULL",
+        (
+            "SELECT n.ide, n.cod FROM dbo.rcg r "
+            "JOIN dbo.gra n ON n.ide = r.gra "
+            "LEFT JOIN [ruesma_rep].dbo.gra d ON d.emp = n.emp AND d.cod = n.cod "
+            "WHERE r.con = ? AND d.ide IS NULL"
+        ),
         [2811179],
     )
 
@@ -135,8 +146,10 @@ def test_f004_r12_la_reserva_bloquea_el_rango_en_las_tres_tablas(
     """UPDLOCK+HOLDLOCK ademas del applock: Sigrid escribe ~200 gra al dia sin
     pasar por nuestro bloqueo de aplicacion."""
     assert sentencias.reservar_ide_documental() == (
-        "SELECT ISNULL(MAX(g.ide), 0) + 1 FROM [ruesma_rep].dbo.gra g "
-        "WITH (UPDLOCK, HOLDLOCK)",
+        (
+            "SELECT ISNULL(MAX(g.ide), 0) + 1 FROM [ruesma_rep].dbo.gra g "
+            "WITH (UPDLOCK, HOLDLOCK)"
+        ),
         [],
     )
     assert sentencias.reservar_ide_negocio() == (
@@ -291,15 +304,15 @@ def test_f004_r13_el_cod_de_las_filas_es_el_que_devuelve_el_constructor(
 @pytest.mark.parametrize(
     "instante_utc, esperado",
     [
-        (datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc), datetime(2026, 1, 15, 13, 0)),
-        (datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc), datetime(2026, 7, 15, 14, 0)),
+        (datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc), local(2026, 1, 15, 13, 0)),
+        (datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc), local(2026, 7, 15, 14, 0)),
         # Ultimo domingo de marzo de 2026: el 29, a la 01:00 UTC.
-        (datetime(2026, 3, 29, 0, 59, tzinfo=timezone.utc), datetime(2026, 3, 29, 1, 59)),
-        (datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc), datetime(2026, 3, 29, 3, 0)),
+        (datetime(2026, 3, 29, 0, 59, tzinfo=timezone.utc), local(2026, 3, 29, 1, 59)),
+        (datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc), local(2026, 3, 29, 3, 0)),
         # Ultimo domingo de octubre de 2026: el 25, a la 01:00 UTC.
-        (datetime(2026, 10, 25, 0, 59, tzinfo=timezone.utc), datetime(2026, 10, 25, 2, 59)),
-        (datetime(2026, 10, 25, 1, 0, tzinfo=timezone.utc), datetime(2026, 10, 25, 2, 0)),
-        (datetime(2027, 12, 31, 23, 30, tzinfo=timezone.utc), datetime(2028, 1, 1, 0, 30)),
+        (datetime(2026, 10, 25, 0, 59, tzinfo=timezone.utc), local(2026, 10, 25, 2, 59)),
+        (datetime(2026, 10, 25, 1, 0, tzinfo=timezone.utc), local(2026, 10, 25, 2, 0)),
+        (datetime(2027, 12, 31, 23, 30, tzinfo=timezone.utc), local(2028, 1, 1, 0, 30)),
     ],
 )
 def test_f004_r13_el_sello_va_en_hora_de_madrid(
@@ -310,7 +323,7 @@ def test_f004_r13_el_sello_va_en_hora_de_madrid(
 
 
 def test_f004_r13_un_instante_sin_zona_se_entiende_como_utc() -> None:
-    assert hora_local_de_madrid(datetime(2026, 1, 15, 12, 0)) == datetime(2026, 1, 15, 13, 0)
+    assert hora_local_de_madrid(local(2026, 1, 15, 12, 0)) == local(2026, 1, 15, 13, 0)
 
 
 # --- R14: la relectura previa al COMMIT -------------------------------------

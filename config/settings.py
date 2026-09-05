@@ -151,7 +151,7 @@ class Settings(BaseSettings):
             if raw.startswith("["):
                 try:
                     parsed = json.loads(raw)
-                except Exception:
+                except json.JSONDecodeError:
                     parsed = None
                 if not isinstance(parsed, list):
                     raise ValueError(f"Formato no soportado para lista de enteros: {value!r}")
@@ -159,7 +159,11 @@ class Settings(BaseSettings):
             else:
                 crudos = [item.strip() for item in raw.split(",")]
         else:
-            raise ValueError(f"Formato no soportado para lista de enteros: {value!r}")
+            # ValueError y no TypeError a proposito: pydantic convierte el
+            # primero en un ValidationError legible y deja escapar el segundo.
+            raise ValueError(  # noqa: TRY004
+                f"Formato no soportado para lista de enteros: {value!r}"
+            )
 
         enteros: list[int] = []
         for crudo in crudos:

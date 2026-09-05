@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from config.settings import Settings
 
@@ -97,7 +98,7 @@ def test_f004_r4_parse_int_list_tambien_gobierna_la_lista_de_clases() -> None:
 def test_f004_r4_parse_int_list_rechaza_lo_que_no_es_entero(valor: object) -> None:
     """Ante una lista blanca que no se entiende, se falla al arrancar: una
     lista mal escrita que degradara a [] abriría la puerta en silencio."""
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ajustes(SIGRID_DOCUMENT_ALLOWED_GRATIPIDE=valor)
 
 

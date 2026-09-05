@@ -13,9 +13,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -553,9 +554,8 @@ def test_f004_r21_la_traza_lleva_lo_que_hace_falta_y_nunca_el_binario(
 
 def test_f004_r21_tambien_se_traza_el_fallo(caplog: pytest.LogCaptureFixture) -> None:
     repositorio = RepositorioDoble(lecturas={**_LECTURAS_FELICES, "usuario": []})
-    with caplog.at_level(logging.INFO):
-        with pytest.raises(ConceptoGraficoError):
-            ejecutar(repositorio)
+    with caplog.at_level(logging.INFO), pytest.raises(ConceptoGraficoError):
+        ejecutar(repositorio)
     texto = "\n".join(registro.getMessage() for registro in caplog.records)
     assert "usuario_no_valido" in texto
     assert _B64 not in texto

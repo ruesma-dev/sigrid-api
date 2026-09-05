@@ -296,8 +296,10 @@ class AttachConceptoGraficoUseCase:
             return []
         ides = ", ".join(str(fila[0]) for fila in huerfanas)
         return [
-            f"El concepto tiene {len(huerfanas)} grafico(s) sin binario en la base "
-            f"documental (ide {ides}). No se reparan: se adjunta uno nuevo."
+            (
+                f"El concepto tiene {len(huerfanas)} grafico(s) sin binario en la base "
+                f"documental (ide {ides}). No se reparan: se adjunta uno nuevo."
+            )
         ]
 
     # ------------------------------------------------------------------ #
@@ -368,9 +370,12 @@ class AttachConceptoGraficoUseCase:
             filas_afectadas=0,
             avisos=avisos
             + [
-                "Ese documento ya estaba adjunto a este concepto (mismo tamano y sha256): "
-                f"no se ha escrito nada. Se devuelve el grafico existente (ide {ide_negocio}, "
-                f"cod {cod_existente}); el cod que se habria generado era {cod_nuevo}."
+                (
+                    "Ese documento ya estaba adjunto a este concepto (mismo tamano y "
+                    f"sha256): no se ha escrito nada. Se devuelve el grafico existente "
+                    f"(ide {ide_negocio}, cod {cod_existente}); el cod que se habria "
+                    f"generado era {cod_nuevo}."
+                )
             ],
         )
 
@@ -525,9 +530,11 @@ class AttachConceptoGraficoUseCase:
             filas_afectadas=3,
             avisos=avisos
             + [
-                "Escritas las tres filas y releidas dentro de la transaccion. "
-                "Comprueba el fichero con documents/read sobre la base documental "
-                "(table=gra, id_column=cod) y el sha256 devuelto."
+                (
+                    "Escritas las tres filas y releidas dentro de la transaccion. "
+                    "Comprueba el fichero con documents/read sobre la base documental "
+                    "(table=gra, id_column=cod) y el sha256 devuelto."
+                )
             ],
         )
 
