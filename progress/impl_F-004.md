@@ -121,7 +121,7 @@ líneas cambiadas, tamaño `[OK]`, 79 avisos de `ruff` (los previos), `ENTORNO L
 | Evidencia | Valor |
 |---|---|
 | **Mutantes generados y supervivientes** | **CERRADO (T15)**: 167 mutantes, **167 muertos, 0 supervivientes**, 0 timeouts, **8 workers**, 366 s, sobre `79c5520`. Los **36** supervivientes de la campaña anterior (`d4e8535`) se remidieron EN SERIE —ninguno falso— y se cerraron con **16 tests nuevos** en fase RED contra su mutante, cero producción tocada. Medición, ficha a ficha, y el aviso sobre los 5 falsos supervivientes que se coló el modo paralelo: [`mutacion_F-004.md`](mutacion_F-004.md) |
-| **Verificaciones MANUAL pendientes** | T18-T22 (`tasks.md`), todas del humano. R23 (comprobar el `sha256` con `documents/read`) depende de T20 |
+| **Verificaciones MANUAL** | T18 y T19 **hechas el 2026-09-06** contra producción, todo lectura: [`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md). Quedan T20-T21 (primer `commit:true`, autorización expresa) |
 
 ## 7 · Cierre
 

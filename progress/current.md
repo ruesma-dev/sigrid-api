@@ -12,9 +12,16 @@
 1. **Merge de `feature/F-004-endpoint-concepto-grafico` a `dev`** y push (los
    agentes no empujan). `azure-apps` tiene commits locales (`a40684f`,
    `157b392`) y **no tiene remoto**.
-2. **T18-T21**, en ese orden, con el guion siguiente. Antes de T19 en la
-   **obra 404**: medir el `tip` del concepto (albarán/contrato) y añadirlo a
-   `SIGRID_DOCUMENT_ALLOWED_CONTIP`; hoy solo lleva 708 (reclamación).
+2. **T18 y T19 HECHAS el 2026-09-06** (desplegado `70ac430`, App Settings
+   cerradas, dry-run contra una reclamación real y contra la huérfana, tres
+   negativos, `MAX(ide)` sin cambios): detalle en
+   [`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md).
+   **Quedan T20 y T21**: el primer `commit:true`, con autorización expresa
+   del humano para esa llamada, sobre la reclamación que elija (candidata
+   2811179 `RS26.08/0123`; la huérfana es 2530061), abriendo
+   `SIGRID_DOCUMENT_WRITE_ENABLED=true` solo en esa ventana. Para la obra 404
+   el tipo de concepto de un contrato es **44** (medido); un albarán tendrá
+   el suyo: añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP` antes.
 
 ## Verificaciones MANUAL de F-004 pendientes (humano), con su comando exacto
 
