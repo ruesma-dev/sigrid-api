@@ -10,7 +10,7 @@ Resumen: **4 features**, 2 abiertas, 2 terminadas.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | pendiente | critico | `feature/F-004-endpoint-concepto-grafico` |
+| F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | spec lista | critico | `feature/F-004-endpoint-concepto-grafico` |
 
 ## Terminadas
 
@@ -29,7 +29,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-004 · Endpoint de dominio para adjuntar un documento a un concepto de Sigrid
 
-estado **pendiente** · prioridad 4 · rigor `critico` · SDD sí · rama `feature/F-004-endpoint-concepto-grafico`
+estado **spec lista** · prioridad 4 · rigor `critico` · SDD sí · rama `feature/F-004-endpoint-concepto-grafico`
 
 Implementar POST /api/sigrid/concepto-grafico segun docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md, actualizada con lo medido en F-002. Hace las tres escrituras en una sola transaccion local (binario en ruesma_rep.gra, metadatos en ruesma.gra con el mismo cod, enlace en ruesma.rcg) y no abre sql/write a la base documental. Dry-run por defecto. Lo pide postventa-incidencias F-012.
 
