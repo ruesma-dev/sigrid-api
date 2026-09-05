@@ -29,7 +29,7 @@ Control negativo ejecutado por mí: con `allowed=['ruesma']` el `DatabaseReferen
 `construir_cod` da `202609051230451101.aechevarria`: sello + `int(sha[:8],16)%10000` con ceros a la izquierda + `.` + `usu`; reproducible y **el mismo en cada reintento**.
 **La regla de horario de verano es correcta**, verificada con dos controles independientes míos: (a) `_ultimo_domingo` contra `calendar.monthcalendar` en seis meses de **1996-2040** → 0 discrepancias; (b) los cuatro bordes de 2025, 2026 y 2027 dan UTC+1 a las 00:59 UTC y UTC+2 a las 01:00 UTC del último domingo de marzo, y el inverso en octubre. Los tests parametrizados (l. 303-322) cubren los cuatro bordes de 2026 más el cruce 2027→2028: bien elegidos.
 La justificación es real, no una excusa: en este `.venv`, `ZoneInfo("Europe/Madrid")` **falla** («No time zone found with key») y `tzdata` no está instalado.
-**Recomendación (no bloqueante, decide el humano):** añadir `tzdata` a `requirements.txt` y usar `ZoneInfo` con este cálculo de *fallback*. Motivo: si la UE deroga el cambio de hora, la regla a mano queda desfasada **en silencio** y ningún test lo detecta; con `tzdata` el cambio llega solo. El daño de ese desfase sería una hora en el sello del `cod` —que Sigrid no interpreta [MEDIDO]— y ±1 día en `gra.fec` entre las 23:00 y la 01:00, que sí es dato visible en el ERP. Es mejora, no defecto: hoy el código es correcto y probado, y la spec no autorizaba dependencias nuevas.
+**Recomendación (no bloqueante, decide el humano):** añadir `tzdata` a `requirements.txt` y usar `ZoneInfo` con este cálculo de *fallback*. Motivo: si la UE deroga el cambio de hora, la regla a mano queda desfasada **en silencio** y ningún test lo detecta; con `tzdata` el cambio llega solo. El daño de ese desfase sería una hora en el sello del `cod` —que Sigrid no interpreta [MEDIDO]— y ±1 día en `gra.fec` entre las 23:00 y la 01:00, que sí es dato visible en el ERP. Es mejora, no defecto: hoy el código es correcto y probado, y la spec no autorizaba dependencias nuevas. **→ Aceptada e implementada: ver «Tras bb92507».**
 
 ## 4 · Guardia del fichero (R8) [x]
 
@@ -54,3 +54,16 @@ Los siete campos con el defecto exacto de R4, todos cerrados. `parse_int_list` a
 ## Automejora (propuesta, no aplicada)
 
 A `.claude/agents/reviewer.md`: **cuando el implementer sustituya una biblioteca estándar por una regla escrita a mano** (aquí `zoneinfo`), el reviewer debe **reproducir esa regla con un control independiente** y dejarlo escrito, en vez de leerla y darla por buena. Aquí costó dos minutos y es lo que separa «parece correcta» de «verificada 1996-2040».
+
+## Tras `bb92507` (verificación corta, HEAD `8674630`)
+
+**Veredicto (constructor, tras bb92507): APROBADO.** El humano aceptó la recomendación del §3 y el implementer la ejecutó bien. Sólo se revisa este delta; lo aprobado antes queda dado por bueno, y el cambio no toca nada de lo demás (`bb92507` = constructor + `requirements.txt` + sus tests). No se ejecutan `init.sh` ni la suite completa: hay una campaña de mutación con 8 workers. `pytest tests/test_f004_statements.py -q` → **50 passed / 0,16 s**. `ruff` limpio.
+
+- **Vía normal `ZoneInfo` y un solo camino de respaldo** [x]: `hora_local_de_madrid` (l. 103-106) es un `try` con **`except ZoneInfoNotFoundError`** y nada más — grep de `try:`/`except` sobre el fichero: dos apariciones, las de ese bloque. Sin `except Exception`, sin segundo camino, sin bandera de configuración. Es además la excepción real: es la que lanzaba esta máquina antes de instalar `tzdata`.
+- **La regla de respaldo, intacta** [x]: las tres líneas se mueven tal cual a `_hora_por_la_regla_de_respaldo` (l. 68-83); `_ultimo_domingo` no cambia. Diff limpio, sin reescritura encubierta.
+- **`tzdata==2026.3`** pinneado en `requirements.txt` y **realmente instalado** en el `.venv`: `ZoneInfo("Europe/Madrid")` ya resuelve donde antes fallaba.
+- **Los siete casos por los dos caminos** [x]: `--collect-only` da 7 `[zoneinfo-…]` + 7 `[respaldo-…]`, más `un_instante_sin_zona` por ambos. La fixture `camino_horario` simula la máquina sin zonas haciendo lanzar a `ZoneInfo`.
+- **Test de que con `tzdata` no se pasa por el respaldo** [x]: `test_f004_r13_con_tzdata_el_camino_principal_es_zoneinfo` sustituye `_hora_por_la_regla_de_respaldo` por un `AssertionError`. Comprobé que **no es un test de adorno**: con `ZoneInfo` roto en memoria y la regla manual mutada a la identidad, `hora_local_de_madrid` devuelve 12:00 en vez de 14:00 — el camino de respaldo se ejerce de verdad, no lo cortocircuita `ZoneInfo`.
+- **Los 788.976 instantes, reproducidos** [x]: comparé `_hora_por_la_regla_de_respaldo` **y** `hora_local_de_madrid` contra `ZoneInfo("Europe/Madrid")` cada 30 minutos de 1996-01-01 a 2041-01-01: **788.976 instantes comparados, 0 discrepancias en ambos**. La cifra del implementer coincide exactamente con la mía; no es un número escrito a mano.
+
+Sin cambios requeridos. Las tres observaciones menores de la sección anterior siguen abiertas y siguen sin bloquear.
