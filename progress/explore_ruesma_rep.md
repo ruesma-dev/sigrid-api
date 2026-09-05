@@ -172,8 +172,9 @@ configuración real de la Function App desplegada:
 
 - `ALLOWED_DATABASES` incluye **`master`**. La lectura de `master` no la
   necesita ningún consumidor conocido; conviene revisar si debe seguir ahí.
-- `MAX_ALLOWED_ROWS` desplegado vale **500.000**, no los 1.000 que documenta
-  `azure-apps/sigrid_api.md`. Uno de los dos está mal y hay que decidir cuál.
+- ~~`MAX_ALLOWED_ROWS`~~ **corregido el 2026-09-04: no había desajuste.** El
+  documento del ecosistema ya recogía en §4.1 que la instancia `dev` lo tiene en
+  500.000 frente a los 1.000 del código. Este apunte era falso.
 
 ### 3.4 · Y el agujero que esto destapa
 

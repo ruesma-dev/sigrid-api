@@ -5,6 +5,10 @@ import re
 
 from config.settings import Settings
 from domain.models.sql_models import SqlReadRequest
+from infrastructure.security.database_reference_guard import (
+    DatabaseReferenceError,
+    DatabaseReferenceGuard,
+)
 
 
 class QueryValidationError(ValueError):
@@ -69,6 +73,20 @@ class SqlQueryGuard:
                 raise QueryValidationError(
                     f"La consulta contiene una palabra no permitida: {keyword}"
                 )
+
+        # Igual que en escritura: el campo `database` es la base de la conexión,
+        # pero la consulta puede saltar a otra de la misma instancia
+        # cualificando el nombre. La lectura cruzada entre las bases de
+        # ALLOWED_DATABASES es legítima y sigue permitida; salir de esa lista,
+        # no.
+        try:
+            DatabaseReferenceGuard.validate(
+                normalized_sql,
+                allowed=self._settings.allowed_databases,
+                contexto="lectura",
+            )
+        except DatabaseReferenceError as exc:
+            raise QueryValidationError(str(exc)) from exc
 
         if (request.timeout_seconds or self._settings.default_query_timeout_seconds) > self._settings.max_query_timeout_seconds:
             raise QueryValidationError(

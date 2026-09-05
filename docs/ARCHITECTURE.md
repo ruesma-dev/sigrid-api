@@ -89,6 +89,14 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
   `MAX_QUERY_TIMEOUT_SECONDS` (120 s) y un corte del balanceador a 230 s.
   Toda agregación se hace en SQL, nunca trayéndose filas para sumarlas fuera.
 - **SQL siempre parametrizado** con `?` y valores en `parameters`.
+- **Las listas blancas de bases se aplican dos veces**: al campo `database` de
+  la petición (la base de la conexión) y a **las bases que el SQL nombra
+  dentro**, con `DatabaseReferenceGuard`. Sin lo segundo, una sentencia puede
+  saltar a otra base de la misma instancia cualificando el nombre
+  (`otra_base.dbo.tabla`) y la lista blanca no aplica nada. Los nombres de
+  cuatro partes (servidor vinculado) se rechazan siempre. La lectura cruzada
+  entre las bases de `ALLOWED_DATABASES` sigue permitida: hay diagnósticos que
+  la usan.
 - **Escritura apagada por defecto**, y encendida por capas independientes:
   credenciales `user_rw`, `ALLOWED_WRITE_PREFIXES`, `ALLOWED_WRITE_DATABASES`
   y, para dominio, `SIGRID_DOMAIN_WRITE_ENABLED` más `commit:true` explícito
