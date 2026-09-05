@@ -1,17 +1,18 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-> **F-003 cerrada el 2026-09-05 con veredicto APROBADO del reviewer y
-> `init.sh` en verde.** No hay ninguna feature `in_progress`. El merge a `dev`
-> y la verificación T8 están hechos; solo falta el push, que lo hace el humano. El prompt para retomar, al final.
+> **F-003 cerrada, mergeada, desplegada y empujada el 2026-09-05.**
+> **F-004 arranca el 2026-09-05** en la rama `feature/F-004-endpoint-concepto-grafico`:
+> `pending` → spec-author en marcha → `spec_ready` a la espera de que el humano
+> apruebe la spec. Nada implementado todavía. El prompt para retomar, al final.
 
 ## Lo que espera al humano, por orden
 
-### 1. Push de `dev` — lo hace el humano
+### 1. Push — HECHO el 2026-09-05
 
-F-003 está mergeada en `dev` (`e4c071b`, `--no-ff`) y desplegada. Los agentes
-no empujan: **nada se ha subido a ningún remoto**. `main` está 34 commits por
-detrás de `dev` y 0 por delante: un fast-forward, si se quiere. `dev` sigue **7 commits por delante de `origin/dev`** sin empujar, y
+`dev` y `main` en `f8bb8c6` local y remoto (`main` por fast-forward desde
+`dev`). La rama de F-003 también está en el remoto. `azure-apps` sigue **sin
+remoto configurado**: sus commits no se pueden empujar. `dev` sigue **7 commits por delante de `origin/dev`** sin empujar, y
 `azure-apps` tiene 1 commit local (`5967cd8`) igual de local.
 
 ### 2. T8 — HECHA el 2026-09-05, tras desplegar
@@ -74,6 +75,15 @@ Dos cosas que merecen sobrevivir a esta sesión:
 
 ### De configuración y de la base
 
+- **`local.settings.json` está versionado con dos contraseñas reales**
+  (`SQL_SERVER_PASSWORD` y `SQL_SERVER_WRITE_PASSWORD`, usuarios `ro_user` y
+  `rw_user` del túnel local a Sigrid). Desde el primer commit (`e903394`,
+  2026-04-16), en `origin/main` y `origin/dev`: cinco meses en GitHub. No está
+  en `.gitignore`. Incumple la regla transversal «nunca secretos en un
+  repositorio». Lo que cierra el hueco es **rotar las dos contraseñas** en
+  Sigrid y en el Key Vault (decisión del humano, 2026-09-05: se deja anotado y
+  se sigue con F-004); después, `git rm --cached local.settings.json` y
+  añadirlo a `.gitignore`, dejando solo el `sample`.
 - **`ALLOWED_DATABASES` incluye `master`** en la Function App, y ningún
   consumidor lo necesita. Quitarlo es una línea de configuración.
 - **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`, donde vive la única
@@ -87,13 +97,16 @@ Dos cosas que merecen sobrevivir a esta sesión:
 
 ## Lo siguiente en el backlog
 
-**F-004** (endpoint `sigrid/concepto-grafico`), `pending`, rigor `critico`. Su
-propuesta está actualizada con lo medido, y entre sus criterios está corregir
+**F-004** (endpoint `sigrid/concepto-grafico`), rigor `critico`, **en marcha**:
+el spec-author redacta `specs/F-004-endpoint-concepto-grafico/` a partir de
+`docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md` y de lo medido en
+`progress/explore_ruesma_rep.md`. Entre sus criterios está corregir
 `dedicacion.md`, `partes.md` y `remesas.md` de `azure-apps`, que siguen
 llamando «réplica que no admite escritura» a `ruesma_rep`.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-003 está cerrada y pendiente solo
-> del merge del humano. Arranca F-004 por el flujo SDD, o el diagnóstico de
-> `harness/mutacion_paralela.py` si el humano lo prefiere antes.
+> Lee `CLAUDE.md` y `progress/current.md`. F-004 está en `spec_ready` (o el
+> spec-author quedó a medias: mira `specs/F-004-endpoint-concepto-grafico/`).
+> Si el humano aprueba la spec, PARADA 1 con la propuesta de implementación y
+> luego implementer. No arranques nada más hasta cerrar F-004.
