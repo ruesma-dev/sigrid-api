@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 from infrastructure.security.identifier_guard import IdentifierGuard
@@ -42,6 +43,9 @@ VIN_REPOSITORIO = 3
 #: Sigrid ordena los graficos de un concepto con `pos` en multiplos de 64.
 POS_PASO = 64
 
+#: Zona horaria del ERP. Sigrid sella en hora local; los workers corren en UTC.
+ZONA_DE_MADRID = "Europe/Madrid"
+
 #: En la documental NO existe la clase 35: `gratipide` es 0 y `res` vacio en
 #: las 3.679 parejas medidas, aunque en negocio sean 35 y "PARTE FIRMADO".
 GRATIPIDE_DOCUMENTAL = 0
@@ -61,17 +65,32 @@ def _ultimo_domingo(anio: int, mes: int) -> date:
     return ultimo - timedelta(days=(ultimo.weekday() + 1) % 7)
 
 
+def _hora_por_la_regla_de_respaldo(utc: datetime) -> datetime:
+    """
+    Respaldo para maquinas sin base de zonas horarias (Windows sin `tzdata`).
+
+    La regla europea es fija desde 1996: CET (UTC+1) salvo entre el ultimo
+    domingo de marzo a la 01:00 UTC y el ultimo domingo de octubre a la 01:00
+    UTC, en que es CEST (UTC+2). Verificada contra `zoneinfo` en 1996-2040.
+
+    No es la via normal —lo es `ZoneInfo`, para que un cambio de la regla llegue
+    con `tzdata` y no haya que tocar codigo—, pero se conserva y se prueba con
+    los MISMOS casos: si el sistema se queda sin zonas, el endpoint sigue
+    sellando bien en vez de reventar.
+    """
+    entra_el_verano = datetime.combine(_ultimo_domingo(utc.year, 3), time(1, 0))
+    sale_el_verano = datetime.combine(_ultimo_domingo(utc.year, 10), time(1, 0))
+    horas = 2 if entra_el_verano <= utc < sale_el_verano else 1
+    return utc + timedelta(hours=horas)
+
+
 def hora_local_de_madrid(instante_utc: datetime) -> datetime:
     """
     Hora local de Madrid (naive) a partir de un instante UTC.
 
-    Por que a mano y no con `zoneinfo.ZoneInfo("Europe/Madrid")`: Windows no
-    trae base de datos de zonas horarias y `tzdata` no esta en
-    `requirements.txt`; la spec no autoriza anadir dependencias, y un endpoint
-    que funcionara en Azure pero no en la maquina de desarrollo no se podria
-    probar. La regla europea es fija desde 1996 y vale para las dos: CET (UTC+1)
-    salvo entre el ultimo domingo de marzo a la 01:00 UTC y el ultimo domingo de
-    octubre a la 01:00 UTC, en que es CEST (UTC+2).
+    Via normal: `zoneinfo.ZoneInfo("Europe/Madrid")` con `tzdata` en
+    `requirements.txt`. Si `ZoneInfo` no encuentra la zona (maquina sin base de
+    zonas), y SOLO en ese caso, se cae a `_hora_por_la_regla_de_respaldo`.
 
     Un instante sin zona se entiende como UTC: los workers de Azure corren en
     UTC y Sigrid sella en hora local.
@@ -81,10 +100,11 @@ def hora_local_de_madrid(instante_utc: datetime) -> datetime:
         if instante_utc.tzinfo is None
         else instante_utc.astimezone(timezone.utc).replace(tzinfo=None)
     )
-    entra_el_verano = datetime.combine(_ultimo_domingo(utc.year, 3), time(1, 0))
-    sale_el_verano = datetime.combine(_ultimo_domingo(utc.year, 10), time(1, 0))
-    horas = 2 if entra_el_verano <= utc < sale_el_verano else 1
-    return utc + timedelta(hours=horas)
+    try:
+        zona = ZoneInfo(ZONA_DE_MADRID)
+    except ZoneInfoNotFoundError:
+        return _hora_por_la_regla_de_respaldo(utc)
+    return utc.replace(tzinfo=timezone.utc).astimezone(zona).replace(tzinfo=None)
 
 
 def construir_cod(*, ahora: datetime, sha256: str, usu: str) -> str:

@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfoNotFoundError
 
 import pytest
 
+from application.use_cases import concepto_grafico_statements as statements
 from application.use_cases.concepto_grafico_statements import (
     ConceptoGraficoStatements,
     construir_cod,
@@ -301,6 +303,43 @@ def test_f004_r13_el_cod_de_las_filas_es_el_que_devuelve_el_constructor(
     assert documental["cod"] == negocio["cod"] == cod
 
 
+@pytest.fixture(params=["zoneinfo", "respaldo"])
+def camino_horario(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    """
+    Los dos caminos de `hora_local_de_madrid`, con los MISMOS casos.
+
+    `zoneinfo`: el camino normal, con `tzdata` en `requirements.txt`.
+    `respaldo`: se simula una maquina sin base de zonas (Windows sin `tzdata`)
+    haciendo que `ZoneInfo` lance `ZoneInfoNotFoundError`, para que la regla
+    manual siga probada y no se pudra sin que nadie lo note.
+    """
+    if request.param == "respaldo":
+        def _sin_base_de_zonas(nombre: str) -> None:
+            raise ZoneInfoNotFoundError(f"No time zone found with key {nombre}")
+
+        monkeypatch.setattr(statements, "ZoneInfo", _sin_base_de_zonas)
+    return str(request.param)
+
+
+def test_f004_r13_con_tzdata_el_camino_principal_es_zoneinfo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Con `tzdata` instalado NO se pasa por la regla manual: si la UE deroga el
+    cambio de hora, la actualizacion de `tzdata` llega sola y la regla escrita a
+    mano queda solo como respaldo.
+    """
+    assert statements.ZoneInfo(statements.ZONA_DE_MADRID) is not None
+
+    def _prohibido(_utc: datetime) -> datetime:
+        raise AssertionError("con tzdata instalado no se debe usar la regla manual")
+
+    monkeypatch.setattr(statements, "_hora_por_la_regla_de_respaldo", _prohibido)
+    assert hora_local_de_madrid(
+        datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+    ) == local(2026, 7, 15, 14, 0)
+
+
 @pytest.mark.parametrize(
     "instante_utc, esperado",
     [
@@ -316,13 +355,16 @@ def test_f004_r13_el_cod_de_las_filas_es_el_que_devuelve_el_constructor(
     ],
 )
 def test_f004_r13_el_sello_va_en_hora_de_madrid(
-    instante_utc: datetime, esperado: datetime
+    instante_utc: datetime, esperado: datetime, camino_horario: str
 ) -> None:
-    """Los workers de Azure corren en UTC y Sigrid sella en hora local."""
+    """Los workers de Azure corren en UTC y Sigrid sella en hora local.
+
+    Se ejecuta por los DOS caminos (`zoneinfo` y `respaldo`): tienen que dar el
+    mismo resultado mientras la regla europea siga vigente."""
     assert hora_local_de_madrid(instante_utc) == esperado
 
 
-def test_f004_r13_un_instante_sin_zona_se_entiende_como_utc() -> None:
+def test_f004_r13_un_instante_sin_zona_se_entiende_como_utc(camino_horario: str) -> None:
     assert hora_local_de_madrid(local(2026, 1, 15, 12, 0)) == local(2026, 1, 15, 13, 0)
 
 
