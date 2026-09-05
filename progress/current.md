@@ -1,10 +1,37 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+> **F-004 implementada el 2026-09-05** en `feature/F-004-endpoint-concepto-grafico`
+> (`87098d6`), con la spec y la propuesta aprobadas por el humano ese mismo día.
+> Informe: [`impl_F-004.md`](impl_F-004.md). `bash harness/init.sh` en **ENTORNO
+> LISTO**: 1.437 tests, cobertura de líneas cambiadas **100 %** (455/455), ruff
+> en los 79 avisos previos. **Nada se ha escrito en el ERP**: ni una llamada.
 > **F-003 cerrada, mergeada, desplegada y empujada el 2026-09-05.**
-> **F-004 arranca el 2026-09-05** en la rama `feature/F-004-endpoint-concepto-grafico`:
-> spec **aprobada por el humano el 2026-09-05** (`7a0a277`) → `in_progress`.
-> Pendiente la PARADA 1 (propuesta de implementación) antes de tocar código. El prompt para retomar, al final.
+
+## F-004 · lo que queda
+
+1. **T15, campaña de mutación** (rigor `critico`, sin tope): la lanza el líder
+   con `python -m harness.mutacion --feature F-004` → `progress/mutacion_F-004.md`.
+   Es la única evidencia del nivel que el informe no puede cerrar.
+2. **Revisión** contra `CHECKPOINTS.md` (troceada, como en F-003).
+3. **T18-T22, manuales del humano**: desplegar y fijar las App Settings nuevas
+   **cerradas**, dry-run contra producción (incluida la reclamación con el
+   gráfico huérfano), primer `commit:true` autorizado por Posventa y su
+   repetición idempotente. Hasta T20 nadie ha escrito nunca en `ruesma_rep`.
+4. **Commit pendiente de push en `azure-apps`**: `a40684f` (ese repositorio
+   sigue sin remoto). En este repositorio, la rama de F-004 tampoco se ha
+   empujado: son todo commits locales.
+
+Dos cosas que el reviewer debe mirar con lupa, dichas de frente:
+
+- **La hora de Madrid se calcula a mano** (`hora_local_de_madrid`), sin
+  `zoneinfo`: `tzdata` no está en `requirements.txt` y Windows no trae zonas
+  horarias, así que `ZoneInfo("Europe/Madrid")` **revienta** en esta máquina y
+  la spec no autoriza dependencias nuevas. Regla europea fija desde 1996, con
+  siete casos de test.
+- **Que `pyodbc` convierta `bytes` → `image` en E4 no está comprobado** y no se
+  puede comprobar sin escribir. Si fallara, sería un `ROLLBACK` con nada
+  escrito; el arreglo sería `CAST(? AS image)`. Lo despeja T20.
 
 ## Lo que espera al humano, por orden
 
@@ -121,7 +148,9 @@ llamando «réplica que no admite escritura» a `ruesma_rep`.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-004 está en `spec_ready` (o el
-> spec-author quedó a medias: mira `specs/F-004-endpoint-concepto-grafico/`).
-> Si el humano aprueba la spec, PARADA 1 con la propuesta de implementación y
-> luego implementer. No arranques nada más hasta cerrar F-004.
+> Lee `CLAUDE.md` y `progress/current.md`. F-004 está **implementada** en su
+> rama (`87098d6`) con `init.sh` en verde y el informe en
+> `progress/impl_F-004.md`; `tasks.md` tiene T3-T14, T16 y T17 en `[x]`. Lo que
+> falta: lanzar **T15** (mutación, rigor `critico`, sin tope), revisar contra
+> `CHECKPOINTS.md` troceando la revisión, y entonces la PARADA 2 con el humano
+> para las tareas manuales T18-T22. No arranques nada más hasta cerrar F-004.
