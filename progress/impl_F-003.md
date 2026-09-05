@@ -115,20 +115,20 @@ variable de entorno**: un interruptor de seguridad configurable acaba
 apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 `function_app.py`.
 
-## 5 · Evidencias
+## 5 · Evidencias — todas medidas sobre `e1ac0dd`, HEAD de la rama
 
 | Qué | Resultado |
 |---|---|
-| **Suite completa** | **1.241 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
-| **Tiempo de la suite** | 32,4 s en el árbol principal; 32,5 s la línea base medida por la campaña |
+| **Suite completa** | **1.262 pasan**, 1 skip, 0 fallos. Los 341 previos siguen en verde |
+| **Tiempo de la suite** | 32,2 s en worktree limpio (línea base del reviewer); 80,5–88,1 s por worker con los 8 en paralelo, que es contención, no la suite |
 | **`ruff`** | **79 avisos**, exactamente los de antes de la feature. Los 7 que introduje se corrigieron |
-| **Cobertura** | **99,2 %** de las líneas cambiadas (244/246), umbral 80 % del nivel `critico` |
-| **Mutación · mutantes** | **132** generados y evaluados, alcance 4 ficheros |
-| **Mutación · muertos** | **118** |
-| **Mutación · supervivientes** | **7**, los siete analizados en [`mutacion_F-003.md`](mutacion_F-003.md) y verificados como equivalentes por el reviewer (0 diferencias en 4.050 entradas cada uno) |
-| **Mutación · timeouts** | **7**, repasados en serie; son bucles infinitos (`fin += 1` → `fin -= 1`), que la suite mata colgándose |
-| **Mutación · workers** | **8** worktrees en paralelo; el repaso de timeouts, en serie |
-| **Mutación · tiempo** | 1.724,0 s (28,7 min) |
+| **Cobertura** | **99,2 %** de las líneas cambiadas (254/256), umbral 80 % del nivel `critico` |
+| **Mutación · mutantes** | **138** generados y evaluados; alcance 4 ficheros, 607 líneas |
+| **Mutación · muertos** | **124** — la campaña publicó 123; la corrección está medida, no estimada (§5.1) |
+| **Mutación · supervivientes** | **7** — publicó 9; los siete, analizados y aceptados por el humano en [`mutacion_F-003.md`](mutacion_F-003.md), y el reviewer reprodujo uno (0 diferencias en 1.900 entradas) |
+| **Mutación · timeouts** | **7** — publicó 6; son bucles infinitos (`fin += 1` → `fin -= 1`), que la suite mata colgándose |
+| **Mutación · tiempo y workers** | 1.681,8 s (28,0 min) con **8** worktrees en paralelo |
+| **Mutación · fiabilidad** | los 138 reevaluados EN SERIE: **0 falsos muertos** sobre 123 ([`mutacion_F-003_remuestreo.md`](mutacion_F-003_remuestreo.md)) |
 | **Verificador del ecosistema** | 13.639 ficheros recorridos, 256 consumidores, **0 rechazos**, exit 0 |
 | Puerta de tamaño | requirements 83/150, design 142/250, impl dentro del tope |
 | T7 · `scripts/` de este repo | ningún nombre de tres partes |
@@ -136,7 +136,7 @@ apagado—, `identifier_guard.py`, el repositorio, los casos de uso y
 
 ### 5.1 · Recorrido de las campañas
 
-**52 → 18 → 13 → 10 → 7 → 7** supervivientes en seis campañas. La última corre sobre el código final, con el neutralizador ya unificado, y devuelve los mismos siete: ninguno nuevo. El detalle de cada una
+**52 → 18 → 13 → 10 → 7 → 7 → 7** supervivientes en siete campañas. La séptima corre sobre `e1ac0dd`, ya con los cuatro arreglos de T16, y devuelve los mismos siete: ninguno nuevo. Dos de los nueve que publicó estaban mal clasificados —el de la línea 263 se cuelga, el de la 266 muere en 1,9 s—, de ahí el recuento real 124/7/7. El detalle de cada una
 y el análisis de los que quedan vivos, en
 [`mutacion_F-003.md`](mutacion_F-003.md). Tres cosas que merecen quedar aquí:
 
