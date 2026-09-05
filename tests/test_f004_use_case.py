@@ -59,6 +59,7 @@ class SettingsDoble:
     applock_timeout_ms: int = 10000
     domain_write_max_retries: int = 3
     default_query_timeout_seconds: int = 30
+    max_allowed_rows: int = 1000
 
 
 def _clave_de(sql: str) -> str:
@@ -149,7 +150,10 @@ class RepositorioDoble:
         reservas: dict[str, tuple[Any, ...]] | None = None,
         idempotencia_en_transaccion: list[tuple[Any, ...]] | None = None,
         fallar_en: str | None = None,
+        truncar_en: str | None = None,
     ) -> None:
+        self.truncar_en = truncar_en
+        self.topes: list[tuple[str, int | None]] = []
         self.lecturas = dict(_LECTURAS_FELICES if lecturas is None else lecturas)
         self.reservas = dict(_RESERVAS_FELICES if reservas is None else reservas)
         self.idempotencia_en_transaccion = idempotencia_en_transaccion or []
@@ -162,7 +166,8 @@ class RepositorioDoble:
     def execute_read_query(self, request: Any) -> tuple[list[str], list[tuple[Any, ...]], bool]:
         clave = _clave_de(request.sql)
         self.consultadas.append((clave, list(request.parameters)))
-        return [], list(self.lecturas.get(clave, [])), False
+        self.topes.append((clave, getattr(request, "max_rows", None)))
+        return [], list(self.lecturas.get(clave, [])), clave == self.truncar_en
 
     def peek_next_ide(self, *, database: str, table: str) -> int:
         self.peticiones_peek.append((database, table))
@@ -370,6 +375,33 @@ def test_f004_r9_el_preview_ensena_las_dos_filas_completas_sin_el_binario() -> N
     assert respuesta.grafico.sha256 == _SHA_PDF
     assert respuesta.grafico.bytes == len(_PDF)
     assert respuesta.enlace.pos == 64
+
+
+def test_f004_r17_las_lecturas_de_candidatos_piden_el_tope_maximo_de_filas() -> None:
+    """
+    Sin `max_rows` el tope real era `DEFAULT_MAX_ROWS` (200): un concepto con
+    mas de 200 binarios del MISMO tamano dejaria fuera al candidato bueno y la
+    idempotencia fallaria en silencio, duplicando el adjunto.
+    """
+    _respuesta, repositorio = ejecutar()
+    topes = dict(repositorio.topes)
+    assert topes["idempotencia"] == SettingsDoble().max_allowed_rows
+    assert topes["huerfanas"] == SettingsDoble().max_allowed_rows
+    assert topes["concepto"] is None  # las demas no cambian: devuelven 1 fila
+
+
+@pytest.mark.parametrize("clave", ["idempotencia", "huerfanas"])
+def test_f004_r17_una_lectura_truncada_para_el_adjunto_en_vez_de_duplicarlo(
+    clave: str,
+) -> None:
+    """Truncar es no haber visto todos los candidatos: adjuntar seria adjuntar a
+    ciegas. No hay codigo de R3 que encaje, asi que sube un `ValueError`."""
+    repositorio = RepositorioDoble(truncar_en=clave)
+    with pytest.raises(ValueError) as excinfo:
+        ejecutar(repositorio)
+    assert not isinstance(excinfo.value, ConceptoGraficoError)
+    assert "truncad" in str(excinfo.value).lower()
+    assert repositorio.transacciones == []
 
 
 def test_f004_r9_la_posicion_sale_de_max_pos_mas_64() -> None:

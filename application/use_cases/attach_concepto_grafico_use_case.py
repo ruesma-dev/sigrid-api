@@ -133,7 +133,9 @@ class AttachConceptoGraficoUseCase:
 
         # R17: idempotencia por contenido, con lecturas.
         candidatos = self._leer(
-            request, sentencias.buscar_idempotencia(request.conide, documento.bytes)
+            request,
+            sentencias.buscar_idempotencia(request.conide, documento.bytes),
+            max_rows=self._settings.max_allowed_rows,
         )
         ya_colgado = self._buscar_idempotencia(documento, candidatos)
         avisos.extend(self._avisar_de_huerfanas(request, sentencias))
@@ -198,7 +200,11 @@ class AttachConceptoGraficoUseCase:
     # Lecturas (R7, R17)
     # ------------------------------------------------------------------ #
     def _leer(
-        self, request: AttachConceptoGraficoRequest, sentencia: tuple[str, list[Any]]
+        self,
+        request: AttachConceptoGraficoRequest,
+        sentencia: tuple[str, list[Any]],
+        *,
+        max_rows: int | None = None,
     ) -> list[tuple[Any, ...]]:
         """
         Lectura con credenciales de LECTURA.
@@ -207,13 +213,28 @@ class AttachConceptoGraficoUseCase:
         `SqlReadRequest` llaman a `get_settings()`, y aqui el SQL es constante y
         los parametros los pone el propio caso de uso, asi que no hay nada que
         validar y si un `.env` que no pintaría nada en un test unitario.
+
+        Con `max_rows=None` manda `DEFAULT_MAX_ROWS` (200), que sobra para las
+        lecturas de una fila. Las que pueden traer muchas (L5 y L6) piden el
+        tope maximo. Truncar NUNCA se ignora: una lista de candidatos a medias
+        haria fallar la idempotencia en silencio y duplicaria el adjunto.
         """
         sql, params = sentencia
-        _columnas, filas, _truncado = self._repo.execute_read_query(
+        _columnas, filas, truncado = self._repo.execute_read_query(
             SqlReadRequest.model_construct(
-                database=request.database, sql=sql, parameters=params
+                database=request.database, sql=sql, parameters=params, max_rows=max_rows
             )
         )
+        if truncado:
+            # Sin codigo de R3: la lista de codigos es cerrada a proposito y
+            # ninguno describe "no he podido ver todas las filas"
+            # (`filas_afectadas_inesperadas` habla de las filas ESCRITAS en el
+            # commit, R14). Sube como ValueError y la ruta lo saca como 400.
+            raise ValueError(
+                "La lectura devolvio mas filas de las que se pueden traer (truncada) y "
+                "el resultado seria incompleto: no se adjunta nada. Revise el concepto "
+                f"ide={request.conide}."
+            )
         return list(filas)
 
     def _leer_concepto(
@@ -291,7 +312,11 @@ class AttachConceptoGraficoUseCase:
     def _avisar_de_huerfanas(
         self, request: AttachConceptoGraficoRequest, sentencias: ConceptoGraficoStatements
     ) -> list[str]:
-        huerfanas = self._leer(request, sentencias.buscar_huerfanas(request.conide))
+        huerfanas = self._leer(
+            request,
+            sentencias.buscar_huerfanas(request.conide),
+            max_rows=self._settings.max_allowed_rows,
+        )
         if not huerfanas:
             return []
         ides = ", ".join(str(fila[0]) for fila in huerfanas)
