@@ -9,17 +9,21 @@ del encargo); sí `pytest -k f004 -q` (175 pasan, 1263 deseleccionados,
 LISTO, 1.437 pasan/1 skip, cobertura 100,0 % (455/455), tamaño OK —
 coinciden con `impl_F-004.md` §6-7.
 
-## Veredicto: CHANGES_REQUESTED (parcial, solo mi ámbito) — re-revisado tras `0632738`
+## Veredicto: APROBADO (parcial, solo mi ámbito) — re-revisado tras `5deaac6`
 
-`0632738` añade a `current.md` la sección "Verificaciones MANUAL de F-004
-pendientes (humano)" con T18-T21: cierra el hallazgo original (ya no están
-solo en `tasks.md`). Pero al copiarlos aparecen dos contradicciones con la
-spec, contrastadas línea a línea contra `tasks.md` y contra
-`docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md` §12.1/§14: T18
-fija las App Settings **inline** cuando la spec exige **fichero JSON,
-"nunca inline"**; T20 trae solo 3 de las 4 consultas de verificación
-exigidas (falta la de huérfanos). Detalle en "Cambios requeridos". El resto
-de mi ámbito sigue correcto, sin cambios desde la pasada anterior.
+`0632738` había cerrado el hallazgo de origen (comandos MANUAL en
+`current.md`) pero introdujo dos defectos: T18 inline y T20 sin la consulta
+de huérfanos. `5deaac6` corrige los dos: T18 ahora fija las App Settings por
+`f004_appsettings.json` (ASCII sin BOM, las cuatro claves, array
+`{name,value,slotSetting}`) y `--settings "@f004_appsettings.json"`, sin
+nada inline; T20 incorpora la 4ª consulta de `propuesta §14 nivel 3`
+(huérfanos, texto exacto) con criterio "ninguna fila". Contrastado línea a
+línea contra `tasks.md` T18-T21 y contra la propuesta: ya no falta ningún
+comando ni criterio, y nada contradice la spec. Mi ámbito queda saldado.
+**No he juzgado el código/tests/`sigrid_api.md` que el implementer sigue
+tocando ahora mismo** (`concepto_grafico_statements.py`,
+`attach_concepto_grafico_use_case.py`, `requirements.txt`) ni ejecutado la
+suite: fuera de este encargo.
 
 ## C1/C2/C4 ter — Arnés, estado y rutas sensibles
 
@@ -39,12 +43,11 @@ de mi ámbito sigue correcto, sin cambios desde la pasada anterior.
   seguridad. R16 con corrección de test documentada en `impl_F-004.md` §3.
 - [x] Sin red ni BBDD: único `import pyodbc` (`test_f004_route.py`) dobla
   `pyodbc.IntegrityError`, no conecta.
-- [ ] **MANUAL con comando exacto en `current.md`** — presente desde
-  `0632738`, pero con dos defectos de contenido: T18 inline en vez de
-  fichero JSON, y T20 sin la 4ª consulta de huérfanos. Ver arriba.
+- [x] **MANUAL con comando exacto en `current.md`** — presente y correcto
+  desde `5deaac6`: T18 por fichero JSON, T20 con las 4 consultas.
 - **R22** (meta): satisfecho en agregado, igual que R9 en F-003.
 - **R23** (MANUAL sha256+idempotencia): sin test, correcto, depende de
-  T20/T21 — bloqueado por el mismo hallazgo de arriba. **R24**: ver docs.
+  T20/T21, ya bien listados. **R24**: ver docs, abajo.
 
 ## C4 bis (solo RED y cobertura)
 
@@ -73,17 +76,13 @@ de mi ámbito sigue correcto, sin cambios desde la pasada anterior.
 ## C5 — Cierre de sesión
 
 - [N/A, feature no cerrada] `tasks.md`: T15/T18-T22 en `[ ]`, correcto (sigue
-  `in_progress`). [x] Árbol limpio; `features.json` refleja el estado real.
+  `in_progress`). `features.json` refleja el estado real. Árbol con cambios
+  sin commitear ahora mismo (`concepto_grafico_statements.py`,
+  `requirements.txt`, `test_f004_statements.py`): es el implementer
+  trabajando en vivo, no un resto de sesión — no lo evalúo, fuera de mi
+  encargo, y la sesión no está cerrada.
 
-## Cambios requeridos (quedan 2, tras `0632738`)
+## Cambios requeridos
 
-1. **T18 en `current.md`** — sustituir el `appsettings set --settings
-   SIGRID_DOCUMENT_WRITE_ENABLED=false ...` inline por el patrón exigido:
-   escribir un fichero JSON (ASCII sin BOM) con las cuatro claves y
-   `az functionapp config appsettings set ... --settings "@fichero.json"`.
-2. **T20 en `current.md`** — añadir la 4ª consulta de `propuesta §14 nivel
-   3` (huérfanos: `SELECT g.ide, g.cod, g.res FROM dbo.gra g LEFT JOIN
-   dbo.rcg r ON r.gra = g.ide WHERE r.ide IS NULL AND g.res = 'PRUEBA API -
-   BORRAR'`) y su criterio, "ninguna fila".
-
-Con eso corregido, mi ámbito queda APROBADO.
+Ninguno. Los dos de la pasada anterior (T18 inline, T20 sin huérfanos)
+quedaron corregidos en `5deaac6`.
