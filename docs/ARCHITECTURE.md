@@ -29,11 +29,12 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
 - **`function_app.py`** — único adaptador de entrada. Declara las rutas HTTP y
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
-  `sigrid/albaran-directo`, `documents/read`, `diagnostics/tcp`.
+  `sigrid/albaran-directo`, `sigrid/concepto-grafico`, `documents/read`,
+  `diagnostics/tcp`.
 - **`domain/`** — sin dependencias de infraestructura.
   - `models/`: `sql_models` (lectura/escritura/documentos), `document_models`,
     `sigrid_domain_models` (líneas de contrato), `albaran_domain_models`,
-    `albaran_directo_models`.
+    `albaran_directo_models`, `concepto_grafico_models` (adjuntar documentos).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
@@ -52,9 +53,13 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
 Reglas que **no** se deducen del código y que causan bugs si se ignoran:
 
 1. **Dos bases con propósitos distintos, no una y su réplica.** `ruesma` es la
-   base de **negocio** (todo dato y toda escritura). `ruesma_rep` es la base
-   **documental** (BLOBs: PDFs y ofimática adjuntos a los conceptos) y hoy
-   solo se **lee**, vía `documents/read`.
+   base de **negocio** (todo dato y casi toda escritura). `ruesma_rep` es la
+   base **documental** (BLOBs: PDFs y ofimática adjuntos a los conceptos): se
+   lee por `documents/read` y se escribe **solo** por
+   `sigrid/concepto-grafico`, nunca por `sql/write`. Las dos filas de un mismo
+   documento se relacionan por **`(emp, cod)`**, nunca por `ide`: los `ide` de
+   las dos `gra` divergen desde 2009 y el join por `ide` devuelve documentos
+   ajenos el 99,85 % de las veces [MEDIDO].
 2. **Casi todo en Sigrid es un Concepto (`con`)** con extensión 1:1 por tipo
    (`obr`, `ctr`, `dca`, `dcf`, `prv`…) que comparte el mismo `ide`. El
    discriminador es `con.tip`; el nombre legible es `con.res`. Para obtener
@@ -103,7 +108,9 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
   en la petición (por defecto **dry-run**).
 - **PROHIBIDO desde local**: escribir sin autorización expresa del humano para
   esa acción concreta; `DELETE` contra Sigrid en cualquier caso; escribir en
-  `ruesma_rep`; y tocar `.env` o cualquier secreto.
+  `ruesma_rep` por cualquier vía que no sea `sigrid/concepto-grafico` (y ese,
+  con `commit:true` solo con autorización expresa); y tocar `.env` o cualquier
+  secreto.
 - Los **tests no tocan red ni base de datos**: el puerto `SqlRepository` se
   dobla.
 

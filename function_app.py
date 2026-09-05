@@ -5,9 +5,13 @@ import logging
 from functools import lru_cache
 
 import azure.functions as func
+import pyodbc
 from pydantic import ValidationError
 
 from application.use_cases.add_contract_lines_use_case import AddContractLinesUseCase
+from application.use_cases.attach_concepto_grafico_use_case import (
+    AttachConceptoGraficoUseCase,
+)
 from application.use_cases.create_direct_albaran_use_case import CreateDirectAlbaranUseCase
 from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
 from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
@@ -16,6 +20,10 @@ from application.use_cases.read_document_use_case import ReadDocumentUseCase
 from config.settings import Settings, get_settings
 from domain.models.albaran_directo_models import AddDirectAlbaranRequest
 from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
+from domain.models.concepto_grafico_models import (
+    AttachConceptoGraficoRequest,
+    ConceptoGraficoError,
+)
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
 from infrastructure.repositories.sql_server_repository import SqlServerRepository
@@ -246,6 +254,64 @@ def sigrid_albaran_directo(req: func.HttpRequest) -> func.HttpResponse:
         logger.exception("Error inesperado en sigrid/albaran-directo")
         return error_response(
             "Error interno ejecutando sigrid/albaran-directo.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
+@app.route(route="sigrid/concepto-grafico", methods=["POST"])
+def sigrid_concepto_grafico(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Adjunta un documento a un concepto de Sigrid: escribe el binario en la base
+    DOCUMENTAL, sus metadatos en la de negocio (mismo cod y mismo emp) y el
+    enlace con el concepto, todo en UNA transaccion. Es la UNICA via por la que
+    se escribe en la base documental: sql/write sigue sin poder nombrarla.
+
+    DRY-RUN por defecto (commit=false): solo lecturas, con credenciales de
+    lectura, y preview completo de las tres filas.
+    """
+    try:
+        deps = build_dependencies()
+        settings, repository = deps[0], deps[1]
+        use_case = AttachConceptoGraficoUseCase(repository, settings)
+        body = req.get_json()
+        request_model = AttachConceptoGraficoRequest.model_validate(body)
+        response_model = use_case.run(request_model)
+        return json_response(response_model)
+    except ConceptoGraficoError as exc:
+        logger.warning("ConceptoGraficoError en sigrid/concepto-grafico: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__, "codigo": exc.codigo},
+        )
+    except pyodbc.IntegrityError as exc:
+        # Clave duplicada: la transaccion ya se revirtio entera (el repositorio
+        # reintenta y, agotados los reintentos, propaga). El ERP quedo intacto.
+        logger.warning("IntegrityError en sigrid/concepto-grafico: %s", exc)
+        return error_response(
+            "Colision de clave al escribir el grafico: el ERP quedo sin cambios; reintente.",
+            status_code=400,
+            details={"type": type(exc).__name__, "codigo": "colision_de_clave"},
+        )
+    except ValidationError as exc:
+        logger.warning("ValidationError en sigrid/concepto-grafico: %s", exc)
+        return error_response(
+            "Solicitud invalida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/concepto-grafico: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/concepto-grafico")
+        return error_response(
+            "Error interno ejecutando sigrid/concepto-grafico.",
             status_code=500,
             details={"type": type(exc).__name__, "exception": str(exc)},
         )

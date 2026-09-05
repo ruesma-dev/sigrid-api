@@ -81,7 +81,7 @@
         "azure-apps/sigrid_api.md actualizado, y corregidos dedicacion.md, partes.md y remesas.md, que llaman replica a ruesma_rep",
         "bash harness/init.sh en verde"
       ],
-      "status": "pending",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 4,

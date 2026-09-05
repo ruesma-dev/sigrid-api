@@ -80,8 +80,9 @@ evidencias: lo que se pierde es la medición automática, no la disciplina.
       hardcodeados, sin dependencias nuevas no previstas en la spec.
 - [ ] Reglas de dominio de Sigrid respetadas según
       `docs/ARCHITECTURE.md`. Trampas que el reviewer vigila SIEMPRE:
-      - [ ] **Base correcta**: todo dato y toda escritura contra `ruesma`;
-            `ruesma_rep` solo se lee (`documents/read`).
+      - [ ] **Base correcta**: todo dato y toda escritura de negocio contra
+            `ruesma`; `ruesma_rep` se lee (`documents/read`) y se escribe
+            **solo** por `sigrid/concepto-grafico`, nunca por `sql/write`.
       - [ ] **`cod`/`res`/`fec`/`tip`/`est` van en `con`, no en la
             extensión** (`dca`, `ctr`…), y el legible sale de
             `JOIN dbo.con ON con.ide = X.ide`.

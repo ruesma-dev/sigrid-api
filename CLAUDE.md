@@ -77,7 +77,8 @@ hexagonal. Es el **único** punto de acceso al SQL Server del ERP Sigrid.
 
 - `function_app.py` — único punto de entrada HTTP: rutas (`sql/read`,
   `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
-  `sigrid/albaran-directo`, `documents/read`, `diagnostics/tcp`) e inyección
+  `sigrid/albaran-directo`, `sigrid/concepto-grafico`, `documents/read`,
+  `diagnostics/tcp`) e inyección
   de dependencias (`build_dependencies()`, cacheada con `@lru_cache`).
 - `config/settings.py` — `Settings` (pydantic-settings sobre `.env`) y
   `get_settings()`. Aquí viven todos los interruptores de seguridad:
@@ -147,10 +148,14 @@ original NO se versiona: al repositorio entra solo el Markdown.
   Cualquier escritura exige autorización expresa del humano para esa acción
   concreta, y se hace primero en **dry-run** (los endpoints de dominio son
   dry-run por defecto: `commit:true` nunca a ciegas).
-- **`ruesma_rep` (base documental) no se escribe.** Está deliberadamente
-  fuera de `ALLOWED_WRITE_DATABASES`. Hoy solo `documents/read`. Si eso
-  cambia, será por una feature explícita y revisada, no por un ajuste de
-  configuración al vuelo.
+- **`ruesma_rep` (base documental) se escribe SOLO por
+  `sigrid/concepto-grafico`, nunca por `sql/write`.** Sigue deliberadamente
+  fuera de `ALLOWED_WRITE_DATABASES` —el guardia de bases cruzadas (F-003) la
+  rechaza aunque se la nombre dentro del SQL— y la única puerta es ese
+  endpoint de dominio, gobernado por `SIGRID_DOCUMENT_WRITE_DATABASE` y
+  `SIGRID_DOCUMENT_WRITE_ENABLED`, apagadas por defecto (F-004). Se lee por
+  `documents/read`. Ampliar lo que se puede escribir ahí será por una feature
+  explícita y revisada, no por un ajuste de configuración al vuelo.
 - **Nunca `DELETE` contra Sigrid.** No hay endpoint de borrado con reversión
   y `user_rw` no tiene ese permiso: anular un documento se hace desde la UI
   de Sigrid, que revierte stock, `canser` y estados de forma nativa.

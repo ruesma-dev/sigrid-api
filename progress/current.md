@@ -1,99 +1,140 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-> **F-003 cerrada el 2026-09-05 con veredicto APROBADO del reviewer y
-> `init.sh` en verde.** No hay ninguna feature `in_progress`. El merge a `dev`
-> y la verificación T8 están hechos; solo falta el push, que lo hace el humano. El prompt para retomar, al final.
+> **F-004 cerrada el 2026-09-06 con veredicto APROBADO y `init.sh` en verde.**
+> No hay ninguna feature `in_progress`. Quedan dos cosas del humano: el
+> **merge a `dev`** y las **verificaciones manuales T18-T21** contra
+> producción, cuyo guion está abajo. Nada se ha escrito nunca en `ruesma_rep`
+> por esta vía: lo que hay es código, tests y mutación.
 
 ## Lo que espera al humano, por orden
 
-### 1. Push de `dev` — lo hace el humano
+1. **Merge de `feature/F-004-endpoint-concepto-grafico` a `dev`** y push (los
+   agentes no empujan). `azure-apps` tiene commits locales (`a40684f`,
+   `157b392`) y **no tiene remoto**.
+2. **T18-T21**, en ese orden, con el guion siguiente. Antes de T19 en la
+   **obra 404**: medir el `tip` del concepto (albarán/contrato) y añadirlo a
+   `SIGRID_DOCUMENT_ALLOWED_CONTIP`; hoy solo lleva 708 (reclamación).
 
-F-003 está mergeada en `dev` (`e4c071b`, `--no-ff`) y desplegada. Los agentes
-no empujan: **nada se ha subido a ningún remoto**. `main` está 34 commits por
-detrás de `dev` y 0 por delante: un fast-forward, si se quiere. `dev` sigue **7 commits por delante de `origin/dev`** sin empujar, y
-`azure-apps` tiene 1 commit local (`5967cd8`) igual de local.
+## Verificaciones MANUAL de F-004 pendientes (humano), con su comando exacto
 
-### 2. T8 — HECHA el 2026-09-05, tras desplegar
+Todas después de desplegar. `$BASE` = `SIGRID_API_BASE_URL`, `$KEY` =
+`SIGRID_API_FUNCTION_KEY` (del `.env` de `albaranes/services/albaranes-persistencia`).
+Cabeceras siempre: `x-functions-key: $KEY`, `Content-Type: application/json`.
 
-Desplegado `dev` (`e4c071b`) en `func-sigridapi-dev-huyke` con
-`func azure functionapp publish`. Verificación en dos mitades, las dos medidas:
+### T18 — desplegar y fijar las App Settings nuevas, cerradas
 
-- **Nada se rompió.** `diagnose_sigrid_contrato_docs.py B86359866 0695` desde
-  `albaranes-persistencia`, antes y después del despliegue: salida
-  **byte a byte idéntica** (2.370 bytes). Contrato 2441136, VÍA 1 con 2 filas
-  por `JOIN ruesma_rep.dbo.gra`, vías 2-4 con 0 y sin ningún error.
-- **El guardia está activo.** Por `sql/read` con `database: ruesma`:
-  `FROM msdb.dbo.sysjobs` → **400** «nombra la base `msdb`, que no está
-  permitida»; `srv.ruesma.dbo.con` → **400** «cuatro partes o más»;
-  `FROM ruesma_rep.dbo.gra` → **200**, 1 fila. Antes de F-003 las dos
-  primeras se colaban.
+Las App Settings van por fichero JSON (ASCII, sin BOM), nunca inline: los
+corchetes y comillas de las listas se rompen al pasar por PowerShell.
+`f004_appsettings.json`:
+```json
+[{"name": "SIGRID_DOCUMENT_WRITE_ENABLED", "value": "false", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_WRITE_DATABASE", "value": "ruesma_rep", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_ALLOWED_CONTIP", "value": "[708]", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_ALLOWED_GRATIPIDE", "value": "[35]", "slotSetting": false}]
+```
+```powershell
+func azure functionapp publish func-sigridapi-dev-huyke --python
+az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings "@f004_appsettings.json"
+az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke `
+  --query "[?starts_with(name,'SIGRID_DOCUMENT') || name=='ALLOWED_WRITE_DATABASES']"
+```
+**Criterio:** las cuatro con esos valores y `ALLOWED_WRITE_DATABASES` sigue en
+`["ruesma"]`. Para la prueba en la **obra 404** hay que medir antes el `tip` del
+concepto (albarán/contrato) y añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
 
-Con esto **no queda ninguna tarea abierta en F-003**: `tasks.md` T1–T16 en
-`[x]`.
+### T19 — dry-run contra producción (100 % lectura)
 
-## Qué se hizo en la sesión del 2026-09-05
+Paso previo, `POST $BASE/api/sql/read` con `database: "ruesma"`, para anotar la
+huérfana real de clase 35 (su `con`):
+```sql
+SELECT n.ide, n.cod, n.res, n.fec, r.con FROM dbo.gra n JOIN dbo.rcg r ON r.gra = n.ide
+LEFT JOIN ruesma_rep.dbo.gra d ON d.emp = n.emp AND d.cod = n.cod
+WHERE n.gratipide = 35 AND d.ide IS NULL
+```
+Después, `POST $BASE/api/sigrid/concepto-grafico` **sin `commit`**, contra una
+reclamación normal y contra la de la huérfana:
+```json
+{"database": "ruesma", "conide": <ide reclamación>, "contip": 708, "gratipide": 35,
+ "res": "PRUEBA API - BORRAR", "nom": "prueba.pdf", "usu": "<tu login Sigrid>",
+ "contenido_base64": "<PDF pequeño en base64>"}
+```
+Y los negativos, cambiando un campo cada vez: `conide` de una factura →
+`tipo_de_concepto_no_coincide`; un PNG en base64 → `tipo_de_fichero_no_permitido`;
+`usu` inventado → `usuario_no_valido`.
+**Criterio:** `committed:false`, `dry_run:true`, `filas_afectadas:0`, las filas
+E4/E5 del preview completas; en la huérfana `idempotente:false` con el aviso; y
+después `SELECT MAX(ide) FROM dbo.gra` en `ruesma` y en `ruesma_rep` **sin cambiar**.
+Respuestas pegadas en `impl_F-004.md`.
 
-| Qué | Resultado |
-|---|---|
-| Campaña de mutación sobre el código final (`e1ac0dd`) | 138 mutantes, 8 workers, 1.681,8 s |
-| Recuento real, tras corregir dos clasificaciones erróneas | **124 muertos, 7 supervivientes, 7 timeouts** |
-| Remuestreo EN SERIE de los 138, los 123 muertos incluidos | **0 falsos muertos**, 136/138 veredictos reproducidos |
-| Revisión de `CHECKPOINTS.md`, troceada en seis encargos | los seis **APROBADO** |
-| Defecto documental (§5 de `impl_F-003.md` con números de otro commit) | corregido en `c15f6b7` |
-| `bash harness/init.sh` de cierre | **ENTORNO LISTO** · 1.262 pasan · cobertura 99,2 % · tamaño OK |
+### T20 — primer `commit:true` (autorización expresa, una sola llamada)
 
-Dos cosas que merecen sobrevivir a esta sesión:
+Con `SIGRID_DOCUMENT_WRITE_ENABLED=true` y `SIGRID_DOMAIN_WRITE_ENABLED=true`
+solo durante esa ventana, la misma petición de T19 con `"commit": true` sobre la
+reclamación (u obra 404) elegida. Luego `POST $BASE/api/documents/read`:
+```json
+{"database": "ruesma_rep", "table": "gra", "id_column": "cod",
+ "id_value": "<cod devuelto>", "blob_column": "ima"}
+```
+**Criterio:** `sha256` del binario descargado idéntico al enviado; en `ruesma`,
+`SELECT * FROM dbo.gra WHERE cod = ?` → 1 fila con `ima` NULL, en `ruesma_rep`
+→ 1 fila con `DATALENGTH(ima)` = bytes enviados, `SELECT * FROM dbo.rcg WHERE
+gra = <ide negocio>` → 1 fila; la 4ª consulta, huérfanos de la prueba,
+`SELECT g.ide, g.cod, g.res FROM dbo.gra g LEFT JOIN dbo.rcg r ON r.gra = g.ide
+WHERE r.ide IS NULL AND g.res = 'PRUEBA API - BORRAR'` → **ninguna fila**; y **el
+gráfico se abre desde la ficha en Sigrid**.
 
-- **Trocear la revisión funciona.** En la sesión anterior una revisión se colgó
-  por abarcar demasiado. Seis encargos acotados, cada uno con su fichero y su
-  pregunta, cerraron `CHECKPOINTS.md` entero sin un solo cuelgue.
-- **Los supervivientes se analizan midiendo, nunca leyendo.** Aplicándolos se
-  descubrió que dos de los nueve que publicó la campaña no sobreviven: uno
-  cuelga la suite y otro muere en 1,9 s.
+### T21 — idempotencia
+
+Repetir **exactamente** la llamada de T20 con `"commit": true`.
+**Criterio:** `idempotente:true`, `filas_afectadas:0`, y
+`SELECT COUNT(*) FROM dbo.rcg r JOIN dbo.gra g ON g.ide = r.gra WHERE g.cod = ?`
+sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
 
 ## Pendiente de decisión del humano
 
-### Del arnés — las tres valen para cualquier proyecto, así que van a `arnes-base`
+### Del arnés — valen para cualquier proyecto, así que van a `arnes-base`
 
-- **Diagnosticar `harness/mutacion_paralela.py`.** La contención explica los
-  timeouts, pero **no** explica que un mutante que muere en 1,9 s saliera con
-  exit 0. Sin diagnóstico, la campaña paralela sigue siendo una herramienta que
-  sabemos que miente en algún caso. Decidido el 2026-09-05: trabajo aparte,
-  después de F-003.
-- **Dar reloj al test anti-cuelgue** (`pytest-timeout`): convertiría los 7
-  timeouts en muertos limpios y quitaría esa casilla ambigua.
-- **Que la sección «Evidencias» declare el SHA de su campaña.** Aplicado a mano
-  en `c15f6b7`; como regla, RM1 habría cazado sola el defecto que bloqueó el
-  cierre. Siguen sin aplicar, de sesiones anteriores: `init.sh` no avisa de que
-  falte `mutacion_F-XXX.md` en rigor `critico`, y RM5 pide reproducir **un**
-  equivalente cuando reproducirlos todos destapó cuatro análisis falsos.
-- **`harness/rutas_sensibles.json` no existe** en este repositorio, así que C4
-  ter es siempre N/A — y eso en un repo con `infrastructure/security/`, que es
-  justo la clase de ruta que ese mecanismo existe para vigilar.
+- **Diagnosticar `harness/mutacion_paralela.py`.** Dos evidencias ya: en F-003,
+  un mutante que muere en 1,9 s salió superviviente; en F-004, 5 supervivientes
+  no reproducibles sobre el mismo commit. **Pista concreta** del reviewer
+  final: `ResultadoSuite.verde` (`harness/mutacion.py` l. 491) da verde para
+  `exit 5` de pytest (ningún test recogido) y `ejecutar` (l. 612) lo traduce a
+  SUPERVIVIENTE. Propuesta: `SUPERVIVIENTE` con `sin_tests` → `INDETERMINADO`.
+  Sesgo pesimista en las dos features, así que los ceros son sólidos.
+- **Un test que construye `Settings` real debe aislar el entorno** (la campaña
+  exporta el `.env`): lección de F-004 T14c; merece regla en `CONVENTIONS.md`.
+- Pendientes de antes: `pytest-timeout` para los cuelgues; «Evidencias» con
+  SHA y workers como regla; `init.sh` sin aviso de `mutacion_F-XXX.md` en
+  `critico`; RM5 pide reproducir uno; `harness/rutas_sensibles.json` no
+  existe en un repo con `infrastructure/security/`; cada trozo de revisión
+  debe declarar qué checkpoints deja fuera.
 
 ### De configuración y de la base
 
-- **`ALLOWED_DATABASES` incluye `master`** en la Function App, y ningún
-  consumidor lo necesita. Quitarlo es una línea de configuración.
-- **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`, donde vive la única
-  copia de los 359.438 documentos, en una base con recuperación `SIMPLE`. No se
-  probó si tiene `DELETE`. Merece una conversación con quien administre el
-  motor.
-- **`scripts/verificar_sql_ecosistema.py` copia a mano** `ALLOWED_DATABASES` y
-  `ALLOWED_WRITE_DATABASES` en vez de leerlas de `config/settings.py`. Es
-  deliberado —compara contra lo desplegado, no contra el `.env` local— y está
-  documentado en el fichero, pero es una lista que se desincroniza sola.
+- **`local.settings.json` está versionado con dos contraseñas reales** desde
+  el primer commit (`e903394`, 2026-04-16), en `origin/main` y `origin/dev`.
+  Lo que cierra el hueco es **rotarlas** en Sigrid y en el Key Vault; después
+  `git rm --cached local.settings.json` y `.gitignore`.
+- **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
+- **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`; no se probó `DELETE`.
+- El guard de `ALLOWED_WRITE_DATABASES` vacía **falla abierto** en los cuatro
+  casos de uso de dominio (patrón calcado de albaranes); feature propia.
+- `scripts/verificar_sql_ecosistema.py` copia a mano las listas blancas.
+- 19.196 filas documentales sin dueño ni en `gra` ni en `dog` (~2.000/año):
+  Sigrid parece borrar en negocio sin borrar en el repositorio.
+- En albaranes, `sigrid_api_contrato_client.py` resuelve por `cod` sin `emp`
+  (8 `cod` repetidos entre empresas, hoy inocuo).
 
 ## Lo siguiente en el backlog
 
-**F-004** (endpoint `sigrid/concepto-grafico`), `pending`, rigor `critico`. Su
-propuesta está actualizada con lo medido, y entre sus criterios está corregir
-`dedicacion.md`, `partes.md` y `remesas.md` de `azure-apps`, que siguen
-llamando «réplica que no admite escritura» a `ruesma_rep`.
+Nada abierto en `harness/features.json` salvo F-001 (`pending`, calentamiento).
+Candidatos: el diagnóstico del arnés de mutación, o lo que pida
+`postventa-incidencias` F-012, que era quien esperaba este endpoint.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-003 está cerrada y pendiente solo
-> del merge del humano. Arranca F-004 por el flujo SDD, o el diagnóstico de
-> `harness/mutacion_paralela.py` si el humano lo prefiere antes.
+> Lee `CLAUDE.md` y `progress/current.md`. F-004 está cerrada y pendiente del
+> merge y de T18-T21, que hace el humano. Si el humano trae resultados de
+> T18-T21, anótalos en `impl_F-004.md` y marca las tareas. No arranques nada
+> nuevo sin preguntar.
