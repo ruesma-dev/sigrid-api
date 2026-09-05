@@ -3,16 +3,13 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **4 features**, 2 abiertas, 2 terminadas.
-
-En curso: **F-004**.
+Resumen: **4 features**, 1 abiertas, 3 terminadas.
 
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | en curso | critico | `feature/F-004-endpoint-concepto-grafico` |
 
 ## Terminadas
 
@@ -20,6 +17,7 @@ En curso: **F-004**.
 |---|---|---|---|
 | F-002 | Spike: viabilidad de escribir en la base documental ruesma_rep | 2 | critico |
 | F-003 | El guardia de escritura debe validar tambien las bases nombradas dentro del SQL | 3 | critico |
+| F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | critico |
 
 ## Detalle
 
@@ -28,12 +26,6 @@ En curso: **F-004**.
 estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `feature/F-001-calentamiento`
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
-
-### F-004 · Endpoint de dominio para adjuntar un documento a un concepto de Sigrid
-
-estado **en curso** · prioridad 4 · rigor `critico` · SDD sí · rama `feature/F-004-endpoint-concepto-grafico`
-
-Implementar POST /api/sigrid/concepto-grafico segun docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md, actualizada con lo medido en F-002. Hace las tres escrituras en una sola transaccion local (binario en ruesma_rep.gra, metadatos en ruesma.gra con el mismo cod, enlace en ruesma.rcg) y no abre sql/write a la base documental. Dry-run por defecto. Lo pide postventa-incidencias F-012.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 
@@ -46,3 +38,9 @@ Averiguar si es posible, y con que garantias, escribir adjuntos en ruesma_rep (b
 estado **terminada** · prioridad 3 · rigor `critico` · SDD sí · rama `feature/F-003-guardia-bases-cruzadas`
 
 SqlWriteGuard valida el campo 'database' de la peticion, pero no los identificadores de base que aparecen dentro de la sentencia. Por eso hoy se puede escribir en ruesma_rep pidiendo database='ruesma' y nombrando ruesma_rep.dbo.gra en el SQL: medido el 2026-09-03. La politica de ALLOWED_WRITE_DATABASES no esta realmente aplicada. Va antes que F-004 porque F-004 depende de que la documental siga cerrada a sql/write.
+
+### F-004 · Endpoint de dominio para adjuntar un documento a un concepto de Sigrid
+
+estado **terminada** · prioridad 4 · rigor `critico` · SDD sí · rama `feature/F-004-endpoint-concepto-grafico`
+
+Implementar POST /api/sigrid/concepto-grafico segun docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md, actualizada con lo medido en F-002. Hace las tres escrituras en una sola transaccion local (binario en ruesma_rep.gra, metadatos en ruesma.gra con el mismo cod, enlace en ruesma.rcg) y no abre sql/write a la base documental. Dry-run por defecto. Lo pide postventa-incidencias F-012.

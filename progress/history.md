@@ -102,3 +102,48 @@ aparte, para portar a `arnes-base`.
 tras desplegar `dev`: salida del script de `albaranes-persistencia` idéntica
 byte a byte antes y después, y el guardia rechazando con 400 lo que antes se
 colaba. Detalle en `current.md` de esa sesión.
+
+---
+
+## F-004 · Endpoint de dominio `POST /api/sigrid/concepto-grafico`
+
+**Cerrada el 2026-09-06.** Rigor `critico`. Rama
+`feature/F-004-endpoint-concepto-grafico`. **Pendiente de merge a `dev`** (lo
+hace el humano) y de las verificaciones manuales T18-T21 contra producción.
+
+**Qué hace:** adjunta un documento a un concepto de Sigrid escribiendo tres
+filas en UNA transacción local: el binario en `ruesma_rep.dbo.gra`, los
+metadatos en `ruesma.dbo.gra` con **el mismo `cod` y `emp`**, y el enlace en
+`ruesma.dbo.rcg`. Dry-run por defecto; `commit:true` exige dos App Settings
+abiertas. Idempotencia por contenido (`sha256` en Python, motor SQL Server
+2012) apoyada en el índice único `(emp, cod)`. `ALLOWED_WRITE_DATABASES` no
+cambia y ningún guardia se toca: el SQL constante del endpoint se autovalida
+con el `DatabaseReferenceGuard` de F-003. Vale para cualquier tipo de concepto
+(reclamación, contrato, albarán): lo decide la lista blanca
+`SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+
+**La regla de gobierno cambió, con aprobación del humano:** «`ruesma_rep` no
+se escribe» pasa a «se escribe solo por `sigrid/concepto-grafico`, nunca por
+`sql/write`», en `CLAUDE.md`, `CHECKPOINTS.md` y `docs/ARCHITECTURE.md`.
+
+**Lo medido antes de escribir la spec, y que la cambió:** la relación entre
+las dos `gra` es **solo por `(emp, cod)`**, nunca por `ide` (índice único
+`gra_empcod` en las dos bases; los `ide` solo coinciden en 426 filas de 2009;
+`dog.codrep` lo confirma); `vin=3` es «binario en el repositorio»; la fila
+documental lleva siempre `gratipide=0` y `res=''`; ninguna columna tiene
+`DEFAULT`, así que las 29 de `gra` y las 7 de `rcg` van explícitas. Informes:
+`explore_F-004_mediciones.md`, `explore_F-004_relacion_gra.md`.
+
+**Evidencias (`79c5520`):** 1.480 tests, 1 skip; cobertura 100 % (465/465);
+mutación **167/167 muertos, 0 supervivientes** tras cerrar con 16 tests los
+36 de la primera campaña (los 36 remedidos en serie, ninguno equivalente);
+revisión en cuatro encargos, todos APROBADO (`review_F-004*.md`).
+
+**Hallazgo colateral:** el script `diagnose_sigrid_contrato_docs.py` de
+albaranes cruzaba por `ide` y devolvía documentos ajenos; corregido en el
+monorepo `albaranes` (`dev`, `febce08`). La T8 de F-003 valía como
+no-regresión, no como diagnóstico.
+
+**Del arnés:** la campaña paralela produce falsos supervivientes de forma no
+reproducible; pista concreta: `ResultadoSuite.verde` cuenta el `exit 5` de
+pytest como suite verde. Sesgo pesimista; diagnóstico como trabajo aparte.

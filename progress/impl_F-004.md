@@ -120,7 +120,7 @@ líneas cambiadas, tamaño `[OK]`, 79 avisos de `ruff` (los previos), `ENTORNO L
 
 | Evidencia | Valor |
 |---|---|
-| **Mutantes generados y supervivientes** | **CERRADO (T15)**: 167 mutantes, **167 muertos, 0 supervivientes**, 0 timeouts sobre `79c5520`. Los **36** supervivientes de la campaña anterior (`d4e8535`) se remidieron EN SERIE —ninguno falso— y se cerraron con **16 tests nuevos** en fase RED contra su mutante, cero producción tocada. Medición, ficha a ficha, y el aviso sobre los 5 falsos supervivientes que se coló el modo paralelo: [`mutacion_F-004.md`](mutacion_F-004.md) |
+| **Mutantes generados y supervivientes** | **CERRADO (T15)**: 167 mutantes, **167 muertos, 0 supervivientes**, 0 timeouts, **8 workers**, 366 s, sobre `79c5520`. Los **36** supervivientes de la campaña anterior (`d4e8535`) se remidieron EN SERIE —ninguno falso— y se cerraron con **16 tests nuevos** en fase RED contra su mutante, cero producción tocada. Medición, ficha a ficha, y el aviso sobre los 5 falsos supervivientes que se coló el modo paralelo: [`mutacion_F-004.md`](mutacion_F-004.md) |
 | **Verificaciones MANUAL pendientes** | T18-T22 (`tasks.md`), todas del humano. R23 (comprobar el `sha256` con `documents/read`) depende de T20 |
 
 ## 7 · Cierre
@@ -197,7 +197,7 @@ de uso) **no se toca**: es un cambio de seguridad que merece feature propia.
 | **Cobertura de líneas cambiadas** | **100,0 %** — `PUERTA COBERTURA: 100.0% de 465 líneas cambiadas cubiertas (465/465, umbral 80%, nivel critico)` |
 | **Puerta de tamaño** e **`init.sh`** | `[OK]` — requirements 150/150, design 250/250, impl dentro de 220 · **ENTORNO LISTO** |
 | **`ruff`** | **79 avisos, los mismos que antes de esta ronda** (deuda previa en `harness/`, `scripts/`, `config/`…). En los cuatro ficheros tocados: `All checks passed!` |
-| **Mutación** | sigue **PENDIENTE**: T15, la lanza el líder sobre este SHA |
+| **Mutación** | **cerrada** en `79c5520`: 167/167 muertos, 0 supervivientes (ver §6) |
 | **Contra el ERP o la API** | **nada** |
 
 **8.7 · Los tests de settings se aíslan del entorno** — commit `F-004 T14c`. Al
