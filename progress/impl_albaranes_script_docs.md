@@ -20,13 +20,12 @@
 `python scripts/diagnose_sigrid_contrato_docs.py B86359866 0695` → contrato 2441136 `CTSU24/0476`, VÍA 1 = 2 filas, vías 2-4 = 0 filas (mismas cifras que antes; las cuatro consultas ejecutan sin error en el servidor). El script no imprime los `ide`, así que se repitió con `--download`, que sí los muestra:
 
 ```
-antes    [1/2] gra.ide=213710  '3E_Sol.Integrales.IND1.pdf'                      469.580 B
-         [2/2] gra.ide=217644  'RS23.080002.pdf'                                 151.735 B
-después  [1/2] gra.ide=270162  'SUMINISTROS DE OBRAS MOSTOLES.PED1.r.docx'       379.250 B
-         [2/2] gra.ide=274282  'SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf'  1.139.587 B
+antes    [1/2] 213710 '3E_Sol.Integrales.IND1.pdf' 469.580 B · [2/2] 217644 'RS23.080002.pdf' 151.735 B
+después  [1/2] 270162 'SUMINISTROS DE OBRAS MOSTOLES.PED1.r.docx' 379.250 B
+         [2/2] 274282 'SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf' 1.139.587 B
 ```
 
-Coincide con lo esperado y con §C/§G de la exploración, tamaños incluidos. `py_compile` en verde; ese repositorio no tiene tests para los scripts de diagnóstico.
+Coincide con §C/§G de la exploración, tamaños incluidos. `py_compile` en verde; ese repositorio no tiene tests para los scripts de diagnóstico.
 
 ## Propagación al monorepo `albaranes` (2026-09-05, segundo encargo)
 
@@ -35,21 +34,9 @@ Coincide con lo esperado y con §C/§G de la exploración, tamaños incluidos. `
 | **Rama · commit** | `feature/F-043-clasificacion-por-ia1` · `ec5b5b0ecd3da990b104adaa7997a533244f8201` (`ec5b5b0`), 1 fichero, +85/−35 |
 | **Fichero** | `services/albaranes-persistencia/scripts/diagnose_sigrid_contrato_docs.py` |
 
-La copia viva era **idéntica** a la versión anterior a la corrección
-(`47ca373^`) salvo el fin de línea (árbol en CRLF, blob en LF): nada que
-fusionar, se trasladó tal cual. Aviso para futuras copias entre estos dos
-repositorios: `core.autocrlf=true` está definido pero **no normaliza en `git
-add`** en esta máquina, así que copiar con CRLF produce un commit que
-reescribe el fichero entero; escrito con LF, el diff quedó en +85/−35, igual
-que el de origen.
+La copia viva era **idéntica** a la versión anterior a la corrección (`47ca373^`) salvo el fin de línea (árbol en CRLF, blob en LF): nada que fusionar, se trasladó tal cual. Aviso para futuras copias entre estos dos repositorios: `core.autocrlf=true` está definido pero **no normaliza en `git add`** en esta máquina, así que copiar con CRLF produce un commit que reescribe el fichero entero; escrito con LF, el diff quedó en +85/−35, igual que el de origen.
 
-Verificación desde el monorepo (su propio `.env` y `.venv`), `... B86359866
-0695 --download`: `[1/2] gra.ide=270162 'SUMINISTROS DE OBRAS
-MOSTOLES.PED1.r.docx' 379.250 B` y `[2/2] gra.ide=274282
-'SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf' 1.139.587 B` — mismos ides,
-nombres y tamaños que en origen. `py_compile` en verde. No se arrancó el flujo
-de features del monorepo (`harness/init.sh` no se ejecutó): es una corrección
-puntual pedida por el humano, y su árbol quedó limpio.
+Verificación desde el monorepo (su `.env` y `.venv`), `... B86359866 0695 --download`: `[1/2] gra.ide=270162 ... 379.250 B` y `[2/2] gra.ide=274282 ... 1.139.587 B` — mismos ides, nombres y tamaños que en origen. `py_compile` en verde. No se arrancó el flujo de features del monorepo (`harness/init.sh` no se ejecutó): es una corrección puntual pedida por el humano, y su árbol quedó limpio.
 
 ## Dirección B y `_v2.py` (2026-09-05, tercer encargo)
 
