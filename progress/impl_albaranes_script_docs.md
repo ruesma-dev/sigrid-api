@@ -36,30 +36,63 @@ Coincide con lo esperado y con §C/§G de la exploración, tamaños incluidos. `
 | **Fichero** | `services/albaranes-persistencia/scripts/diagnose_sigrid_contrato_docs.py` |
 
 La copia viva era **idéntica** a la versión anterior a la corrección
-(`47ca373^`) salvo el fin de línea (el árbol la tenía en CRLF; el blob, en
-LF). No hubo nada que fusionar: se trasladó la versión corregida tal cual.
-Aviso para futuras copias entre estos dos repositorios: `core.autocrlf=true`
-está definido pero **no normaliza en `git add`** en esta máquina, así que
-copiar con CRLF produce un commit que reescribe el fichero entero; se escribió
-con LF y el diff quedó en +85/−35, igual que el del repositorio de origen.
+(`47ca373^`) salvo el fin de línea (árbol en CRLF, blob en LF): nada que
+fusionar, se trasladó tal cual. Aviso para futuras copias entre estos dos
+repositorios: `core.autocrlf=true` está definido pero **no normaliza en `git
+add`** en esta máquina, así que copiar con CRLF produce un commit que
+reescribe el fichero entero; escrito con LF, el diff quedó en +85/−35, igual
+que el de origen.
 
-Verificación desde el monorepo (solo lecturas, su propio `.env` y `.venv`):
-`python services/albaranes-persistencia/scripts/diagnose_sigrid_contrato_docs.py B86359866 0695 --download`
+Verificación desde el monorepo (su propio `.env` y `.venv`), `... B86359866
+0695 --download`: `[1/2] gra.ide=270162 'SUMINISTROS DE OBRAS
+MOSTOLES.PED1.r.docx' 379.250 B` y `[2/2] gra.ide=274282
+'SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf' 1.139.587 B` — mismos ides,
+nombres y tamaños que en origen. `py_compile` en verde. No se arrancó el flujo
+de features del monorepo (`harness/init.sh` no se ejecutó): es una corrección
+puntual pedida por el humano, y su árbol quedó limpio.
+
+## Dirección B y `_v2.py` (2026-09-05, tercer encargo)
+
+| | |
+|---|---|
+| **Monorepo** | `feature/F-043-clasificacion-por-ia1` · `48e3d179972a551edae9fe3d4851f9d4e4b233c4` (`48e3d17`), 2 ficheros, +225/−60 |
+| **Archivado** | `proveedor` · `9b4fccfda6f3597a4a64f3a520ac3eb3227dd906` (`9b4fccf`), copia byte a byte del anterior |
+
+**DIRECCIÓN B** (`--find`): la búsqueda por nombre corre sobre `ruesma_rep` y
+devuelve ides documentales, pero `rcg.gra` y los `graide` son de negocio.
+Nueva `traducir_documentales_a_negocio()` (consulta **parametrizada** con
+`cod IN (?,?,…)`, cruce en Python por `(emp, cod)`);
+`buscar_conceptos_desde_gra()` pasa a recibir ides de negocio más el mapa
+negocio → documental y emite `_gra_neg_ide` y `_gra_ide` (documental), con lo
+que la comparación A vs B compara el mismo tipo de ide y la descarga sigue
+usando el documental. Las documentales sin pareja se listan como «sin fila de
+negocio». Se añadió `emp` al `SELECT` de B1 (es media clave).
+
+**`_v2.py`**: mismas cuatro vías hacia `gra` corregidas por `(emp, cod)` con
+`LEFT JOIN` y alias explícitos; `_target_ide` (el que descarga de
+`database_rep`) pasa a ser el documental y se añade `_neg_ide`. La clave de
+deduplicación incluye ahora el ide de negocio, porque `_target_ide` vale 0 en
+los `gra` sin pareja y dos documentos distintos colapsarían. FASE 4 traduce
+antes de buscar vínculos. **Las vías hacia `dog` no se tocan**: `dog` vive en
+`ruesma` con su propio binario (`graima`), no hay cruce entre bases.
+
+Verificación desde el monorepo, `... B86359866 0695 --find SUMINISTROS_DE_OBRAS_MOSTOLES`:
 
 ```
-  📎 DIRECCIÓN A encontró 2 vínculos → 2 gra únicos    rcg  2
-  [1/2] gra.ide=270162  'SUMINISTROS DE OBRAS MOSTOLES.PED1.r.docx'        379.250 B
-  [2/2] gra.ide=274282  'SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf'   1.139.587 B
+docs.py  ↔️ 8/10 con fila de negocio por (emp, cod); 2 sin fila de negocio
+           gra_rep_ide=274312  cod='202412170933526075.vmartin'  — sin fila de negocio
+           gra_rep_ide=60446   cod='201808031400096287.vnueda'   — sin fila de negocio
+         gra_rep_ide=270162  gra_neg_ide=213710  [rcg] → con.ide=2441136 'CTSU24/0476'
+         gra_rep_ide=274282  gra_neg_ide=217644  [rcg] → con.ide=2441136 'CTSU24/0476'
+         COMPARACIÓN: en AMBAS 2 (270162, 274282) · SOLO en A 0 · SOLO en B 8
+v2.py    VÍA rcg: gra_rep_ide=270162 gra_neg_ide=213710 · 274282 / 217644
+         FASE 4: 270162 (negocio 213710) y 274282 (negocio 217644) → 2441136 CTSU24/0476
 ```
 
-Mismos ides, nombres y tamaños que en el repositorio de origen. `py_compile`
-en verde. No se arrancó el flujo de features del monorepo (`harness/init.sh`
-no se ejecutó): es una corrección puntual pedida por el humano, y su árbol
-quedó limpio.
+`py_compile` en verde en los dos repositorios; el archivado se ejecutó también
+y dio la misma salida. Solo lecturas.
 
 ## Fuera de alcance (decisión del humano)
 
-- **DIRECCIÓN B tiene el defecto invertido**: `buscar_conceptos_desde_gra` mete los `ide` **documentales** de la búsqueda por nombre en `rcg.gra IN (...)` y en los `graide`, que son de negocio. Solo afecta a `--find`; corregirlo exige traducir documental → negocio por `(emp, cod)`.
-- `scripts/diagnose_sigrid_contrato_docs_v2.py` conserva el mismo join por `ide`.
 - El repositorio `albaranes-persistencia` está marcado archivado (`cab78e2` «ARCHIVADO: migrado al monorepo albaranes; no trabajar aqui»). La copia viva del monorepo ya está corregida (ver «Propagación al monorepo»).
 - Sin tocar: `t8_antes.txt` y `t8_despues.txt` (sin seguimiento, ajenos) e `infrastructure/sigrid/sigrid_api_contrato_client.py` (ya resuelve por `cod`; su único matiz es que no filtra por `emp`).
