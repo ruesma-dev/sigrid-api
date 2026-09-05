@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from application.use_cases.concepto_grafico_statements import (
+    POS_PASO,
+    VIN_REPOSITORIO,
     ConceptoGraficoStatements,
     hora_local_de_madrid,
 )
@@ -289,7 +291,7 @@ class AttachConceptoGraficoUseCase:
         self, request: AttachConceptoGraficoRequest, sentencias: ConceptoGraficoStatements
     ) -> int:
         filas = self._leer(request, sentencias.siguiente_pos(request.conide))
-        return int(filas[0][0]) if filas else 64
+        return int(filas[0][0]) if filas else POS_PASO
 
     @staticmethod
     def _buscar_idempotencia(
@@ -353,7 +355,7 @@ class AttachConceptoGraficoUseCase:
             usu=request.usu,
             res=request.res,
             gratipide=request.gratipide,
-            vin=3,
+            vin=VIN_REPOSITORIO,
             bytes=documento.bytes,
             sha256=documento.sha256,
             content_type=documento.content_type,
