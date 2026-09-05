@@ -3,8 +3,8 @@
 
 > **F-003 cerrada, mergeada, desplegada y empujada el 2026-09-05.**
 > **F-004 arranca el 2026-09-05** en la rama `feature/F-004-endpoint-concepto-grafico`:
-> `pending` → spec-author en marcha → `spec_ready` a la espera de que el humano
-> apruebe la spec. Nada implementado todavía. El prompt para retomar, al final.
+> spec **aprobada por el humano el 2026-09-05** (`7a0a277`) → `in_progress`.
+> Pendiente la PARADA 1 (propuesta de implementación) antes de tocar código. El prompt para retomar, al final.
 
 ## Lo que espera al humano, por orden
 
