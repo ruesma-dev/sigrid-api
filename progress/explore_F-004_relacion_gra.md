@@ -86,3 +86,16 @@ Por clase (`con_pareja` / `ide_igual`): 0 → 223.436/224.004 / 426 · 9 → 28.
 3. **El join por `ide` de `diagnose_sigrid_contrato_docs.py` (T8) es incorrecto [MEDIDO]:** en el contrato 2441136 devuelve `3E_Sol.Integrales.IND1.pdf` y `RS23.080002.pdf` en vez de los dos PDF de Suministros de Obras Móstoles (`ide` documentales 270162 y 274282). Hay que corregirlo (`_gra.py` y `contratos.py` ya lo hacen bien) y aclarar `sigrid_api.md` §2.2: el `ide` que acepta `documents/read` es el **documental**, que se obtiene por `cod`. T8 sigue valiendo como prueba de no-regresión, no como prueba de corrección.
 4. **Implicación para el endpoint:** la fila de negocio (`ide` propio de `ruesma.gra`, `vin=3`, `ima` NULL, `emp` de la reclamación, `cod` generado una vez) es a la que apunta `rcg.gra`; la fila documental lleva **el mismo `cod` y el mismo `emp`**, `ide` propio de `ruesma_rep.gra`, `vin=3`, `gratipide=0`, `res=''`, `ima`=binario. Si `cod` o `emp` difieren en un carácter, el motor no avisa y el gráfico queda «sin fichero» (como los 517 huérfanos `vin=3` de 2021). No hace falta que los `ide` coincidan ni conviene intentarlo. `emp` va en el join: hay 8 `cod` repetidos entre empresas.
 5. [ABIERTO] Los 19.196 documentales sin dueño ni en `gra` ni en `dog` (~2.000/año): no afectan al endpoint, pero conviene saber si Sigrid borra en negocio sin borrar en la documental (sería el patrón inverso al huérfano de negocio). No se pudo medir el nombre que Sigrid da a `vin` 1/2/4 (no hay tabla de códigos).
+
+## G · Verificación por descarga (`documents/read`, 2026-09-05) [MEDIDO]
+
+Los cuatro documentos del contrato 2441136 (§C) descargados de `ruesma_rep` por `ide`, con el texto extraído del binario:
+
+| `ide` documental | Cómo se obtuvo | Fichero servido | Bytes | Texto dentro |
+|---|---|---|---|---|
+| 270162 | por `(emp,cod)` desde `rcg.gra`=213710 | `SUMINISTROS DE OBRAS MOSTOLES.PED1.r.docx` | 379.250 | «Ref.: **CTSU24/0476** OBRA: RESIDENCIA ESTUDIANTES MERKEL VALLECAS CODIGO: **0695** CONTRATO DE SUMINISTROS … MOSTOLES» |
+| 274282 | por `(emp,cod)` desde `rcg.gra`=217644 | `SUMINISTROS_DE_OBRAS_MOSTOLES.PED1.r__1_.pdf` | 1.139.587 | «Ref. **CTSU24** … RESIDENCIA ESTUDIANTES MERKEL … MADRID» |
+| 213710 | por `ide` = `rcg.gra` (script de T8) | `3E_Sol.Integrales.IND1.pdf` | 469.580 | «Ref. **CTSB2**… CODIGO **0663** … INDUSTRIAL … Río Duero» — otro contrato, otra obra |
+| 217644 | por `ide` = `rcg.gra` (script de T8) | `RS23.080002.pdf` | 151.735 | (imagen escaneada, sin texto) — una reclamación de Posventa de 2023 |
+
+Los dos scripts de `albaranes-persistencia`, con el código delante: `diagnose_sigrid_contrato_gra.py` (contratos por obra) resuelve la documental **por `cod`** (línea 410) y su ejemplo `--download-ide 274282` es el documento correcto; `diagnose_sigrid_contrato_docs.py` (el de T8) hace `JOIN ruesma_rep.dbo.gra g ON rcg.gra = g.ide` en las cuatro vías (líneas 286, 312, 341, 368). El texto del binario cierra la cuestión: el join por `ide` devuelve documentos de otra obra.
