@@ -221,6 +221,19 @@ el spec-author redacta `specs/F-004-endpoint-concepto-grafico/` a partir de
 `dedicacion.md`, `partes.md` y `remesas.md` de `azure-apps`, que siguen
 llamando «réplica que no admite escritura» a `ruesma_rep`.
 
+**T15 cerrada el 2026-09-06** (`79c5520`): la campaña de mutación da **167
+mutantes, 167 muertos, 0 supervivientes, 0 timeouts**. Los 36 supervivientes de la
+campaña anterior (`d4e8535`) se reevaluaron **en serie** —ninguno era falso— y se
+cerraron con **16 tests nuevos**, cada uno verificado en fase RED contra su propio
+mutante; **cero líneas de producción tocadas**. Detalle ficha a ficha en
+[`mutacion_F-004.md`](mutacion_F-004.md), que además deja medido un **defecto del
+modo paralelo del arnés**: en una tirada intermedia inventó **5 supervivientes** que
+mueren en serie, no reproducibles en las dos tiradas siguientes sobre el mismo
+commit. La causa no está medida (sospecha sin comprobar: `ResultadoSuite.verde`
+cuenta el `exit 5` de pytest como superviviente) y **queda como tarea del arnés**.
+Lo que falta de F-004: la revisión troceada contra `CHECKPOINTS.md` y la PARADA 2
+con el humano para T18-T22.
+
 ## Prompt para retomar
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-004 está **implementada** en su

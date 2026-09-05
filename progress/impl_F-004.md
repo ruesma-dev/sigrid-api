@@ -120,7 +120,7 @@ líneas cambiadas, tamaño `[OK]`, 79 avisos de `ruff` (los previos), `ENTORNO L
 
 | Evidencia | Valor |
 |---|---|
-| **Mutantes generados y supervivientes** | **PENDIENTE — T15, fuera de este encargo.** La lanza el líder con `python -m harness.mutacion --feature F-004` → `progress/mutacion_F-004.md`. Es la única evidencia del nivel `critico` que este informe no puede cerrar |
+| **Mutantes generados y supervivientes** | **CERRADO (T15)**: 167 mutantes, **167 muertos, 0 supervivientes**, 0 timeouts sobre `79c5520`. Los **36** supervivientes de la campaña anterior (`d4e8535`) se remidieron EN SERIE —ninguno falso— y se cerraron con **16 tests nuevos** en fase RED contra su mutante, cero producción tocada. Medición, ficha a ficha, y el aviso sobre los 5 falsos supervivientes que se coló el modo paralelo: [`mutacion_F-004.md`](mutacion_F-004.md) |
 | **Verificaciones MANUAL pendientes** | T18-T22 (`tasks.md`), todas del humano. R23 (comprobar el `sha256` con `documents/read`) depende de T20 |
 
 ## 7 · Cierre
