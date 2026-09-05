@@ -63,18 +63,27 @@ partes; `emp` sale de `con.emp`, no de la petición (test `..._r7_el_emp_sale_de
 `pos = MAX(pos)+64` leído, no inventado; nada se recalcula (ni totales, ni PMP, ni estados); SQL
 constante con `?`; sin `UPDATE`/`DELETE`, sin prints ni secretos; primera línea con la ruta.
 ## Recomendaciones (NO bloquean; para el humano o el backlog)
-1. `:212-217` — `_leer` descarta `_truncado` y el tope real es `DEFAULT_MAX_ROWS` (200,
-   `config/settings.py:28`). Un concepto con más de 200 binarios del **mismo tamaño exacto**
-   dejaría fuera al candidato bueno y R17 fallaría en silencio (duplicado). Probabilidad ínfima,
-   consecuencia silenciosa: `max_rows` explícito en L5/L6, o lanzar si `truncado`.
+1. `:212-217` — `_leer` descarta `_truncado` y el tope real es `DEFAULT_MAX_ROWS` (200): con más
+   de 200 binarios del **mismo tamaño exacto** R17 fallaría en silencio. **APLICADA en `7f0bcfb`**.
 2. `:172` — `if permitidas and database not in permitidas` **falla abierto** con
    `ALLOWED_WRITE_DATABASES` vacía. Patrón calcado de `add_contract_lines:171`,
-   `create_direct_albaran:299` y `create_purchase_albaran:506`, al revés que
-   `sql_write_guard.py:69`, que falla cerrado. No bloqueo (calcar era el diseño), pero merece
-   feature propia para los cuatro.
-3. `:331` y `:271` — `vin=3` y el `64` de respaldo van a pelo existiendo `VIN_REPOSITORIO` y
-   `POS_PASO` en `concepto_grafico_statements.py`. Cosmético.
+   `create_direct_albaran:299` y `create_purchase_albaran:506`, al revés que `sql_write_guard.py:69`,
+   que falla cerrado. No bloqueo, pero merece feature propia para los cuatro.
+3. `:331` y `:271` — `vin=3` y el `64` a pelo. Cosmético. **APLICADA en `aed7ef8`**.
 4. Automejora del protocolo (propuesta, no aplicada): cuando una revisión se trocea en encargos
    paralelos, cada trozo debería declarar en cabecera **qué checkpoints quedan fuera de su
-   ámbito**, como hace este. Propongo añadirlo a `.claude/agents/reviewer.md` §Informe, para que
-   el líder no cierre una feature sumando trozos con un hueco sin cubrir.
+   ámbito**, como hace este. Propongo añadirlo a `.claude/agents/reviewer.md` §Informe.
+## Tras `7f0bcfb` y `aed7ef8` (HEAD `8674630`) · APROBADO
+Verificación de las recomendaciones 1 y 3, aceptadas por el humano. `git show --stat`: los dos
+commits tocan **solo** el caso de uso (+ su test el primero); en mi ámbito, `87098d6..HEAD` no
+toca modelos ni ruta. `pytest tests/test_f004_use_case.py -q` → **44 passed** (1,45 s); no ejecuté
+la suite ni `init.sh` (campaña de mutación en curso). `7f0bcfb` hace lo anunciado: `_leer` gana un
+`max_rows` keyword-only, L5 y L6 piden `max_allowed_rows` (1.000, `settings.py:29`) y `truncado`
+deja de descartarse; la sentencia L5, sus parámetros y `_buscar_idempotencia` quedan intactos, así
+que la idempotencia no cambia de semántica, solo de tope. El `ValueError` sin `codigo` es
+**correcto**: la lista de R3 es cerrada y ninguno de los doce describe una lectura incompleta
+(`filas_afectadas_inesperadas` es de las filas escritas, R14); la ruta lo saca como 400, igual que
+el caso ya aceptado del guardia de base64, y `run` lo traza antes de relanzar. Salta en
+`_ejecutar`, antes de `_commit`: el dry-run sigue siendo solo lecturas y no se abre transacción
+(test parametrizado sobre las dos lecturas, con `transacciones == []`). `aed7ef8` es sustitución
+pura de `3`/`64` por `VIN_REPOSITORIO` y `POS_PASO`: mismos valores, misma capa.
