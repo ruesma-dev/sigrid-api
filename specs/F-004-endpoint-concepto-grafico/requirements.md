@@ -7,12 +7,12 @@ Sigrid escribiendo el binario en la base documental, en una sola transacción.**
 ## Contexto
 
 Fuente: `docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md` sobre lo **medido** en
-`progress/explore_ruesma_rep.md`: `ruesma_rep` es `READ_WRITE`, misma instancia que `ruesma`,
-una sola tabla `dbo.gra` (29 columnas, `ima` tipo `image`, índice ÚNICO `(emp, cod)`);
-`user_rw` ya tiene `SELECT`/`INSERT`; motor SQL Server 2012. Adjuntar son tres filas: binario
-en `ruesma_rep.dbo.gra`, metadatos en `ruesma.dbo.gra` con el **mismo `cod`** y enlace en
-`ruesma.dbo.rcg`. F-003 cerró la documental a `sql/write`; esto abre **solo** esta puerta.
-Rigor `critico`: producción sin entorno de pruebas.
+`progress/explore_ruesma_rep.md` (F-002) y `progress/explore_F-004_mediciones.md` (T1/T2,
+2026-09-05): `ruesma_rep` es `READ_WRITE`, misma instancia que `ruesma`, una sola tabla `dbo.gra`
+(29 columnas, `ima` tipo `image`, índice ÚNICO `(emp, cod)`, sin DEFAULT en ninguna columna);
+`user_rw` ya tiene `SELECT`/`INSERT`; SQL Server 2012. Adjuntar son tres filas: binario en
+`ruesma_rep.dbo.gra`, metadatos en `ruesma.dbo.gra` con el **mismo `cod`** y enlace en
+`ruesma.dbo.rcg`. F-003 cerró la documental a `sql/write`; esto abre **solo** esta puerta. Rigor `critico`.
 
 ## Contrato y configuración (propuesta §6, §12.1)
 
@@ -42,9 +42,8 @@ sigue en 500 con `details.exception`, como el resto de rutas.
 `SIGRID_DOCUMENT_WRITE_TIMEOUT_SECONDS=120`. Con los defectos `Settings()` arranca y el
 endpoint responde `escritura_documental_deshabilitada`.
 
-**R5.** El sistema no debe cambiar valor ni uso de ninguna App Setting existente:
-`ALLOWED_WRITE_DATABASES` sigue siendo `["ruesma"]` y `sql/write` sigue sin poder nombrar
-la documental (tests de F-003 en verde).
+**R5.** El sistema no debe cambiar valor ni uso de ninguna App Setting existente: `ALLOWED_WRITE_DATABASES`
+sigue siendo `["ruesma"]` y `sql/write` sigue sin poder nombrar la documental (tests de F-003 en verde).
 
 ## Guards y dry-run (propuesta §10, §11, §14)
 
@@ -74,20 +73,20 @@ de escritura, y devolver el preview con `committed:false`, `dry_run:true`,
 
 ## Commit e idempotencia (propuesta §7, §8, §9)
 
-**R10.** CUANDO `commit` sea `true`, el sistema debe exigir además
-`SIGRID_DOMAIN_WRITE_ENABLED`, `SIGRID_DOCUMENT_WRITE_ENABLED` y credenciales de escritura;
-si falta alguna, `escritura_documental_deshabilitada`.
+**R10.** CUANDO `commit` sea `true`, el sistema debe exigir además `SIGRID_DOMAIN_WRITE_ENABLED`,
+`SIGRID_DOCUMENT_WRITE_ENABLED` y credenciales de escritura; si falta alguna, `escritura_documental_deshabilitada`.
 
-**R11.** El sistema debe hacer las tres escrituras en **UNA** conexión contra `database`
-con `autocommit=False` (transacción local, sin MSDTC), llegando a la documental por nombre
-de tres partes, en este orden: (1) binario en `<documental>.dbo.gra`; (2) metadatos en
-`dbo.gra` con `ima` NULL y `vin=3`; (3) enlace en `dbo.rcg` con `con=conide`,
-`gra=ide de (2)`, `pos=MAX(pos)+64` del concepto, `cla=0`.
+**R11.** El sistema debe hacer las tres escrituras en **UNA** conexión contra `database` con
+`autocommit=False` (transacción local, sin MSDTC), llegando a la documental por nombre de tres
+partes, en este orden: (1) binario en `<documental>.dbo.gra` con `gratipide=0`, `res=''` y `vin=3`
+**siempre** (medido 3.679/3.679, aunque en negocio sean otros); (2) metadatos en `dbo.gra` con `ima`
+NULL, `vin=3` y `gratipide`/`res` de la petición; (3) enlace en `dbo.rcg` (7 columnas) con `con=conide`,
+`gra=ide de (2)`, `pos=MAX(pos)+64` del concepto, `cla=0`, `feclee=0`, `fecalt=0`. Las 29 columnas de
+`gra` van explícitas con las constantes de `explore_F-004_mediciones.md` §2.3: sin DEFAULT, omitir una deja NULL.
 
-**R12.** El sistema debe reservar los tres `ide` dentro de la transacción, bajo
-`sp_getapplock` por recurso y `SELECT ISNULL(MAX(ide),0)+1 … WITH (UPDLOCK, HOLDLOCK)`, y
-usar el `ide` reservado de (2) en `rcg.gra` sin rederivarlo por `cod`. Ante clave
-duplicada, `run_in_write_transaction` revierte y reintenta hasta `DOMAIN_WRITE_MAX_RETRIES`.
+**R12.** El sistema debe reservar los tres `ide` dentro de la transacción, bajo `sp_getapplock` por
+recurso y `SELECT ISNULL(MAX(ide),0)+1 … WITH (UPDLOCK, HOLDLOCK)`, y usar el `ide` reservado de (2) en
+`rcg.gra` sin rederivarlo por `cod`. Ante clave duplicada, `run_in_write_transaction` revierte y reintenta hasta `DOMAIN_WRITE_MAX_RETRIES`.
 
 **R13.** El sistema debe generar el `cod` **una sola vez por petición**, en Python, con el
 formato medido `AAAAMMDDHHMMSS` + 4 dígitos + `.` + `usu` (hora Europe/Madrid), y escribir
@@ -100,15 +99,16 @@ transacción; SI alguna no devuelve exactamente una fila → `ROLLBACK` y `filas
 tras los reintentos—, ENTONCES `ROLLBACK` sin que quede **ninguna** de las tres filas, con
 `colision_de_clave` cuando el error sea de clave duplicada.
 
-**R16.** El sistema debe apoyar la unicidad del `cod` en el índice único `(emp, cod)` de
-la documental: **sin** `COUNT(*)` previo por `cod`; un `cod` repetido lo rechaza el motor y
-aplica R15.
+**R16.** El sistema debe apoyar la unicidad del `cod` en el índice único `(emp, cod)` de la
+documental: **sin** `COUNT(*)` previo por `cod`; un `cod` repetido lo rechaza el motor y aplica R15.
 
 **R17.** CUANDO el mismo documento (mismo tamaño y `sha256`) ya esté enlazado al mismo
 `conide`, el sistema debe responder `ok:true`, `idempotente:true`, `filas_afectadas:0` con
 `ide` y `cod` de lo existente, sin escribir nada. Se busca dentro de la transacción tras
 el applock (y en dry-run con lecturas), comparando en Python el `sha256` de los binarios
-del concepto con `DATALENGTH(ima)` igual. No se escribe en `gra.guid`.
+del concepto con `DATALENGTH(ima)` igual. No se escribe en `gra.guid`. Una fila de negocio **huérfana**
+(sin pareja documental, caso real medido) no tiene binario: nunca es idempotente con ella; se adjunta
+de nuevo y se añade un aviso con las huérfanas del concepto.
 
 ## Seguridad, verificación y documentación (propuesta §11, §14; acceptance 7-9)
 
@@ -142,9 +142,9 @@ fila en `rcg`.
 ajustar `docs/ARCHITECTURE.md`, `CHECKPOINTS.md` (C3) y `CLAUDE.md` donde dicen que
 `ruesma_rep` solo se lee.
 
-## Preguntas abiertas y fuera de alcance
+## Decisiones medidas y fuera de alcance
 
-Decide el humano; consultas, defectos y exclusiones en `design.md`: Q4 formato de `gra.cod` ·
-Q5 idempotencia por contenido en vez de `guid` o `cod` determinista, sin `clave_idempotencia`
-· Q7 fila en `dbo.log` (por defecto NO) · `auxgra.tipaso` no se valida contra `con.tip` ·
-columnas no variables de `gra`, fijadas midiendo una pareja real (T1).
+Cerradas el 2026-09-05 (`progress/explore_F-004_mediciones.md`): Q4 Sigrid no interpreta `cod`
+(tolera 31.941 nombres de fichero) → formato medido con `dddd` del `sha256` · Q5 `guid` vacío en
+todas las filas → idempotencia por contenido, `guid=''` · Q7 0 filas `tab='gra'` en 8,4 M de `log`
+→ sin cuarta escritura · `auxgra.tipaso` (`UPV,RCP,TAR`) no se valida: la lista blanca cubre · exclusiones en `design.md`.
