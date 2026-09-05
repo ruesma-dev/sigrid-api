@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -206,3 +207,51 @@ def test_f004_r7_la_clase_permitida_viva_y_existente_pasa() -> None:
     DocumentWriteGuard.validar_clase_de_grafico(
         gratipide=35, permitidas=[35], existe=True, fecbaj=0
     )
+
+
+# --- R8: los bordes exactos que la campana de mutacion dejo al aire ----------
+
+
+def test_f004_r8_la_longitud_exacta_del_tope_del_base64_no_se_rechaza() -> None:
+    """
+    El tope del base64 es `ceil(max_bytes * 4 / 3) + 4`: con `max_bytes=10`,
+    `ceil(40/3) = 14` y el tope son 18 caracteres. La comparacion es ESTRICTA,
+    asi que 18 no se rechaza por tamano: se decodifica, y es ahi donde falla
+    por no ser base64. Un `>=` en su lugar, o un tope mas corto, lo convertiria
+    en `tamano_excedido` y este test lo caza.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        validar("A" * 18, max_bytes=10)
+    assert not isinstance(excinfo.value, ConceptoGraficoError)
+    assert "no es base64 valido" in str(excinfo.value)
+
+
+def test_f004_r8_un_caracter_por_encima_del_tope_muere_antes_de_decodificar() -> None:
+    """
+    19 caracteres = tope + 1. La prueba de que no se llega a decodificar es el
+    codigo: la decodificacion de `A`*19 lanzaria un `ValueError` pelado, no un
+    `ConceptoGraficoError` con `tamano_excedido`. Un tope mas largo (`*5/3`, o
+    `+5`) dejaria pasar estos 19 caracteres y este test lo caza.
+    """
+    with pytest.raises(ConceptoGraficoError) as excinfo:
+        validar("A" * 19, max_bytes=10)
+    assert codigo_de(excinfo) == "tamano_excedido"
+
+
+def test_f004_r8_el_documento_validado_es_inmutable() -> None:
+    """Lo que sale del guardia no se retoca aguas abajo: el caso de uso escribe
+    en el ERP los bytes, el tamano y el hash que el guardia midio."""
+    documento = validar()
+    with pytest.raises(FrozenInstanceError):
+        documento.bytes = 0  # type: ignore[misc]
+
+
+def test_f004_r8_el_error_de_firma_nombra_las_firmas_que_si_valen() -> None:
+    """Quien recibe el 400 tiene que poder saber que tipos se admiten."""
+    with pytest.raises(ConceptoGraficoError) as excinfo:
+        validar(_PNG, firmas_permitidas=["%PDF-", "II*\x00"])
+    assert "%PDF-" in str(excinfo.value)
+
+    with pytest.raises(ConceptoGraficoError) as sin_firmas:
+        validar(_PDF, firmas_permitidas=[])
+    assert "(ninguna)" in str(sin_firmas.value)

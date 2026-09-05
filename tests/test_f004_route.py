@@ -190,3 +190,33 @@ def test_f004_r2_una_respuesta_correcta_sale_como_200_json(
     assert cuerpo["ok"] is True
     assert cuerpo["dry_run"] is True
     assert cuerpo["grafico"]["sha256"] == "a" * 64
+
+
+# --- R3: de que posiciones de `build_dependencies` sale cada dependencia -----
+
+
+def test_f004_r3_la_ruta_toma_settings_y_repositorio_de_las_dos_primeras_posiciones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    `build_dependencies()` devuelve una tupla de siete: `deps[0]` es `Settings`
+    y `deps[1]` el repositorio; las otras cinco son casos de uso de endpoints
+    anteriores. Coger otra posicion construiria el caso de uso con el objeto
+    equivocado y solo se veria en produccion.
+    """
+    dependencias = tuple(f"dep{indice}" for indice in range(7))
+    monkeypatch.setattr(function_app, "build_dependencies", lambda: dependencias)
+    recibido: dict[str, Any] = {}
+
+    class CasoDoble:
+        def __init__(self, repository: Any, settings: Any) -> None:
+            recibido["repository"] = repository
+            recibido["settings"] = settings
+
+        def run(self, request: Any) -> Any:
+            raise ConceptoGraficoError("no hace falta llegar", codigo="usuario_no_valido")
+
+    monkeypatch.setattr(function_app, "AttachConceptoGraficoUseCase", CasoDoble)
+    ruta()(peticion_http())
+
+    assert recibido == {"repository": "dep1", "settings": "dep0"}

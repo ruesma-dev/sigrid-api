@@ -12,8 +12,9 @@ Constantes tomadas de `progress/explore_F-004_mediciones.md` §2.1-2.3 y de
 """
 from __future__ import annotations
 
+import calendar
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfoNotFoundError
 
 import pytest
@@ -515,3 +516,46 @@ def test_f004_r18_el_unico_identificador_no_literal_es_la_base_documental(
     for sql in otra.todas_las_sentencias():
         assert "otra_base" not in sql
         assert sql.count("[") == sql.count("]") <= 1
+
+
+# --- R13: el calendario en el que se apoya la regla de respaldo --------------
+
+
+def test_f004_r13_el_ultimo_domingo_lo_es_en_los_540_meses_de_1996_a_2040() -> None:
+    """
+    Contra `calendar`, que resuelve el mismo problema por otro camino. Cubre lo
+    que la regla de respaldo no llega a pedir por si sola: diciembre —la unica
+    rama que cambia de anio— y los meses que ACABAN en domingo, que es donde un
+    desplazamiento de mas se lleva la fecha a la semana anterior.
+    """
+    for anio in range(1996, 2041):
+        for mes in range(1, 13):
+            semanas = calendar.monthcalendar(anio, mes)
+            dia = next(
+                semana[calendar.SUNDAY]
+                for semana in reversed(semanas)
+                if semana[calendar.SUNDAY]
+            )
+            assert statements._ultimo_domingo(anio, mes) == date(anio, mes, dia), (
+                anio,
+                mes,
+            )
+
+
+@pytest.mark.parametrize(
+    "instante_utc, esperado",
+    [
+        # 2024-03-31 y 2027-10-31 son domingo Y ultimo dia de su mes: el borde
+        # donde restar un dia de mas adelanta el cambio de hora una semana.
+        (datetime(2024, 3, 31, 0, 59, tzinfo=timezone.utc), local(2024, 3, 31, 1, 59)),
+        (datetime(2024, 3, 31, 1, 0, tzinfo=timezone.utc), local(2024, 3, 31, 3, 0)),
+        (datetime(2027, 10, 31, 0, 59, tzinfo=timezone.utc), local(2027, 10, 31, 2, 59)),
+        (datetime(2027, 10, 31, 1, 0, tzinfo=timezone.utc), local(2027, 10, 31, 2, 0)),
+    ],
+)
+def test_f004_r13_el_cambio_de_hora_cuando_el_mes_acaba_en_domingo(
+    instante_utc: datetime, esperado: datetime, camino_horario: str
+) -> None:
+    """Por los DOS caminos: si el respaldo se equivocara solo estos anios, el
+    sello saldria con una hora de mas durante una semana entera."""
+    assert hora_local_de_madrid(instante_utc) == esperado

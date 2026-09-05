@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from typing import Any
 
 import pytest
 
+from application.use_cases import attach_concepto_grafico_use_case as modulo
 from application.use_cases.attach_concepto_grafico_use_case import (
     AttachConceptoGraficoUseCase,
 )
@@ -608,3 +610,121 @@ def test_f004_r21_tambien_se_traza_el_fallo(caplog: pytest.LogCaptureFixture) ->
     texto = "\n".join(registro.getMessage() for registro in caplog.records)
     assert "usuario_no_valido" in texto
     assert _B64 not in texto
+
+
+# --- Bordes que la campana de mutacion dejo al aire --------------------------
+
+
+def traza_de(caplog: pytest.LogCaptureFixture) -> dict[str, Any]:
+    """La ultima linea de traza emitida, ya parseada."""
+    lineas = [
+        registro.getMessage()
+        for registro in caplog.records
+        if registro.getMessage().startswith("{")
+    ]
+    assert lineas, "el caso de uso no ha trazado nada"
+    return json.loads(lineas[-1])
+
+
+def test_f004_r21_la_duracion_va_en_milisegundos_y_con_un_decimal(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Con el reloj fijado, 0,500123 s de trabajo son 500,1 ms. El numero se lee
+    en produccion para decidir si el endpoint va lento, asi que la unidad, el
+    signo y los decimales tienen que ser exactamente esos.
+    """
+    relojes = iter([1000.0, 1000.500123])
+    monkeypatch.setattr(
+        modulo, "time", SimpleNamespace(monotonic=lambda: next(relojes))
+    )
+    with caplog.at_level(logging.INFO):
+        ejecutar()
+    assert traza_de(caplog)["duracion_ms"] == 500.1
+
+
+def test_f004_r21_la_traza_no_escapa_los_acentos(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    r"""`ensure_ascii=False`: un login o una base con acento se leen tal cual en
+    Application Insights, no escapados a `\u00f1`."""
+    with caplog.at_level(logging.INFO):
+        ejecutar(usu="pena\u00f1")
+    texto = "\n".join(registro.getMessage() for registro in caplog.records)
+    assert "pena\u00f1" in texto
+    assert r"\u00f1" not in texto
+
+
+def test_f004_r7_una_fila_de_concepto_con_columnas_de_mas_no_revienta() -> None:
+    """`filas[0][:5]`: si el SELECT de L1 creciera, el caso de uso sigue
+    leyendo las cinco columnas que le importan en vez de romper el
+    desempaquetado."""
+    repositorio = RepositorioDoble(
+        lecturas={
+            **_LECTURAS_FELICES,
+            "concepto": [(2811179, 708, 1, "RS26.08/0123", "Sellado", "columna de mas")],
+        }
+    )
+    respuesta, _ = ejecutar(repositorio)
+    assert respuesta.concepto.ide == 2811179
+    assert respuesta.concepto.res == "Sellado"
+
+
+def test_f004_r17_un_candidato_con_columnas_de_mas_no_revienta() -> None:
+    """Lo mismo en `fila[:4]` de la busqueda de idempotencia."""
+    repositorio = RepositorioDoble(
+        lecturas={
+            **_LECTURAS_FELICES,
+            "idempotencia": [
+                (
+                    _IDE_NEGOCIO,
+                    "202608181140392614.aechevarria",
+                    _IDE_ENLACE,
+                    _PDF,
+                    "columna de mas",
+                )
+            ],
+        }
+    )
+    respuesta, _ = ejecutar(repositorio)
+    assert respuesta.idempotente is True
+    assert respuesta.grafico.ide_negocio == _IDE_NEGOCIO
+
+
+def test_f004_r7_una_clase_con_tipaso_no_genera_ningun_aviso() -> None:
+    """El aviso es SOLO para el `tipaso` vacio. Avisar siempre lo convertiria en
+    ruido que nadie lee, que es como se pierde el aviso que si importa."""
+    respuesta, _ = ejecutar()
+    assert not any("tipaso" in aviso for aviso in respuesta.avisos)
+
+
+@pytest.mark.parametrize("commit", [False, True])
+def test_f004_r17_la_respuesta_idempotente_declara_el_modo_y_no_inventa_fecha(
+    commit: bool,
+) -> None:
+    """`dry_run` dice si se pidio commit, no si se escribio: con `commit=true`
+    y documento ya colgado no se escribe nada y AUN ASI no era un dry-run.
+    Y `fec=0` porque la fila no se ha creado ahora."""
+    repositorio = RepositorioDoble(
+        lecturas={
+            **_LECTURAS_FELICES,
+            "idempotencia": [
+                (_IDE_NEGOCIO, "202608181140392614.aechevarria", _IDE_ENLACE, _PDF)
+            ],
+        }
+    )
+    respuesta, _ = ejecutar(repositorio, commit=commit)
+    assert respuesta.idempotente is True
+    assert respuesta.committed is False
+    assert respuesta.dry_run is (not commit)
+    assert respuesta.grafico.fec == 0
+
+
+def test_f004_r11_la_respuesta_del_commit_dice_que_no_fue_idempotente() -> None:
+    """Un commit que escribe las tres filas nunca es idempotente: si lo dijera,
+    el cliente creeria que su documento ya estaba y no volveria a mirarlo."""
+    respuesta, _ = ejecutar(commit=True)
+    assert respuesta.idempotente is False
+    assert respuesta.committed is True
+    assert respuesta.dry_run is False
+    assert respuesta.filas_afectadas == 3

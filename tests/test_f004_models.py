@@ -217,3 +217,41 @@ def test_f004_r2_el_enlace_admite_ide_desconocido_en_el_caso_idempotente() -> No
     enlace = EnlacePreview(ide=296661, con=2811179, gra=296221)
     assert enlace.pos is None
     assert (enlace.cla, enlace.feclee, enlace.fecalt) == (0, 0, 0)
+
+
+# --- R1: el borde de ABAJO de cada campo -------------------------------------
+
+
+@pytest.mark.parametrize(
+    "campo, minimo",
+    [
+        ("database", "r"),
+        ("conide", 1),
+        ("contip", 1),
+        ("gratipide", 1),
+        ("res", "x"),
+        ("nom", "x"),
+        ("usu", "u"),
+        # 4 caracteres = un bloque de base64, el minimo que decodifica a algo.
+        ("contenido_base64", "JVBE"),
+    ],
+)
+def test_f004_r1_el_valor_minimo_exacto_de_cada_campo_entra(
+    campo: str, minimo: object
+) -> None:
+    """
+    Los `max_length` ya tenian su borde probado; los `min_length` y los `ge`,
+    no. Subir cualquiera de ellos en uno rechazaria un valor legitimo del ERP
+    (un `ide` 1, un `res` de una letra) y nadie se enteraria.
+    """
+    assert getattr(peticion(**{campo: minimo}), campo) == minimo
+
+
+def test_f004_r1_un_base64_con_longitud_no_multiplo_de_cuatro_se_rechaza() -> None:
+    """
+    `AAAAA` pasa el alfabeto y llega al minimo de 4, pero 5 no es multiplo de
+    4: sin esa comprobacion el modelo daria por bueno un base64 truncado y el
+    fichero llegaria roto al guardia.
+    """
+    with pytest.raises(ValidationError):
+        peticion(contenido_base64="AAAAA")
