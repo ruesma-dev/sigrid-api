@@ -41,11 +41,18 @@ Cabeceras siempre: `x-functions-key: $KEY`, `Content-Type: application/json`.
 
 ### T18 — desplegar y fijar las App Settings nuevas, cerradas
 
+Las App Settings van por fichero JSON (ASCII, sin BOM), nunca inline: los
+corchetes y comillas de las listas se rompen al pasar por PowerShell.
+`f004_appsettings.json`:
+```json
+[{"name": "SIGRID_DOCUMENT_WRITE_ENABLED", "value": "false", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_WRITE_DATABASE", "value": "ruesma_rep", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_ALLOWED_CONTIP", "value": "[708]", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_ALLOWED_GRATIPIDE", "value": "[35]", "slotSetting": false}]
+```
 ```powershell
 func azure functionapp publish func-sigridapi-dev-huyke --python
-az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings `
-  SIGRID_DOCUMENT_WRITE_ENABLED=false SIGRID_DOCUMENT_WRITE_DATABASE=ruesma_rep `
-  SIGRID_DOCUMENT_ALLOWED_CONTIP='[708]' SIGRID_DOCUMENT_ALLOWED_GRATIPIDE='[35]'
+az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings "@f004_appsettings.json"
 az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke `
   --query "[?starts_with(name,'SIGRID_DOCUMENT') || name=='ALLOWED_WRITE_DATABASES']"
 ```
@@ -89,7 +96,10 @@ reclamación (u obra 404) elegida. Luego `POST $BASE/api/documents/read`:
 **Criterio:** `sha256` del binario descargado idéntico al enviado; en `ruesma`,
 `SELECT * FROM dbo.gra WHERE cod = ?` → 1 fila con `ima` NULL, en `ruesma_rep`
 → 1 fila con `DATALENGTH(ima)` = bytes enviados, `SELECT * FROM dbo.rcg WHERE
-gra = <ide negocio>` → 1 fila; y **el gráfico se abre desde la ficha en Sigrid**.
+gra = <ide negocio>` → 1 fila; la 4ª consulta, huérfanos de la prueba,
+`SELECT g.ide, g.cod, g.res FROM dbo.gra g LEFT JOIN dbo.rcg r ON r.gra = g.ide
+WHERE r.ide IS NULL AND g.res = 'PRUEBA API - BORRAR'` → **ninguna fila**; y **el
+gráfico se abre desde la ficha en Sigrid**.
 
 ### T21 — idempotencia
 
