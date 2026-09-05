@@ -97,6 +97,21 @@ Dos cosas que merecen sobrevivir a esta sesión:
 
 ## Lo siguiente en el backlog
 
+**Decisiones del humano el 2026-09-05 sobre F-004:**
+
+- **Aprobado el cambio de regla de gobierno**: «`ruesma_rep` no se escribe»
+  pasa a «se escribe **solo** por `sigrid/concepto-grafico`, nunca por
+  `sql/write`», en `CLAUDE.md`, `CHECKPOINTS.md` (C3) y `docs/ARCHITECTURE.md`
+  (R24, T16 de la spec).
+- **Q4, Q5, Q7 y T1 resueltos con lecturas** por `sql/read`, informe en
+  [`explore_F-004_mediciones.md`](explore_F-004_mediciones.md): Sigrid no
+  interpreta el formato de `cod` (tolera 31.941 nombres de fichero), no usa
+  `guid` (0 de 643.668 filas) y no escribe `dbo.log` al importar gráficos
+  (0 filas `tab='gra'` en 8,4 M): no hay cuarta escritura. **Lo que cambia el
+  diseño**: la fila documental lleva siempre `gratipide=0` y `res=''`, y `rcg`
+  tiene `feclee` y `fecalt`, ausentes del diccionario. Hay **1 gráfico de clase
+  35 sin pareja documental**, por identificar antes de T19.
+
 **F-004** (endpoint `sigrid/concepto-grafico`), rigor `critico`, **en marcha**:
 el spec-author redacta `specs/F-004-endpoint-concepto-grafico/` a partir de
 `docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md` y de lo medido en
