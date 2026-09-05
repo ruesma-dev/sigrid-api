@@ -33,6 +33,71 @@ Dos cosas que el reviewer debe mirar con lupa, dichas de frente:
   puede comprobar sin escribir. Si fallara, sería un `ROLLBACK` con nada
   escrito; el arreglo sería `CAST(? AS image)`. Lo despeja T20.
 
+## Verificaciones MANUAL de F-004 pendientes (humano), con su comando exacto
+
+Todas después de desplegar. `$BASE` = `SIGRID_API_BASE_URL`, `$KEY` =
+`SIGRID_API_FUNCTION_KEY` (del `.env` de `albaranes/services/albaranes-persistencia`).
+Cabeceras siempre: `x-functions-key: $KEY`, `Content-Type: application/json`.
+
+### T18 — desplegar y fijar las App Settings nuevas, cerradas
+
+```powershell
+func azure functionapp publish func-sigridapi-dev-huyke --python
+az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings `
+  SIGRID_DOCUMENT_WRITE_ENABLED=false SIGRID_DOCUMENT_WRITE_DATABASE=ruesma_rep `
+  SIGRID_DOCUMENT_ALLOWED_CONTIP='[708]' SIGRID_DOCUMENT_ALLOWED_GRATIPIDE='[35]'
+az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke `
+  --query "[?starts_with(name,'SIGRID_DOCUMENT') || name=='ALLOWED_WRITE_DATABASES']"
+```
+**Criterio:** las cuatro con esos valores y `ALLOWED_WRITE_DATABASES` sigue en
+`["ruesma"]`. Para la prueba en la **obra 404** hay que medir antes el `tip` del
+concepto (albarán/contrato) y añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+
+### T19 — dry-run contra producción (100 % lectura)
+
+Paso previo, `POST $BASE/api/sql/read` con `database: "ruesma"`, para anotar la
+huérfana real de clase 35 (su `con`):
+```sql
+SELECT n.ide, n.cod, n.res, n.fec, r.con FROM dbo.gra n JOIN dbo.rcg r ON r.gra = n.ide
+LEFT JOIN ruesma_rep.dbo.gra d ON d.emp = n.emp AND d.cod = n.cod
+WHERE n.gratipide = 35 AND d.ide IS NULL
+```
+Después, `POST $BASE/api/sigrid/concepto-grafico` **sin `commit`**, contra una
+reclamación normal y contra la de la huérfana:
+```json
+{"database": "ruesma", "conide": <ide reclamación>, "contip": 708, "gratipide": 35,
+ "res": "PRUEBA API - BORRAR", "nom": "prueba.pdf", "usu": "<tu login Sigrid>",
+ "contenido_base64": "<PDF pequeño en base64>"}
+```
+Y los negativos, cambiando un campo cada vez: `conide` de una factura →
+`tipo_de_concepto_no_coincide`; un PNG en base64 → `tipo_de_fichero_no_permitido`;
+`usu` inventado → `usuario_no_valido`.
+**Criterio:** `committed:false`, `dry_run:true`, `filas_afectadas:0`, las filas
+E4/E5 del preview completas; en la huérfana `idempotente:false` con el aviso; y
+después `SELECT MAX(ide) FROM dbo.gra` en `ruesma` y en `ruesma_rep` **sin cambiar**.
+Respuestas pegadas en `impl_F-004.md`.
+
+### T20 — primer `commit:true` (autorización expresa, una sola llamada)
+
+Con `SIGRID_DOCUMENT_WRITE_ENABLED=true` y `SIGRID_DOMAIN_WRITE_ENABLED=true`
+solo durante esa ventana, la misma petición de T19 con `"commit": true` sobre la
+reclamación (u obra 404) elegida. Luego `POST $BASE/api/documents/read`:
+```json
+{"database": "ruesma_rep", "table": "gra", "id_column": "cod",
+ "id_value": "<cod devuelto>", "blob_column": "ima"}
+```
+**Criterio:** `sha256` del binario descargado idéntico al enviado; en `ruesma`,
+`SELECT * FROM dbo.gra WHERE cod = ?` → 1 fila con `ima` NULL, en `ruesma_rep`
+→ 1 fila con `DATALENGTH(ima)` = bytes enviados, `SELECT * FROM dbo.rcg WHERE
+gra = <ide negocio>` → 1 fila; y **el gráfico se abre desde la ficha en Sigrid**.
+
+### T21 — idempotencia
+
+Repetir **exactamente** la llamada de T20 con `"commit": true`.
+**Criterio:** `idempotente:true`, `filas_afectadas:0`, y
+`SELECT COUNT(*) FROM dbo.rcg r JOIN dbo.gra g ON g.ide = r.gra WHERE g.cod = ?`
+sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
+
 ## Lo que espera al humano, por orden
 
 ### 1. Push — HECHO el 2026-09-05
