@@ -8,7 +8,7 @@
 - [x] T5: Escribir `tests/test_sql_query_guard_bases.py` (R7, R8) en ROJO y enganchar el detector en `SqlQueryGuard.validate()`.  |  Verificación: `python -m pytest tests/test_sql_query_guard_bases.py` en verde
 - [x] T6: Comprobar que no hay regresión en la suite completa (R10).  |  Verificación: `python -m pytest -q` en verde, con los 341 tests previos incluidos
 - [x] T7: Revisar `scripts/` en busca de consultas con nombres de tres partes que hoy funcionen y quedarían rechazadas; si alguna aparece, anotarla en `progress/impl_F-003.md` y decidir antes de cerrar.  |  Verificación: `grep -rniE "(ruesma|ruesma_rep|master)\.[a-z_]*\." scripts/` revisado uno a uno
-- [ ] T8: **MANUAL** — con el humano: ejecutar una consulta real de un script contra la API desplegada y comprobar que sigue respondiendo igual.  |  Verificación: salida del script comparada con la anterior
+- [x] T8: **MANUAL** — con el humano: ejecutar una consulta real de un script contra la API desplegada y comprobar que sigue respondiendo igual.  |  Verificación: salida del script comparada con la anterior
 - [x] T9: Documentar la defensa en `docs/ARCHITECTURE.md` (sección de acceso a datos) y en `azure-apps/sigrid_api.md` §5, donde hoy se afirma que la lista blanca de bases protege la documental.  |  Verificación: el reviewer comprueba que lo escrito coincide con el código
 - [x] T10: Ejecutar `bash harness/init.sh` en verde.  |  Verificación: termina en ENTORNO LISTO
 - [x] T11: Corregir los dos falsos positivos que encontró el reviewer (`esquema.tabla.*` y el apóstrofo dentro de `[corchetes]`), con sus tests.  |  Verificación: `python -m pytest tests/test_database_reference_guard.py -q` en verde

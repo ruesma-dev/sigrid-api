@@ -2,31 +2,35 @@
 # Trabajo en curso
 
 > **F-003 cerrada el 2026-09-05 con veredicto APROBADO del reviewer y
-> `init.sh` en verde.** No hay ninguna feature `in_progress`. Lo que queda de
-> F-003 son dos gestos del humano —el merge y la verificación T8— y están
-> abajo. El prompt para retomar, al final.
+> `init.sh` en verde.** No hay ninguna feature `in_progress`. El merge a `dev`
+> y la verificación T8 están hechos; solo falta el push, que lo hace el humano. El prompt para retomar, al final.
 
 ## Lo que espera al humano, por orden
 
-### 1. Merge de F-003 a `dev`
+### 1. Push de `dev` — lo hace el humano
 
-Rama `feature/F-003-guardia-bases-cruzadas`, **22 commits** sobre `dev`, árbol
-limpio. Los agentes no mergean ni empujan: **nada se ha subido a ningún
-remoto**. `dev` sigue **7 commits por delante de `origin/dev`** sin empujar, y
+F-003 está mergeada en `dev` (`e4c071b`, `--no-ff`) y desplegada. Los agentes
+no empujan: **nada se ha subido a ningún remoto**. `main` está 34 commits por
+detrás de `dev` y 0 por delante: un fast-forward, si se quiere. `dev` sigue **7 commits por delante de `origin/dev`** sin empujar, y
 `azure-apps` tiene 1 commit local (`5967cd8`) igual de local.
 
-### 2. T8 — verificación MANUAL, y solo DESPUÉS de desplegar
+### 2. T8 — HECHA el 2026-09-05, tras desplegar
 
-```bash
-cd C:/Users/pgris/PycharmProjects/albaranes-persistencia
-python scripts/diagnose_sigrid_contrato_docs.py
-```
+Desplegado `dev` (`e4c071b`) en `func-sigridapi-dev-huyke` con
+`func azure functionapp publish`. Verificación en dos mitades, las dos medidas:
 
-Usa `LEFT JOIN {database_rep}.dbo.gra`, que es el patrón que el guardia tiene
-que seguir dejando pasar. **Criterio:** devuelve lo mismo que antes, sin ningún
-error de «base de datos no permitida». Es la única tarea de `tasks.md` que
-sigue abierta, y no bloquea el cierre: no se puede ejecutar antes del
-despliegue.
+- **Nada se rompió.** `diagnose_sigrid_contrato_docs.py B86359866 0695` desde
+  `albaranes-persistencia`, antes y después del despliegue: salida
+  **byte a byte idéntica** (2.370 bytes). Contrato 2441136, VÍA 1 con 2 filas
+  por `JOIN ruesma_rep.dbo.gra`, vías 2-4 con 0 y sin ningún error.
+- **El guardia está activo.** Por `sql/read` con `database: ruesma`:
+  `FROM msdb.dbo.sysjobs` → **400** «nombra la base `msdb`, que no está
+  permitida»; `srv.ruesma.dbo.con` → **400** «cuatro partes o más»;
+  `FROM ruesma_rep.dbo.gra` → **200**, 1 fila. Antes de F-003 las dos
+  primeras se colaban.
+
+Con esto **no queda ninguna tarea abierta en F-003**: `tasks.md` T1–T16 en
+`[x]`.
 
 ## Qué se hizo en la sesión del 2026-09-05
 

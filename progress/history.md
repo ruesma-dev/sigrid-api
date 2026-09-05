@@ -98,6 +98,7 @@ no los esconde—, así que ninguna línea del guardia queda dada por cubierta s
 estarlo. El diagnóstico de `harness/mutacion_paralela.py` queda como trabajo
 aparte, para portar a `arnes-base`.
 
-**Deuda que sale de aquí:** T8, la verificación manual contra la API
-desplegada, **solo se puede hacer después de desplegar** y la ejecuta el
-humano.
+**T8, la verificación manual contra la API desplegada, hecha el 2026-09-05**
+tras desplegar `dev`: salida del script de `albaranes-persistencia` idéntica
+byte a byte antes y después, y el guardia rechazando con 400 lo que antes se
+colaba. Detalle en `current.md` de esa sesión.
