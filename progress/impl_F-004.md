@@ -157,7 +157,9 @@ ruta se invoca con un `func.HttpRequest` construido a mano.
 ## 6 · Evidencias
 
 Todas medidas sobre **`87098d6`** (`feature/F-004-endpoint-concepto-grafico`),
-con `bash harness/init.sh` completo.
+con `bash harness/init.sh` completo. El commit posterior (`90cdcb8`) solo añade
+este informe y `current.md`: **ni una línea de código ni de test cambia** desde
+el SHA medido, y `init.sh` se volvió a ejecutar después con el mismo resultado.
 
 | Evidencia | Valor |
 |---|---|
