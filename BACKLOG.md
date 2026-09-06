@@ -5,12 +5,14 @@
 
 Resumen: **5 features**, 2 abiertas, 3 terminadas.
 
+En curso: **F-005**.
+
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-005 | concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes | 5 | pendiente | critico | `feature/F-005-grafico-sin-clase` |
+| F-005 | concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes | 5 | en curso | critico | `feature/F-005-grafico-sin-clase` |
 
 ## Terminadas
 
@@ -30,7 +32,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-005 · concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes
 
-estado **pendiente** · prioridad 5 · rigor `critico` · SDD no · rama `feature/F-005-grafico-sin-clase`
+estado **en curso** · prioridad 5 · rigor `critico` · SDD no · rama `feature/F-005-grafico-sin-clase`
 
 Sigrid adjunta los documentos de contratos (con.tip 44) y albaranes de compra (con.tip 14, tabla dca, cod AC) SIN clase de grafico: gratipide=0 en el 99,98 % de los casos, medido el 2026-09-06. El endpoint sigrid/concepto-grafico (F-004) exige una clase de la lista blanca que exista en dbo.auxgra, asi que hoy rechaza gratipide=0. Se admite 0 como 'sin clase' SOLO cuando SIGRID_DOCUMENT_ALLOWED_GRATIPIDE lo incluya explicitamente, sin consultar auxgra ni tipaso en ese caso, y sin relajar nada mas. Decidido por el humano (opcion 2) frente a usar la clase 40 DOCUMENTOS GENERALES. Primera prueba real en la obra 0404 (CUBIERTA NAVE 14 - JOHN DEERE).
 
