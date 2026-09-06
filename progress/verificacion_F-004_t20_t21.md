@@ -43,9 +43,11 @@ mismo `cod`) y avisa «ese documento ya estaba adjunto… el cod que se habría
 generado era 202609060934208219.prueba». `COUNT` de enlaces con ese `cod`:
 **1**; filas de negocio de la prueba: **1**.
 
-**Criterios de T20 y T21: cumplidos.** Pendiente del humano: abrir el gráfico
-desde la ficha de `RS26.08/0123` en Sigrid, y decidir si el adjunto de prueba
-se borra desde la UI de Sigrid.
+**Criterios de T20 y T21: cumplidos.** El humano abrió el gráfico desde la
+ficha de `RS26.08/0123` en Sigrid (obra 0677, unidad «0677.03VILLA 5.») el
+2026-09-06: se ve `prueba_f004.pdf` y abre como PDF en blanco, que es lo que se
+envió (una página vacía de 303 bytes). **La relación por `(emp, cod)` funciona
+de punta a punta.** Queda a su criterio borrar el adjunto de prueba desde la UI.
 
 ## Observación menor (no bloquea)
 
