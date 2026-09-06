@@ -19,14 +19,15 @@
    reclamación 2811179 con `usu=prueba`: tres filas escritas, `sha256`
    idéntico por `documents/read`, sin huérfanos, repetición idempotente
    ([`verificacion_F-004_t20_t21.md`](verificacion_F-004_t20_t21.md)).
-   `SIGRID_DOCUMENT_WRITE_ENABLED` **vuelve a `false`**.
+   El humano abrió el gráfico desde la ficha de Sigrid (obra 0677, PDF en
+   blanco, correcto) y ordenó **abrir el endpoint**: desde el 2026-09-06
+   `SIGRID_DOCUMENT_WRITE_ENABLED=true` de forma estable.
 
-   **Le queda al humano:** abrir el gráfico desde la ficha de `RS26.08/0123`
-   en Sigrid; decidir si el adjunto de prueba (`cod`
-   `202609060933388219.prueba`) se borra desde la UI; y **decidir cuándo se
-   abre a Posventa** (`SIGRID_DOCUMENT_WRITE_ENABLED=true` de forma estable y
-   su function key). Para la obra 404: el tipo de un contrato es 44; un
-   albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+   **Le queda al humano:** decidir si el adjunto de prueba (`cod`
+   `202609060933388219.prueba`, reclamación `RS26.08/0123`) se borra desde la
+   UI de Sigrid, y dar a Posventa su function key (contrato en
+   `azure-apps/sigrid_api.md` §8.8). Para la obra 404: el tipo de un contrato
+   es 44; un albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
 
 ## Guion de T18-T21 (ya ejecutado el 2026-09-06; se conserva como referencia)
 
