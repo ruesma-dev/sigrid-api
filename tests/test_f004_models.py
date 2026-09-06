@@ -82,8 +82,10 @@ def test_f004_r1_los_textos_se_recortan() -> None:
     assert request.nom == "parte.pdf"
 
 
-@pytest.mark.parametrize("campo", ["conide", "contip", "gratipide"])
+@pytest.mark.parametrize("campo", ["conide", "contip"])
 def test_f004_r1_los_identificadores_son_enteros_positivos(campo: str) -> None:
+    """`gratipide` salio de esta lista en F-005: su 0 es legitimo («sin clase»)
+    y lo prueba `test_f005_el_modelo_acepta_gratipide_0`."""
     with pytest.raises(ValidationError):
         peticion(**{campo: 0})
 
@@ -228,7 +230,8 @@ def test_f004_r2_el_enlace_admite_ide_desconocido_en_el_caso_idempotente() -> No
         ("database", "r"),
         ("conide", 1),
         ("contip", 1),
-        ("gratipide", 1),
+        # 0 desde F-005: «sin clase». Antes era 1.
+        ("gratipide", 0),
         ("res", "x"),
         ("nom", "x"),
         ("usu", "u"),
