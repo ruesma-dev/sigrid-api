@@ -86,6 +86,27 @@
       "rigor": "critico",
       "priority": 4,
       "branch": "feature/F-004-endpoint-concepto-grafico"
+    },
+    {
+      "id": "F-005",
+      "title": "concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes",
+      "description": "Sigrid adjunta los documentos de contratos (con.tip 44) y albaranes de compra (tip 20, cod AC) SIN clase de grafico: gratipide=0 en el 99,98 % de los casos, medido el 2026-09-06. El endpoint sigrid/concepto-grafico (F-004) exige una clase de la lista blanca que exista en dbo.auxgra, asi que hoy rechaza gratipide=0. Se admite 0 como 'sin clase' SOLO cuando SIGRID_DOCUMENT_ALLOWED_GRATIPIDE lo incluya explicitamente, sin consultar auxgra ni tipaso en ese caso, y sin relajar nada mas. Decidido por el humano (opcion 2) frente a usar la clase 40 DOCUMENTOS GENERALES. Primera prueba real en la obra 0404 (CUBIERTA NAVE 14 - JOHN DEERE).",
+      "acceptance": [
+        "Con 0 en SIGRID_DOCUMENT_ALLOWED_GRATIPIDE y gratipide=0 en la peticion, el guardia acepta la clase sin exigir fila en dbo.auxgra ni tipaso, y el caso de uso no ejecuta la lectura L2 de auxgra para esa peticion",
+        "Sin 0 en la lista, gratipide=0 sigue rechazandose con clase_de_grafico_no_permitida: el defecto de la App Setting no cambia",
+        "Las filas escritas para un documento sin clase son identicas a las que Sigrid crea para contratos y albaranes: negocio con gratipide=0, documental con gratipide=0 y res='', el resto de constantes iguales a las medidas (7.677 de 7.705 contratos y 11.352 de 11.352 albaranes desde 2025)",
+        "Ningun otro guardia ni validacion se relaja; ALLOWED_WRITE_DATABASES no cambia; ningun fichero de infrastructure/security fuera de document_write_guard.py se toca",
+        "Tests unitarios sin red para las tres ramas (0 permitido, 0 no permitido, clase >0 sigue exigiendo auxgra), en fase RED",
+        "Campana de mutacion sin supervivientes o con equivalentes aceptados por el humano",
+        "azure-apps/sigrid_api.md 4 y 8.8 documentan el valor 0 y su significado; los tipos de concepto 44 y 20 quedan documentados como admitidos por configuracion",
+        "MANUAL (humano): dry-run y primer commit:true sobre un contrato o albaran de la obra 0404, con las App Settings ampliadas ([708,44,20] y [35,0]) y autorizacion expresa; comprobacion desde la ficha de Sigrid",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": false,
+      "rigor": "critico",
+      "priority": 5,
+      "branch": "feature/F-005-grafico-sin-clase"
     }
   ]
 }
