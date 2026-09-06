@@ -3,7 +3,7 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **4 features**, 1 abiertas, 3 terminadas.
+Resumen: **5 features**, 1 abiertas, 4 terminadas.
 
 ## Trabajo abierto
 
@@ -18,6 +18,7 @@ Resumen: **4 features**, 1 abiertas, 3 terminadas.
 | F-002 | Spike: viabilidad de escribir en la base documental ruesma_rep | 2 | critico |
 | F-003 | El guardia de escritura debe validar tambien las bases nombradas dentro del SQL | 3 | critico |
 | F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | 4 | critico |
+| F-005 | concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes | 5 | critico |
 
 ## Detalle
 
@@ -44,3 +45,9 @@ SqlWriteGuard valida el campo 'database' de la peticion, pero no los identificad
 estado **terminada** · prioridad 4 · rigor `critico` · SDD sí · rama `feature/F-004-endpoint-concepto-grafico`
 
 Implementar POST /api/sigrid/concepto-grafico segun docs/propuestas/2026-09-03_endpoint_adjuntar_documento.md, actualizada con lo medido en F-002. Hace las tres escrituras en una sola transaccion local (binario en ruesma_rep.gra, metadatos en ruesma.gra con el mismo cod, enlace en ruesma.rcg) y no abre sql/write a la base documental. Dry-run por defecto. Lo pide postventa-incidencias F-012.
+
+### F-005 · concepto-grafico admite documentos sin clase de grafico, como Sigrid en contratos y albaranes
+
+estado **terminada** · prioridad 5 · rigor `critico` · SDD no · rama `feature/F-005-grafico-sin-clase`
+
+Sigrid adjunta los documentos de contratos (con.tip 44) y albaranes de compra (con.tip 14, tabla dca, cod AC) SIN clase de grafico: gratipide=0 en el 99,98 % de los casos, medido el 2026-09-06. El endpoint sigrid/concepto-grafico (F-004) exige una clase de la lista blanca que exista en dbo.auxgra, asi que hoy rechaza gratipide=0. Se admite 0 como 'sin clase' SOLO cuando SIGRID_DOCUMENT_ALLOWED_GRATIPIDE lo incluya explicitamente, sin consultar auxgra ni tipaso en ese caso, y sin relajar nada mas. Decidido por el humano (opcion 2) frente a usar la clase 40 DOCUMENTOS GENERALES. Primera prueba real en la obra 0404 (CUBIERTA NAVE 14 - JOHN DEERE).

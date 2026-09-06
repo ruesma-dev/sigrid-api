@@ -82,8 +82,10 @@ def test_f004_r1_los_textos_se_recortan() -> None:
     assert request.nom == "parte.pdf"
 
 
-@pytest.mark.parametrize("campo", ["conide", "contip", "gratipide"])
+@pytest.mark.parametrize("campo", ["conide", "contip"])
 def test_f004_r1_los_identificadores_son_enteros_positivos(campo: str) -> None:
+    """`gratipide` salio de esta lista en F-005: su 0 es legitimo («sin clase»)
+    y lo prueba `test_f005_el_modelo_acepta_gratipide_0`."""
     with pytest.raises(ValidationError):
         peticion(**{campo: 0})
 
@@ -228,7 +230,8 @@ def test_f004_r2_el_enlace_admite_ide_desconocido_en_el_caso_idempotente() -> No
         ("database", "r"),
         ("conide", 1),
         ("contip", 1),
-        ("gratipide", 1),
+        # 0 desde F-005: «sin clase». Antes era 1.
+        ("gratipide", 0),
         ("res", "x"),
         ("nom", "x"),
         ("usu", "u"),
@@ -255,3 +258,26 @@ def test_f004_r1_un_base64_con_longitud_no_multiplo_de_cuatro_se_rechaza() -> No
     """
     with pytest.raises(ValidationError):
         peticion(contenido_base64="AAAAA")
+
+
+# --- F-005: gratipide admite el 0 («sin clase») ------------------------------
+
+
+def test_f005_el_modelo_acepta_gratipide_0() -> None:
+    """El 0 es la ausencia de clase con la que Sigrid adjunta en contratos y
+    albaranes de compra. Quien decide si vale es la lista blanca, no el modelo."""
+    assert peticion(gratipide=0).gratipide == 0
+
+
+@pytest.mark.parametrize("valor", [-1, -35])
+def test_f005_el_modelo_sigue_rechazando_un_gratipide_negativo(valor: int) -> None:
+    """Bajar el suelo a 0 no lo quita: un negativo nunca llega al guardia."""
+    with pytest.raises(ValidationError):
+        peticion(gratipide=valor)
+
+
+def test_f005_conide_y_contip_siguen_exigiendo_al_menos_1() -> None:
+    """Control negativo: el suelo baja SOLO para `gratipide`."""
+    for campo in ("conide", "contip"):
+        with pytest.raises(ValidationError):
+            peticion(**{campo: 0})

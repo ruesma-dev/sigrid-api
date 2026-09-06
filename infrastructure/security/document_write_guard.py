@@ -141,13 +141,26 @@ class DocumentWriteGuard:
     def validar_clase_de_grafico(
         *, gratipide: int, permitidas: list[int], existe: bool, fecbaj: int | None
     ) -> None:
-        """Clase de grafico (`auxgra`): en la lista blanca, existente y viva."""
+        """
+        Clase de grafico (`auxgra`): en la lista blanca, existente y viva.
+
+        Excepcion medida (F-005): `gratipide=0` NO es una clase, es la AUSENCIA
+        de clase. Es como Sigrid adjunta los documentos de contratos (`con.tip`
+        44, 7.677 de 7.705) y de albaranes de compra (`tip` 14, todos los
+        medidos desde 2025) [MEDIDO 2026-09-06]. El 0 no tiene fila en
+        `dbo.auxgra`, asi que exigirle `existe` o mirarle `fecbaj` lo
+        rechazaria siempre; su unico control es la lista blanca, que hay que
+        ampliar a mano (`SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`) para admitirlo.
+        Con la lista vacia —el defecto— el 0 se rechaza como cualquier otra.
+        """
         if gratipide not in permitidas:
             raise ConceptoGraficoError(
                 f"La clase de grafico {gratipide} no esta permitida "
                 "(SIGRID_DOCUMENT_ALLOWED_GRATIPIDE).",
                 codigo="clase_de_grafico_no_permitida",
             )
+        if gratipide == 0:
+            return
         if not existe:
             raise ConceptoGraficoError(
                 f"La clase de grafico {gratipide} no existe en dbo.auxgra.",

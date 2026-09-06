@@ -255,3 +255,70 @@ def test_f004_r8_el_error_de_firma_nombra_las_firmas_que_si_valen() -> None:
     with pytest.raises(ConceptoGraficoError) as sin_firmas:
         validar(_PDF, firmas_permitidas=[])
     assert "(ninguna)" in str(sin_firmas.value)
+
+
+# --- F-005: la clase 0, «sin clase», como Sigrid en contratos y albaranes ----
+
+
+def test_f005_la_clase_0_permitida_pasa_sin_exigir_fila_en_auxgra() -> None:
+    """
+    El 0 NO es una fila de `dbo.auxgra`: es la ausencia de clase con la que
+    Sigrid adjunta el 99,98 % de los documentos de contratos (`con.tip` 44) y
+    el 100 % de los de albaranes de compra (`tip` 14) [MEDIDO 2026-09-06]. Asi
+    que ni existe ni puede estar de baja, y exigirselo lo rechazaria siempre.
+    """
+    DocumentWriteGuard.validar_clase_de_grafico(
+        gratipide=0, permitidas=[35, 0], existe=False, fecbaj=None
+    )
+
+
+def test_f005_la_clase_0_permitida_pasa_aunque_lleguen_existe_falso_y_un_fecbaj() -> None:
+    """Para el 0 no hay baja que mirar: la lista blanca es el UNICO control."""
+    DocumentWriteGuard.validar_clase_de_grafico(
+        gratipide=0, permitidas=[0], existe=False, fecbaj=20250101
+    )
+
+
+def test_f005_la_clase_0_fuera_de_la_lista_blanca_se_rechaza() -> None:
+    with pytest.raises(ConceptoGraficoError) as excinfo:
+        DocumentWriteGuard.validar_clase_de_grafico(
+            gratipide=0, permitidas=[35], existe=False, fecbaj=None
+        )
+    assert codigo_de(excinfo) == "clase_de_grafico_no_permitida"
+
+
+def test_f005_con_la_lista_blanca_vacia_el_0_tampoco_vale() -> None:
+    """Lista vacia = ninguna clase, tampoco la ausencia de clase. Es el defecto
+    de `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`, que no cambia con F-005."""
+    with pytest.raises(ConceptoGraficoError) as excinfo:
+        DocumentWriteGuard.validar_clase_de_grafico(
+            gratipide=0, permitidas=[], existe=False, fecbaj=None
+        )
+    assert codigo_de(excinfo) == "clase_de_grafico_no_permitida"
+
+
+@pytest.mark.parametrize(
+    "existe, fecbaj",
+    [
+        (False, None),      # no existe en auxgra
+        (True, 20250101),   # existe pero esta dada de baja
+    ],
+)
+def test_f005_una_clase_mayor_que_cero_sigue_exigiendo_auxgra_con_el_0_permitido(
+    existe: bool, fecbaj: int | None
+) -> None:
+    """
+    Control negativo: admitir el 0 no relaja NADA para las demas clases. Ni
+    siquiera cuando el 0 esta en la misma lista blanca.
+    """
+    with pytest.raises(ConceptoGraficoError) as excinfo:
+        DocumentWriteGuard.validar_clase_de_grafico(
+            gratipide=35, permitidas=[35, 0], existe=existe, fecbaj=fecbaj
+        )
+    assert codigo_de(excinfo) == "clase_de_grafico_no_permitida"
+
+
+def test_f005_una_clase_mayor_que_cero_viva_sigue_pasando_con_el_0_permitido() -> None:
+    DocumentWriteGuard.validar_clase_de_grafico(
+        gratipide=35, permitidas=[35, 0], existe=True, fecbaj=0
+    )

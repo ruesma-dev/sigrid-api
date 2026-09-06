@@ -68,7 +68,11 @@ class AttachConceptoGraficoRequest(BaseModel):
     database: str = Field(..., min_length=1)          # base de NEGOCIO (ruesma)
     conide: int = Field(..., ge=1)                    # con.ide del concepto
     contip: int = Field(..., ge=1)                    # con.tip esperado (se coteja)
-    gratipide: int = Field(..., ge=1)                 # clase de grafico (auxgra.ide)
+    # 0 = SIN clase (F-005): no es un `auxgra.ide`, es la ausencia de clase, y
+    # es como Sigrid adjunta en contratos y albaranes de compra. Quien decide
+    # si vale es la lista blanca `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`, no el
+    # modelo; el suelo 0 solo deja que llegue al guardia. Los negativos, no.
+    gratipide: int = Field(..., ge=0)                 # clase de grafico (auxgra.ide) o 0
     res: str = Field(..., min_length=1, max_length=48)
     nom: str = Field(..., min_length=1, max_length=255)
     # A proposito 24: gra.usu es varchar(128), pero el login tiene que existir

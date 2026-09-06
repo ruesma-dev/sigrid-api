@@ -220,3 +220,45 @@ def test_f004_r3_la_ruta_toma_settings_y_repositorio_de_las_dos_primeras_posicio
     ruta()(peticion_http())
 
     assert recibido == {"repository": "dep1", "settings": "dep0"}
+
+
+# --- F-005: gratipide=0 llega al caso de uso y su rechazo sale con codigo ----
+
+
+def test_f005_r3_un_gratipide_0_no_permitido_sale_como_400_con_su_codigo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Dos cosas a la vez: que el 0 pasa la validacion del modelo (si no, la ruta
+    contestaria `ValidationError` y el caso de uso ni se llamaria) y que el
+    rechazo de la lista blanca viaja con `codigo`, que es por lo que decide el
+    cliente.
+    """
+    vistos: list[Any] = []
+
+    def falla(request: Any) -> Any:
+        vistos.append(request.gratipide)
+        raise ConceptoGraficoError(
+            "La clase de grafico 0 no esta permitida (SIGRID_DOCUMENT_ALLOWED_GRATIPIDE).",
+            codigo="clase_de_grafico_no_permitida",
+        )
+
+    con_caso_de_uso(monkeypatch, falla)
+    respuesta = ruta()(peticion_http({**_CUERPO, "gratipide": 0}))
+
+    assert vistos == [0]
+    assert respuesta.status_code == 400
+    cuerpo = cuerpo_de(respuesta)
+    assert cuerpo["ok"] is False
+    assert cuerpo["details"]["codigo"] == "clase_de_grafico_no_permitida"
+    assert cuerpo["details"]["type"] == "ConceptoGraficoError"
+
+
+def test_f005_r3_un_gratipide_negativo_lo_para_el_modelo_en_la_ruta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    con_caso_de_uso(monkeypatch, lambda _request: pytest.fail("no deberia llegar al caso de uso"))
+    respuesta = ruta()(peticion_http({**_CUERPO, "gratipide": -1}))
+
+    assert respuesta.status_code == 400
+    assert cuerpo_de(respuesta)["details"]["type"] == "ValidationError"
