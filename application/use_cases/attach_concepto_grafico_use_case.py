@@ -262,33 +262,29 @@ class AttachConceptoGraficoUseCase:
         sentencias: ConceptoGraficoStatements,
         avisos: list[str],
     ) -> None:
-        permitidas = self._settings.sigrid_document_allowed_gratipide
+        fila: tuple[Any, ...] | None = None
 
-        if request.gratipide == 0:
-            # F-005: "sin clase". El 0 no tiene fila en `dbo.auxgra`, asi que
-            # la L2 no se ejecuta: preguntar por el garantiza cero filas y
-            # gastaria una ida y vuelta al ERP en cada contrato y cada albaran.
-            # El guardia decide solo con la lista blanca; si el 0 no esta,
-            # rechaza igual (`clase_de_grafico_no_permitida`) y sin leer nada.
-            # Tampoco hay `tipaso` del que avisar: el aviso saldria SIEMPRE y
-            # se convertiria en el ruido que tapa el que si importa.
-            DocumentWriteGuard.validar_clase_de_grafico(
-                gratipide=0, permitidas=permitidas, existe=False, fecbaj=None
-            )
-            return
+        if request.gratipide != 0:
+            filas = self._leer(request, sentencias.leer_clase(request.gratipide))
+            fila = filas[0] if filas else None
+        # F-005: el 0 es "sin clase" y NO tiene fila en `dbo.auxgra`, asi que la
+        # L2 no se ejecuta: preguntar por el garantiza cero filas y gastaria una
+        # ida y vuelta al ERP en cada contrato y cada albaran. Se cae por aqui
+        # con `fila = None`, que es exactamente la verdad, y el guardia decide
+        # solo con la lista blanca: si el 0 no esta, rechaza igual
+        # (`clase_de_grafico_no_permitida`) sin haber leido nada.
 
-        filas = self._leer(request, sentencias.leer_clase(request.gratipide))
-        fila = filas[0] if filas else None
         DocumentWriteGuard.validar_clase_de_grafico(
             gratipide=request.gratipide,
-            permitidas=permitidas,
+            permitidas=self._settings.sigrid_document_allowed_gratipide,
             existe=fila is not None,
             fecbaj=int(fila[3] or 0) if fila else None,
         )
         if fila is not None and not (fila[4] or "").strip():
             # `tipaso` dice a que tipos de concepto se asocia la clase. No se
             # valida (la correspondencia no esta medida), pero si esta vacio
-            # conviene que el humano lo sepa.
+            # conviene que el humano lo sepa. Sin clase no hay `tipaso` del que
+            # avisar: el aviso saldria SIEMPRE y taparia el que si importa.
             avisos.append(
                 f"La clase de grafico {request.gratipide} no declara tipaso en dbo.auxgra."
             )
