@@ -12,18 +12,23 @@
 1. **Merge de `feature/F-004-endpoint-concepto-grafico` a `dev`** y push (los
    agentes no empujan). `azure-apps` tiene commits locales (`a40684f`,
    `157b392`) y **no tiene remoto**.
-2. **T18 y T19 HECHAS el 2026-09-06** (desplegado `70ac430`, App Settings
-   cerradas, dry-run contra una reclamación real y contra la huérfana, tres
-   negativos, `MAX(ide)` sin cambios): detalle en
-   [`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md).
-   **Quedan T20 y T21**: el primer `commit:true`, con autorización expresa
-   del humano para esa llamada, sobre la reclamación que elija (candidata
-   2811179 `RS26.08/0123`; la huérfana es 2530061), abriendo
-   `SIGRID_DOCUMENT_WRITE_ENABLED=true` solo en esa ventana. Para la obra 404
-   el tipo de concepto de un contrato es **44** (medido); un albarán tendrá
-   el suyo: añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP` antes.
+2. **T18-T21 HECHAS el 2026-09-06.** Desplegado `70ac430`, App Settings
+   cerradas, dry-run en verde
+   ([`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md)) y el
+   **primer `commit:true` real**, autorizado por el humano, sobre la
+   reclamación 2811179 con `usu=prueba`: tres filas escritas, `sha256`
+   idéntico por `documents/read`, sin huérfanos, repetición idempotente
+   ([`verificacion_F-004_t20_t21.md`](verificacion_F-004_t20_t21.md)).
+   `SIGRID_DOCUMENT_WRITE_ENABLED` **vuelve a `false`**.
 
-## Verificaciones MANUAL de F-004 pendientes (humano), con su comando exacto
+   **Le queda al humano:** abrir el gráfico desde la ficha de `RS26.08/0123`
+   en Sigrid; decidir si el adjunto de prueba (`cod`
+   `202609060933388219.prueba`) se borra desde la UI; y **decidir cuándo se
+   abre a Posventa** (`SIGRID_DOCUMENT_WRITE_ENABLED=true` de forma estable y
+   su function key). Para la obra 404: el tipo de un contrato es 44; un
+   albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+
+## Guion de T18-T21 (ya ejecutado el 2026-09-06; se conserva como referencia)
 
 Todas después de desplegar. `$BASE` = `SIGRID_API_BASE_URL`, `$KEY` =
 `SIGRID_API_FUNCTION_KEY` (del `.env` de `albaranes/services/albaranes-persistencia`).
