@@ -255,3 +255,26 @@ def test_f004_r1_un_base64_con_longitud_no_multiplo_de_cuatro_se_rechaza() -> No
     """
     with pytest.raises(ValidationError):
         peticion(contenido_base64="AAAAA")
+
+
+# --- F-005: gratipide admite el 0 («sin clase») ------------------------------
+
+
+def test_f005_el_modelo_acepta_gratipide_0() -> None:
+    """El 0 es la ausencia de clase con la que Sigrid adjunta en contratos y
+    albaranes de compra. Quien decide si vale es la lista blanca, no el modelo."""
+    assert peticion(gratipide=0).gratipide == 0
+
+
+@pytest.mark.parametrize("valor", [-1, -35])
+def test_f005_el_modelo_sigue_rechazando_un_gratipide_negativo(valor: int) -> None:
+    """Bajar el suelo a 0 no lo quita: un negativo nunca llega al guardia."""
+    with pytest.raises(ValidationError):
+        peticion(gratipide=valor)
+
+
+def test_f005_conide_y_contip_siguen_exigiendo_al_menos_1() -> None:
+    """Control negativo: el suelo baja SOLO para `gratipide`."""
+    for campo in ("conide", "contip"):
+        with pytest.raises(ValidationError):
+            peticion(**{campo: 0})

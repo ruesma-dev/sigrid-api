@@ -22,6 +22,7 @@ from typing import Any
 import pytest
 
 from application.use_cases import attach_concepto_grafico_use_case as modulo
+from application.use_cases.concepto_grafico_statements import GRA_COLUMNAS
 from application.use_cases.attach_concepto_grafico_use_case import (
     AttachConceptoGraficoUseCase,
 )
@@ -728,3 +729,90 @@ def test_f004_r11_la_respuesta_del_commit_dice_que_no_fue_idempotente() -> None:
     assert respuesta.committed is True
     assert respuesta.dry_run is False
     assert respuesta.filas_afectadas == 3
+
+
+# --- F-005: gratipide=0, «sin clase», sin lectura de auxgra ------------------
+
+
+def _con_cero() -> SettingsDoble:
+    """Las App Settings del primer despliegue de F-005: 35 y el 0."""
+    return SettingsDoble(sigrid_document_allowed_gratipide=[35, 0])
+
+
+def test_f005_con_el_0_permitido_el_dry_run_hace_cinco_lecturas_sin_auxgra() -> None:
+    """
+    Una lectura menos que el caso de F-004 (seis): la L2 de `dbo.auxgra`
+    desaparece porque el 0 no es una fila de esa tabla. El orden de las otras
+    cinco no cambia.
+    """
+    respuesta, repositorio = ejecutar(settings=_con_cero(), gratipide=0)
+    assert [clave for clave, _ in repositorio.consultadas] == [
+        "concepto", "usuario", "pos", "idempotencia", "huerfanas",
+    ]
+    assert respuesta.dry_run is True
+    assert respuesta.grafico.gratipide == 0
+
+
+def test_f005_con_el_0_permitido_no_se_avisa_de_tipaso() -> None:
+    """Sin fila en `auxgra` no hay `tipaso` del que avisar. Avisar igualmente
+    pondria el aviso en TODOS los contratos y albaranes, que es como se pierde
+    el aviso que si importa."""
+    respuesta, _ = ejecutar(settings=_con_cero(), gratipide=0)
+    assert not any("tipaso" in aviso for aviso in respuesta.avisos)
+
+
+def test_f005_sin_el_0_en_la_lista_se_rechaza_y_no_se_lee_auxgra() -> None:
+    repositorio = RepositorioDoble()
+    settings = SettingsDoble(sigrid_document_allowed_gratipide=[35])
+    assert fallo(repositorio, settings, gratipide=0) == "clase_de_grafico_no_permitida"
+    assert [clave for clave, _ in repositorio.consultadas] == ["concepto"]
+
+
+def test_f005_el_defecto_de_la_app_setting_sigue_rechazando_el_0() -> None:
+    """`SIGRID_DOCUMENT_ALLOWED_GRATIPIDE` vacia = ninguna clase, tampoco el 0:
+    el defecto seguro de F-004 no cambia."""
+    settings = SettingsDoble(sigrid_document_allowed_gratipide=[])
+    assert fallo(settings=settings, gratipide=0) == "clase_de_grafico_no_permitida"
+
+
+def test_f005_una_clase_mayor_que_cero_sigue_leyendo_auxgra_con_el_0_permitido() -> None:
+    """Control negativo en el caso de uso: la L2 no desaparece para las demas
+    clases, y una que no exista en `auxgra` se sigue rechazando."""
+    repositorio = RepositorioDoble(lecturas={**_LECTURAS_FELICES, "clase": []})
+    assert fallo(repositorio, _con_cero(), gratipide=35) == "clase_de_grafico_no_permitida"
+    assert [clave for clave, _ in repositorio.consultadas] == ["concepto", "clase"]
+
+
+def test_f005_una_clase_mayor_que_cero_con_tipaso_vacio_sigue_avisando() -> None:
+    repositorio = RepositorioDoble(
+        lecturas={**_LECTURAS_FELICES, "clase": [(35, "PV002", "x", 0, "")]}
+    )
+    respuesta, _ = ejecutar(repositorio, _con_cero(), gratipide=35)
+    assert any("tipaso" in aviso for aviso in respuesta.avisos)
+
+
+def test_f005_las_dos_filas_del_preview_llevan_gratipide_0() -> None:
+    """E5 (negocio) escribe el 0 de la peticion; E4 (documental) ya escribia 0
+    siempre, y sigue igual. `res` mantiene su asimetria medida."""
+    respuesta, _ = ejecutar(settings=_con_cero(), gratipide=0)
+    assert respuesta.grafico.fila_negocio["gratipide"] == 0
+    assert respuesta.grafico.fila_documental["gratipide"] == 0
+    assert respuesta.grafico.fila_negocio["res"] == "PRUEBA API - BORRAR"
+    assert respuesta.grafico.fila_documental["res"] == ""
+
+
+def test_f005_el_commit_con_el_0_escribe_las_tres_filas_igual() -> None:
+    """La rama de escritura no cambia: sin clase se escribe lo mismo, con el 0
+    en `gratipide` de la fila de negocio."""
+    respuesta, repositorio = ejecutar(settings=_con_cero(), gratipide=0, commit=True)
+    assert respuesta.committed is True
+    assert respuesta.filas_afectadas == 3
+    assert repositorio.cursor is not None
+    posicion = GRA_COLUMNAS.index("gratipide")
+    escritas = {
+        clave: params
+        for clave, params in repositorio.cursor.ejecutadas
+        if clave in ("insert_negocio", "insert_documental")
+    }
+    assert escritas["insert_negocio"][posicion] == 0
+    assert escritas["insert_documental"][posicion] == 0

@@ -559,3 +559,41 @@ def test_f004_r13_el_cambio_de_hora_cuando_el_mes_acaba_en_domingo(
     """Por los DOS caminos: si el respaldo se equivocara solo estos anios, el
     sello saldria con una hora de mas durante una semana entera."""
     assert hora_local_de_madrid(instante_utc) == esperado
+
+
+# --- F-005: las filas de un documento «sin clase» ----------------------------
+
+
+def test_f005_la_fila_de_negocio_sin_clase_solo_cambia_en_gratipide(
+    sentencias: ConceptoGraficoStatements,
+) -> None:
+    """
+    Un documento sin clase escribe EXACTAMENTE lo mismo que uno con clase 35,
+    salvo el `gratipide` de la fila de negocio. La documental no cambia en
+    nada: ya escribia 0 (`GRATIPIDE_DOCUMENTAL`) antes de F-005.
+    """
+    cod_35, documental_35, negocio_35 = filas(sentencias, gratipide=35)
+    cod_0, documental_0, negocio_0 = filas(sentencias, gratipide=0)
+
+    assert cod_0 == cod_35
+    assert documental_0 == documental_35
+    assert documental_0["gratipide"] == 0
+    assert documental_0["res"] == ""
+
+    assert negocio_0["gratipide"] == 0
+    assert negocio_35["gratipide"] == 35
+    sin_clase = {k: v for k, v in negocio_0.items() if k != "gratipide"}
+    con_clase = {k: v for k, v in negocio_35.items() if k != "gratipide"}
+    assert sin_clase == con_clase
+    assert negocio_0["res"] == "PARTE FIRMADO"
+    assert negocio_0["vin"] == 3
+    assert negocio_0["ima"] is None
+
+
+def test_f005_el_insert_de_negocio_sin_clase_manda_el_0_en_su_columna(
+    sentencias: ConceptoGraficoStatements,
+) -> None:
+    _cod, _documental, negocio = filas(sentencias, gratipide=0)
+    _sql, params = sentencias.insertar_negocio(negocio)
+    assert params[_GRA_29.index("gratipide")] == 0
+    assert len(params) == 29
