@@ -102,7 +102,7 @@
         "MANUAL (humano): dry-run y primer commit:true sobre un contrato o albaran de la obra 0404, con las App Settings ampliadas ([708,44,14] y [35,0]) y autorizacion expresa; comprobacion desde la ficha de Sigrid",
         "bash harness/init.sh en verde"
       ],
-      "status": "in_progress",
+      "status": "done",
       "sdd": false,
       "rigor": "critico",
       "priority": 5,

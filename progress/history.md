@@ -147,3 +147,35 @@ no-regresión, no como diagnóstico.
 **Del arnés:** la campaña paralela produce falsos supervivientes de forma no
 reproducible; pista concreta: `ResultadoSuite.verde` cuenta el `exit 5` de
 pytest como suite verde. Sesgo pesimista; diagnóstico como trabajo aparte.
+
+---
+
+## F-005 · `concepto-grafico` admite documentos sin clase de gráfico
+
+**Cerrada el 2026-09-06.** Rigor `critico`, `sdd: false`. Rama
+`feature/F-005-grafico-sin-clase`. Pendiente de merge, despliegue y de la
+prueba manual en la obra 0404 (guion en `current.md`).
+
+**Por qué:** Sigrid adjunta los documentos de contratos (`con.tip` 44) y de
+albaranes de compra (`tip` 14, tabla `dca`) **sin clase de gráfico**
+(`gratipide=0` en el 99,98 % y el 100 % de los casos, medido), con las mismas
+constantes que el endpoint ya escribe. F-004 exigía una clase de `auxgra`, así
+que rechazaba el 0. El humano eligió admitirlo (opción 2) frente a usar la
+clase 40 «DOCUMENTOS GENERALES».
+
+**Qué cambia (7 líneas, 3 ficheros):** el guardia acepta `gratipide=0`
+**solo si `0` está en `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**, sin exigir
+`auxgra` ni `fecbaj`; el caso de uso no lee `auxgra` en ese caso; el modelo
+baja el suelo a 0. Nada más se relaja: ni otros guardias, ni el repositorio,
+ni `ALLOWED_WRITE_DATABASES`, ni el constructor de sentencias. Sin tocar
+configuración, el comportamiento es el de F-004.
+
+**Evidencias (`cfb8048`):** 1.502 tests; cobertura 100 % (7/7); mutación
+**6/6 muertos**, tras eliminar un literal que la campaña demostró muerto
+(cerrado midiendo con un canario y su control negativo, no aceptando un
+equivalente); dos revisiones APROBADO (`review_F-005.md`,
+`review_F-005_papeleo.md`), con 3 de 6 mutantes reproducidos y el alcance
+recalculado.
+
+**Lección:** cuando un superviviente resulta código muerto, se quita el
+código, no se pide aceptar el equivalente.

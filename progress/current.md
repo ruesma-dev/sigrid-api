@@ -1,23 +1,18 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-> **F-005 implementada el 2026-09-06 y pendiente del reviewer.** Rama
-> `feature/F-005-grafico-sin-clase`, SHA de código `cfb8048`, `init.sh` en
-> verde (1.502 tests, cobertura 100 % de las 7 líneas cambiadas, mutación
-> 6/6 muertos y 0 supervivientes). El informe está en
-> [`impl_F-005.md`](impl_F-005.md) y la campaña en
-> [`mutacion_F-005.md`](mutacion_F-005.md).
+> **F-005 cerrada el 2026-09-06 con veredicto APROBADO** (código y
+> papeleo) e `init.sh` en verde: 1.502 tests, cobertura 100 % de las 7 líneas
+> cambiadas, mutación 6/6. Informes: [`impl_F-005.md`](impl_F-005.md),
+> [`review_F-005.md`](review_F-005.md),
+> [`review_F-005_papeleo.md`](review_F-005_papeleo.md). No hay ninguna
+> feature `in_progress`.
 >
-> `sigrid/concepto-grafico` admite ya `gratipide = 0` («sin clase»), que es
-> como Sigrid adjunta en contratos (`con.tip` 44) y albaranes de compra
-> (`tip` 14). **Solo si el `0` se pone explícitamente en
-> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**: el defecto de la App Setting no
-> cambia y sin tocar configuración el comportamiento es el de F-004.
->
-> **Nada de esta sesión tocó la API desplegada ni el ERP.** Queda del humano
-> la prueba manual (criterio 8): ampliar las App Settings a
-> `ALLOWED_CONTIP=[708,44,14]` y `ALLOWED_GRATIPIDE=[35,0]` y hacer el
-> dry-run y el primer `commit:true` sobre la obra **0404**.
+> `sigrid/concepto-grafico` admite `gratipide = 0` («sin clase»), que es como
+> Sigrid adjunta en contratos (`con.tip` 44) y albaranes de compra (`tip` 14),
+> **solo si el `0` se pone explícitamente en
+> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**. Queda del humano: merge, despliegue y
+> la prueba manual en la obra **0404** (guion abajo).
 >
 > **F-004 quedó cerrada el 2026-09-06 con veredicto APROBADO.** Lo suyo, y el
 > merge pendiente, sigue documentado abajo.
