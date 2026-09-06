@@ -1,7 +1,7 @@
 <!-- progress/mutacion_F-005.md -->
 # F-005 · Campaña de mutación
 
-Generado por `python -m harness.mutacion --feature F-005 --workers 6` el 2026-09-06 11:31.
+Generado por `python -m harness.mutacion --feature F-005 --workers 6` el 2026-09-06 11:38.
 
 ## Alcance
 
@@ -9,10 +9,10 @@ Origen del diff: **rama** (`1a0a9962aee7810865efc5f41f5e5ff330baaa00` .. `featur
 
 | Fichero | Líneas en alcance |
 |---|---|
-| `application/use_cases/attach_concepto_grafico_use_case.py` | 14 |
+| `application/use_cases/attach_concepto_grafico_use_case.py` | 13 |
 | `domain/models/concepto_grafico_models.py` | 5 |
 | `infrastructure/security/document_write_guard.py` | 14 |
-| **Total** | **33** |
+| **Total** | **32** |
 
 ## Totales
 
@@ -25,16 +25,16 @@ Origen del diff: **rama** (`1a0a9962aee7810865efc5f41f5e5ff330baaa00` .. `featur
 | Timeouts | 0 |
 | Timeouts repasados en serie | 0: ningún mutante agotó el reloj |
 | Sin veredicto (base rota) | 0 |
-| Tiempo total | 220.0 s |
-| SHA de HEAD medido | `d5617313f3ff25a455aa06f0dc7f86b6a4a93b62` |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_0` | 111.8 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_1` | 108.6 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_2` | 115.5 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_3` | 110.2 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_4` | 110.7 |
-| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_4h_0k_ht/wk_5` | 112.8 |
-| Media por mutante evaluado (s) | 36.7 |
-| Timeout efectivo por mutante (s) | 232 — derivado de la línea base × 2.0 |
+| Tiempo total | 183.6 s |
+| SHA de HEAD medido | `cfb804811843749c486e71f69beae735e641e4b8` |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_0` | 89.0 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_1` | 88.5 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_2` | 86.1 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_3` | 85.9 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_4` | 91.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-005_n0c08dg_/wk_5` | 86.7 |
+| Media por mutante evaluado (s) | 30.6 |
+| Timeout efectivo por mutante (s) | 184 — derivado de la línea base × 2.0 |
 | Suelo configurado (s) | 120 |
 | Workers | 6 |
 | Muestreo | no: campaña completa |
@@ -44,11 +44,19 @@ Origen del diff: **rama** (`1a0a9962aee7810865efc5f41f5e5ff330baaa00` .. `featur
 Ninguno: cada mutación aplicada la cazó al menos un test.
 
 
-## Historia: la campaña anterior, sobre `f36a242`
+## Historia: las dos campañas anteriores
 
-La campaña de este informe es la **segunda**. La primera corrió sobre `f36a242`
-(el HEAD de T4) y dio **7 mutantes, 6 muertos, 1 superviviente** en 272,2 s.
-Se deja aquí porque el superviviente es lo que llevó al cambio de T5.
+Esta es la **tercera** campaña de F-005, y la segunda sobre el código final:
+
+| # | SHA | Mutantes | Muertos | Supervivientes | Tiempo |
+|---|---|---|---|---|---|
+| 1 | `f36a242` (HEAD de T4) | 7 | 6 | **1** | 272,2 s |
+| 2 | `d561731` (HEAD de T5) | 6 | 6 | 0 | 220,0 s |
+| 3 | `cfb8048` (este informe) | 6 | 6 | 0 | 183,6 s |
+
+La 2 y la 3 miden el mismo código: entre ambas solo se movió un comentario de
+sitio. Se relanzó para que el SHA del informe sea el que se entrega.
+La 1 se documenta aquí porque su superviviente es lo que llevó al cambio de T5.
 
 ### El superviviente de `f36a242`
 
