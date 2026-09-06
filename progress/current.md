@@ -24,9 +24,11 @@
 
 ## Lo que espera al humano, por orden
 
-1. **Merge de `feature/F-004-endpoint-concepto-grafico` a `dev`** y push (los
-   agentes no empujan). `azure-apps` tiene commits locales (`a40684f`,
-   `157b392`) y **no tiene remoto**.
+1. **F-004 mergeada en `dev` (`70ac430`) y empujada**, `main` al día. Queda
+   el merge de **F-005** cuando el reviewer apruebe. `azure-apps` acumula
+   cinco commits locales (`a40684f`, `157b392`, `e0a7667`, `5e9a7bc`…) y
+   **no tiene remoto**; hay además un `.env` sin trackear ajeno a estas
+   sesiones que no debe commitearse.
 2. **T18-T21 HECHAS el 2026-09-06.** Desplegado `70ac430`, App Settings
    cerradas, dry-run en verde
    ([`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md)) y el
@@ -43,6 +45,65 @@
    UI de Sigrid, y dar a Posventa su function key (contrato en
    `azure-apps/sigrid_api.md` §8.8). Para la obra 404: el tipo de un contrato
    es 44; un albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+
+## Verificación MANUAL de F-005 en la obra 0404 (humano), con su comando exacto
+
+Criterio 8 de F-005. Solo tras mergear y **desplegar** la rama. `$BASE` y
+`$KEY` como en el guion de F-004; cabeceras `x-functions-key` y
+`Content-Type: application/json`. Conceptos de la obra 0404 («CUBIERTA NAVE
+14 - JOHN DEERE», `con.ide` 828942) ya localizados:
+
+| Concepto | `conide` | `contip` | Gráficos hoy |
+|---|---|---|---|
+| Contrato `CTSB20/0519` (PROTECCIONES MADRILEÑAS) | 1686634 | 44 | 2, ambos sin clase |
+| Albarán de compra `AC26/15950` (GARSAN, ALB-PRUEBA-001) | 2774375 | 14 | 0 |
+
+### M1 — ampliar las App Settings (siguen con la escritura abierta)
+
+`f005_appsettings.json` (ASCII sin BOM):
+```json
+[{"name": "SIGRID_DOCUMENT_ALLOWED_CONTIP", "value": "[708,44,14]", "slotSetting": false},
+ {"name": "SIGRID_DOCUMENT_ALLOWED_GRATIPIDE", "value": "[35,0]", "slotSetting": false}]
+```
+```powershell
+az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings "@f005_appsettings.json"
+az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --query "[?starts_with(name,'SIGRID_DOCUMENT_ALLOWED')]"
+```
+
+### M2 — dry-run (100 % lectura) sobre el contrato y el albarán
+
+`POST $BASE/api/sigrid/concepto-grafico`, **sin `commit`**, una vez por concepto:
+```json
+{"database": "ruesma", "conide": 1686634, "contip": 44, "gratipide": 0,
+ "res": "PRUEBA API - BORRAR", "nom": "prueba_f005.pdf", "usu": "prueba",
+ "contenido_base64": "<PDF pequeño en base64>"}
+```
+y lo mismo con `"conide": 2774375, "contip": 14`. Negativo: la misma petición
+con `"gratipide": 40` debe seguir exigiendo `auxgra` (clase 40 existe → acepta),
+y con `"gratipide": 99` → `clase_de_grafico_no_permitida`.
+**Criterio:** `committed:false`, `filas_afectadas:0`; en el preview la fila de
+negocio lleva `gratipide 0` y la documental `gratipide 0` y `res ''`; `enlace.pos`
+192 en el contrato (ya tiene 64 y 128) y 64 en el albarán; **sin** aviso de
+`tipaso`; y `SELECT MAX(ide) FROM dbo.gra` en las dos bases sin cambiar.
+
+### M3 — primer `commit:true` (autorización expresa, una llamada)
+
+La petición de M2 del concepto elegido con `"commit": true`. Después:
+```json
+{"database": "ruesma_rep", "table": "gra", "id_column": "cod",
+ "id_value": "<cod devuelto>", "blob_column": "ima"}
+```
+y por `sql/read` en `ruesma`:
+```sql
+SELECT ide, cod, emp, res, gratipide, vin, DATALENGTH(ima) FROM dbo.gra WHERE cod = ?
+SELECT r.ide, r.con, r.gra, r.pos, r.cla FROM dbo.rcg r JOIN dbo.gra g ON g.ide = r.gra WHERE g.cod = ?
+SELECT g.ide, g.cod FROM dbo.gra g LEFT JOIN dbo.rcg r ON r.gra = g.ide WHERE r.ide IS NULL AND g.res = 'PRUEBA API - BORRAR'
+```
+y la primera también en `ruesma_rep`. **Criterio:** `sha256` idéntico; negocio
+`gratipide 0`, `ima` NULL; documental `gratipide 0`, `res ''`, `DATALENGTH` =
+bytes; enlace 1 fila; huérfanos ninguna; **el documento se ve en la ficha del
+contrato o del albarán en Sigrid** con la misma pinta que los que Sigrid crea
+(sin clase). Repetir la llamada → `idempotente:true`, `filas_afectadas:0`.
 
 ## Guion de T18-T21 (ya ejecutado el 2026-09-06; se conserva como referencia)
 
