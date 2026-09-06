@@ -1,11 +1,26 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-> **F-004 cerrada el 2026-09-06 con veredicto APROBADO y `init.sh` en verde.**
-> No hay ninguna feature `in_progress`. Quedan dos cosas del humano: el
-> **merge a `dev`** y las **verificaciones manuales T18-T21** contra
-> producción, cuyo guion está abajo. Nada se ha escrito nunca en `ruesma_rep`
-> por esta vía: lo que hay es código, tests y mutación.
+> **F-005 implementada el 2026-09-06 y pendiente del reviewer.** Rama
+> `feature/F-005-grafico-sin-clase`, SHA de código `cfb8048`, `init.sh` en
+> verde (1.502 tests, cobertura 100 % de las 7 líneas cambiadas, mutación
+> 6/6 muertos y 0 supervivientes). El informe está en
+> [`impl_F-005.md`](impl_F-005.md) y la campaña en
+> [`mutacion_F-005.md`](mutacion_F-005.md).
+>
+> `sigrid/concepto-grafico` admite ya `gratipide = 0` («sin clase»), que es
+> como Sigrid adjunta en contratos (`con.tip` 44) y albaranes de compra
+> (`tip` 14). **Solo si el `0` se pone explícitamente en
+> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**: el defecto de la App Setting no
+> cambia y sin tocar configuración el comportamiento es el de F-004.
+>
+> **Nada de esta sesión tocó la API desplegada ni el ERP.** Queda del humano
+> la prueba manual (criterio 8): ampliar las App Settings a
+> `ALLOWED_CONTIP=[708,44,14]` y `ALLOWED_GRATIPIDE=[35,0]` y hacer el
+> dry-run y el primer `commit:true` sobre la obra **0404**.
+>
+> **F-004 quedó cerrada el 2026-09-06 con veredicto APROBADO.** Lo suyo, y el
+> merge pendiente, sigue documentado abajo.
 
 ## Lo que espera al humano, por orden
 
@@ -141,13 +156,16 @@ sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
 
 ## Lo siguiente en el backlog
 
-Nada abierto en `harness/features.json` salvo F-001 (`pending`, calentamiento).
-Candidatos: el diagnóstico del arnés de mutación, o lo que pida
-`postventa-incidencias` F-012, que era quien esperaba este endpoint.
+F-005 espera al **reviewer**. Después, `harness/features.json` solo deja
+F-001 (`pending`, calentamiento). Candidatos: el diagnóstico del arnés de
+mutación, o lo que pida `postventa-incidencias` F-012, que era quien esperaba
+este endpoint.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-004 está cerrada y pendiente del
-> merge y de T18-T21, que hace el humano. Si el humano trae resultados de
-> T18-T21, anótalos en `impl_F-004.md` y marca las tareas. No arranques nada
-> nuevo sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-005 está implementada en
+> `feature/F-005-grafico-sin-clase` (`cfb8048`) y pendiente de **review**
+> contra `CHECKPOINTS.md`; su informe es `progress/impl_F-005.md`. F-004 está
+> cerrada y solo espera el merge del humano. Si el humano trae el resultado de
+> la prueba manual de F-005 en la obra 0404, anótalo en `impl_F-005.md`. No
+> arranques nada nuevo sin preguntar.
