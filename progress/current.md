@@ -11,8 +11,12 @@
 > `sigrid/concepto-grafico` admite `gratipide = 0` («sin clase»), que es como
 > Sigrid adjunta en contratos (`con.tip` 44) y albaranes de compra (`tip` 14),
 > **solo si el `0` se pone explícitamente en
-> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**. Queda del humano: merge, despliegue y
-> la prueba manual en la obra **0404** (guion abajo).
+> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**. Mergeada (`0d8b206`), desplegada y
+> **verificada en producción el 2026-09-06** con un `commit:true` autorizado
+> sobre el albarán `AC26/15951` de la obra 0404
+> ([`verificacion_F-005_obra0404.md`](verificacion_F-005_obra0404.md)). Las
+> App Settings quedan en `[708,44,14]` y `[35,0]`: el endpoint acepta ya
+> reclamaciones, contratos y albaranes de compra.
 >
 > **F-004 quedó cerrada el 2026-09-06 con veredicto APROBADO.** Lo suyo, y el
 > merge pendiente, sigue documentado abajo.
@@ -41,7 +45,7 @@
    `azure-apps/sigrid_api.md` §8.8). Para la obra 404: el tipo de un contrato
    es 44; un albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
 
-## Verificación MANUAL de F-005 en la obra 0404 (humano), con su comando exacto
+## Guion de la verificación de F-005 en la obra 0404 (ejecutado el 2026-09-06; referencia)
 
 Criterio 8 de F-005. Solo tras mergear y **desplegar** la rama. `$BASE` y
 `$KEY` como en el guion de F-004; cabeceras `x-functions-key` y
@@ -51,7 +55,7 @@ Criterio 8 de F-005. Solo tras mergear y **desplegar** la rama. `$BASE` y
 | Concepto | `conide` | `contip` | Gráficos hoy |
 |---|---|---|---|
 | Contrato `CTSB20/0519` (PROTECCIONES MADRILEÑAS) | 1686634 | 44 | 2, ambos sin clase |
-| Albarán de compra `AC26/15950` (GARSAN, ALB-PRUEBA-001) | 2774375 | 14 | 0 |
+| Albarán de compra `AC26/15951` (GARSAN, ALB-PRUEBA-001) | 2774375 | 14 | 0 → **1 tras M3** |
 
 ### M1 — ampliar las App Settings (siguen con la escritura abierta)
 
