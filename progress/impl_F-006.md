@@ -163,7 +163,13 @@ mutantes mueren en los tests de F-006).
   `_PREFIJOS_REFERENCIA=["PVI-"]`, `_PRESUPUESTO_SEGUNDOS=150`; comprobar `ALLOWED_WRITE_DATABASES`.
 - **T16** dry-run en la obra 0626 / UPV `0626.03PORTAL 1.1.A` con los dos negativos; `MAX` sin cambiar.
 - **T17** `commit:true` autorizado de **un** parte, lecturas de comprobación y ficha en Sigrid.
-- **T18** repetir → `idempotente`; anular en la UI (NO PROCEDE, sin correo), nunca `DELETE`.
+  **Arreglo de revisión** (verificación, cambio 1): `SIGRID_DOMAIN_WRITE_ENABLED` **no se toca**
+  (ya `true`; la usan albaranes y `concepto-grafico`). Se abre **solo**
+  `SIGRID_RECLAMACION_WRITE_ENABLED=true` por `f006_abrir_reclamacion.json` y se cierra a `false`
+  por `f006_cerrar_reclamacion.json` **después de T18** (R10), las dos con `--settings "@…"` y
+  comprobadas con el `appsettings list` de T15. Cuerpo del `commit` escrito literal.
+- **T18** repetir → `idempotente`; anular en la UI (NO PROCEDE, sin correo), nunca `DELETE`;
+  y cerrar la llave (paso 3 de T17).
 - Aviso para T16: sin `SIGRID_RECLAMACION_PREFIJOS_REFERENCIA=["PVI-"]` desplegada, **todo**
   parte sale `referencia_no_permitida`, también en dry-run (defecto cerrado de R4).
 
