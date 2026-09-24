@@ -76,7 +76,13 @@ def cuerpo_de(respuesta: func.HttpResponse) -> dict[str, Any]:
     return json.loads(respuesta.get_body().decode("utf-8"))
 
 
-def test_f006_r2_la_ruta_esta_registrada_y_las_anteriores_siguen() -> None:
+def test_f006_r2_la_ruta_esta_registrada_y_las_anteriores_siguen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `get_functions()` del SDK no es idempotente: apunta los nombres en
+    # `functions_bindings` y a la segunda llamada del proceso (la primera la
+    # hace test_f004_route) los da por duplicados. Se vacía solo en este test.
+    monkeypatch.setattr(function_app.app, "functions_bindings", {})
     nombres = [f.get_function_name() for f in function_app.app.get_functions()]
     assert "sigrid_partes_reclamacion" in nombres
     for anterior in ("sql_read", "sql_write", "sigrid_contrato_lineas", "sigrid_albaran",
