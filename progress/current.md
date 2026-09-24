@@ -44,6 +44,27 @@ modelo de filas de un parte (`RS26.08/0169`, obra 0677, como modelo) →
 `specs/F-006-alta-parte-reclamacion/`. Al terminar: F-006 a `spec_ready` y
 **PARAR** para la aprobación del humano.
 
+**Respuestas del humano a Q1-Q4 (2026-09-24), spec APROBADA con ellas:**
+- **Q1:** referencia externa en `conext` `RCPCLI` con prefijo obligatorio
+  **`PVI-`** (`SIGRID_RECLAMACION_PREFIJOS_REFERENCIA=["PVI-"]`). Medido antes
+  de decidir: en 2026, 0 de 1.656 partes manuales, 10 de 929 del importador y
+  1 de 312 del portal usan `RCPCLI`; el proceso del Word no lo toca.
+- **Q2:** `forma_comunicacion` por defecto **1 «Escrita»**, informable.
+- **Q3:** se escribe la fila de alta en `dbo.log` con el `usu` de la petición.
+- **Q4:** prueba en la obra **0626** (`con.ide` 1758465, estado 25 CER), UPV
+  **`0626.03PORTAL 1.1.A`**: 132 UPV en PRE, ninguna con propietario ni
+  persona (nadie lo ve en el portal), 25 `obrofc` todos con proveedor, 5
+  partes RS ya cerrados. La prueba no ejercita la copia de propietario.
+
+**Spec ajustada a Q1-Q4 (spec-author, 2026-09-24):** `requirements.md`
+cambia «Preguntas abiertas» por «Decisiones del humano», R1 y el modelo pasan
+`forma_comunicacion` a defecto 1, se quita la redacción condicional de Q3, y
+R22/T15-T18 usan `PVI-`, `PVI-PRUEBA-0001`, obra `0626` y UPV
+`0626.03PORTAL 1.1.A`. T2 queda hecha. Oficio de la prueba elegido con una
+lectura por `sql/read`: `0039` con proveedor `1181` (único `obrofc` de ese
+oficio en la obra; el `0070` tiene dos proveedores y se evitó). Nada más del
+diseño cambia; tamaño 140/150 y 167/250. **Sin decisiones abiertas.**
+
 > Todo lo que sigue es de F-004/F-005, ya cerradas y verificadas.
 
 > **F-005 cerrada el 2026-09-06 con veredicto APROBADO** (código y

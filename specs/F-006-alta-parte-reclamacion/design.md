@@ -64,7 +64,7 @@ class ParteIn(BaseModel):
     clase: str | None = Field(default=None, min_length=1, max_length=24)  # auxrcp.cod
     oficio: str = Field(..., min_length=1, max_length=24)               # auxofc.cod
     ubicacion: str = Field(default="", max_length=48)                   # rcp.resubi
-    forma_comunicacion: Literal[0, 1] = 0                               # rcp.rcptip (Q2)
+    forma_comunicacion: Literal[0, 1] = 1                               # rcp.rcptip, 1 «Escrita» (Q2)
     intervinientes: list[IntervinienteIn] = Field(default_factory=list, max_length=10)
 
 class CreatePartesReclamacionRequest(BaseModel):
@@ -148,9 +148,9 @@ intento; `fec`, `hor` y `tiemod` se fijan antes (R16), así el reintento no camb
   solo orden de listado y hoy los 22.004 son distintos; se acepta y se documenta.
 - **Bloqueo de la cola de `log`** (8,5 M filas, todo el ERP escribe ahí): el `HOLDLOCK` de E7
   retiene las altas de `log` de otros usuarios mientras dura la transacción. Por eso E7 va al
-  final y la transacción no hace lecturas de catálogo (Q3 decide si la fila se escribe).
+  final y la transacción no hace lecturas de catálogo (la fila se escribe: Q3).
 - **Referencia externa (Q1).** `RCPCLI` es el campo del importador y se ve en la ficha, pero ya
-  lo usan para otras cosas [§5]; el prefijo obligatorio lo aísla. Sin índice sobre `valt`: L8
+  lo usan para otras cosas [§5]; el prefijo obligatorio (`PVI-`) lo aísla. Sin índice sobre `valt`: L8
   filtra por `cod` (índice `conext_codvaln`) y recorre ~5.100 filas. La intercalación es
   `CI`: `PVI-1` y `pvi-1` son la misma referencia. Descartadas: `con.doc` (invisible en la
   ficha), `con.tex` (lo usan 634 partes) y guardar la referencia solo en `postventa-incidencias`

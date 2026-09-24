@@ -4,22 +4,12 @@
 **`POST /api/sigrid/partes-reclamacion`: crear en lote partes de reclamación de
 Posventa (`con.tip 708`, serie `RS<aa>.<mm>/`) como los crea el escritorio de Sigrid.**
 
-## Preguntas abiertas para el humano (bloquean la aprobación, no la redacción)
+## Decisiones del humano sobre Q1-Q4 (2026-09-24)
 
-Las decisiones del 2026-09-24 se mantienen; la medición (`progress/explore_F-006_modelo_parte.md`, «§») deja cuatro:
-
-- **Q1 · Referencia externa en `RCPCLI` con prefijo.** El «Nº Referencia Externo» del importador
-  es `conext.cod='RCPCLI'` (`varchar(80)`, §5), **ya en uso**: promotor (≈4.080, `V#I2021…`) y notas
-  (`OK`, «según proyecto»). Propuesta: usarlo **con prefijo obligatorio del llamante**
-  (`SIGRID_RECLAMACION_PREFIJOS_REFERENCIA`, p. ej. `PVI-`); un parte de la API no podrá llevar
-  además la del promotor. Alternativa: `con.doc` (vacío al 100 %, indexado, invisible en la ficha).
-- **Q2 · `rcp.rcptip`** (forma de comunicación): medidos 0 (importador), 1 («Escrita») y 3 (portal,
-  arrastra `conext` `02`/`03`). Propuesta: 0 por defecto, informable entre `{0, 1}`.
-- **Q3 · Fila de alta en `dbo.log`**: la escribe el escritorio (94/94), no el portal (0/14).
-  Propuesta: escribirla, con el `usu` de la petición.
-- **Q4 · UPV de prueba**: la obra 0404 no tiene UPV ni oficios (§7); Posventa elige una UPV real. El
-  parte se anula en la UI (NO PROCEDE **sin** correo), nunca con `DELETE`; si el propietario usa
-  el portal, lo verá mientras exista.
+- **Q1:** referencia externa en `conext` `RCPCLI` con prefijo obligatorio `PVI-` (`SIGRID_RECLAMACION_PREFIJOS_REFERENCIA=["PVI-"]` en despliegue; defecto en código `[]`, cerrado).
+- **Q2:** `forma_comunicacion` (`rcp.rcptip`) por defecto **1** («Escrita»), admitidos `{0, 1}`.
+- **Q3:** se escribe la fila de alta en `dbo.log` con el `usu` de la petición.
+- **Q4:** prueba en la obra **`0626`** (estado 25 CER), UPV **`0626.03PORTAL 1.1.A`**; se anula en la UI (NO PROCEDE **sin** correo), nunca con `DELETE`.
 
 ## Contrato y configuración
 
@@ -28,7 +18,7 @@ Las decisiones del 2026-09-24 se mantienen; la medición (`progress/explore_F-00
 ≥1), cada parte con `referencia_externa` (1-80, obligatoria), `unidad_postventa` (código,
 ≤24), `descripcion` (1-128), `oficio` (código, ≤24) y opcionales `descripcion_larga`, `tipo`
 (código, **defecto `"0002"`**), `clase` (código), `ubicacion` (≤48), `forma_comunicacion`
-(`0`|`1`, defecto 0) e `intervinientes` (0-10 de `{oficio, proveedor?, causante=false}`),
+(`0`|`1`, defecto 1) e `intervinientes` (0-10 de `{oficio, proveedor?, causante=false}`),
 el sistema debe validarlo con Pydantic (`extra="forbid"`) y responder 400 `Solicitud
 invalida.` ante campo ausente, longitud excedida o valor fuera de dominio. El cliente NO
 envía `ide`, `cod`, `emp`, `est` ni `pos`.
@@ -136,8 +126,9 @@ ni DDL en ninguna sentencia (control negativo en tests).
 R11-R15.
 
 **R22.** MANUAL (humano): dry-run y un `commit:true` autorizado de **un** parte sobre la UPV
-elegida (Q4); el parte se ve en la pestaña Reclamaciones de la UPV con su tipo, oficio,
-intervinientes y estado SAT, y repetir la llamada da `idempotente` sin segunda fila.
+`0626.03PORTAL 1.1.A` de la obra `0626` (Q4); el parte se ve en la pestaña Reclamaciones de
+la UPV con su tipo, oficio, intervinientes y estado SAT, y repetir la llamada da `idempotente`
+sin segunda fila.
 
 **R23.** El sistema debe actualizar en el mismo trabajo `azure-apps/sigrid_api.md` (§4, §7.1, §7.5,
 §7.6, §8.9 nueva, §9.2, §10 con `postventa-incidencias` F-040), `docs/ARCHITECTURE.md` y el mapa de rutas de `CLAUDE.md`.
