@@ -3,8 +3,10 @@
 
 ## F-006 · Implementación (implementer, 2026-09-24)
 
-T3-T12 y T14 hechas con un commit por tarea; T13 (mutación completa, 8 workers) en
-curso; **T15-T18 son MANUALES del humano** (guion exacto en `tasks.md`). Informe:
+T3-T14 y T19 hechas con un commit por tarea: mutación completa **217/217 muertos, 0
+supervivientes** sobre `22e23f7` (la ronda 1 dejó 42: 6 falsos del modo paralelo y 36
+reales, cerrados), cobertura 100 % de 560 líneas, `init.sh` en `ENTORNO LISTO`.
+**Pendiente: review, y T15-T18 MANUALES del humano** (guion exacto en `tasks.md`). Informe:
 [`impl_F-006.md`](impl_F-006.md). Nada escrito contra Sigrid: solo dos `sql/read`
 (plantilla de `sercon` y columnas de las cinco tablas), anotados en el informe.
 
@@ -21,7 +23,8 @@ Decisiones de implementación (ninguna reabre Q1-Q4):
   (la colación es CI). El primer parte con una referencia es su dueño en el lote.
 - `committed` = se creó al menos un parte.
 - Fichero vacío sin trackear `` `0`].{t `` (ajeno, 12:31): apartado al scratchpad durante
-  la campaña de mutación, que exige árbol limpio; se devuelve al terminar.
+  las campañas de mutación, que exigen árbol limpio, y devuelto a su sitio. Sigue sin trackear:
+  lo decide el humano.
 
 ## F-006 · Alta de partes de reclamación en lote (IN_PROGRESS, 2026-09-24)
 

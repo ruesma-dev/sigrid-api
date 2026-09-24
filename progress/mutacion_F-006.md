@@ -1,0 +1,83 @@
+<!-- progress/mutacion_F-006.md -->
+# F-006 · Campaña de mutación
+
+Generado por `python -m harness.mutacion --feature F-006 --workers 8` el 2026-09-25 00:56.
+
+## Alcance
+
+Origen del diff: **rama** (`210fac12d87d002fb9809ed881e36cc3e631ab3c` .. `feature/F-006-alta-parte-reclamacion`).
+
+| Fichero | Líneas en alcance |
+|---|---|
+| `application/use_cases/create_partes_reclamacion_use_case.py` | 808 |
+| `application/use_cases/parte_reclamacion_statements.py` | 463 |
+| `config/settings.py` | 16 |
+| `domain/models/parte_reclamacion_models.py` | 206 |
+| `function_app.py` | 57 |
+| **Total** | **1550** |
+
+## Totales
+
+| Métrica | Valor |
+|---|---|
+| Mutantes generados | 217 |
+| Mutantes evaluados | 217 |
+| Muertos | 217 |
+| Supervivientes | 0 |
+| Timeouts | 0 |
+| Timeouts repasados en serie | 0: ningún mutante agotó el reloj |
+| Sin veredicto (base rota) | 0 |
+| Tiempo total | 1355.1 s |
+| SHA de HEAD medido | `22e23f7e9a05e0baddcb509b1851b28b4d48b80b` |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_0` | 335.0 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_1` | 353.0 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_2` | 348.1 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_3` | 343.2 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_4` | 342.9 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_5` | 334.6 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_6` | 329.8 |
+| Línea base (s) — `C:/Users/pgris/AppData/Local/Temp/mutacion_F-006_ucqpag7q/wk_7` | 331.7 |
+| Media por mutante evaluado (s) | 6.2 |
+| Timeout efectivo por mutante (s) | 707 — derivado de la línea base × 2.0 |
+| Suelo configurado (s) | 120 |
+| Workers | 8 |
+| Muestreo | no: campaña completa |
+
+## Supervivientes
+
+Ninguno: cada mutación aplicada la cazó al menos un test.
+
+
+---
+
+> **De dónde sale ese cero** (añadido por el implementer). La primera campaña, sobre
+> `3852580` (228 mutantes, 8 workers, 2.548,9 s), dejó **42 supervivientes**. Se
+> reevaluaron **EN SERIE**, uno a uno, en un worktree aparte de ese SHA (aplicar la
+> sustitución exacta y correr `pytest -x -k f006 tests`):
+>
+> - **6 eran falsos** (el modo paralelo los dio por vivos y en serie mueren): n.º 74
+>   (`> 1` → `>= 1` en proveedores distintos), 76 (`or` → `and` en el filtro de
+>   candidatos), 80 (`elegido[0]` → `[1]` en el aviso de filas idénticas), 118
+>   (`filas[0][0]` → `[1]` en L9), 120 (`avisos + [` → `- [`) y 121 (`fetchone()[0]` →
+>   `[1]`). Todos «1 failed» en serie. Es el defecto ya conocido de
+>   `harness/mutacion_paralela.py` (ver `progress/current.md`): sesgo pesimista.
+> - **36 eran reales** y se cerraron en `22e23f7`, sin mutantes equivalentes aceptados:
+>   - **Tests nuevos** (el mutante cambiaba algo observable): trazas con reloj que no
+>     arranca en 0, duración con decimales y textos no ASCII (n.º 15, 17, 18, 23);
+>     `committed` con un solo parte creado (24); `pos` NULL y empates de `pos` en
+>     `obrofc` (45, 92, 110, 153); un solo candidato no avisa (75); mensajes de
+>     prefijos, repetido y conflicto (91, 108, 167); un carácter basta en cada
+>     `min_length=1` (189, 193, 200, 205, 211, 212, 216, 222, 224); `ResumenLote()` a
+>     cero (217, 218, 221, 226, 227); `Sellos` inmutable (185).
+>   - **Código muerto fuera**, con el invariante en quien construye el dato (RM6):
+>     `fila[:N]` sobre filas de SQL constante (64, 65, 68, 69, 90: el SQL trae
+>     exactamente esas columnas y lo fija `test_f006_statements`); `or 0` de
+>     `cliide/recide` (41: L5 ya hace `ISNULL(..., 0)`); `frozen` del `_Lote` interno
+>     (16: se construye una vez y nadie lo muta); el `0` de `ide_rcpint` sin
+>     intervinientes (160: ahora `None`, no hay fila que numerar).
+>
+> Esta segunda campaña, completa y sobre `22e23f7`, es la que vale: 217 mutantes (11
+> menos, los de las líneas quitadas), 217 muertos. Coste por mutante =
+> 1.355,1 s × 8 ÷ 217 = **50 s**; `media × W` = 6,2 × 8 = 49,6 s frente a una línea base
+> de ~340 s con 8 suites compitiendo: la campaña va con `-x` y los mutantes mueren en
+> los tests de F-006, a mitad de suite.
