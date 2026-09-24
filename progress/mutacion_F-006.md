@@ -100,20 +100,43 @@ EXIT=3
 cadenas, subíndices y una llamada). Ampliar a `--ficheros function_app.py` mutaría las
 rutas ajenas a F-006, y la campaña completa de la rama no añade mutantes nuevos: fuera de
 este aviso, el código de producción es el de `22e23f7`, ya medido arriba (217/217).
-**Evidencia aportada de otra forma**: 8 mutantes manuales de esas líneas, **aplicados y
-ejecutados** uno a uno contra `tests/test_f006_route.py` (script en el scratchpad de la
-sesión; `function_app.py` restaurado y limpio en `git status` al terminar):
+**Evidencia aportada de otra forma**: 8 mutantes manuales de esas líneas. La tabla de la
+ronda 1 los describía con palabras; esta (cambio 1 de `review_F-006.md`, pasada 2) trae el texto exacto
+y la ha **reejecutado el implementer** sobre una copia desechable (`git archive ef1fdf9`
+extraído en el scratchpad; `function_app.py` y los tests no cambian desde `52ba4be`). Cada
+fila sustituye, **solo en la línea indicada** y una sola vez, el texto original por el
+mutado, corre la suite de la ruta y restaura el fichero. La copia se borró al terminar.
 
-| Id | Mutación | Resultado |
-|---|---|---|
-| MA | vuelve a `exc` (el defecto original) | MUERTO (exit 1, 1 failed) |
-| MB | sin `loc` | MUERTO |
-| MC | sin `type` | MUERTO |
-| MD | `exc.errors()` entero (con `input`) | MUERTO |
-| ME | lista vacía | MUERTO |
-| MF | mensaje sin el prefijo `ValidationError en sigrid/partes-reclamacion: ` | MUERTO |
-| MG | `warning` → `debug` | MUERTO |
-| MH | `warning` → `info` | MUERTO |
+Comando de cada fila, en la raíz de la copia (sin `-x`; la columna «con `-x`» añade `-x`):
 
-**8 de 8 muertos, 0 supervivientes, 0 equivalentes que pedir al humano.** Todos los mata
-`test_f006_r20_el_aviso_de_validacion_no_vuelca_los_valores_de_entrada`.
+```
+python -m pytest tests/test_f006_route.py -q -p no:cacheprovider
+```
+
+| Id | Línea | Original → mutado (texto exacto) | Sin `-x` | Con `-x` |
+|---|---|---|---|---|
+| base | — | sin cambios | 12 passed (exit 0) | 12 passed (exit 0) |
+| MA | `function_app.py:359` | `[(error["loc"], error["type"]) for error in exc.errors()]` → `exc` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MB | `function_app.py:359` | `[(error["loc"], error["type"]) for error in exc.errors()]` → `[error["type"] for error in exc.errors()]` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MC | `function_app.py:359` | `[(error["loc"], error["type"]) for error in exc.errors()]` → `[error["loc"] for error in exc.errors()]` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MD | `function_app.py:359` | `[(error["loc"], error["type"]) for error in exc.errors()]` → `exc.errors()` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| ME | `function_app.py:359` | `[(error["loc"], error["type"]) for error in exc.errors()]` → `[]` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MF | `function_app.py:358` | `"ValidationError en sigrid/partes-reclamacion: %s"` → `"%s"` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MG | `function_app.py:357` | `logger.warning(` → `logger.debug(` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+| MH | `function_app.py:357` | `logger.warning(` → `logger.info(` | **2 failed**, 10 passed (exit 1) | 1 failed, 7 passed (exit 1) |
+
+La base se volvió a correr tras el último mutante: `12 passed` (exit 0). En las 8 filas
+los dos fallos son los dos casos de
+`test_f006_r20_el_aviso_de_validacion_no_vuelca_los_valores_de_entrada`
+(`[…-oficio-oficio-missing]` y `[…-descripcion-string_too_long]`); con `-x` solo llega a
+fallar el primero, y la suite se corta ahí (7 passed antes de él). En la línea 357,
+`logger.warning(` aparece una sola vez; en el fichero hay más, y no se tocan.
+
+**Por qué la ronda 1 decía «1 failed» para MA.** Lo que se obtiene sin `-x` es `2 failed`,
+lo mismo que la revisión en su §3. `1 failed, 7 passed` es exactamente lo que da el mismo
+comando **con `-x`** (como la campaña del arnés y la reevaluación en serie de arriba), y la tabla no lo decía. El
+número de la ronda 1 era, por tanto, de una ejecución con `-x`, no de un mutante que matara
+un solo caso. En los 8 mutantes caen ambos casos parametrizados.
+
+**8 de 8 muertos, 0 supervivientes, 0 equivalentes que pedir al humano.** Todos cambian el
+aviso que se observa (nivel, prefijo o contenido), así que ninguno es equivalente.
