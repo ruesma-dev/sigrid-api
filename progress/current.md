@@ -38,7 +38,7 @@ copyright; F-008 es de **compra**. La referencia principal es el Word
 (`postventa_pasos_crear_parte.md`); sus capturas llevan nombres de
 propietarios y no se transcriben.
 
-**Estado:** spec-author lanzado. Mide en producción, solo con lecturas, el
+**Estado (2026-09-24): `spec_ready`, esperando al humano.** Spec en `a805f4a`; faltan sus respuestas a Q1-Q4 de `requirements.md`. El spec-author midió en producción, solo con lecturas, el
 modelo de filas de un parte (`RS26.08/0169`, obra 0677, como modelo) →
 `progress/explore_F-006_modelo_parte.md` y la spec en
 `specs/F-006-alta-parte-reclamacion/`. Al terminar: F-006 a `spec_ready` y
