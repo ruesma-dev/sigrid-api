@@ -102,6 +102,10 @@ _LECTURAS: dict[str, list[tuple[Any, ...]]] = {
         (2300, 256, "0080", "3001"),
         (2400, 384, None, "4001"),       # sin oficio
         (2500, 448, "0090", None),       # sin proveedor
+        (2305, 1, "0085", "5001"),       # 0085: idénticas, una con pos NULL
+        (2310, None, "0085", "5001"),
+        (2402, 500, "0086", "6001"),     # 0086: idénticas y con la misma pos
+        (2401, 500, "0086", "6001"),
     ],
     "tipos": [(1, "0001", 0), (2, "0002", 0), (3, "0003", 0), (5, "0005", 20250101)],
     "clases": [(1, "0001", 0), (2, "0002", 0), (3, "0003", None)],
@@ -465,6 +469,15 @@ def test_f006_r7_sin_prefijos_configurados_toda_referencia_se_rechaza() -> None:
         settings=SettingsDoble(sigrid_reclamacion_prefijos_referencia=[]),
     )
     assert motivos(respuesta) == ["referencia_no_permitida"] * 2
+    assert "(ninguno configurado)" in respuesta.partes[0].motivo.mensaje
+
+
+def test_f006_r7_el_rechazo_por_prefijo_dice_cuales_valen() -> None:
+    respuesta, _ = ejecutar(
+        [parte(referencia_externa="XYZ-1")],
+        settings=SettingsDoble(sigrid_reclamacion_prefijos_referencia=["PVI-", "OTRO-"]),
+    )
+    assert "(PVI-, OTRO-)" in respuesta.partes[0].motivo.mensaje
 
 
 def test_f006_r7_admite_cualquiera_de_los_prefijos() -> None:
@@ -548,6 +561,24 @@ def test_f006_r8_filas_identicas_se_resuelven_por_la_menor_pos_con_aviso() -> No
     assert any("2300" in aviso for aviso in respuesta.partes[0].avisos)
 
 
+def test_f006_r8_un_pos_nulo_cuenta_como_cero_al_desempatar() -> None:
+    respuesta, _ = ejecutar([parte(intervinientes=[{"oficio": "0085"}])])
+    assert [f["obrofcide"] for f in respuesta.partes[0].filas["rcpint"]] == [2310]
+
+
+def test_f006_r8_a_igual_pos_desempata_el_menor_ide() -> None:
+    respuesta, _ = ejecutar([parte(intervinientes=[{"oficio": "0086"}])])
+    assert [f["obrofcide"] for f in respuesta.partes[0].filas["rcpint"]] == [2401]
+
+
+def test_f006_r8_un_interviniente_con_una_sola_fila_no_avisa() -> None:
+    respuesta, _ = ejecutar()
+    assert respuesta.partes[0].avisos == [
+        aviso for aviso in respuesta.partes[0].avisos if "DRY-RUN" in aviso
+    ]
+    assert len(respuesta.partes[0].avisos) == 1
+
+
 def test_f006_r8_un_oficio_sin_proveedor_en_la_obra_se_resuelve() -> None:
     respuesta, _ = ejecutar([parte(intervinientes=[{"oficio": "0090"}])])
     assert [f["obrofcide"] for f in respuesta.partes[0].filas["rcpint"]] == [2500]
@@ -556,6 +587,8 @@ def test_f006_r8_un_oficio_sin_proveedor_en_la_obra_se_resuelve() -> None:
 def test_f006_r8_el_mismo_obrofc_dos_veces() -> None:
     dos = [{"oficio": "0039"}, {"oficio": "0039", "proveedor": "1181"}]
     assert _rechazo(parte(intervinientes=dos)) == "interviniente_repetido"
+    respuesta, _ = ejecutar([parte(intervinientes=dos)])
+    assert "(obrofc 2173)" in respuesta.partes[0].motivo.mensaje
 
 
 def test_f006_r8_oficio_del_parte_fuera_de_los_intervinientes_solo_avisa() -> None:
@@ -672,6 +705,8 @@ def test_f006_r15_dry_run_idempotente_sin_numerar() -> None:
 def test_f006_r15_referencia_en_conflicto(encontrados: list) -> None:
     respuesta, _ = ejecutar(repo=RepositorioDoble({"referencia": encontrados}))
     assert motivos(respuesta) == ["referencia_en_conflicto"]
+    # El mensaje nombra los partes que ya la tienen, por su código.
+    assert "RS26.08/0169" in respuesta.partes[0].motivo.mensaje
 
 
 def test_f006_r15_commit_idempotente_dentro_de_la_transaccion() -> None:
@@ -747,6 +782,7 @@ def test_f006_r11_work_ejecuta_e1_a_e14_en_orden() -> None:
     assert (unico.estado, unico.ide, unico.cod, unico.motivo) == (
         "creado", 2900001, "RS26.09/0772", None,
     )
+    assert (respuesta.committed, respuesta.resumen.creados) == (True, 1)
 
 
 def test_f006_r11_sin_intervinientes_no_se_toca_rcpint_mas_que_para_releer() -> None:
@@ -909,19 +945,20 @@ def test_f006_r20_una_traza_por_lote_y_una_por_parte_sin_descripciones(
     ejecutar(
         [
             parte(descripcion="SECRETO CORTO", descripcion_larga="SECRETO LARGO", ubicacion="SECRETA"),
-            parte(referencia_externa="XYZ", descripcion="OTRO SECRETO"),
+            parte(referencia_externa="XYZ-Ñ", descripcion="OTRO SECRETO"),
         ],
-        reloj=Reloj([0.0, 0.0, 0.0, 1.25]),
+        reloj=Reloj([100.0, 100.0, 100.0, 101.23456]),
         commit=True,
+        usu="muñoz",
     )
     trazas = _trazas(caplog)
     assert len(trazas) == 3
     lote = trazas[-1]
-    assert lote["obra"] == "0626" and lote["usu"] == "prueba" and lote["commit"] is True
+    assert lote["obra"] == "0626" and lote["usu"] == "muñoz" and lote["commit"] is True
     assert lote["resumen"] == {
         "creados": 1, "idempotentes": 0, "previstos": 0, "rechazados": 1, "no_procesados": 0,
     }
-    assert lote["duracion_ms"] == 1250.0
+    assert lote["duracion_ms"] == 1234.6  # desde el arranque, en ms, con un decimal
     assert trazas[0] == {
         "endpoint": "sigrid/partes-reclamacion",
         "indice": 0,
@@ -934,6 +971,8 @@ def test_f006_r20_una_traza_por_lote_y_una_por_parte_sin_descripciones(
     assert trazas[1]["codigo"] == "referencia_no_permitida"
     todo = "".join(r.getMessage() for r in caplog.records)
     assert "SECRETO" not in todo and "SECRETA" not in todo
+    # Legibles en los logs, sin escapar a \u00f1.
+    assert '"usu": "muñoz"' in todo and '"referencia": "XYZ-Ñ"' in todo
 
 
 def test_f006_r20_un_fallo_de_lote_tambien_deja_traza(caplog: pytest.LogCaptureFixture) -> None:

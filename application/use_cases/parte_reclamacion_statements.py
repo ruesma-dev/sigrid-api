@@ -409,13 +409,14 @@ class ParteReclamacionStatements:
         cod: str,
         ide_con: int,
         pos_rcp: int,
-        ide_rcpint: int,
+        ide_rcpint: int | None,
         ide_conext: int,
         ide_log: int,
     ) -> dict[str, Any]:
         """Copia de `filas` con la numeracion puesta. No toca `filas`: cada
         reintento numera sobre las filas limpias. Los `rcpint` son consecutivos
-        desde `ide_rcpint`."""
+        desde `ide_rcpint`, que es `None` cuando el parte no trae ninguno (no
+        se reserva un `ide` que no se va a usar)."""
         return {
             "con": {**filas["con"], "ide": ide_con, "cod": cod},
             "rcp": {**filas["rcp"], "ide": ide_con, "pos": pos_rcp},

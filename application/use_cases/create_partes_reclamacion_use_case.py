@@ -87,7 +87,7 @@ def _es_colision_de_clave(exc: BaseException) -> bool:
     return any(clase.__name__ == "IntegrityError" for clase in type(exc).__mro__)
 
 
-@dataclass(frozen=True)
+@dataclass
 class _Lote:
     """Lo leido una vez por lote (R6)."""
 
@@ -323,7 +323,9 @@ class CreatePartesReclamacionUseCase:
                 f"{TAM_SERIE} digitos en dbo.sercon.",
                 codigo="serie_no_encontrada",
             )
-        _ide_serie, emp, _tam, estini = series[0][:4]
+        # Las filas se desempaquetan enteras: el SQL es constante y trae
+        # exactamente esas columnas (lo fija test_f006_statements).
+        _ide_serie, emp, _tam, estini = series[0]
         emp, estini = int(emp), int(estini)
 
         # El estado NO se escribe a mano: sale de la serie y se valida (ARCH §7).
@@ -339,7 +341,7 @@ class CreatePartesReclamacionUseCase:
                 f"No existe la obra '{request.obra}' en la empresa {emp}.",
                 codigo="obra_no_encontrada",
             )
-        obra_ide, obra_emp, obra_cod = obras[0][:3]
+        obra_ide, obra_emp, obra_cod = obras[0]
         obra = ObraResumen(ide=int(obra_ide), cod=str(obra_cod), emp=int(obra_emp))
 
         if not self._leer(request, sentencias.leer_usuario(request.usu)):
@@ -348,22 +350,17 @@ class CreatePartesReclamacionUseCase:
                 codigo="usuario_no_valido",
             )
 
+        # cliide/recide nunca llegan NULL: L5 los lee con ISNULL(..., 0).
         unidades = {
-            _clave(cod): (int(ide), str(cod), int(cliide or 0), int(recide or 0))
-            for ide, cod, cliide, recide in (
-                fila[:4]
-                for fila in self._leer(
-                    request, sentencias.leer_unidades_postventa(obra.ide, emp), muchas=True
-                )
+            _clave(cod): (int(ide), str(cod), int(cliide), int(recide))
+            for ide, cod, cliide, recide in self._leer(
+                request, sentencias.leer_unidades_postventa(obra.ide, emp), muchas=True
             )
         }
         oficios_de_obra = [
             (int(ide), int(pos or 0), _clave(oficio), _clave(proveedor))
-            for ide, pos, oficio, proveedor in (
-                fila[:4]
-                for fila in self._leer(
-                    request, sentencias.leer_oficios_de_la_obra(obra.ide), muchas=True
-                )
+            for ide, pos, oficio, proveedor in self._leer(
+                request, sentencias.leer_oficios_de_la_obra(obra.ide), muchas=True
             )
         ]
         return _Lote(
@@ -383,7 +380,7 @@ class CreatePartesReclamacionUseCase:
         """clave(cod) -> ide de un catalogo; `fecbaj != 0` cuenta como inexistente."""
         return {
             _clave(cod): int(ide)
-            for ide, cod, fecbaj in (fila[:3] for fila in self._leer(request, sentencia, muchas=True))
+            for ide, cod, fecbaj in self._leer(request, sentencia, muchas=True)
             if not int(fecbaj or 0)
         }
 
@@ -610,7 +607,9 @@ class CreatePartesReclamacionUseCase:
             ide_con = self._reservar(cursor, sentencias.reservar_ide_con())
             pos_rcp = self._reservar(cursor, sentencias.reservar_pos_rcp())
             ide_rcpint = (
-                self._reservar(cursor, sentencias.reservar_ide_rcpint()) if plan.obrofcides else 0
+                self._reservar(cursor, sentencias.reservar_ide_rcpint())
+                if plan.obrofcides
+                else None
             )
             ide_conext = self._reservar(cursor, sentencias.reservar_ide_conext())
             ide_log = self._reservar(cursor, sentencias.reservar_ide_log())

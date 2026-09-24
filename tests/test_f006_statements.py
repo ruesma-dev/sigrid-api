@@ -498,3 +498,12 @@ def test_f006_r18_el_constructor_valida_todas(monkeypatch: pytest.MonkeyPatch) -
     )
     sentencias = ParteReclamacionStatements(database="ruesma")
     assert vistas == list(sentencias.todas_las_sentencias())
+
+
+def test_f006_r16_los_sellos_no_se_pueden_cambiar() -> None:
+    """R16: fec, hor y tiemod se fijan una vez; un reintento no los puede tocar."""
+    import dataclasses
+
+    s = sellos(datetime(2026, 8, 4, 8, 41, 29, tzinfo=timezone.utc))
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        s.fec = 20260901  # type: ignore[misc]

@@ -24,6 +24,7 @@ from domain.models.parte_reclamacion_models import (
     ParteIn,
     ParteReclamacionError,
     ResultadoParte,
+    ResumenLote,
 )
 
 
@@ -365,3 +366,35 @@ def test_f006_r2_el_motivo_solo_lleva_codigos_cerrados() -> None:
 
 def test_f006_r1_parte_in_es_el_modelo_de_cada_parte() -> None:
     assert ParteIn.model_validate(parte()).oficio == "0039"
+
+
+def test_f006_r1_un_solo_caracter_basta_en_los_textos_obligatorios() -> None:
+    """El mínimo es 1 tras recortar, no 2: `min_length=1` es la frontera."""
+    modelo = validar(
+        peticion(
+            obra="7",
+            usu="u",
+            partes=[
+                parte(
+                    referencia_externa="P",
+                    unidad_postventa="U",
+                    descripcion="D",
+                    oficio="O",
+                    tipo="T",
+                    clase="C",
+                    intervinientes=[{"oficio": "I", "proveedor": "V"}],
+                )
+            ],
+        )
+    )
+    unico = modelo.partes[0]
+    assert (modelo.obra, modelo.usu) == ("7", "u")
+    assert (unico.referencia_externa, unico.unidad_postventa, unico.descripcion) == ("P", "U", "D")
+    assert (unico.oficio, unico.tipo, unico.clase) == ("O", "T", "C")
+    assert (unico.intervinientes[0].oficio, unico.intervinientes[0].proveedor) == ("I", "V")
+
+
+def test_f006_r2_el_resumen_arranca_a_cero() -> None:
+    assert ResumenLote().model_dump() == {
+        "creados": 0, "idempotentes": 0, "previstos": 0, "rechazados": 0, "no_procesados": 0,
+    }
