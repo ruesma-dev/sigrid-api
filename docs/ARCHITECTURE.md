@@ -29,17 +29,20 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
 - **`function_app.py`** — único adaptador de entrada. Declara las rutas HTTP y
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
-  `sigrid/albaran-directo`, `sigrid/concepto-grafico`, `documents/read`,
-  `diagnostics/tcp`.
+  `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
+  `sigrid/partes-reclamacion`, `documents/read`, `diagnostics/tcp`.
 - **`domain/`** — sin dependencias de infraestructura.
   - `models/`: `sql_models` (lectura/escritura/documentos), `document_models`,
     `sigrid_domain_models` (líneas de contrato), `albaran_domain_models`,
-    `albaran_directo_models`, `concepto_grafico_models` (adjuntar documentos).
+    `albaran_directo_models`, `concepto_grafico_models` (adjuntar documentos),
+    `parte_reclamacion_models` (alta en lote de partes de Posventa).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
   `read_document_use_case`, `add_contract_lines_use_case`,
-  `create_purchase_albaran_use_case`, `create_direct_albaran_use_case`.
+  `create_purchase_albaran_use_case`, `create_direct_albaran_use_case`,
+  `create_partes_reclamacion_use_case` (una transacción por parte, con su
+  constructor puro de sentencias `parte_reclamacion_statements`).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
