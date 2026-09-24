@@ -352,7 +352,12 @@ def sigrid_partes_reclamacion(req: func.HttpRequest) -> func.HttpResponse:
             details={"type": type(exc).__name__, "codigo": exc.codigo},
         )
     except ValidationError as exc:
-        logger.warning("ValidationError en sigrid/partes-reclamacion: %s", exc)
+        # Solo donde y que fallo: `str(exc)` vuelca los valores de entrada
+        # (descripciones, referencias) y R20 no los quiere en las trazas.
+        logger.warning(
+            "ValidationError en sigrid/partes-reclamacion: %s",
+            [(error["loc"], error["type"]) for error in exc.errors()],
+        )
         return error_response(
             "Solicitud invalida.",
             status_code=400,

@@ -9,6 +9,7 @@ traducción de excepciones a HTTP, y eso es lo que se comprueba.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import azure.functions as func
@@ -157,6 +158,49 @@ def test_f006_r1_un_cuerpo_invalido_sale_como_400_solicitud_invalida(
     assert salida["error"] == "Solicitud invalida."
     assert salida["details"]["type"] == "ValidationError"
     assert salida["details"]["validation"]
+
+
+_MARCA_DESCRIPCION = "MARCA-DESCRIPCION-NO-LOGUEAR"
+_MARCA_REFERENCIA = "PVI-MARCA-REFERENCIA-NO-LOGUEAR"
+
+
+@pytest.mark.parametrize(
+    ("cambios_del_parte", "quitar", "loc", "tipo"),
+    [
+        # Falta `oficio`: pydantic pone el parte entero como `input_value`.
+        ({}, "oficio", "oficio", "missing"),
+        # Descripcion de mas de 128: pydantic la vuelca (truncada) como `input_value`.
+        ({"descripcion": _MARCA_DESCRIPCION + "x" * 130}, None, "descripcion", "string_too_long"),
+    ],
+)
+def test_f006_r20_el_aviso_de_validacion_no_vuelca_los_valores_de_entrada(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    cambios_del_parte: dict[str, Any],
+    quitar: str | None,
+    loc: str,
+    tipo: str,
+) -> None:
+    con_caso_de_uso(monkeypatch, lambda _request: pytest.fail("no deberia llegar al caso de uso"))
+    parte = {
+        **_CUERPO["partes"][0],
+        "referencia_externa": _MARCA_REFERENCIA,
+        "descripcion": _MARCA_DESCRIPCION,
+        **cambios_del_parte,
+    }
+    if quitar:
+        del parte[quitar]
+    with caplog.at_level(logging.WARNING, logger=function_app.logger.name):
+        respuesta = ruta()(peticion_http({**_CUERPO, "partes": [parte]}))
+
+    assert respuesta.status_code == 400
+    avisos = [r.getMessage() for r in caplog.records if "sigrid/partes-reclamacion" in r.getMessage()]
+    assert len(avisos) == 1
+    assert avisos[0].startswith("ValidationError en sigrid/partes-reclamacion: ")
+    # Los valores que trajo la peticion, nunca; donde y que fallo, si.
+    assert "MARCA" not in caplog.text
+    assert "input" not in avisos[0]
+    assert loc in avisos[0] and tipo in avisos[0]
 
 
 def test_f006_r3_un_json_roto_sale_como_400(monkeypatch: pytest.MonkeyPatch) -> None:
