@@ -74,7 +74,7 @@ LOG_COLUMNAS: tuple[str, ...] = (
 )
 
 #: Origen de las fechas OLE (las de `con.tiemod`).
-_ORIGEN_OLE = datetime(1899, 12, 30)
+_ORIGEN_OLE = datetime(1899, 12, 30, tzinfo=timezone.utc)
 
 
 def _insert(tabla: str, columnas: tuple[str, ...]) -> str:
@@ -113,9 +113,9 @@ def fecha_ole_utc(instante: datetime) -> float:
     """Dias (con fraccion) desde 1899-12-30 en UTC, como `con.tiemod` [medido
     en dos partes]. Un instante sin zona se entiende UTC."""
     utc = (
-        instante
+        instante.replace(tzinfo=timezone.utc)
         if instante.tzinfo is None
-        else instante.astimezone(timezone.utc).replace(tzinfo=None)
+        else instante.astimezone(timezone.utc)
     )
     return (utc - _ORIGEN_OLE).total_seconds() / 86400
 

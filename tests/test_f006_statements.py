@@ -76,17 +76,21 @@ def test_f006_r6_l4_usuario(sentencias: ParteReclamacionStatements) -> None:
 
 def test_f006_r6_l5_unidades_postventa(sentencias: ParteReclamacionStatements) -> None:
     assert sentencias.leer_unidades_postventa(1758465, 1) == (
-        "SELECT c.ide, c.cod, ISNULL(u.cliide, 0), ISNULL(u.peride, 0) FROM dbo.upv u "
-        "JOIN dbo.con c ON c.ide = u.ide WHERE u.obride = ? AND c.emp = ? AND c.tip = ?",
+        (
+            "SELECT c.ide, c.cod, ISNULL(u.cliide, 0), ISNULL(u.peride, 0) FROM dbo.upv u "
+            "JOIN dbo.con c ON c.ide = u.ide WHERE u.obride = ? AND c.emp = ? AND c.tip = ?"
+        ),
         [1758465, 1, 707],
     )
 
 
 def test_f006_r6_l6_oficios_de_la_obra(sentencias: ParteReclamacionStatements) -> None:
     assert sentencias.leer_oficios_de_la_obra(1758465) == (
-        "SELECT o.ide, o.pos, a.cod, p.cod FROM dbo.obrofc o "
-        "LEFT JOIN dbo.auxofc a ON a.ide = o.ofcide "
-        "LEFT JOIN dbo.con p ON p.ide = o.prvide WHERE o.obride = ?",
+        (
+            "SELECT o.ide, o.pos, a.cod, p.cod FROM dbo.obrofc o "
+            "LEFT JOIN dbo.auxofc a ON a.ide = o.ofcide "
+            "LEFT JOIN dbo.con p ON p.ide = o.prvide WHERE o.obride = ?"
+        ),
         [1758465],
     )
 
@@ -104,9 +108,11 @@ def test_f006_r15_l8_idempotencia_por_referencia(
     sentencias: ParteReclamacionStatements,
 ) -> None:
     assert sentencias.buscar_referencia("PVI-1", 1) == (
-        "SELECT c.ide, c.cod, r.upvide FROM dbo.conext x "
-        "JOIN dbo.con c ON c.ide = x.conide LEFT JOIN dbo.rcp r ON r.ide = c.ide "
-        "WHERE x.cod = ? AND x.valt = ? AND c.tip = ? AND c.emp = ?",
+        (
+            "SELECT c.ide, c.cod, r.upvide FROM dbo.conext x "
+            "JOIN dbo.con c ON c.ide = x.conide LEFT JOIN dbo.rcp r ON r.ide = c.ide "
+            "WHERE x.cod = ? AND x.valt = ? AND c.tip = ? AND c.emp = ?"
+        ),
         ["RCPCLI", "PVI-1", 708, 1],
     )
 
@@ -132,8 +138,10 @@ def test_f006_r9_l10_siguiente_pos_sin_bloqueo(sentencias: ParteReclamacionState
 
 def test_f006_r12_e2_cod_bajo_bloqueo(sentencias: ParteReclamacionStatements) -> None:
     assert sentencias.reservar_cod(1, "RS26.09/") == (
-        "SELECT MAX(cod) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) "
-        "WHERE emp = ? AND tip = ? AND cod LIKE ?",
+        (
+            "SELECT MAX(cod) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) "
+            "WHERE emp = ? AND tip = ? AND cod LIKE ?"
+        ),
         [1, 708, "RS26.09/[0-9][0-9][0-9][0-9]"],
     )
 
@@ -210,26 +218,26 @@ def test_f006_r11_columnas_de_las_cinco_tablas() -> None:
 
 
 def _filas(sentencias: ParteReclamacionStatements, **cambios: object) -> dict:
-    datos = dict(
-        emp=1,
-        est=1,
-        descripcion="Fisura en tabique",
-        descripcion_larga=None,
-        fec=20260924,
-        hor=221530,
-        tiemod=46289.847,
-        upvide=2751478,
-        cliide=2811575,
-        recide=2811576,
-        clase_ide=0,
-        rcptip=1,
-        trcpide=2,
-        resubi="Cocina",
-        ofcide=39,
-        intervinientes=[(2173, False), (2268, True)],
-        referencia="PVI-1",
-        usu="prueba",
-    )
+    datos: dict[str, object] = {
+        "emp": 1,
+        "est": 1,
+        "descripcion": "Fisura en tabique",
+        "descripcion_larga": None,
+        "fec": 20260924,
+        "hor": 221530,
+        "tiemod": 46289.847,
+        "upvide": 2751478,
+        "cliide": 2811575,
+        "recide": 2811576,
+        "clase_ide": 0,
+        "rcptip": 1,
+        "trcpide": 2,
+        "resubi": "Cocina",
+        "ofcide": 39,
+        "intervinientes": [(2173, False), (2268, True)],
+        "referencia": "PVI-1",
+        "usu": "prueba",
+    }
     datos.update(cambios)
     return sentencias.construir_filas(**datos)
 
@@ -388,9 +396,10 @@ def test_f006_r12_el_patron_like_exige_tam_digitos() -> None:
 @pytest.mark.parametrize(
     "momento, esperado",
     [
-        (datetime(2026, 9, 24, 22, 15), "RS26.09/"),
-        (datetime(2027, 1, 1, 0, 0), "RS27.01/"),
-        (datetime(2026, 12, 31, 23, 59), "RS26.12/"),
+        # Hora LOCAL de Madrid, sin zona: es lo que recibe prefijo_de_serie.
+        (datetime(2026, 9, 24, 22, 15), "RS26.09/"),  # noqa: DTZ001
+        (datetime(2027, 1, 1, 0, 0), "RS27.01/"),  # noqa: DTZ001
+        (datetime(2026, 12, 31, 23, 59), "RS26.12/"),  # noqa: DTZ001
     ],
 )
 def test_f006_r12_prefijo_del_mes(momento: datetime, esperado: str) -> None:
