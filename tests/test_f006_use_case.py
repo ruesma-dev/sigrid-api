@@ -951,3 +951,22 @@ def test_f006_r20_una_excepcion_inesperada_tambien_deja_traza(
         ejecutar(repo=RepositorioDoble(truncar_en="upv"))
     (traza,) = _trazas(caplog)
     assert traza["resultado"] == "excepcion" and traza["codigo"] == "ValueError"
+
+
+# --- Relojes por defecto -----------------------------------------------------
+
+
+def test_f006_r16_por_defecto_se_sella_con_la_hora_utc_real() -> None:
+    """Sin relojes inyectados: `time.monotonic` para el presupuesto y la hora
+    UTC real (con zona) para los sellos."""
+    import time
+
+    from application.use_cases import create_partes_reclamacion_use_case as modulo
+
+    caso = CreatePartesReclamacionUseCase(RepositorioDoble(), SettingsDoble())
+    assert caso._reloj is time.monotonic
+    antes = datetime.now(timezone.utc)
+    sello = modulo._ahora_utc()
+    assert sello.tzinfo is not None and sello.utcoffset().total_seconds() == 0
+    assert antes <= sello <= datetime.now(timezone.utc)
+    assert estados(caso.run(peticion())) == ["previsto"]
