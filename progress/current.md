@@ -1,29 +1,29 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-006 · spec escrita el 2026-09-24, pendiente de aprobación del humano
+## F-006 · Implementación (implementer, 2026-09-24)
 
-El spec-author dejó `specs/F-006-alta-parte-reclamacion/` (requirements 150/150, design
-167/250, tasks 19 tareas) y la medición en producción, solo lecturas, en
-[`explore_F-006_modelo_parte.md`](explore_F-006_modelo_parte.md). Lo medido: un parte nuevo
-son `con` + `rcp` + `rcpint` (pos 0) + fila de alta en `dbo.log`, nace en `est` 1 `SAT`
-(`sercon.estini`), la serie `RS<aa>.<mm>/` se reinicia cada mes con 4 dígitos, no hay tabla
-de contadores (`serconcod` vacía) y el índice único `(emp, tip, cod)` detecta la colisión con
-la UI. La referencia externa del importador es `conext.cod='RCPCLI'`.
+T3-T12 y T14 hechas con un commit por tarea; T13 (mutación completa, 8 workers) en
+curso; **T15-T18 son MANUALES del humano** (guion exacto en `tasks.md`). Informe:
+[`impl_F-006.md`](impl_F-006.md). Nada escrito contra Sigrid: solo dos `sql/read`
+(plantilla de `sercon` y columnas de las cinco tablas), anotados en el informe.
 
-**Decisiones abiertas que tiene que validar el humano antes de implementar** (detalle al
-principio de `requirements.md`):
+Decisiones de implementación (ninguna reabre Q1-Q4):
+- L1 se consulta con la **plantilla literal** `RS<año2>.<mes>/` (así la guarda `sercon.cod`,
+  leído por `sql/read`); el prefijo de cada parte sale de su `fec` local de Madrid.
+- Numeración del dry-run leída **una vez por lote** (L9, L10 y `peek_next_ide`) y
+  desplazada por los `previsto` anteriores; el resultado es el mismo que leerla por parte.
+- E5 (`rcpint`) solo se ejecuta si el parte trae intervinientes; su applock se toma igual.
+- Timeout de cada transacción: `DEFAULT_WRITE_TIMEOUT_SECONDS` (R4 no trae uno propio).
+- `IntegrityError` se reconoce por el nombre de la clase (sin importar `pyodbc` en
+  `application/`); agotados los reintentos → `colision_de_clave`.
+- Prefijo de referencia sensible a mayúsculas; duplicados en lote y códigos, sin mayúsculas
+  (la colación es CI). El primer parte con una referencia es su dueño en el lote.
+- `committed` = se creó al menos un parte.
+- Fichero vacío sin trackear `` `0`].{t `` (ajeno, 12:31): apartado al scratchpad durante
+  la campaña de mutación, que exige árbol limpio; se devuelve al terminar.
 
-- **Q1** — Referencia externa en `RCPCLI` **con prefijo obligatorio del llamante** (el campo
-  ya lo usan el promotor y notas a mano), o alternativa `con.doc`.
-- **Q2** — `rcp.rcptip` (forma de comunicación): 0 por defecto, informable `{0, 1}`.
-- **Q3** — Escribir la fila de alta en `dbo.log` como el escritorio (el portal no la escribe).
-- **Q4** — Qué UPV real se usa para el `commit:true` de prueba (la obra 0404 no tiene UPV).
-- Además, para que conste: una obra por lote; `rcp.pos` puede repetirse ante una alta
-  simultánea de la UI (sin índice único, inocuo); el `HOLDLOCK` sobre `log` retiene un instante
-  las altas de log de otros usuarios.
-
-## F-006 · Alta de partes de reclamación en lote (EN SPEC, 2026-09-24)
+## F-006 · Alta de partes de reclamación en lote (IN_PROGRESS, 2026-09-24)
 
 Rama `feature/F-006-alta-parte-reclamacion` (desde `dev` `210fac1`). Alta en
 el backlog, F-007 (proformas) y F-008 (facturas de compra) anotadas, y
