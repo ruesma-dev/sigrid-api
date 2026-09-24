@@ -3,13 +3,16 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **5 features**, 1 abiertas, 4 terminadas.
+Resumen: **8 features**, 4 abiertas, 4 terminadas.
 
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
+| F-006 | Endpoint de dominio para crear partes de reclamación de Posventa, en lote | 6 | pendiente | critico | `feature/F-006-alta-parte-reclamacion` |
+| F-007 | Endpoint de dominio para registrar proformas | 7 | pendiente | critico | `feature/F-007-registrar-proforma` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 8 | pendiente | critico | `feature/F-008-registrar-factura` |
 
 ## Terminadas
 
@@ -27,6 +30,24 @@ Resumen: **5 features**, 1 abiertas, 4 terminadas.
 estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `feature/F-001-calentamiento`
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
+
+### F-006 · Endpoint de dominio para crear partes de reclamación de Posventa, en lote
+
+estado **pendiente** · prioridad 6 · rigor `critico` · SDD sí · rama `feature/F-006-alta-parte-reclamacion`
+
+Alta del 2026-09-24 por petición del humano. Crear en Sigrid partes de reclamación de Posventa (con.tip 708, serie RS<aa>.<mm>/) como lo hace la UI segun docs/referencia/postventa_pasos_crear_parte.md (referencia principal) y postventa_manual_sigrid.md: desde la unidad postventa, descripcion, tipo de reclamacion, oficio e intervinientes (rcpint -> obrofc de la obra). Lo consume postventa-incidencias F-040 (volcado masivo de incidencias aprobadas). DECISIONES DEL HUMANO (2026-09-24): (1) endpoint de LOTE con tope (~50), CADA PARTE EN SU PROPIA TRANSACCION y respuesta parte a parte, reutilizando las lecturas comunes de la obra; (2) idempotencia por REFERENCIA EXTERNA que aporta quien llama, guardada en un campo de Sigrid (la spec mide cual; candidato: el 'N. Referencia Externo' del importador Excel de Sigrid, con el posible conflicto de la referencia del promotor); (3) tipo de reclamacion por defecto 0002 PRIMER LISTADO POSTVENTA, informable en la peticion. Propuesta aceptada: peticion por codigos, no por ide; interviniente que no este en los oficios de la obra -> se rechaza el parte; el parte nace en su estado inicial y NO se pasa a PTE (proceso de Sigrid que crea tareas y envia correos); codigo de serie calculado DENTRO de la transaccion bajo applock; interruptor propio apagado por defecto ademas de SIGRID_DOMAIN_WRITE_ENABLED; dry-run por defecto. Fuera: pasar a PTE, tareas, correos del portal, fotos (ya van por concepto-grafico), alta de unidades postventa u oficios de obra.
+
+### F-007 · Endpoint de dominio para registrar proformas
+
+estado **pendiente** · prioridad 7 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
+
+Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.
+
+### F-008 · Endpoint de dominio para registrar facturas de compra
+
+estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+
+Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 
