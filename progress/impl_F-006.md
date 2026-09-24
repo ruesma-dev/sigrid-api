@@ -23,6 +23,7 @@ ni endpoints de dominio contra la API desplegada.
 | T12 | `deb60f0`, `3852580` | Suite completa en verde; test de rutas inmune a `get_functions()` no idempotente del SDK; cobertura del reloj por defecto |
 | T14 | `33d7b66`, `b4dea19`; `azure-apps` **`7df52e9`** | `docs/ARCHITECTURE.md`, mapa de rutas de `CLAUDE.md`, `azure-apps/sigrid_api.md` (§intro, §1.1, §4, §4.1, §7.1, §7.2, §7.5, §7.6, §8, §8.9 nueva, §9.2, §10) |
 | T13 | `22e23f7` + ronda 2 | Mutación completa: ver §6 y [`mutacion_F-006.md`](mutacion_F-006.md) |
+| Revisión | `2edba47`, `657a9bf`, `52ba4be` | T17 y T16 del guion manual (§7) y M1, el aviso de `ValidationError` sin valores (§9) |
 
 T1/T2 venían hechas. **T15-T18 son MANUALES del humano y no se han tocado** (§7). T19: §6.
 
@@ -42,33 +43,28 @@ Nuevos: `domain/models/parte_reclamacion_models.py` (206 l.),
 1. **L1 con la plantilla literal.** `sercon.cod` guarda `RS<año2>.<mes>/` tal cual (leído, §4);
    L1 la pide con `?` y el prefijo de cada parte sale de su `fec` local de Madrid
    (`prefijo_de_serie`). Un lote que cruce la medianoche de fin de mes numera cada parte en su mes.
-2. **Numeración del dry-run leída una vez por lote** (L9 por prefijo, L10 y los cuatro
-   `peek_next_ide`) y desplazada por los `previsto` anteriores. `design.md` las pone «por
-   parte»; el resultado es idéntico y ahorra hasta 6×50 conexiones por lote.
+2. **Numeración del dry-run leída una vez por lote** (L9, L10, `peek_next_ide`) y desplazada por
+   los `previsto` anteriores; `design.md` dice «por parte»: igual resultado, 6×50 conexiones menos.
 3. **E5 solo con intervinientes.** Sin ellos no se reserva `ide` de `rcpint` (no se usaría); el
    applock `SIGRID_IDE_rcpint` se toma igual, para no alterar el orden.
 4. **Timeout de cada transacción = `DEFAULT_WRITE_TIMEOUT_SECONDS`**: R4 no trae uno propio.
-5. **`IntegrityError` por nombre de clase** (`_es_colision_de_clave`), para no importar `pyodbc`
-   en `application/`. Agotados los reintentos del repositorio → `colision_de_clave`; cualquier
-   otra excepción → `error_de_escritura` con su tipo, sin reintento.
-6. **Mayúsculas.** El prefijo `PVI-` se exige tal cual (más estricto); duplicados en lote,
-   UPV, tipo, clase, oficio y proveedor se comparan con `casefold()` como la colación CI del
-   ERP. El primer parte con una referencia es su dueño; los siguientes, `referencia_duplicada_en_lote`.
+5. **`IntegrityError` por nombre de clase** (sin `pyodbc` en `application/`). Agotados los
+   reintentos → `colision_de_clave`; otra excepción → `error_de_escritura`, sin reintento.
+6. **Mayúsculas.** `PVI-` tal cual (más estricto); lo demás con `casefold()`, como la colación CI.
+   El primer parte con una referencia es su dueño; los siguientes, `referencia_duplicada_en_lote`.
 7. **`committed` = se creó al menos un parte** (en commit sin creados, `false`, como F-004).
 8. Serie: si no hay **exactamente una** fila activa con `tam 4` → `serie_no_encontrada`.
-9. Tras la ronda 1 de mutación se quitó código muerto con su invariante en quien construye
-   el dato (RM6): los `fila[:N]` (el SQL es constante y trae esas columnas, lo fija
-   `test_f006_statements`), el `or 0` de `cliide/recide` (L5 ya hace `ISNULL(...,0)`), el
-   `frozen` de `_Lote` (interno, se construye una vez y nadie lo muta) y el `0` del `ide_rcpint`
-   sin intervinientes (ahora `None`: no hay fila que numerar).
+9. Tras la ronda 1 de mutación se quitó código muerto con su invariante en quien construye el
+   dato (RM6): `fila[:N]`, `or 0` de `cliide/recide`, `frozen` de `_Lote` y el `0` de
+   `ide_rcpint` sin intervinientes (detalle en `mutacion_F-006.md`).
 
 ## 4 · Lecturas contra el ERP (solo `sql/read`, 2026-09-24)
 
-- `SELECT ide, cod, ..., tam, act, emp, estini FROM dbo.sercon WHERE tip = ?` [708] →
-  213 `RS<año2>.<mes>/` (emp 1, tam 4, act 1, estini 1) y 214 `RP…` (emp 0); y la L1 exacta
-  con la plantilla → 1 fila (213, 1, 4, 1). `con.cod` varchar(24), `con.tiemod` float.
+- `sercon WHERE tip = 708` → 213 `RS<año2>.<mes>/` (emp 1, tam 4, act 1, estini 1) y 214 `RP…`
+  (emp 0); la L1 exacta → 1 fila (213, 1, 4, 1). `con.cod` varchar(24), `con.tiemod` float.
 - `INFORMATION_SCHEMA.COLUMNS` de `con`, `rcp`, `rcpint`, `conext`, `log`: 19/20/5/11/14
   columnas con **exactamente** los nombres y el orden de `design.md` §Filas.
+- 2026-09-25 (revisión): **una** lectura para el oficio del negativo de T16 (citada en T16).
 
 ## 5 · Fase RED (trazas reales)
 
@@ -147,34 +143,25 @@ mutante superviviente que lo motivó (listado en `mutacion_F-006.md`), que en la
 | 1 | `3852580` | 228 | 186 | 42 | 2.548,9 s | 8 |
 | 2 (**la que vale**) | `22e23f7e9a05e0baddcb509b1851b28b4d48b80b` | **217** | **217** | **0** | 1.355,1 s | 8 |
 
-De los 42 de la ronda 1, reevaluados **en serie** uno a uno en un worktree de `3852580`:
-**6 falsos** (mueren en serie: n.º 74, 76, 80, 118, 120, 121; el defecto conocido del modo
-paralelo) y **36 reales**, cerrados en `22e23f7` con 28 tests nuevos o reforzados y 8
-líneas de código muerto quitadas con su invariante en quien construye el dato (§3.9).
-**Cero equivalentes aceptados**: nada que pedir al humano. Ficha por ficha, al final de
-[`mutacion_F-006.md`](mutacion_F-006.md). Sin cabecera de campaña no válida, 0 timeouts,
-0 sin veredicto. Coste por mutante: 1.355,1 × 8 ÷ 217 = 50 s; `media × W` = 49,6 s frente
-a una línea base de ~340 s con 8 suites compitiendo (la campaña corre con `-x` y los
-mutantes mueren en los tests de F-006).
+De los 42 de la ronda 1, reevaluados **en serie** en un worktree de `3852580`: **6 falsos**
+(mueren en serie: n.º 74, 76, 80, 118, 120, 121) y **36 reales**, cerrados en `22e23f7` con
+28 tests y 8 líneas de código muerto quitadas (§3.9). **Cero equivalentes aceptados**; 0
+timeouts, 0 sin veredicto. Ficha por ficha en [`mutacion_F-006.md`](mutacion_F-006.md).
 
 ## 7 · MANUAL pendiente del humano (T15-T18, comandos exactos en `tasks.md`)
 
 - **T15** desplegar y fijar por JSON `SIGRID_RECLAMACION_WRITE_ENABLED=false`, `_MAX_PARTES=50`,
   `_PREFIJOS_REFERENCIA=["PVI-"]`, `_PRESUPUESTO_SEGUNDOS=150`; comprobar `ALLOWED_WRITE_DATABASES`.
 - **T16** dry-run en la obra 0626 / UPV `0626.03PORTAL 1.1.A` con los dos negativos; `MAX` sin cambiar.
-  **Arreglo de revisión** (verificación, cambio 2): lote literal de tres partes
-  (`PVI-PRUEBA-0001/0002/0003`): el válido; UPV inventada `0626.99NO EXISTE`; y oficio del parte
-  `0039` con interviniente `0006`, elegido con **una** `sql/read` (2026-09-25, SQL y resultado
-  citados en T16: `0006`/ide 6 en `auxofc`, `fecbaj` 0, sin `obrofc` en 0626, que tiene 25).
-  `LIKE` literal `RS26.09/[0-9][0-9][0-9][0-9]`, a cambiar si la prueba cae en otro mes.
-  Comprobado sin red: el lote pasado por el caso de uso con los dobles de
-  `test_f006_use_case` da `previsto`, `unidad_postventa_no_encontrada`, `interviniente_no_esta_en_la_obra`.
+  **Arreglo de revisión** (cambio 2, `657a9bf`): lote literal `PVI-PRUEBA-0001/0002/0003`: el
+  válido; UPV inventada; interviniente `0006` (en `auxofc`, sin `obrofc` en 0626: una `sql/read`,
+  citada en T16). `LIKE` literal `RS26.09/[0-9][0-9][0-9][0-9]`, a cambiar si cae en otro mes. Sin
+  red, por el caso de uso con los dobles: `previsto`, `unidad_postventa_no_encontrada`, `interviniente_no_esta_en_la_obra`.
 - **T17** `commit:true` autorizado de **un** parte, lecturas de comprobación y ficha en Sigrid.
-  **Arreglo de revisión** (verificación, cambio 1): `SIGRID_DOMAIN_WRITE_ENABLED` **no se toca**
-  (ya `true`; la usan albaranes y `concepto-grafico`). Se abre **solo**
-  `SIGRID_RECLAMACION_WRITE_ENABLED=true` por `f006_abrir_reclamacion.json` y se cierra a `false`
-  por `f006_cerrar_reclamacion.json` **después de T18** (R10), las dos con `--settings "@…"` y
-  comprobadas con el `appsettings list` de T15. Cuerpo del `commit` escrito literal.
+  **Arreglo de revisión** (cambio 1, `2edba47`): `SIGRID_DOMAIN_WRITE_ENABLED` **no se toca** (ya
+  `true`; la usan albaranes y `concepto-grafico`). Se abre **solo** `SIGRID_RECLAMACION_WRITE_ENABLED`
+  (`f006_abrir_reclamacion.json`) y se cierra a `false` (`f006_cerrar_reclamacion.json`) **después
+  de T18** (R10), con `--settings "@…"` y el `appsettings list` de T15. Cuerpo del `commit` literal.
 - **T18** repetir → `idempotente`; anular en la UI (NO PROCEDE, sin correo), nunca `DELETE`;
   y cerrar la llave (paso 3 de T17).
 - Aviso para T16: sin `SIGRID_RECLAMACION_PREFIJOS_REFERENCIA=["PVI-"]` desplegada, **todo**
@@ -187,14 +174,46 @@ mutantes mueren en los tests de F-006).
 - El fichero vacío sin trackear `` `0`].{t `` (ajeno, del 2026-09-24 12:31) impedía la campaña
   paralela (exige árbol limpio): se apartó al scratchpad y se devolvió al terminar.
 - `ruff` en los ficheros nuevos: `All checks passed!`; los 3 avisos de `function_app.py` son previos.
+- M1 solo toca el log: el 400 sigue devolviendo `exc.errors()` (con `input`) a quien pidió, y
+  las demás rutas siguen logueando `str(exc)`.
+- Aviso para T15 (no tocada): `sigrid_api.md` §11 dice que los paréntesis JMESPath rompen `az.cmd`
+  en Windows, y su `--query` usa `starts_with(...)`.
 
-## 9 · Evidencias
+## 9 · Ronda de revisión: M1 (`52ba4be`)
+
+El aviso de `ValidationError` de esa ruta (`function_app.py:355`) volcaba `str(exc)`, con
+`input_value`; ahora solo `[(loc, type), …]`, p. ej. `[(('partes', 0, 'oficio'), 'missing')]`.
+Test `test_f006_r20_el_aviso_de_validacion_no_vuelca_los_valores_de_entrada` (falta `oficio`;
+descripción > 128), con referencia y descripción marcadas.
+
+**RED** (test escrito, código sin tocar):
+
+```
+$ python -m pytest tests/test_f006_route.py -q -k r20
+E       AssertionError: assert 'input' not in 'ValidationE...11/v/missing'
+E           =missing, input_value={'referencia_externa': 'P..., 'proveedor': '1181'}]}, input_type=dict]
+E       AssertionError: assert 'MARCA' not in 'WARNING  fu...g_too_long\n'
+E           ut_value='MARCA-DESCRIPCION-NO-LOG...xxxxxxxxxxxxxxxxxxxxxxx', input_type=str]
+FAILED tests/test_f006_route.py::test_f006_r20_el_aviso_..._entrada[cambios_del_parte0-oficio-oficio-missing]
+FAILED tests/test_f006_route.py::test_f006_r20_el_aviso_..._entrada[cambios_del_parte1-None-descripcion-string_too_long]
+2 failed, 10 deselected, 1 warning in 2.88s
+```
+
+**GREEN**: `python -m pytest tests/test_f006_route.py -q` → `12 passed`.
+
+**Mutación acotada** (`--base 657a9bf`): el arnés da **CERO MUTANTES** (exit 3, sin
+informe) porque esas líneas no tienen operador que mutar. Evidencia aportada de otra forma:
+**8 mutantes manuales aplicados y ejecutados, 8 muertos, 0 supervivientes** (volver a `exc`,
+sin `loc`, sin `type`, dict entero con `input`, lista vacía, sin prefijo, `debug`, `info`).
+Detalle en [`mutacion_F-006.md`](mutacion_F-006.md) §Ronda de revisión.
+
+## 10 · Evidencias
 
 | Evidencia | Valor |
 |---|---|
-| **Tests ejecutados** | **1.731 pasan**, 1 se salta, 0 fallan (`bash harness/init.sh`, 2026-09-25); de F-006, **229** (`-k f006`: 85 del caso de uso, 76 del modelo, 45 del constructor, 13 de ajustes, 10 de la ruta) |
+| **Tests ejecutados** | **1.733 pasan**, 1 se salta, 0 fallan (`bash harness/init.sh`, 2026-09-25, código de `52ba4be`); de F-006, **231** (`-k f006`: 85 del caso de uso, 76 del modelo, 45 del constructor, 13 de ajustes, **12** de la ruta) |
 | **Cobertura de las líneas cambiadas** | **100,0 %** — `PUERTA COBERTURA: 100.0% de 560 líneas cambiadas cubiertas (560/560, umbral 80%, nivel critico)` |
-| **Mutantes generados y supervivientes** | **217 generados, 217 muertos, 0 supervivientes**, 0 timeouts, campaña completa con **8 workers** sobre `22e23f7` (§6) |
-| **Tiempo de la suite** | **151,79 s** bajo `coverage` en `init.sh`; los tests de F-006 solos, ~9 s |
+| **Mutantes generados y supervivientes** | Rama completa: **217/217 muertos, 0 supervivientes** sobre `22e23f7` (§6; el resto del código de producción no ha cambiado). Ronda M1 sobre `52ba4be`: el arnés genera **0** (exit 3); **8 manuales, 8 muertos** (§9) |
+| **Tiempo de la suite** | **101,62 s** bajo `coverage`, **en esa ejecución** de `init.sh` (la anterior dio 121,13 s y la de T19 151,79 s); los tests de F-006 solos, 4,24 s |
 | **`bash harness/init.sh`** | **`ENTORNO LISTO`** (exit 0): cobertura `[OK]`, tamaño `[OK]`, 80 avisos de `ruff`, los previos |
-| **Contra el ERP** | 2 `sql/read` (§4). Ninguna escritura, ningún despliegue, ninguna App Setting |
+| **Contra el ERP** | 3 `sql/read` (§4), la tercera en esta ronda. Ninguna escritura, ningún despliegue, ninguna App Setting |

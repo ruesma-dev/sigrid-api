@@ -24,6 +24,8 @@ documentación: APROBADO), [`review_F-006_verificacion.md`](review_F-006_verific
 (C3 y corrección) y `review_F-006_rigor.md` (C4 bis). Después, veredicto
 consolidado en `review_F-006.md`.
 
+**Ronda de cambios aplicada (2026-09-25)**, [`impl_F-006.md`](impl_F-006.md) §7, §9 y §10: T17 (`2edba47`, solo la llave de reclamaciones, cerrada tras T18), T16 (`657a9bf`, lote literal, oficio `0006` leído por `sql/read`) y M1 (`52ba4be`, log sin valores, RED y 8/8 mutantes manuales muertos: el arnés genera 0 en esas líneas); `init.sh` en verde, 1.733 tests.
+
 **Después del APROBADO**, del humano: merge a `dev` y push, y las MANUALES
 T15-T18 de `tasks.md` (desplegar con la escritura de reclamaciones cerrada,
 dry-run en la obra 0626 / UPV `0626.03PORTAL 1.1.A`, un `commit:true` autorizado

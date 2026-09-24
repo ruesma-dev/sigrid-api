@@ -81,3 +81,39 @@ Ninguno: cada mutación aplicada la cazó al menos un test.
 > 1.355,1 s × 8 ÷ 217 = **50 s**; `media × W` = 6,2 × 8 = 49,6 s frente a una línea base
 > de ~340 s con 8 suites compitiendo: la campaña va con `-x` y los mutantes mueren en
 > los tests de F-006, a mitad de suite.
+
+## Ronda de revisión · M1 (2026-09-25, `52ba4be`)
+
+Campaña **acotada a las líneas cambiadas** con lo que admite el arnés (`--base` al commit
+anterior al cambio):
+
+```
+$ python -m harness.mutacion --feature F-006 --base 657a9bf --workers 1 --salida <scratchpad>
+F-006: 1 fichero(s), 6 línea(s) de producción (origen rama, 657a9bf308b2f14994acafc90726d4c69f30983f..feature/F-006-alta-parte-reclamacion)
+CERO MUTANTES en F-006: el alcance tiene 6 línea(s) de producción pero no se ha generado ni un mutante, así que no se ha juzgado NADA.
+  Motivo: esas líneas no llevan código mutable —imports, docstrings, declaraciones, cadenas— o el fichero no se pudo leer. Amplía el alcance o aporta la evidencia de otra forma, y dilo por escrito.
+EXIT=3
+```
+
+**0 generados no es 0 supervivientes**: el mutador del arnés no tiene operador para
+`logger.warning("…", [(error["loc"], error["type"]) for error in exc.errors()])` (solo
+cadenas, subíndices y una llamada). Ampliar a `--ficheros function_app.py` mutaría las
+rutas ajenas a F-006, y la campaña completa de la rama no añade mutantes nuevos: fuera de
+este aviso, el código de producción es el de `22e23f7`, ya medido arriba (217/217).
+**Evidencia aportada de otra forma**: 8 mutantes manuales de esas líneas, **aplicados y
+ejecutados** uno a uno contra `tests/test_f006_route.py` (script en el scratchpad de la
+sesión; `function_app.py` restaurado y limpio en `git status` al terminar):
+
+| Id | Mutación | Resultado |
+|---|---|---|
+| MA | vuelve a `exc` (el defecto original) | MUERTO (exit 1, 1 failed) |
+| MB | sin `loc` | MUERTO |
+| MC | sin `type` | MUERTO |
+| MD | `exc.errors()` entero (con `input`) | MUERTO |
+| ME | lista vacía | MUERTO |
+| MF | mensaje sin el prefijo `ValidationError en sigrid/partes-reclamacion: ` | MUERTO |
+| MG | `warning` → `debug` | MUERTO |
+| MH | `warning` → `info` | MUERTO |
+
+**8 de 8 muertos, 0 supervivientes, 0 equivalentes que pedir al humano.** Todos los mata
+`test_f006_r20_el_aviso_de_validacion_no_vuelca_los_valores_de_entrada`.
