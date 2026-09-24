@@ -1,6 +1,51 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-006 · spec escrita el 2026-09-24, pendiente de aprobación del humano
+
+El spec-author dejó `specs/F-006-alta-parte-reclamacion/` (requirements 150/150, design
+167/250, tasks 19 tareas) y la medición en producción, solo lecturas, en
+[`explore_F-006_modelo_parte.md`](explore_F-006_modelo_parte.md). Lo medido: un parte nuevo
+son `con` + `rcp` + `rcpint` (pos 0) + fila de alta en `dbo.log`, nace en `est` 1 `SAT`
+(`sercon.estini`), la serie `RS<aa>.<mm>/` se reinicia cada mes con 4 dígitos, no hay tabla
+de contadores (`serconcod` vacía) y el índice único `(emp, tip, cod)` detecta la colisión con
+la UI. La referencia externa del importador es `conext.cod='RCPCLI'`.
+
+**Decisiones abiertas que tiene que validar el humano antes de implementar** (detalle al
+principio de `requirements.md`):
+
+- **Q1** — Referencia externa en `RCPCLI` **con prefijo obligatorio del llamante** (el campo
+  ya lo usan el promotor y notas a mano), o alternativa `con.doc`.
+- **Q2** — `rcp.rcptip` (forma de comunicación): 0 por defecto, informable `{0, 1}`.
+- **Q3** — Escribir la fila de alta en `dbo.log` como el escritorio (el portal no la escribe).
+- **Q4** — Qué UPV real se usa para el `commit:true` de prueba (la obra 0404 no tiene UPV).
+- Además, para que conste: una obra por lote; `rcp.pos` puede repetirse ante una alta
+  simultánea de la UI (sin índice único, inocuo); el `HOLDLOCK` sobre `log` retiene un instante
+  las altas de log de otros usuarios.
+
+## F-006 · Alta de partes de reclamación en lote (EN SPEC, 2026-09-24)
+
+Rama `feature/F-006-alta-parte-reclamacion` (desde `dev` `210fac1`). Alta en
+el backlog, F-007 (proformas) y F-008 (facturas de compra) anotadas, y
+referencias en `docs/referencia/` (Word de Posventa y manual de Sigrid, con
+markitdown): commit `ad5d500`.
+
+**Decisiones del humano (2026-09-24)**, recogidas en `features.json`: lote con
+tope y **una transacción por parte**, respuesta parte a parte; idempotencia por
+**referencia externa** que aporta quien llama; tipo de reclamación **`0002` por
+defecto e informable**; el manual se incorpora entero pese a su cláusula de
+copyright; F-008 es de **compra**. La referencia principal es el Word
+(`postventa_pasos_crear_parte.md`); sus capturas llevan nombres de
+propietarios y no se transcriben.
+
+**Estado:** spec-author lanzado. Mide en producción, solo con lecturas, el
+modelo de filas de un parte (`RS26.08/0169`, obra 0677, como modelo) →
+`progress/explore_F-006_modelo_parte.md` y la spec en
+`specs/F-006-alta-parte-reclamacion/`. Al terminar: F-006 a `spec_ready` y
+**PARAR** para la aprobación del humano.
+
+> Todo lo que sigue es de F-004/F-005, ya cerradas y verificadas.
+
 > **F-005 cerrada el 2026-09-06 con veredicto APROBADO** (código y
 > papeleo) e `init.sh` en verde: 1.502 tests, cobertura 100 % de las 7 líneas
 > cambiadas, mutación 6/6. Informes: [`impl_F-005.md`](impl_F-005.md),
