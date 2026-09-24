@@ -162,6 +162,13 @@ mutantes mueren en los tests de F-006).
 - **T15** desplegar y fijar por JSON `SIGRID_RECLAMACION_WRITE_ENABLED=false`, `_MAX_PARTES=50`,
   `_PREFIJOS_REFERENCIA=["PVI-"]`, `_PRESUPUESTO_SEGUNDOS=150`; comprobar `ALLOWED_WRITE_DATABASES`.
 - **T16** dry-run en la obra 0626 / UPV `0626.03PORTAL 1.1.A` con los dos negativos; `MAX` sin cambiar.
+  **Arreglo de revisión** (verificación, cambio 2): lote literal de tres partes
+  (`PVI-PRUEBA-0001/0002/0003`): el válido; UPV inventada `0626.99NO EXISTE`; y oficio del parte
+  `0039` con interviniente `0006`, elegido con **una** `sql/read` (2026-09-25, SQL y resultado
+  citados en T16: `0006`/ide 6 en `auxofc`, `fecbaj` 0, sin `obrofc` en 0626, que tiene 25).
+  `LIKE` literal `RS26.09/[0-9][0-9][0-9][0-9]`, a cambiar si la prueba cae en otro mes.
+  Comprobado sin red: el lote pasado por el caso de uso con los dobles de
+  `test_f006_use_case` da `previsto`, `unidad_postventa_no_encontrada`, `interviniente_no_esta_en_la_obra`.
 - **T17** `commit:true` autorizado de **un** parte, lecturas de comprobación y ficha en Sigrid.
   **Arreglo de revisión** (verificación, cambio 1): `SIGRID_DOMAIN_WRITE_ENABLED` **no se toca**
   (ya `true`; la usan albaranes y `concepto-grafico`). Se abre **solo**
