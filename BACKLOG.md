@@ -5,12 +5,14 @@
 
 Resumen: **8 features**, 4 abiertas, 4 terminadas.
 
+En curso: **F-006**.
+
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-006 | Endpoint de dominio para crear partes de reclamación de Posventa, en lote | 6 | spec lista | critico | `feature/F-006-alta-parte-reclamacion` |
+| F-006 | Endpoint de dominio para crear partes de reclamación de Posventa, en lote | 6 | en curso | critico | `feature/F-006-alta-parte-reclamacion` |
 | F-007 | Endpoint de dominio para registrar proformas | 7 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 8 | pendiente | critico | `feature/F-008-registrar-factura` |
 
@@ -33,7 +35,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-006 · Endpoint de dominio para crear partes de reclamación de Posventa, en lote
 
-estado **spec lista** · prioridad 6 · rigor `critico` · SDD sí · rama `feature/F-006-alta-parte-reclamacion`
+estado **en curso** · prioridad 6 · rigor `critico` · SDD sí · rama `feature/F-006-alta-parte-reclamacion`
 
 Alta del 2026-09-24 por petición del humano. Crear en Sigrid partes de reclamación de Posventa (con.tip 708, serie RS<aa>.<mm>/) como lo hace la UI segun docs/referencia/postventa_pasos_crear_parte.md (referencia principal) y postventa_manual_sigrid.md: desde la unidad postventa, descripcion, tipo de reclamacion, oficio e intervinientes (rcpint -> obrofc de la obra). Lo consume postventa-incidencias F-040 (volcado masivo de incidencias aprobadas). DECISIONES DEL HUMANO (2026-09-24): (1) endpoint de LOTE con tope (~50), CADA PARTE EN SU PROPIA TRANSACCION y respuesta parte a parte, reutilizando las lecturas comunes de la obra; (2) idempotencia por REFERENCIA EXTERNA que aporta quien llama, guardada en un campo de Sigrid (la spec mide cual; candidato: el 'N. Referencia Externo' del importador Excel de Sigrid, con el posible conflicto de la referencia del promotor); (3) tipo de reclamacion por defecto 0002 PRIMER LISTADO POSTVENTA, informable en la peticion. Propuesta aceptada: peticion por codigos, no por ide; interviniente que no este en los oficios de la obra -> se rechaza el parte; el parte nace en su estado inicial y NO se pasa a PTE (proceso de Sigrid que crea tareas y envia correos); codigo de serie calculado DENTRO de la transaccion bajo applock; interruptor propio apagado por defecto ademas de SIGRID_DOMAIN_WRITE_ENABLED; dry-run por defecto. Fuera: pasar a PTE, tareas, correos del portal, fotos (ya van por concepto-grafico), alta de unidades postventa u oficios de obra.
 
