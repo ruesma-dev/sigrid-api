@@ -214,6 +214,6 @@ Detalle en [`mutacion_F-006.md`](mutacion_F-006.md) §Ronda de revisión.
 | **Tests ejecutados** | **1.733 pasan**, 1 se salta, 0 fallan (`bash harness/init.sh`, 2026-09-25, código de `52ba4be`); de F-006, **231** (`-k f006`: 85 del caso de uso, 76 del modelo, 45 del constructor, 13 de ajustes, **12** de la ruta) |
 | **Cobertura de las líneas cambiadas** | **100,0 %** — `PUERTA COBERTURA: 100.0% de 560 líneas cambiadas cubiertas (560/560, umbral 80%, nivel critico)` |
 | **Mutantes generados y supervivientes** | Rama completa: **217/217 muertos, 0 supervivientes** sobre `22e23f7` (§6; el resto del código de producción no ha cambiado). Ronda M1 sobre `52ba4be`: el arnés genera **0** (exit 3); **8 manuales, 8 muertos** (§9) |
-| **Tiempo de la suite** | **101,62 s** bajo `coverage`, **en esa ejecución** de `init.sh` (la anterior dio 121,13 s y la de T19 151,79 s); los tests de F-006 solos, 4,24 s |
+| **Tiempo de la suite** | **101,62 s** bajo `coverage`, **en esa ejecución** de `init.sh` sobre el código de `52ba4be` (la de cierre, sobre `49bbd25`: 1.733 pasan en 96,68 s, `ENTORNO LISTO`; la de T19, 151,79 s); los tests de F-006 solos, 4,24 s |
 | **`bash harness/init.sh`** | **`ENTORNO LISTO`** (exit 0): cobertura `[OK]`, tamaño `[OK]`, 80 avisos de `ruff`, los previos |
 | **Contra el ERP** | 3 `sql/read` (§4), la tercera en esta ronda. Ninguna escritura, ningún despliegue, ninguna App Setting |
