@@ -394,7 +394,7 @@ def test_f006_r3_el_estado_inicial_sale_de_la_serie_y_se_valida_en_conest() -> N
 
 
 def test_f006_r3_una_obra_que_no_existe_se_rechaza() -> None:
-    codigo, repo = fallo_de_lote(repo=RepositorioDoble({"obra": []}))
+    codigo, _ = fallo_de_lote(repo=RepositorioDoble({"obra": []}))
     assert codigo == "obra_no_encontrada"
 
 
@@ -729,7 +729,7 @@ def test_f006_r11_work_ejecuta_e1_a_e14_en_orden() -> None:
     cursor = repo.cursores[0]
     assert [c[0] for c in cursor.ejecutadas] == _ORDEN_E
     assert cursor.connection.timeout == 30
-    params = dict((c[0], c[1]) for c in cursor.ejecutadas)
+    params = {clave: valores for clave, valores in cursor.ejecutadas}
     assert params["referencia"] == ["RCPCLI", "PVI-1", 708, 1]
     assert params["reservar_cod"] == [1, 708, "RS26.09/[0-9][0-9][0-9][0-9]"]
     assert params["revalidar_upv"] == [_UPV, _OBRA]
