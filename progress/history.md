@@ -179,3 +179,38 @@ recalculado.
 
 **Lección:** cuando un superviviente resulta código muerto, se quita el
 código, no se pide aceptar el equivalente.
+
+## F-006 · Alta en lote de partes de reclamación de Posventa
+
+**Cerrada el 2026-09-25.** Rigor `critico`, `sdd: true`. Rama
+`feature/F-006-alta-parte-reclamacion`. Pendiente del humano: merge, push,
+despliegue y las MANUALES T15-T18 (`specs/F-006-alta-parte-reclamacion/tasks.md`).
+
+**Por qué:** `postventa-incidencias` (F-040) vuelca en Sigrid las incidencias
+aprobadas en su bandeja y la pasarela no sabía crear un parte. Referencia
+principal: el Word interno de Posventa (`docs/referencia/postventa_pasos_crear_parte.md`),
+con el manual de Sigrid como apoyo.
+
+**Qué hace:** `POST /api/sigrid/partes-reclamacion`, lote de hasta 50 partes de
+una obra, **una transacción por parte** y respuesta parte a parte; escribe `con`,
+`rcp`, `rcpint`, `conext` (`RCPCLI`) y `log` como el escritorio de Sigrid
+(medido en producción, `explore_F-006_modelo_parte.md`); código `RS<aa>.<mm>/NNNN`
+e `ide` reservados **dentro** de la transacción bajo applock, con reintento si
+choca con un alta simultánea de la UI (índice único `emp, tip, cod`); idempotencia
+por referencia externa con prefijo `PVI-`; tipo `0002` y forma «Escrita» por
+defecto; nace en SAT y no pasa a PTE. Dry-run por defecto e interruptor propio
+`SIGRID_RECLAMACION_WRITE_ENABLED` apagado. Decisiones del humano del 2026-09-24
+en `requirements.md`. F-007 (proformas) y F-008 (facturas de compra) quedan
+anotadas en el backlog.
+
+**Evidencias (`98db7ef`):** 1.733 tests (231 de F-006); cobertura 100 % de 560
+líneas; mutación 217/217 sobre `22e23f7` (la ronda 1 dejó 42: 6 falsos del modo
+paralelo y 36 reales, cerrados) y 8/8 manuales en el arreglo M1. Revisión troceada
+en cinco parciales y tres pasadas (`review_F-006*.md`), APROBADO. `azure-apps`
+`7df52e9` (sin push).
+
+**Lecciones:** trocear la revisión volvió a funcionar y cazó un error real del
+guion manual: T17 apagaba `SIGRID_DOMAIN_WRITE_ENABLED`, de la que dependen los
+demás endpoints de dominio. Los guiones MANUAL se revisan contra el estado
+desplegado (`azure-apps`), no solo contra la spec. Una ruta nueva no debe copiar
+`str(ValidationError)` al log: lleva los valores de entrada.

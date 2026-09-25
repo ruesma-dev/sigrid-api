@@ -1,40 +1,32 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-006 · Alta de partes de reclamación en lote (`in_progress`, en revisión)
+## F-006 cerrada el 2026-09-25 (APROBADO): queda lo del humano
 
-Rama `feature/F-006-alta-parte-reclamacion` (desde `dev` `210fac1`), sin push.
-Endpoint `POST /api/sigrid/partes-reclamacion`: lote de hasta 50 partes de una
-obra, una transacción por parte, dry-run por defecto, idempotencia por
-`conext RCPCLI` con prefijo `PVI-`. Spec aprobada por el humano el 2026-09-24
-(`specs/F-006-alta-parte-reclamacion/`, decisiones Q1-Q4 al principio de
-`requirements.md`); modelo medido en
-[`explore_F-006_modelo_parte.md`](explore_F-006_modelo_parte.md).
+Resumen en `history.md`. Por orden:
 
-**Implementación hecha** ([`impl_F-006.md`](impl_F-006.md), HEAD `22ba2a5`):
-T3-T14 y T19, un commit por tarea; 229 tests de F-006, cobertura 100 % de 560
-líneas, mutación 217/217 sobre `22e23f7`, `init.sh` en verde. `azure-apps`
-`7df52e9` (solo `sigrid_api.md`, sin push). Nada escrito contra Sigrid.
-
-**Revisión troceada en curso (2026-09-25)**, un informe por bloque:
-[`review_F-006_estado.md`](review_F-006_estado.md) (C1/C2/C5: CAMBIOS, este
-fichero), [`review_F-006_docs.md`](review_F-006_docs.md) (C3 bis y
-documentación: APROBADO), [`review_F-006_verificacion.md`](review_F-006_verificacion.md)
-(C4/C4 ter: CAMBIOS en el guion manual T16/T17), `review_F-006_codigo.md`
-(C3 y corrección) y `review_F-006_rigor.md` (C4 bis). Después, veredicto
-consolidado en `review_F-006.md`.
-
-**Ronda de cambios aplicada (2026-09-25)**, [`impl_F-006.md`](impl_F-006.md) §7, §9 y §10: T17 (`2edba47`, solo la llave de reclamaciones, cerrada tras T18), T16 (`657a9bf`, lote literal, oficio `0006` leído por `sql/read`) y M1 (`52ba4be`, log sin valores, RED y 8/8 mutantes manuales muertos: el arnés genera 0 en esas líneas); `init.sh` en verde, 1.733 tests.
-
-**Después del APROBADO**, del humano: merge a `dev` y push, y las MANUALES
-T15-T18 de `tasks.md` (desplegar con la escritura de reclamaciones cerrada,
-dry-run en la obra 0626 / UPV `0626.03PORTAL 1.1.A`, un `commit:true` autorizado
-de `PVI-PRUEBA-0001`, repetirlo para la idempotencia y anular el parte en la UI
-como NO PROCEDE sin correo).
+1. Merge de `feature/F-006-alta-parte-reclamacion` en `dev` y push (y `main`
+   cuando toque). `azure-apps` `7df52e9` va sin push (no tiene remoto).
+2. **T15-T18 MANUALES**, comandos exactos en
+   `specs/F-006-alta-parte-reclamacion/tasks.md`: desplegar y fijar las cuatro
+   App Settings con la escritura de reclamaciones cerrada; dry-run del lote
+   literal en la obra 0626 / UPV `0626.03PORTAL 1.1.A`; un `commit:true`
+   autorizado de `PVI-PRUEBA-0001` abriendo **solo**
+   `SIGRID_RECLAMACION_WRITE_ENABLED` (`SIGRID_DOMAIN_WRITE_ENABLED` no se
+   toca); repetirlo (idempotente), anular el parte en la UI (NO PROCEDE sin
+   correo) y cerrar la llave. Resultados a un `verificacion_F-006_*.md`.
+   Avisos: en la respuesta `indice` empieza en 0; los paréntesis del `--query`
+   de T15 pueden romper `az.cmd` en Windows (`sigrid_api.md` §11).
+3. Dar la function key a `postventa-incidencias` para F-040.
 
 **Sin trackear en la raíz:** el fichero vacío `` `0`].{t `` (2026-09-24 12:31),
-ajeno a F-006; parece un comando de consola mal escapado. Lo borra el humano si
-quiere.
+ajeno; parece un comando de consola mal escapado. Lo borra el humano si quiere.
+
+**Menores abiertos de la revisión (no bloquean):** M2, `[0-9]` acepta
+superíndices con la colación CI (0 filas hoy; si aparece, feature propia); O2 y
+O4 van a `postventa-incidencias` F-040; dos precisiones de `azure-apps/sigrid_api.md`
+(§8.9 «o sin ficha `rcp`», §7.2 `base_de_datos_no_permitida` también en dry-run)
+para la próxima vez que se toque.
 
 ## Lo que espera al humano además de F-006
 
@@ -83,15 +75,13 @@ quiere.
 
 ## Lo siguiente en el backlog
 
-Cerrar F-006. Después: F-007 (proformas) y F-008 (facturas de compra), `pending`
+Las MANUALES de F-006 (humano). Después: F-007 (proformas) y F-008 (facturas de compra), `pending`
 con `sdd` y rigor `critico`; y F-001 (calentamiento). Candidato del arnés: el
 diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-006 está implementada en
-> `feature/F-006-alta-parte-reclamacion` y en revisión troceada
-> (`progress/review_F-006_*.md`). Si falta algún informe parcial, relánzalo; con
-> todos, aplica los CAMBIOS con el implementer y pide el veredicto consolidado en
-> `review_F-006.md`. No ejecutes T15-T18: son del humano. No arranques nada nuevo
-> sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-006 está cerrada (APROBADO) y
+> espera al humano: merge y las MANUALES T15-T18. Si trae sus resultados,
+> anótalos en `progress/verificacion_F-006_*.md`. No ejecutes escrituras contra
+> Sigrid. No arranques F-007 ni F-008 sin preguntar.
