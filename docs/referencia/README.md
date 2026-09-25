@@ -33,12 +33,13 @@ Convención del puntero: mismo nombre `NN_tema.md`, título terminado en
 
 ## Índice
 
-Hoy no hay ningún documento incorporado. Mantener este índice al día es
-parte de añadir un documento, no una tarea posterior.
+Mantener este índice al día es parte de añadir un documento, no una tarea
+posterior.
 
 | Fichero | Qué es |
 |---|---|
-| _(vacío)_ | — |
+| [`postventa_pasos_crear_parte.md`](postventa_pasos_crear_parte.md) | Instrucciones internas de Posventa para crear un parte de reclamación en Sigrid. Referencia principal de F-006 |
+| [`postventa_manual_sigrid.md`](postventa_manual_sigrid.md) | Manual del fabricante de Sigrid y el Portal Postventa (2021): conceptos, unidades postventa, oficios, alta y seguimiento de reclamaciones |
 
 **Puntero fijo:** la documentación completa del microservicio y de su entorno
 Azure vive en el repositorio `azure-apps` (`sigrid_api.md`, `sigrid_tablas.md`,

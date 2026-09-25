@@ -85,6 +85,21 @@ class Settings(BaseSettings):
         120, alias="SIGRID_DOCUMENT_WRITE_TIMEOUT_SECONDS"
     )
 
+    # --- Alta de partes de reclamacion en lote (endpoint sigrid/partes-reclamacion) ---
+    # Defectos CERRADOS: sin interruptor no hay commit, y con la lista de
+    # prefijos vacia toda referencia externa se rechaza (tambien en dry-run).
+    # En despliegue: SIGRID_RECLAMACION_PREFIJOS_REFERENCIA=["PVI-"] (Q1 de F-006).
+    sigrid_reclamacion_write_enabled: bool = Field(False, alias="SIGRID_RECLAMACION_WRITE_ENABLED")
+    sigrid_reclamacion_max_partes: int = Field(50, alias="SIGRID_RECLAMACION_MAX_PARTES")
+    sigrid_reclamacion_prefijos_referencia: list[str] = Field(
+        default_factory=list, alias="SIGRID_RECLAMACION_PREFIJOS_REFERENCIA"
+    )
+    # El balanceador corta a los 230 s: pasado este presupuesto no se empieza
+    # ningun parte mas y los restantes vuelven como `no_procesado`.
+    sigrid_reclamacion_presupuesto_segundos: int = Field(
+        150, alias="SIGRID_RECLAMACION_PRESUPUESTO_SEGUNDOS"
+    )
+
     model_config = SettingsConfigDict(
         extra="ignore",
         case_sensitive=False,
@@ -96,6 +111,7 @@ class Settings(BaseSettings):
         "allowed_write_databases",
         "allowed_write_prefixes",
         "sigrid_document_allowed_magic",
+        "sigrid_reclamacion_prefijos_referencia",
         mode="before",
     )
     @classmethod

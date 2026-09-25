@@ -107,6 +107,65 @@
       "rigor": "critico",
       "priority": 5,
       "branch": "feature/F-005-grafico-sin-clase"
+    },
+    {
+      "id": "F-006",
+      "title": "Endpoint de dominio para crear partes de reclamación de Posventa, en lote",
+      "description": "Alta del 2026-09-24 por petición del humano. Crear en Sigrid partes de reclamación de Posventa (con.tip 708, serie RS<aa>.<mm>/) como lo hace la UI segun docs/referencia/postventa_pasos_crear_parte.md (referencia principal) y postventa_manual_sigrid.md: desde la unidad postventa, descripcion, tipo de reclamacion, oficio e intervinientes (rcpint -> obrofc de la obra). Lo consume postventa-incidencias F-040 (volcado masivo de incidencias aprobadas). DECISIONES DEL HUMANO (2026-09-24): (1) endpoint de LOTE con tope (~50), CADA PARTE EN SU PROPIA TRANSACCION y respuesta parte a parte, reutilizando las lecturas comunes de la obra; (2) idempotencia por REFERENCIA EXTERNA que aporta quien llama, guardada en un campo de Sigrid (la spec mide cual; candidato: el 'N. Referencia Externo' del importador Excel de Sigrid, con el posible conflicto de la referencia del promotor); (3) tipo de reclamacion por defecto 0002 PRIMER LISTADO POSTVENTA, informable en la peticion. Propuesta aceptada: peticion por codigos, no por ide; interviniente que no este en los oficios de la obra -> se rechaza el parte; el parte nace en su estado inicial y NO se pasa a PTE (proceso de Sigrid que crea tareas y envia correos); codigo de serie calculado DENTRO de la transaccion bajo applock; interruptor propio apagado por defecto ademas de SIGRID_DOMAIN_WRITE_ENABLED; dry-run por defecto. Fuera: pasar a PTE, tareas, correos del portal, fotos (ya van por concepto-grafico), alta de unidades postventa u oficios de obra.",
+      "acceptance": [
+        "Spec aprobada por el humano con el modelo de filas que escribe la UI de Sigrid al crear un parte, MEDIDO en produccion solo con lecturas (tablas, constantes, estado inicial, numeracion de la serie, campo de la referencia externa)",
+        "Lote con tope; cada parte en su propia transaccion; un parte que falla no impide los demas y la respuesta dice, parte a parte, creado / idempotente / rechazado y por que",
+        "Codigo de serie e ide reservados DENTRO de la transaccion bajo applock; comportamiento definido ante colision con un alta simultanea desde la UI",
+        "Reenviar la misma referencia externa no crea un segundo parte: devuelve el existente con idempotente:true y no escribe",
+        "Tipo de reclamacion por defecto 0002, informable en la peticion; oficio, intervinientes y unidad postventa validados contra la obra",
+        "Dry-run por defecto con el preview completo de filas; commit:true exige el interruptor propio y SIGRID_DOMAIN_WRITE_ENABLED, ambos apagados por defecto",
+        "Ninguna App Setting existente cambia de valor; ALLOWED_WRITE_DATABASES sigue siendo solo ruesma; no se toca infrastructure/security salvo que la spec lo justifique",
+        "Tests unitarios sin red ni BBDD, en fase RED, comparando el SQL generado; campana de mutacion sin supervivientes o con equivalentes aceptados por el humano",
+        "azure-apps/sigrid_api.md actualizado en el mismo trabajo (endpoint, contrato, App Settings, consumidor postventa-incidencias)",
+        "MANUAL (humano): dry-run y primer commit:true autorizado sobre la obra de prueba; comprobacion desde la ficha de Sigrid y repeticion idempotente",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "done",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 6,
+      "branch": "feature/F-006-alta-parte-reclamacion"
+    },
+    {
+      "id": "F-007",
+      "title": "Endpoint de dominio para registrar proformas",
+      "description": "Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.",
+      "acceptance": [
+        "Spec aprobada por el humano con el modelo de filas medido en producción (solo lectura)",
+        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED y autorización expresa",
+        "Todas las filas en UNA transacción; código de serie y ide reservados dentro de ella bajo applock",
+        "Reintentar la misma petición no duplica la proforma",
+        "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 7,
+      "branch": "feature/F-007-registrar-proforma"
+    },
+    {
+      "id": "F-008",
+      "title": "Endpoint de dominio para registrar facturas de compra",
+      "description": "Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.",
+      "acceptance": [
+        "Spec aprobada por el humano con el modelo de filas medido en producción (solo lectura)",
+        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED y autorización expresa",
+        "Todas las filas en UNA transacción; código de serie y ide reservados dentro de ella bajo applock",
+        "Reintentar la misma petición no duplica la factura",
+        "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
+        "bash harness/init.sh en verde"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 8,
+      "branch": "feature/F-008-registrar-factura"
     }
   ]
 }

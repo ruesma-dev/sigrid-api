@@ -1,183 +1,40 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-> **F-005 cerrada el 2026-09-06 con veredicto APROBADO** (código y
-> papeleo) e `init.sh` en verde: 1.502 tests, cobertura 100 % de las 7 líneas
-> cambiadas, mutación 6/6. Informes: [`impl_F-005.md`](impl_F-005.md),
-> [`review_F-005.md`](review_F-005.md),
-> [`review_F-005_papeleo.md`](review_F-005_papeleo.md). No hay ninguna
-> feature `in_progress`.
->
-> `sigrid/concepto-grafico` admite `gratipide = 0` («sin clase»), que es como
-> Sigrid adjunta en contratos (`con.tip` 44) y albaranes de compra (`tip` 14),
-> **solo si el `0` se pone explícitamente en
-> `SIGRID_DOCUMENT_ALLOWED_GRATIPIDE`**. Mergeada (`0d8b206`), desplegada y
-> **verificada en producción el 2026-09-06** con un `commit:true` autorizado
-> sobre el albarán `AC26/15951` de la obra 0404
-> ([`verificacion_F-005_obra0404.md`](verificacion_F-005_obra0404.md)). Las
-> App Settings quedan en `[708,44,14]` y `[35,0]`: el endpoint acepta ya
-> reclamaciones, contratos y albaranes de compra.
->
-> **F-004 quedó cerrada el 2026-09-06 con veredicto APROBADO.** Lo suyo, y el
-> merge pendiente, sigue documentado abajo.
+## F-006 cerrada el 2026-09-25 (APROBADO): queda lo del humano
 
-## Lo que espera al humano, por orden
+Resumen en `history.md`. Por orden:
 
-1. **F-004 mergeada en `dev` (`70ac430`) y empujada**, `main` al día. Queda
-   el merge de **F-005** cuando el reviewer apruebe. `azure-apps` acumula
-   cinco commits locales (`a40684f`, `157b392`, `e0a7667`, `5e9a7bc`…) y
-   **no tiene remoto**; hay además un `.env` sin trackear ajeno a estas
-   sesiones que no debe commitearse.
-2. **T18-T21 HECHAS el 2026-09-06.** Desplegado `70ac430`, App Settings
-   cerradas, dry-run en verde
-   ([`verificacion_F-004_t18_t19.md`](verificacion_F-004_t18_t19.md)) y el
-   **primer `commit:true` real**, autorizado por el humano, sobre la
-   reclamación 2811179 con `usu=prueba`: tres filas escritas, `sha256`
-   idéntico por `documents/read`, sin huérfanos, repetición idempotente
-   ([`verificacion_F-004_t20_t21.md`](verificacion_F-004_t20_t21.md)).
-   El humano abrió el gráfico desde la ficha de Sigrid (obra 0677, PDF en
-   blanco, correcto) y ordenó **abrir el endpoint**: desde el 2026-09-06
-   `SIGRID_DOCUMENT_WRITE_ENABLED=true` de forma estable.
+1. Merge de `feature/F-006-alta-parte-reclamacion` en `dev` y push (y `main`
+   cuando toque). `azure-apps` `7df52e9` va sin push (no tiene remoto).
+2. **T15-T18 MANUALES**, comandos exactos en
+   `specs/F-006-alta-parte-reclamacion/tasks.md`: desplegar y fijar las cuatro
+   App Settings con la escritura de reclamaciones cerrada; dry-run del lote
+   literal en la obra 0626 / UPV `0626.03PORTAL 1.1.A`; un `commit:true`
+   autorizado de `PVI-PRUEBA-0001` abriendo **solo**
+   `SIGRID_RECLAMACION_WRITE_ENABLED` (`SIGRID_DOMAIN_WRITE_ENABLED` no se
+   toca); repetirlo (idempotente), anular el parte en la UI (NO PROCEDE sin
+   correo) y cerrar la llave. Resultados a un `verificacion_F-006_*.md`.
+   Avisos: en la respuesta `indice` empieza en 0; los paréntesis del `--query`
+   de T15 pueden romper `az.cmd` en Windows (`sigrid_api.md` §11).
+3. Dar la function key a `postventa-incidencias` para F-040.
 
-   **Le queda al humano:** decidir si el adjunto de prueba (`cod`
-   `202609060933388219.prueba`, reclamación `RS26.08/0123`) se borra desde la
-   UI de Sigrid, y dar a Posventa su function key (contrato en
-   `azure-apps/sigrid_api.md` §8.8). Para la obra 404: el tipo de un contrato
-   es 44; un albarán tendrá el suyo; añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
+**Sin trackear en la raíz:** el fichero vacío `` `0`].{t `` (2026-09-24 12:31),
+ajeno; parece un comando de consola mal escapado. Lo borra el humano si quiere.
 
-## Guion de la verificación de F-005 en la obra 0404 (ejecutado el 2026-09-06; referencia)
+**Menores abiertos de la revisión (no bloquean):** M2, `[0-9]` acepta
+superíndices con la colación CI (0 filas hoy; si aparece, feature propia); O2 y
+O4 van a `postventa-incidencias` F-040; dos precisiones de `azure-apps/sigrid_api.md`
+(§8.9 «o sin ficha `rcp`», §7.2 `base_de_datos_no_permitida` también en dry-run)
+para la próxima vez que se toque.
 
-Criterio 8 de F-005. Solo tras mergear y **desplegar** la rama. `$BASE` y
-`$KEY` como en el guion de F-004; cabeceras `x-functions-key` y
-`Content-Type: application/json`. Conceptos de la obra 0404 («CUBIERTA NAVE
-14 - JOHN DEERE», `con.ide` 828942) ya localizados:
+## Lo que espera al humano además de F-006
 
-| Concepto | `conide` | `contip` | Gráficos hoy |
-|---|---|---|---|
-| Contrato `CTSB20/0519` (PROTECCIONES MADRILEÑAS) | 1686634 | 44 | 2, ambos sin clase |
-| Albarán de compra `AC26/15951` (GARSAN, ALB-PRUEBA-001) | 2774375 | 14 | 0 → **1 tras M3** |
-
-### M1 — ampliar las App Settings (siguen con la escritura abierta)
-
-`f005_appsettings.json` (ASCII sin BOM):
-```json
-[{"name": "SIGRID_DOCUMENT_ALLOWED_CONTIP", "value": "[708,44,14]", "slotSetting": false},
- {"name": "SIGRID_DOCUMENT_ALLOWED_GRATIPIDE", "value": "[35,0]", "slotSetting": false}]
-```
-```powershell
-az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings "@f005_appsettings.json"
-az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --query "[?starts_with(name,'SIGRID_DOCUMENT_ALLOWED')]"
-```
-
-### M2 — dry-run (100 % lectura) sobre el contrato y el albarán
-
-`POST $BASE/api/sigrid/concepto-grafico`, **sin `commit`**, una vez por concepto:
-```json
-{"database": "ruesma", "conide": 1686634, "contip": 44, "gratipide": 0,
- "res": "PRUEBA API - BORRAR", "nom": "prueba_f005.pdf", "usu": "prueba",
- "contenido_base64": "<PDF pequeño en base64>"}
-```
-y lo mismo con `"conide": 2774375, "contip": 14`. Negativo: la misma petición
-con `"gratipide": 40` debe seguir exigiendo `auxgra` (clase 40 existe → acepta),
-y con `"gratipide": 99` → `clase_de_grafico_no_permitida`.
-**Criterio:** `committed:false`, `filas_afectadas:0`; en el preview la fila de
-negocio lleva `gratipide 0` y la documental `gratipide 0` y `res ''`; `enlace.pos`
-192 en el contrato (ya tiene 64 y 128) y 64 en el albarán; **sin** aviso de
-`tipaso`; y `SELECT MAX(ide) FROM dbo.gra` en las dos bases sin cambiar.
-
-### M3 — primer `commit:true` (autorización expresa, una llamada)
-
-La petición de M2 del concepto elegido con `"commit": true`. Después:
-```json
-{"database": "ruesma_rep", "table": "gra", "id_column": "cod",
- "id_value": "<cod devuelto>", "blob_column": "ima"}
-```
-y por `sql/read` en `ruesma`:
-```sql
-SELECT ide, cod, emp, res, gratipide, vin, DATALENGTH(ima) FROM dbo.gra WHERE cod = ?
-SELECT r.ide, r.con, r.gra, r.pos, r.cla FROM dbo.rcg r JOIN dbo.gra g ON g.ide = r.gra WHERE g.cod = ?
-SELECT g.ide, g.cod FROM dbo.gra g LEFT JOIN dbo.rcg r ON r.gra = g.ide WHERE r.ide IS NULL AND g.res = 'PRUEBA API - BORRAR'
-```
-y la primera también en `ruesma_rep`. **Criterio:** `sha256` idéntico; negocio
-`gratipide 0`, `ima` NULL; documental `gratipide 0`, `res ''`, `DATALENGTH` =
-bytes; enlace 1 fila; huérfanos ninguna; **el documento se ve en la ficha del
-contrato o del albarán en Sigrid** con la misma pinta que los que Sigrid crea
-(sin clase). Repetir la llamada → `idempotente:true`, `filas_afectadas:0`.
-
-## Guion de T18-T21 (ya ejecutado el 2026-09-06; se conserva como referencia)
-
-Todas después de desplegar. `$BASE` = `SIGRID_API_BASE_URL`, `$KEY` =
-`SIGRID_API_FUNCTION_KEY` (del `.env` de `albaranes/services/albaranes-persistencia`).
-Cabeceras siempre: `x-functions-key: $KEY`, `Content-Type: application/json`.
-
-### T18 — desplegar y fijar las App Settings nuevas, cerradas
-
-Las App Settings van por fichero JSON (ASCII, sin BOM), nunca inline: los
-corchetes y comillas de las listas se rompen al pasar por PowerShell.
-`f004_appsettings.json`:
-```json
-[{"name": "SIGRID_DOCUMENT_WRITE_ENABLED", "value": "false", "slotSetting": false},
- {"name": "SIGRID_DOCUMENT_WRITE_DATABASE", "value": "ruesma_rep", "slotSetting": false},
- {"name": "SIGRID_DOCUMENT_ALLOWED_CONTIP", "value": "[708]", "slotSetting": false},
- {"name": "SIGRID_DOCUMENT_ALLOWED_GRATIPIDE", "value": "[35]", "slotSetting": false}]
-```
-```powershell
-func azure functionapp publish func-sigridapi-dev-huyke --python
-az functionapp config appsettings set -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke --settings "@f004_appsettings.json"
-az functionapp config appsettings list -g rg-sigrid-dev-data-api -n func-sigridapi-dev-huyke `
-  --query "[?starts_with(name,'SIGRID_DOCUMENT') || name=='ALLOWED_WRITE_DATABASES']"
-```
-**Criterio:** las cuatro con esos valores y `ALLOWED_WRITE_DATABASES` sigue en
-`["ruesma"]`. Para la prueba en la **obra 404** hay que medir antes el `tip` del
-concepto (albarán/contrato) y añadirlo a `SIGRID_DOCUMENT_ALLOWED_CONTIP`.
-
-### T19 — dry-run contra producción (100 % lectura)
-
-Paso previo, `POST $BASE/api/sql/read` con `database: "ruesma"`, para anotar la
-huérfana real de clase 35 (su `con`):
-```sql
-SELECT n.ide, n.cod, n.res, n.fec, r.con FROM dbo.gra n JOIN dbo.rcg r ON r.gra = n.ide
-LEFT JOIN ruesma_rep.dbo.gra d ON d.emp = n.emp AND d.cod = n.cod
-WHERE n.gratipide = 35 AND d.ide IS NULL
-```
-Después, `POST $BASE/api/sigrid/concepto-grafico` **sin `commit`**, contra una
-reclamación normal y contra la de la huérfana:
-```json
-{"database": "ruesma", "conide": <ide reclamación>, "contip": 708, "gratipide": 35,
- "res": "PRUEBA API - BORRAR", "nom": "prueba.pdf", "usu": "<tu login Sigrid>",
- "contenido_base64": "<PDF pequeño en base64>"}
-```
-Y los negativos, cambiando un campo cada vez: `conide` de una factura →
-`tipo_de_concepto_no_coincide`; un PNG en base64 → `tipo_de_fichero_no_permitido`;
-`usu` inventado → `usuario_no_valido`.
-**Criterio:** `committed:false`, `dry_run:true`, `filas_afectadas:0`, las filas
-E4/E5 del preview completas; en la huérfana `idempotente:false` con el aviso; y
-después `SELECT MAX(ide) FROM dbo.gra` en `ruesma` y en `ruesma_rep` **sin cambiar**.
-Respuestas pegadas en `impl_F-004.md`.
-
-### T20 — primer `commit:true` (autorización expresa, una sola llamada)
-
-Con `SIGRID_DOCUMENT_WRITE_ENABLED=true` y `SIGRID_DOMAIN_WRITE_ENABLED=true`
-solo durante esa ventana, la misma petición de T19 con `"commit": true` sobre la
-reclamación (u obra 404) elegida. Luego `POST $BASE/api/documents/read`:
-```json
-{"database": "ruesma_rep", "table": "gra", "id_column": "cod",
- "id_value": "<cod devuelto>", "blob_column": "ima"}
-```
-**Criterio:** `sha256` del binario descargado idéntico al enviado; en `ruesma`,
-`SELECT * FROM dbo.gra WHERE cod = ?` → 1 fila con `ima` NULL, en `ruesma_rep`
-→ 1 fila con `DATALENGTH(ima)` = bytes enviados, `SELECT * FROM dbo.rcg WHERE
-gra = <ide negocio>` → 1 fila; la 4ª consulta, huérfanos de la prueba,
-`SELECT g.ide, g.cod, g.res FROM dbo.gra g LEFT JOIN dbo.rcg r ON r.gra = g.ide
-WHERE r.ide IS NULL AND g.res = 'PRUEBA API - BORRAR'` → **ninguna fila**; y **el
-gráfico se abre desde la ficha en Sigrid**.
-
-### T21 — idempotencia
-
-Repetir **exactamente** la llamada de T20 con `"commit": true`.
-**Criterio:** `idempotente:true`, `filas_afectadas:0`, y
-`SELECT COUNT(*) FROM dbo.rcg r JOIN dbo.gra g ON g.ide = r.gra WHERE g.cod = ?`
-sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
+- Decidir si el adjunto de prueba de F-004 (`cod` `202609060933388219.prueba`,
+  reclamación `RS26.08/0123`) se borra desde la UI de Sigrid.
+- Dar a Posventa su function key (contrato en `azure-apps/sigrid_api.md` §8.8).
+- `azure-apps` no tiene remoto y acumula commits locales; hay un `.env` sin
+  trackear allí que no debe commitearse.
 
 ## Pendiente de decisión del humano
 
@@ -189,7 +46,9 @@ sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
   final: `ResultadoSuite.verde` (`harness/mutacion.py` l. 491) da verde para
   `exit 5` de pytest (ningún test recogido) y `ejecutar` (l. 612) lo traduce a
   SUPERVIVIENTE. Propuesta: `SUPERVIVIENTE` con `sin_tests` → `INDETERMINADO`.
-  Sesgo pesimista en las dos features, así que los ceros son sólidos.
+  Sesgo pesimista en las dos features, así que los ceros son sólidos. **Tercera
+  evidencia en F-006:** 6 de 42 supervivientes de la ronda 1 murieron al
+  reevaluarlos en serie (`mutacion_F-006.md`).
 - **Un test que construye `Settings` real debe aislar el entorno** (la campaña
   exporta el `.env`): lección de F-004 T14c; merece regla en `CONVENTIONS.md`.
 - Pendientes de antes: `pytest-timeout` para los cuelgues; «Evidencias» con
@@ -216,16 +75,13 @@ sigue en 1. Limpieza, si toca, desde la UI de Sigrid.
 
 ## Lo siguiente en el backlog
 
-F-005 espera al **reviewer**. Después, `harness/features.json` solo deja
-F-001 (`pending`, calentamiento). Candidatos: el diagnóstico del arnés de
-mutación, o lo que pida `postventa-incidencias` F-012, que era quien esperaba
-este endpoint.
+Las MANUALES de F-006 (humano). Después: F-007 (proformas) y F-008 (facturas de compra), `pending`
+con `sdd` y rigor `critico`; y F-001 (calentamiento). Candidato del arnés: el
+diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-005 está implementada en
-> `feature/F-005-grafico-sin-clase` (`cfb8048`) y pendiente de **review**
-> contra `CHECKPOINTS.md`; su informe es `progress/impl_F-005.md`. F-004 está
-> cerrada y solo espera el merge del humano. Si el humano trae el resultado de
-> la prueba manual de F-005 en la obra 0404, anótalo en `impl_F-005.md`. No
-> arranques nada nuevo sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-006 está cerrada (APROBADO) y
+> espera al humano: merge y las MANUALES T15-T18. Si trae sus resultados,
+> anótalos en `progress/verificacion_F-006_*.md`. No ejecutes escrituras contra
+> Sigrid. No arranques F-007 ni F-008 sin preguntar.

@@ -13,6 +13,9 @@ from application.use_cases.attach_concepto_grafico_use_case import (
     AttachConceptoGraficoUseCase,
 )
 from application.use_cases.create_direct_albaran_use_case import CreateDirectAlbaranUseCase
+from application.use_cases.create_partes_reclamacion_use_case import (
+    CreatePartesReclamacionUseCase,
+)
 from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
 from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
@@ -23,6 +26,10 @@ from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
 from domain.models.concepto_grafico_models import (
     AttachConceptoGraficoRequest,
     ConceptoGraficoError,
+)
+from domain.models.parte_reclamacion_models import (
+    CreatePartesReclamacionRequest,
+    ParteReclamacionError,
 )
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
@@ -312,6 +319,61 @@ def sigrid_concepto_grafico(req: func.HttpRequest) -> func.HttpResponse:
         logger.exception("Error inesperado en sigrid/concepto-grafico")
         return error_response(
             "Error interno ejecutando sigrid/concepto-grafico.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
+@app.route(route="sigrid/partes-reclamacion", methods=["POST"])
+def sigrid_partes_reclamacion(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Crea EN LOTE partes de reclamacion de Posventa (con.tip 708) de una obra,
+    como los crea el escritorio de Sigrid: con + rcp + rcpint + conext (RCPCLI,
+    la referencia externa que da la idempotencia) + la fila de alta de log.
+    CADA PARTE EN SU PROPIA TRANSACCION: un parte rechazado no tumba el lote y
+    la respuesta (200) va parte a parte. No pasa a PTE, ni crea tareas ni correos.
+
+    DRY-RUN por defecto (commit=false): solo lecturas, con credenciales de
+    lectura, y preview completo de las cinco filas de cada parte.
+    """
+    try:
+        deps = build_dependencies()
+        settings, repository = deps[0], deps[1]
+        use_case = CreatePartesReclamacionUseCase(repository, settings)
+        body = req.get_json()
+        request_model = CreatePartesReclamacionRequest.model_validate(body)
+        response_model = use_case.run(request_model)
+        return json_response(response_model)
+    except ParteReclamacionError as exc:
+        logger.warning("ParteReclamacionError en sigrid/partes-reclamacion: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__, "codigo": exc.codigo},
+        )
+    except ValidationError as exc:
+        # Solo donde y que fallo: `str(exc)` vuelca los valores de entrada
+        # (descripciones, referencias) y R20 no los quiere en las trazas.
+        logger.warning(
+            "ValidationError en sigrid/partes-reclamacion: %s",
+            [(error["loc"], error["type"]) for error in exc.errors()],
+        )
+        return error_response(
+            "Solicitud invalida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/partes-reclamacion: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/partes-reclamacion")
+        return error_response(
+            "Error interno ejecutando sigrid/partes-reclamacion.",
             status_code=500,
             details={"type": type(exc).__name__, "exception": str(exc)},
         )
