@@ -183,8 +183,12 @@ código, no se pide aceptar el equivalente.
 ## F-006 · Alta en lote de partes de reclamación de Posventa
 
 **Cerrada el 2026-09-25.** Rigor `critico`, `sdd: true`. Rama
-`feature/F-006-alta-parte-reclamacion`. Pendiente del humano: merge, push,
-despliegue y las MANUALES T15-T18 (`specs/F-006-alta-parte-reclamacion/tasks.md`).
+`feature/F-006-alta-parte-reclamacion`, mergeada en `dev` (`9e552b0`),
+**desplegada y verificada en producción el mismo día**: dry-run del lote de
+prueba, escritura real autorizada del parte `RS26.09/0439` (obra 0626, UPV
+`0626.03PORTAL 1.1.A`), ficha comprobada por el humano en Sigrid y repetición
+idempotente ([`verificacion_F-006_obra0626.md`](verificacion_F-006_obra0626.md)).
+Por decisión del humano, `SIGRID_RECLAMACION_WRITE_ENABLED` queda **abierta**.
 
 **Por qué:** `postventa-incidencias` (F-040) vuelca en Sigrid las incidencias
 aprobadas en su bandeja y la pasarela no sabía crear un parte. Referencia
