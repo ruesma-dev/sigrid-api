@@ -10,9 +10,9 @@ Resumen: **9 features**, 4 abiertas, 5 terminadas.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-007 | Endpoint de dominio para registrar proformas | 7 | pendiente | critico | `feature/F-007-registrar-proforma` |
-| F-008 | Endpoint de dominio para registrar facturas de compra | 8 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-009 | Endpoint de dominio para el alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053) | 9 | spec lista | critico | `feature/F-009-alta-albaran-compra` |
+| F-009 | Modo extendido de sigrid/albaran: alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053) | 7 | spec lista | critico | `feature/F-009-alta-albaran-compra` |
+| F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
 
 ## Terminadas
 
@@ -32,23 +32,23 @@ estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `featu
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
 
+### F-009 · Modo extendido de sigrid/albaran: alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053)
+
+estado **spec lista** · prioridad 7 · rigor `critico` · SDD sí · rama `feature/F-009-alta-albaran-compra`
+
+Alta del 2026-10-01 a petición del líder de albaranes: PRE-1 de albaranes F-053 (alta automática en Sigrid de los albaranes aprobados). v2 con las respuestas del humano (2026-10-01): se AMPLÍA POST sigrid/albaran con un modo extendido elegido por las claves del JSON (lineas o referencia_externa; mezclado con lineas_recibidas -> 400 peticion_mixta); el modo clásico queda idéntico a hoy (incluida la suma de lineas_recibidas al mismo ctrpro), fijado por un test de caracterización escrito sobre dev antes de tocar nada; albaran-directo intacto. Modo extendido: un albarán por petición con líneas vinculadas (ctrpro; consumen medición) y sin vincular (producto por código, lista blanca MA9999), partida por línea (nunca heredada) o almacén, precio del llamante, negativas en los dos tipos (canser < 0 admitido; regla de mov/PMP medida o hipótesis A verificada con la primera devolución real), idempotencia por dca.synckey dentro de la transacción, errores con código y fallos por línea, cod reservado dentro de la transacción. Segunda llave SIGRID_ALBARAN_WRITE_ENABLED (defecto false) para el commit de los dos modos y de albaran-directo. Antes de in_progress: mediciones M1-M15 de solo lectura (T0) de progress/spec_F-009.md.
+
 ### F-007 · Endpoint de dominio para registrar proformas
 
-estado **pendiente** · prioridad 7 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
+estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
-
-### F-009 · Endpoint de dominio para el alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053)
-
-estado **spec lista** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-009-alta-albaran-compra`
-
-Alta del 2026-10-01 a petición del líder de albaranes: es la PRE-1 que necesita albaranes F-053 (alta automática en Sigrid de los albaranes aprobados; su specs/F-053-alta-sigrid/design.md §2). Ruta NUEVA sigrid/albaran-compra (propuesta; pregunta 1): un albarán por petición con líneas vinculadas a contrato (ctrpro; consumen medición: canser, ctrprodes, estser/estfac) y sin vincular (producto por código, hoy MA9999, con lista blanca), partida por línea (código de la obra resuelto a paride, nunca heredado) o almacén (paride 0), precio aprobado por el llamante, cantidades negativas (devoluciones, regla de mov/PMP medida en el escritorio), idempotencia por referencia_externa en dca.synckey comprobada dentro de la transacción, errores con código y respuesta por línea, cod reservado dentro de la transacción. sigrid/albaran y sigrid/albaran-directo no cambian (salvo la guarda de la segunda llave si el humano la aprueba). DECISIONES DEL HUMANO (2026-10-01): mezcla de vinculadas y sin vincular, contrato opcional, partida por línea o almacén, producto del ctrpro o por código, negativas ya, idempotencia por synckey, errores con código, la function key de siempre. Antes de in_progress: mediciones M1-M15 de solo lectura (T0) y respuestas a las preguntas de progress/spec_F-009.md.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 

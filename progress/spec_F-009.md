@@ -1,49 +1,52 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053)
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v2
 
-Spec-author, 2026-10-01. Rama `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24).
-Estado `spec_ready`, `sdd`, rigor `critico`. Spec en `specs/F-009-alta-albaran-compra/`.
-**No se ha llamado a la API, ni a Azure, ni al SQL Server**: todo lo que depende de cómo
-trabaja el escritorio de Sigrid queda como medición de solo lectura (T0, abajo).
+Spec-author. v1 y **v2 del 2026-10-01** (respuestas del humano a la PARADA 1). Rama
+`feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
+`critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
+**No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
+escritorio de Sigrid queda como medición de solo lectura (T0) o como verificación manual.
 
-`bash harness/init.sh` en verde (1733 tests) **con el venv del proyecto**. Lanzado desde una
-sesión con `VIRTUAL_ENV` heredado de otro repositorio (albaranes), salía en rojo por
-`azure.functions` ausente: el portero respeta un venv ya activado y no antepone el suyo.
-No es un fallo del repo; quien lo ejecute desde otra sesión debe hacerlo sin ese `VIRTUAL_ENV`.
+`bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
+heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
+venv ya activado. No es un fallo del repo; se lanza sin esa variable.
 
-## Qué pide F-053 y cómo queda
+## Qué cambia en la v2
 
-Fuente: `albaranes-F-053/specs/F-053-alta-sigrid/design.md` §2 y `progress/spec_F-053.md`.
+- **Se amplía `sigrid/albaran`** (no hay ruta nueva). Dos modos, decididos por las **claves**
+  del JSON: `lineas` o `referencia_externa` → extendido; ninguna → clásico; `lineas_recibidas`
+  junto a cualquiera de ellas → 400 `peticion_mixta` (design §La decisión de fondo).
+- **Modo clásico idéntico a hoy** (incluida la suma de `lineas_recibidas` al mismo `ctrpro`):
+  sus casos de uso y modelos no se tocan y lo fija un **test de caracterización** con fichero
+  dorado escrito sobre `dev` antes de cualquier cambio (T1, design §Caracterización).
+- **Segunda llave `SIGRID_ALBARAN_WRITE_ENABLED`** (defecto `false`) cierra el `commit` de los
+  dos modos de `sigrid/albaran` **y** de `albaran-directo` (R8); el dry-run no cambia.
+- **Devolución que deja `canser` < 0: se admite** con aviso `servido_negativo`; `estser` se
+  recalcula con la regla de hoy y puede volver a 0 (R18, R20).
+- **Negativas en vinculadas y sin vincular** (R6, R18). Si M5 no encuentra devoluciones reales,
+  **hipótesis A** (simétrica al alta), verificada con la primera devolución real del pipeline
+  (T24, consulta abajo). Pregunta 8 cerrada (opción a).
+- Aceptadas las propuestas 3-6 y 9-17: prefijo `ALB-`; productos `["MA9999"]`; partida y precio
+  distintos del contrato con aviso; `dcapropar` y `log` fuera salvo M7/M13; sin recálculo de
+  `mov` posteriores; almacén y centro derivados; `con.est` según M2; lista de reseteo, hora de
+  Madrid e IVA por `dbo.iva` solo en el modo extendido; los viejos, obsoletos cuando F-053 esté
+  en real (T18); prioridad 7.
 
-| Necesidad (humano, 2026-10-01) | En la spec |
-|---|---|
-| Mezclar vinculadas (`ctrpro`, consumen medición) y sin vincular; contrato opcional | R2, R9-R11; `cod_contrato` opcional |
-| Partida por línea (código → `paride`), nunca heredada, o almacén | R12, R13 |
-| Partida de una vinculada distinta de la del `ctrpro` | R14: se permite, `ctrpro` intacto, aviso (pregunta 5) |
-| Producto: vinculadas, el del `ctrpro`; sin vincular, por código (MA9999…) | R10, R11 + lista blanca (pregunta 4) |
-| Precio aprobado por nosotros; convivencia con el del contrato | R15: manda el nuestro; si difiere, `tar` = precio, `dto` `''` y aviso (pregunta 6) |
-| Negativas ya: stock, PMP, `canser` como el escritorio | R16 + M5/M6 (preguntas 7 y 8) |
-| Idempotencia `referencia_externa` → `dca.synckey` | R27, R28 + M1 (pregunta 3) |
-| Errores con código y respuesta por línea | R3, R4, design §Códigos |
-| Clave de siempre; ¿segunda llave? | R5, R22 y R7 (pregunta 2) |
-| Retrocompatibilidad de los dos endpoints | Ruta nueva: R6 (pregunta 1) |
-| Evaluar `dcapropar` y `almide`/`cenide` por línea | Fuera salvo M7; derivados, no en la petición (pregunta 12) |
+## Hallazgos del código actual (el modo clásico los conserva)
 
-## Hallazgos del código actual (no se corrigen en los endpoints viejos)
-
-1. **No hay ni un test** de `sigrid/albaran` ni de `albaran-directo`: el núcleo solo está
-   validado a mano (junio, `AC26/15950-15952`). De ahí el test de equivalencia (R31).
+1. **No hay ni un test** de `sigrid/albaran` ni de `albaran-directo`: de ahí T1.
 2. El `cod` se calcula **fuera** de la transacción (`_next_cod`): carrera con el escritorio.
-3. `con.est = 1` y `mov.emp = 1` están **escritos a mano**; la serie `AC` medida en junio
-   (`serie_stock.txt`, sin versionar) tenía `sercon.estini = 0`. Choca con ARCHITECTURE §7.
+3. `con.est = 1` y `mov.emp = 1` **escritos a mano**; la serie `AC` medida en junio
+   (`serie_stock.txt`, sin versionar) tenía `sercon.estini = 0`.
 4. Fecha y hora con `datetime.now()`: en Azure es **UTC**, no Madrid.
 5. La `dcapro` se clona de la **última línea del mismo producto en cualquier obra**: si el
-   `ctrpro` trae `paride`/`cenide`/`caaide` `NULL`, se quedan los de esa otra línea, y
-   siempre arrastra medición, analítica, desglose y `prepma` ajenos. `albaran-directo` hereda
-   además el almacén y la partida.
+   `ctrpro` trae `paride`/`cenide`/`caaide` `NULL`, se quedan los de esa otra línea, y siempre
+   arrastra medición, analítica, desglose y `prepma` ajenos. `albaran-directo` hereda además el
+   almacén y la partida.
 6. `su_referencia` admite 200 caracteres y `dca.entref` es de 128.
-7. `lineas_recibidas` repetidas sobre el mismo `ctrpro` se **suman** en una sola `dcapro`.
-8. Tasa de IVA = `ivacuo/tot` del `ctrpro`: con `tot` 0 sale 0.
+7. Tasa de IVA = `ivacuo/tot` del `ctrpro`: con `tot` 0 sale 0.
+8. El modelo clásico **ignora** las claves que no conoce: por eso `peticion_mixta` se decide
+   antes de validar.
 
 ## Mediciones (T0) — solo lectura, por `sql/read`
 
@@ -95,54 +98,80 @@ function Q($sql, $p = @()) { $b = @{ database = "ruesma"; sql = $sql; parameters
 - **M14 diff de columnas** (la lista de reseteo): `SELECT TOP 3 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = 14 AND d.ctride > 0 AND c.fec >= 20260901 ORDER BY c.ide DESC`; después `SELECT * FROM dbo.<con|dca> WHERE ide IN (?, ?, ?, ?)` y `SELECT * FROM dbo.dcapro WHERE docide IN (?, ?, ?, ?)` con esos tres y el de `AC26/15951`; anotar cada columna en que difieran.
 - **M15 stock negativo**: `SELECT COUNT(*) AS n FROM dbo.mov WHERE almcan < 0 AND fec >= 20250101`.
 
-## Manuales (T19-T21)
+## Manuales (T20-T24)
 
-Plantilla del cuerpo del dry-run (los `<...>` se leen antes, del contrato `CTSU16/0206` y de las partidas de la obra):
+Setup y función `Q` de §Mediciones. Dry-run **clásico** (T20), el mismo cuerpo de junio:
+`{ "database": "ruesma", "cod_contrato": "CTSU16/0206", "cod_obra": "0404", "cif_proveedor": "<CIF>",
+"su_referencia": "prueba-F009", "lineas_recibidas": [ { "ctrpro_ide": <ide>, "cantidad": 1 } ] }`.
+
+Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las partidas de la obra):
 
 ```json
-{ "database": "ruesma", "cod_obra": "0404", "cif_proveedor": "<CIF de GARSAN>", "cod_contrato": "CTSU16/0206",
+{ "database": "ruesma", "cod_obra": "0404", "cif_proveedor": "<CIF>", "cod_contrato": "CTSU16/0206",
   "referencia_externa": "ALB-prueba-F009-1", "su_referencia": "prueba-F009", "commit": false,
   "lineas": [
-    { "referencia_linea": "1", "ctrpro_ide": <ctrpro_ide>, "cantidad": 1, "precio": 100.0, "almacen": true },
+    { "referencia_linea": "1", "ctrpro_ide": <ide>, "cantidad": 1, "precio": 100.0, "almacen": true },
     { "referencia_linea": "2", "producto": "MA9999", "descripcion": "Prueba F-009", "unidad": "UD", "cantidad": 1, "precio": 1.0, "partida": "<cod>" },
-    { "referencia_linea": "3", "ctrpro_ide": <ctrpro_ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" } ] }
+    { "referencia_linea": "3", "ctrpro_ide": <ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" } ] }
 ```
 
-## Preguntas al humano (PARADA 1)
+**Primera devolución real (T24)**, solo lectura, con la `referencia_externa` de ese albarán:
 
-1. **Ruta nueva `sigrid/albaran-compra`** (propuesta; design «La decisión de fondo») o ampliar
-   `sigrid/albaran` con un modo según los campos.
-2. **Segunda llave `SIGRID_ALBARAN_WRITE_ENABLED`**, defecto `false`, para la ruta nueva.
-   ¿Gobierna también el `commit` de `sigrid/albaran` y `albaran-directo` (R7, T13)?
-   Propuesta: **sí**; hoy los dos escriben con solo `SIGRID_DOMAIN_WRITE_ENABLED` y nadie los
-   usa en vivo. Con `false` en el despliegue, su `commit` queda cerrado hasta que lo abras.
-3. **Prefijo de la referencia**: propuesta `["ALB-"]` y F-053 envía `ALB-<document_id>`.
-4. **Productos sin contrato**: propuesta `["MA9999"]` al desplegar; añadir SM9999, SB9999 o
-   QA9999 es cambiar la App Setting.
-5. **Partida distinta en una vinculada** (R14): se permite con aviso (propuesta) o se rechaza.
-6. **Precio distinto en una vinculada** (R15): manda el nuestro, `tar` = precio y `dto` `''`
-   (se pierde el desglose bruto/descuento del contrato), con aviso.
-7. **Devolución que deja `canser` < 0** (R16): se rechaza la línea (propuesta) o se admite.
-8. **Si M5 no encuentra devoluciones reales**: ¿hipótesis A (design §Devoluciones), o las
-   negativas se quedan fuera hasta tener una que medir?
-9. **`dcapropar`**: fuera, salvo que M7 diga que el escritorio lo escribe siempre.
-10. **Fila de `log`** al crear: fuera, salvo M13.
-11. **Fecha atrasada**: no se recalculan los `mov` posteriores (como hoy). Si M10 dice que el
-    escritorio sí, ¿se acepta el desfase o se para?
-12. **Almacén y centro por línea**: derivados (R13), no en la petición. ¿De acuerdo?
-13. **`con.est`**: el valor que dé M2 (hoy se escribe 1 a mano; la serie dice `estini` 0).
-14. **Lista de reseteo** (R19): solo en la ruta nueva; los endpoints viejos siguen clonando
-    como hoy (ver hallazgo 5). ¿Ficha aparte para ellos?
-15. **Hora de Madrid e IVA por `dbo.iva`**: solo en la ruta nueva (diferencias de R31).
-16. **Endpoints viejos**: ¿se marcan obsoletos en `sigrid_api.md` cuando F-053 esté en real?
-17. **Prioridad**: F-009 queda con prioridad 9; ¿va antes que F-007 y F-008? (propuesta: sí,
-    es precondición de F-053).
-18. **F-053 debe alinearse** (lo hace el líder de albaranes): una lista `lineas` con
-    `ctrpro_ide` **o** `producto` por línea, `precio` obligatorio, `referencia_externa` con
-    prefijo, códigos de design §Códigos, y la ruta `sigrid/albaran-compra`.
+- líneas y su `mov`: `SELECT d.ide AS linea, d.proide, d.almide, d.can, d.pre, d.linoriide, m.ide AS mov, m.canent, m.cansal, m.almcan, m.almpma FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide LEFT JOIN dbo.mov m ON m.docide = d.docide AND m.linide = d.ide WHERE a.synckey = ? AND d.can < 0`;
+- `mov` anterior: `SELECT TOP 1 ide, almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? AND ide < ? ORDER BY ide DESC`
+  → cuadra si `almcan` = anterior + `can` y `almpma` = (anterior·pma + `can`·`pre`)/(anterior + `can`);
+- medición: `SELECT p.ide, p.can, p.canser, (SELECT SUM(s.can) FROM dbo.ctrprodes s WHERE s.docproide = p.ide AND s.docdestip = 14) AS suma_destinos FROM dbo.ctrpro p WHERE p.ide = ?`
+  → `canser` = `suma_destinos`; y `SELECT estser, estfac FROM dbo.ctr WHERE ide = ?` frente a `Σcanser ≥ Σcan`;
+- en la UI, la ficha de stock del producto en ese almacén debe dar el mismo stock y PMP.
+
+## Forma final para alinear F-053 (pregunta 18, la hace el líder de albaranes)
+
+Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
+
+```json
+{ "database": "ruesma", "cod_obra": "0404", "cif_proveedor": "<CIF>", "cod_contrato": "CTSU16/0206 o null",
+  "referencia_externa": "ALB-<document_id>", "su_referencia": "<nº de albarán del proveedor, ≤128>",
+  "fecha_albaran": 20261001, "empide": null, "commit": false,
+  "lineas": [ { "referencia_linea": "<id de línea, ≤64>", "ctrpro_ide": 123, "producto": null,
+                "descripcion": "<≤128, obligatoria sin vincular>", "unidad": "<≤8>", "cantidad": -2.5,
+                "precio": 10.0, "partida": "<cod de obrparpar>", "almacen": false } ] }
+```
+
+Exactamente uno de `ctrpro_ide`/`producto` y uno de `partida`/`almacen:true`; `cantidad` ≠ 0
+(negativa = devolución, en los dos tipos); `precio` ≥ 0 obligatorio; `ctrpro_ide` exige
+`cod_contrato`; **no** enviar `lineas_recibidas` (→ `peticion_mixta`).
+
+Respuesta 200 (dry-run, commit o idempotente): todos los campos de la respuesta clásica (`ok`,
+`database`, `committed`, `dry_run`, `con_ide`, `cod`, `contrato`, `cabecera`, `lineas`,
+`movimientos`, `estados_contrato`, `totales`, `warnings`) más `estado`
+(`previsto`|`creado`|`idempotente`), `referencia_externa`, `avisos[{codigo, mensaje}]` y
+`filas`; cada línea suma `indice`, `referencia_linea`, `tipo` (`vinculada`|`sin_vincular`),
+`producto`, `paride`, `partida`, `almacen`, `cenide` y `avisos`. Error 400: `{ok:false, error,
+details:{type, codigo, lineas?:[{indice, referencia_linea, codigo, mensaje}]}}`; 400 sin
+`codigo` = validación Pydantic (`details.validation`); 500 = inesperado.
+
+Códigos de error: `peticion_mixta`, `escritura_albaranes_deshabilitada`,
+`base_de_datos_no_permitida`, `demasiadas_lineas`, `referencia_no_permitida`,
+`referencia_en_conflicto`, `obra_no_encontrada`, `obra_ambigua`, `contrato_no_encontrado`,
+`contrato_ambiguo`, `proveedor_sin_albaran_previo`, `estado_inicial_no_encontrado`,
+`almacen_de_obra_no_resuelto`, `colision_de_clave`, `filas_afectadas_inesperadas`,
+`lineas_no_validas`; por línea: `linea_no_es_del_contrato`, `producto_no_permitido`,
+`producto_no_encontrado`, `partida_no_encontrada`, `partida_ambigua`, `partida_no_imputable`.
+Avisos: `plantilla_de_otro_proveedor`, `producto_sin_historico`, `supera_pendiente`,
+`partida_distinta_del_contrato`, `precio_distinto_del_contrato`, `servido_negativo`,
+`stock_negativo`, `cod_provisional`. Para F-053: los «avisos bloqueantes» pasan a compararse por
+`codigo`, no por texto; `colision_de_clave` y los 500 se pueden reintentar con la misma
+referencia (la idempotencia lo hace seguro).
+
+## Preguntas abiertas
+
+Ninguna de diseño: las 1-17 están respondidas y la 18 es del líder de albaranes. Queda **T0**:
+si alguna medición contradice un punto [Mn] (sobre todo M2 `est`/`emp`, M5 devoluciones, M8
+almacén de obra, M14 lista de reseteo), la spec se corrige y vuelve a la PARADA 1.
 
 ## Riesgo residual
 
-Ninguna escritura hasta T20, con autorización expresa. Varios puntos de la spec, marcados [Mn],
-dependen de T0: es deliberado, porque decidirlos sin medir era inventar cómo trabaja el
-escritorio de Sigrid. Si T0 contradice algo, la spec se corrige antes de `in_progress`.
+Ninguna escritura hasta T22, con autorización expresa. Al desplegar con la llave en `false`, el
+`commit` del modo clásico y de `albaran-directo` queda cerrado (decidido; nadie los usa en
+vivo). Las devoluciones van con la hipótesis A si M5 no da muestra: riesgo aceptado, T24 lo
+vigila.
