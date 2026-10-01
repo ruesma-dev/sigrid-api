@@ -32,6 +32,38 @@ venv ya activado. No es un fallo del repo; se lanza sin esa variable.
   Madrid e IVA por `dbo.iva` solo en el modo extendido; los viejos, obsoletos cuando F-053 esté
   en real (T18); prioridad 7.
 
+## T0: comando para PowerShell
+
+El script `scripts/medir_f009_t0.py` lanza M1-M15 como SELECT por `POST /api/sql/read` (nada de
+escrituras ni de endpoints de dominio; el propio cliente rechaza en local cualquier SQL que no
+sea `SELECT`/`WITH` de una sentencia). Lee `SIGRID_API_BASE_URL` y `SIGRID_API_FUNCTION_KEY` del
+entorno o, si no están, del `.env` de la raíz de sigrid-api (las dos claves están allí), y no
+las imprime nunca. Las 42 sentencias pasan el mismo `SqlQueryGuard` de `sql/read` en la prueba
+de humo (`tests/test_f009_t0_script.py`, 97 tests sin red). **No se ha ejecutado contra la API.**
+
+```powershell
+cd C:\Users\pgris\PycharmProjects\sigrid-api
+git switch feature/F-009-alta-albaran-compra
+& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0
+# una o varias:  & .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M5 M6
+```
+
+- Tarda varios minutos: las consultas pesadas (M1, M3, M4, M6-M10, M12, M13, M15) piden
+  hasta 200 s cada una, por debajo del corte de 230 s; la instancia `dev` admite
+  `MAX_QUERY_TIMEOUT_SECONDS` 230 (§4.1). Si una falla, el script lo anota en su bloque y
+  sigue con las demás.
+- **Qué pegar de vuelta**: el fichero que indica al final (`%TEMP%\f009_t0_<fecha>.txt`),
+  **entero**. Cada medición trae sus filas y un bloque «CONCLUSIÓN» con lo que necesita la
+  spec (p. ej. `con.est` inicial probable, regla A/B de las devoluciones, columnas de la lista
+  de reseteo con diferencia). Una medición que falle se repite con `--solo`.
+- El fichero lleva datos de negocio (códigos, CIF, precios): no se versiona, y el script se
+  niega a escribirlo dentro del repositorio.
+- Añadidos frente a las consultas de §Mediciones: M2 mide también el `est` de los albaranes
+  aún sin facturar (el inicial más probable); M4 cuenta los `caaide` nulos; M5 contrasta la
+  regla A/B con el `mov` anterior de cada devolución de la muestra; M9 cuenta `mov` según la
+  línea tenga partida o no; M10 compara las roturas de la cadena de `almcan` en orden de fecha
+  y de `ide`; M13 acota por fechas la ventana de `log`.
+
 ## Hallazgos del código actual (el modo clásico los conserva)
 
 1. **No hay ni un test** de `sigrid/albaran` ni de `albaran-directo`: de ahí T1.

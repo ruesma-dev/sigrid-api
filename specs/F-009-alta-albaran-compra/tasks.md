@@ -3,7 +3,7 @@
 
 Precondición de `in_progress`: T0 hecha y sus resultados volcados en la spec (o la PARADA 1 repetida si contradicen algo). T1 va **antes** de cualquier cambio de código de producción.
 
-- [ ] T0: Mediciones M1-M15 de solo lectura por `sql/read` (consultas exactas en `progress/spec_F-009.md` §Mediciones); resultado en `progress/explore_F-009_mediciones.md` y ajuste de los [Mn] de la spec  |  Verificación: MANUAL (humano, o un explorer con su autorización expresa para esas lecturas)
+- [ ] T0: Mediciones M1-M15 de solo lectura por `sql/read` con `scripts/medir_f009_t0.py` (comando en `progress/spec_F-009.md` §T0); resultado en `progress/explore_F-009_mediciones.md` y ajuste de los [Mn] de la spec  |  Verificación: MANUAL (humano): ejecuta el script y pega el fichero de `%TEMP%`; prueba de humo sin red en `tests/test_f009_t0_script.py`
 - [ ] T1: Test de caracterización del modo clásico y de `albaran-directo` sobre el código de `dev`, con su dorado `tests/fixtures/f009_caracterizacion.json` (design §Caracterización), en un commit propio sin código de producción  |  Verificación: `pytest tests/test_f009_caracterizacion.py` en verde sobre `dev`; `git show --stat` del commit sin ficheros de producción
 - [ ] T2: `config/settings.py` con las cuatro claves de R10 y defecto cerrado; `local.settings.sample.json`  |  Verificación: `pytest tests/test_f009_settings.py` (`test_f009_r10_*`)
 - [ ] T3: `albaran_compra_models.py`: `elegir_modo_albaran` (R1), petición y validadores (R5, R6), respuesta superconjunto (R7) y `AlbaranCompraError` con códigos cerrados (R9), con fase RED en R1  |  Verificación: `pytest tests/test_f009_models.py` (`test_f009_r1_*`, `_r5_*`, `_r6_*`, `_r7_*`, `_r9_*`)
