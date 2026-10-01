@@ -1,6 +1,16 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-009 spec escrita (2026-10-01), `spec_ready` — espera al humano
+
+PRE-1 de albaranes F-053: ruta nueva `sigrid/albaran-compra` (alta idempotente de un albarán
+de compra con líneas vinculadas y sin vincular, partida o almacén por línea y devoluciones).
+Rama `feature/F-009-alta-albaran-compra`; spec en `specs/F-009-alta-albaran-compra/`; informe,
+mediciones y **18 preguntas** en [`spec_F-009.md`](spec_F-009.md). No se ha llamado a la API.
+Antes de `in_progress`: (1) respuestas del humano, sobre todo 1 (ruta nueva), 2 (segunda llave
+también para los albaranes viejos) y 8 (devoluciones sin muestra); (2) **T0**, mediciones
+M1-M15 de solo lectura por `sql/read`, cuyo resultado ajusta los puntos [Mn] de la spec.
+
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
 
 Resumen en `history.md`; verificación en
