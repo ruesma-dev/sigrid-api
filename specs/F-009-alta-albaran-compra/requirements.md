@@ -1,9 +1,9 @@
 <!-- specs/F-009-alta-albaran-compra/requirements.md -->
-# F-009 · Requisitos (v3)
+# F-009 · Requisitos (v4)
 
 **`POST /api/sigrid/albaran` gana un modo extendido (alta idempotente de UN albarán de compra con
 líneas vinculadas y sin vincular, partida o almacén por línea y devoluciones); el clásico sigue
-idéntico.** «PRE-1» de albaranes F-053. v3 con T0 (2026-10-02); **[Mn]** = medición aún abierta.
+idéntico.** «PRE-1» de albaranes F-053. v4: T0 y N1-N3 (2026-10-02); **[Mn]** = medición abierta.
 
 ## Modos y retrocompatibilidad
 - **R1.** CUANDO llegue `POST /api/sigrid/albaran`, el sistema debe decidir el modo por las
@@ -67,7 +67,7 @@ maestro; cuenta e IVA, de la última `dcapro` del producto (el maestro los tiene
 Sin `docori*`, sin `ctrprodes` y sin tocar `canser`.
 - **R14.** El sistema debe resolver `partida` por código entre las partidas **imputables** de la
 obra (`tip 1`, `tipdes 0`, `tipvis` 0 o 1): ninguna → `partida_no_encontrada` (o
-`partida_no_imputable` si existe pero no es imputable), >1 → `partida_ambigua` [M3].
+`partida_no_imputable` si existe pero no es imputable), >1 → `partida_ambigua` (N2) [M3].
 `dcapro.paride` es la resuelta o 0: **nunca** heredada.
 - **R15.** CUANDO una línea traiga `almacen:true`, el sistema debe escribir `paride` 0 y el
 almacén: vinculada, el del `ctrpro` o del contrato; sin vincular, el del contrato o, sin él, el
@@ -85,7 +85,7 @@ fórmula de R19). En una vinculada, `ctrprodes.can` = cantidad y `canser += cant
 stock queda < 0, aviso `stock_negativo`.
 - **R19.** El sistema debe escribir, por línea cuyo producto haga movimientos [M9], un `mov` como
 hoy (`tip 1`, `oritip 5`, `destip 2`, `doctip 14`) con PMP `(stock·pma + can·pre)/(stock + can)`
-sin redondear (si `stock + can` = 0, el PMP se conserva), encadenado según design §Fecha atrasada.
+sin redondear (si `stock + can` = 0, el PMP se conserva), **fechado en el alta** (N1, design §Fecha atrasada).
 - **R20.** El sistema debe recalcular `ctr.estser`/`estfac` **dentro** de la transacción con las
 sumas de todas las líneas del contrato tras actualizar `canser`, con la regla de hoy (`estser` =
 1 si `Σcanser ≥ Σcan`, si no 0): una devolución puede devolver `estser` a 0 (`Σcanser` < 0 da 0).
@@ -147,4 +147,4 @@ despliegue, comprobación de solo lectura de la **primera devolución real** del
 ## Fuera de alcance
 `dcapropar` (salvo M7), almacén/centro/analítica en la petición, el PDF, modificar o anular,
 producto por familia, varios albaranes por petición y cambiar el modo clásico o
-`albaran-directo` salvo R8. El recálculo de `mov` posteriores depende de la pregunta N1.
+`albaran-directo` salvo R8, y recalcular `mov` posteriores (N1: el `mov` se fecha en el alta).

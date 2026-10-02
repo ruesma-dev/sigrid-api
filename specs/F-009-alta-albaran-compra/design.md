@@ -1,5 +1,5 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v3)
+# F-009 · Diseño (v4)
 
 ## La decisión de fondo
 
@@ -138,18 +138,18 @@ Vinculadas: `ctrprodes.can` con signo, `canser += cantidad` aunque quede < 0 (M6
 `ctrpro` así), aviso `servido_negativo`, y `estser` con la regla de hoy. T24 sigue vigilando la
 primera devolución real del pipeline.
 
-## Fecha atrasada (R19) — pregunta N1
+## Fecha atrasada (R19) — decidido: N1 (b)
 
 M10: Sigrid mantiene `almcan`/`almpma` en orden de **`fechor`** (0 roturas en las 3 series; por
 `ide`, 1 rotura en 2): al dar de alta con fecha anterior, el escritorio **recalcula los `mov`
 posteriores**. Hoy la API encadena con el último por `ide` y pone `fechor` = fecha del albarán:
-rompe la cadena. Los albaranes del pipeline llegan siempre con fecha atrasada. Opciones:
-**(a)** recalcular dentro de la transacción los `mov` posteriores del mismo (producto, almacén)
-(`UPDATE` de `almcan`/`almpma`, de decenas a cientos de filas en los genéricos de obra);
-**(b)** fechar el `mov` en el momento del alta (`mov.fec`, `hor` y `fechor` de ahora; el
-albarán conserva su fecha): la cadena queda bien sin tocar otras filas, y el stock por fechas
-sitúa la entrada el día del alta (propuesta); **(c)** como hoy. Con (b), L12/E7 leen el último
-por `fechor DESC, ide DESC`.
+rompe la cadena. Los albaranes del pipeline llegan siempre con fecha atrasada. **Decisión del
+humano (2026-10-02), opción (b):** el `mov` se fecha en el momento del alta (`mov.fec`, `hor` y
+`fechor` = ahora, hora de Madrid, los mismos de R22); el albarán conserva su fecha (`con.fec`,
+`dca.fecdoc` = `fecha_albaran`). La cadena queda bien sin tocar otras filas y **no** se
+recalculan `mov` posteriores; el stock por fechas sitúa la entrada el día del alta (aceptado).
+L12/E7 leen el último `mov` del (producto, almacén) por `fechor DESC, ide DESC`. Descartadas:
+(a) recalcular los posteriores (`UPDATE` de decenas a cientos de `mov`) y (c) como hoy.
 
 ## Sentencias (constructor puro; todas con `?`)
 
@@ -174,7 +174,8 @@ Lecturas con credenciales de lectura; toda lectura con `truncado` → `ValueErro
   FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?` (M1: libre,
   0,1 s sin índice); si hay uno, `SELECT pos, proide, can, pre, tot, paride, almide FROM
   dbo.dcapro WHERE docide = ? ORDER BY pos`.
-- **L12** balance: el último `mov` del (producto, almacén) según N1.
+- **L12** balance: `SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ?
+  ORDER BY fechor DESC, ide DESC` (N1).
 - **L13** estado y usuario: `SELECT est FROM dbo.conest WHERE tip = ? AND est = ?`;
   `SELECT TOP (1) cod FROM dbo.usu WHERE cod = ?`.
 - **L14** (dry-run) `cod` provisional = E2 sin bloqueos, y `peek_next_ide` de las 5 tablas.
@@ -226,7 +227,7 @@ Mismo doble del repositorio; el mismo albarán (solo vinculadas, positivas, sin 
 repetido, partida y precio del `ctrpro`, proveedor con albarán previo) en dry-run por los dos
 modos; se comparan `con`, `dca`, `dcapro`, `ctrprodes` y `mov` columna a columna. Diferencias
 **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (Madrid frente a la hora del servidor,
-UTC en Azure; y N1), `est`, `prepma`, `ivacuo` (`dbo.iva` frente al cociente `ivacuo/tot` del
+UTC en Azure; y `mov.fec`/`fechor` del alta, N1), `est`, `prepma`, `ivacuo` (`dbo.iva` frente al cociente `ivacuo/tot` del
 `ctrpro`) y la fila de `log`, que el clásico no escribe.
 
 ## Riesgos y decisiones

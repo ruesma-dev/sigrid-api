@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v3
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v4
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); **v3 del 2026-10-02** (T0). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); **v4 del 2026-10-02** (respuestas a N1-N3). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -244,35 +244,26 @@ Avisos: `producto_sin_historico`, `supera_pendiente`,
 `codigo`, no por texto; `colision_de_clave` y los 500 se pueden reintentar con la misma
 referencia (la idempotencia lo hace seguro).
 
-## Preguntas abiertas (v3)
+## Preguntas de la v3: respondidas por el humano (2026-10-02)
 
-Las 1-17 de la v1 están respondidas; la 18 es del líder de albaranes. Nuevas, de T0:
+- **N1 → (b).** El movimiento de stock se fecha en el momento del alta (`mov.fec`, `hor` y
+  `fechor` de ahora, hora de Madrid); el albarán conserva su fecha. No se recalculan los `mov`
+  posteriores. El balance vigente se lee por `fechor DESC, ide DESC` (R19, design §Fecha
+  atrasada, L12/E7).
+- **N2 → rechazo.** Código de partida repetido entre las imputables de la obra: la línea falla
+  con `partida_ambigua` y el revisor lo corrige en sv4 (R14). Sin `paride` en la petición.
+- **N3 → retirar el script.** En cuanto T0 quede cerrada, y antes de T1, un commit propio con
+  `git rm scripts/medir_f009_t0.py tests/test_f009_t0_script.py`: sale del alcance de cobertura
+  y mutación y queda en el historial (tasks T0). **Todavía no se retira**: el humano va a
+  repetir `--solo M3 M7 M9 M11 M13 M14`.
 
-- **N1. Albaranes con fecha atrasada (M10).** El escritorio recalcula los movimientos de stock
-  posteriores cuando da de alta uno con fecha anterior; la API no (y los del pipeline llegan
-  siempre con fecha atrasada). ¿(a) recalcular dentro de la transacción los `mov` posteriores
-  del mismo producto y almacén (`UPDATE` de `almcan`/`almpma` en decenas o cientos de filas),
-  **(b) fechar el movimiento de stock en el momento del alta** (el albarán conserva su fecha;
-  la cadena queda bien sin tocar otras filas, pero el stock por fechas sitúa la entrada el día
-  del alta), o (c) como hoy (la cadena queda descuadrada hasta que algo la recalcule)?
-  Propuesta: **(b)**. La respuesta del humano en la v1 («sin recálculo») se dio antes de saber
-  esto; hace falta confirmarla.
-- **N2. Solo si la repetición de M3 da códigos repetidos entre partidas imputables de una
-  obra:** ¿se rechaza la línea con `partida_ambigua` (propuesta: es lo que dice la spec, y el
-  revisor lo corrige en sv4) o F-053 envía además el `paride`?
-- **N3. El script de T0 entra en el alcance de F-009.** `scripts/` no está excluido de las
-  puertas del arnés: sus ~460 líneas cuentan para la cobertura (el portero se puso en rojo al
-  44,7 % al commitear el script; con la prueba de humo ampliada está en 97,4 %) y entrarán en
-  la campaña de mutación `critico` de T16, con exigencia de cero supervivientes. Propuesta:
-  **retirarlo de la rama (`git rm`) en cuanto T0 quede cerrada**, antes de T1; queda en el
-  historial de git. Alternativa: mantenerlo y matar sus mutantes en T16.
-
-`con.est` = 1 se decide (no es pregunta) y lo confirma la repetición de M13. La fila de `log`
-también se decide: el escritorio la escribe (M13).
+No quedan preguntas de diseño abiertas. Las 1-17 de la v1 están respondidas y la 18 (alinear
+F-053) es del líder de albaranes; para F-053, N1 no cambia el contrato.
 
 ## Riesgo residual
 
 Ninguna escritura hasta T22, con autorización expresa. Al desplegar con la llave en `false`, el
 `commit` del modo clásico y de `albaran-directo` queda cerrado (decidido; nadie los usa en
 vivo). Devoluciones con la regla A medida en el escritorio; T24 vigila la primera real del
-pipeline. Hasta contestar N1 y repetir M3, M7, M9, M11, M13 y M14, F-009 no pasa a `in_progress`.
+pipeline. Hasta repetir M3, M7, M9, M11, M13 y M14 (y retirar el script, N3), F-009 no pasa a
+`in_progress`.

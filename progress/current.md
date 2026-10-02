@@ -1,14 +1,14 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v3 (2026-10-02), `spec_ready` — espera N1 y la repetición de T0
+## F-009 spec v4 (2026-10-02), `spec_ready` — espera la repetición de T0
 
 PRE-1 de albaranes F-053: **modo extendido de `sigrid/albaran`** (el clásico, idéntico y fijado
 por un test de caracterización previo). v3 con la primera pasada de T0 (regla A de
 devoluciones, `con.est` 1, plantilla del mismo proveedor, fila de `log`, producto por
 `(emp, cod)`). Rama `feature/F-009-alta-albaran-compra`; informe y resultados agregados en
-[`spec_F-009.md`](spec_F-009.md). Antes de `in_progress`: el humano contesta **N1** (fecha
-atrasada) y repite `--solo M3 M7 M9 M11 M13 M14` (M7 y M9 fallaron por el error 130 de SQL
+[`spec_F-009.md`](spec_F-009.md). N1-N3 respondidas (v4). Antes de `in_progress`: el humano
+repite `--solo M3 M7 M9 M11 M13 M14` y se retira el script de T0 (N3) (M7 y M9 fallaron por el error 130 de SQL
 Server, ya corregido). El fichero de resultados de T0 vive en `%TEMP%`, no en el repo.
 
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
