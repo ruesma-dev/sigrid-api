@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v2
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v3
 
-Spec-author. v1 y **v2 del 2026-10-01** (respuestas del humano a la PARADA 1). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); **v3 del 2026-10-02** (T0). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -11,7 +11,7 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
 
-## Qué cambia en la v2
+## Qué cambió en la v2 (lo que la v3 revisa va marcado)
 
 - **Se amplía `sigrid/albaran`** (no hay ruta nueva). Dos modos, decididos por las **claves**
   del JSON: `lineas` o `referencia_externa` → extendido; ninguna → clásico; `lineas_recibidas`
@@ -27,10 +27,52 @@ venv ya activado. No es un fallo del repo; se lanza sin esa variable.
   **hipótesis A** (simétrica al alta), verificada con la primera devolución real del pipeline
   (T24, consulta abajo). Pregunta 8 cerrada (opción a).
 - Aceptadas las propuestas 3-6 y 9-17: prefijo `ALB-`; productos `["MA9999"]`; partida y precio
-  distintos del contrato con aviso; `dcapropar` y `log` fuera salvo M7/M13; sin recálculo de
-  `mov` posteriores; almacén y centro derivados; `con.est` según M2; lista de reseteo, hora de
+  distintos del contrato con aviso; `dcapropar` y `log` fuera salvo M7/M13 (*v3: el `log` se
+  escribe*); sin recálculo de `mov` posteriores (*v3: reabierto, pregunta N1*); almacén y centro derivados; `con.est` según M2; lista de reseteo, hora de
   Madrid e IVA por `dbo.iva` solo en el modo extendido; los viejos, obsoletos cuando F-053 esté
   en real (T18); prioridad 7.
+
+## Resultados de T0 (primera pasada, 2026-10-02) y decisiones de la v3
+
+Fuente: el fichero de resultados del humano (en `%TEMP%`, **no** se versiona: lleva datos de
+negocio). Aquí solo cifras agregadas y conclusiones. M7 y M9 fallaron (error 130 de SQL
+Server, corregido en `28afc96`) y M11 tenía un fallo del script (abajo).
+
+| M | Resultado | Decisión en la spec v3 |
+|---|---|---|
+| M1 | `dca.synckey` vacío en los 312.644 albaranes; ningún `ALB-`; búsqueda sin índice, 0,1 s | **Cerrado**: idempotencia por `synckey` sin índice (R30) |
+| M2 | Albaranes desde 2025: 99,97 % en `emp` 1. Estados de `conest` tip 14: 1 `PDT` Pendiente, 2 `COM` Comprobado, 3 `CON` Contabilizado, 10 `FAC` Facturado. `sercon.estini` = 0 en las tres series tip 14 (`AC`, `NTC`, `PROF`), y 0 no es un estado (solo 6 albaranes lo tienen). `mov.emp` = 1 en todos. Índice único `con_emptipcod (emp, tip, cod)` | `cod` por `emp` bajo el índice único (R26); `mov.emp` = `con.emp`; **`con.est` = 1 `PDT`** (R22): el «3» de los no facturados está sesgado por los ya contabilizados, el ciclo es Pendiente → Comprobado → Contabilizado → Facturado y el alta de junio con 1 se vio bien en la UI. Lo confirma la repetición de M13, que lee el `est` de la fila de alta en `log` |
+| M3 | Partidas usadas en albaranes desde 2025: 100 % `tip 1`, `tipdes 0`; `tipvis` 0 (99,6 %) o 1. En `obrparpar`: `tip` 0 = 45.783, 1 = 349.408, 99 = 5. 5.207 pares (obra, código) repetidos | Imputable = `tip 1`, `tipdes 0`, `tipvis` 0/1 (R14). **Abierto**: cuántos repetidos quedan entre imputables (repetición) → pregunta N2 si hay |
+| M4 | Escritorio, vinculadas desde 2025: partida distinta del `ctrpro` 5,3 % (5.178 de 98.145), precio distinto 1,5 %. `ctrpro` sin `paride`/`cenide`/`caaide` nulos | **Cerrado**: confirma R16/R17 (permitido con aviso); la herencia de partida por `NULL` no ocurre |
+| M5 | 119.554 líneas negativas desde 2008 (112.379 sin vincular, 6.411 vinculadas). Muestra de 20: regla A en 13 (todas las que tienen `mov`), sin `mov` en 6, «?» en 1 | **Cerrado: regla A** (R18). La «?» es un albarán con fecha atrasada comparado con el `mov` anterior por `ide` (ver M10). Las 6 sin `mov` son **todas del mismo producto** (ide 571020): depende del producto, no de la devolución → repetición de M9 (`pro.tipmov` «Hace movimientos») |
+| M6 | `ctrprodes.can` = cantidad negativa en 20 de 20; `canser` ≠ Σ `ctrprodes.can` en 13 de 5.348; `canser` < 0 en 750 `ctrpro` | **Cerrado**: coherente con admitir `canser` < 0 (R18, R20) |
+| M7 | Falló (error 130) | Repetición |
+| M8 | 649 obras con un almacén, 5 con dos; `ctr.almide` es de su obra en el 99,4 %; líneas sin partida: almacén de la obra 98,9 %, con el centro del almacén 90,8 % | **Cerrado** (R15); dos almacenes → `almacen_de_obra_no_resuelto` |
+| M9 | Falló (error 130) | Repetición: ¿cuándo no hay `mov`? |
+| M10 | En las 3 series medidas, la cadena de `almcan` cuadra en orden de `fechor` (0 roturas) y no en orden de `ide` (1 rotura en 2): **el escritorio recalcula los `mov` posteriores** cuando entra uno con fecha anterior | **Pregunta N1** (design §Fecha atrasada) |
+| M11 | Hay **un producto genérico por empresa** (1, 31, 34; `tip 3`), todos con `comide` e `ivacomide` a 0 y `natide` propio. «0 líneas de MA9999» era **un fallo del script**: cogía el primer MA9999 de la lista (el de la empresa 31). `dbo.iva` se repite por empresa; `iva` es una fracción (0,16…) | Producto por `(emp, cod)`; cuenta e IVA de su última `dcapro`, naturaleza del maestro (R13). Repetición: líneas de cada MA9999 y comprobación `ivacuo = round(tot·iva, 2)` |
+| M12 | El 77,4 % de los albaranes con contrato desde 2025 llevan alguna línea sin vincular | **Cerrado**: confirma el diseño |
+| M13 | 13.934 filas de alta de albarán (`tab 'con'`, `tip 14`, `ope 1`) en los últimos 300.000 `ide` de `log` (la comparación con albaranes salió mal: ventana desde fecha 0) | **Se escribe** la fila de alta, con `usu` nuevo y obligatorio en la petición (R5, R25). Repetición: cobertura, `est` inicial y `ori` |
+| M14 | La cabecera de la API difería en forma de pago, efecto y dirección, pero **la muestra era de otros proveedores**: la API copió la de su propio proveedor. `dcapro.prepma` de la API = el de la plantilla; el del escritorio coincide con el PMP vigente del almacén. Resto de columnas de línea, sin diferencias | Plantilla de cabecera **solo del mismo proveedor**, sin *fallback* (R11); `prepma` = PMP resultante (R21). Repetición con el mismo proveedor, frente al maestro `prv` y `prepma` contra su `mov` |
+| M15 | 748 `mov` con stock negativo desde 2025, en 20 almacenes | **Cerrado**: solo aviso |
+
+**Para F-007 (proformas):** la serie `PROF<aa>/` es `tip 14`, como los albaranes: las proformas
+son albaranes de compra con otra serie.
+
+## Repetición de T0 (M3, M7, M9, M11, M13 y M14)
+
+```powershell
+cd C:\Users\pgris\PycharmProjects\sigrid-api
+git switch feature/F-009-alta-albaran-compra
+& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14
+```
+
+M7 y M9 son las que fallaron. Las otras cuatro traen consultas nuevas para cerrar sus [Mn]:
+partidas repetidas entre imputables (M3), banderas `pro.tipmov`/`tipinv` y productos de las
+líneas sin `mov` (M9), cada MA9999 por empresa e IVA usado (M11), `est` y `ori` de la fila de
+alta en `log` y su cobertura (M13), y M14 con el mismo proveedor, frente al maestro `prv` y con
+`prepma` contra su `mov`. Se pega de vuelta el fichero de `%TEMP%` entero. La prueba de humo
+ahora detecta el patrón del error 130 (agregado sobre subconsulta o sobre un `APPLY` escalar).
 
 ## T0: comando para PowerShell
 
@@ -81,6 +123,9 @@ git switch feature/F-009-alta-albaran-compra
    antes de validar.
 
 ## Mediciones (T0) — solo lectura, por `sql/read`
+
+Texto de la v1. La versión vigente de cada consulta es la de `scripts/medir_f009_t0.py` (M7 y
+M9 reescritas; M3, M11, M13 y M14 ampliadas).
 
 Setup de `azure-apps/sigrid_api.md` §8 (`$base`, `$headers`). Cada consulta:
 
@@ -156,14 +201,14 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
   → `canser` = `suma_destinos`; y `SELECT estser, estfac FROM dbo.ctr WHERE ide = ?` frente a `Σcanser ≥ Σcan`;
 - en la UI, la ficha de stock del producto en ese almacén debe dar el mismo stock y PMP.
 
-## Forma final para alinear F-053 (pregunta 18, la hace el líder de albaranes)
+## Forma final para alinear F-053 (pregunta 18, la hace el líder de albaranes) — v3
 
 Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
 
 ```json
 { "database": "ruesma", "cod_obra": "0404", "cif_proveedor": "<CIF>", "cod_contrato": "CTSU16/0206 o null",
   "referencia_externa": "ALB-<document_id>", "su_referencia": "<nº de albarán del proveedor, ≤128>",
-  "fecha_albaran": 20261001, "empide": null, "commit": false,
+  "usu": "<usuario de Sigrid, ≤24>", "fecha_albaran": 20261001, "empide": null, "commit": false,
   "lineas": [ { "referencia_linea": "<id de línea, ≤64>", "ctrpro_ide": 123, "producto": null,
                 "descripcion": "<≤128, obligatoria sin vincular>", "unidad": "<≤8>", "cantidad": -2.5,
                 "precio": 10.0, "partida": "<cod de obrparpar>", "almacen": false } ] }
@@ -171,7 +216,11 @@ Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
 
 Exactamente uno de `ctrpro_ide`/`producto` y uno de `partida`/`almacen:true`; `cantidad` ≠ 0
 (negativa = devolución, en los dos tipos); `precio` ≥ 0 obligatorio; `ctrpro_ide` exige
-`cod_contrato`; **no** enviar `lineas_recibidas` (→ `peticion_mixta`).
+`cod_contrato`; **no** enviar `lineas_recibidas` (→ `peticion_mixta`). **Nuevo en v3:** `usu`
+obligatorio (va a la fila de alta de `log`; F-053 ya tiene `ALTA_SIGRID_USUARIO`), y el
+proveedor tiene que tener algún albarán previo (si no, `proveedor_sin_albaran_previo`: ya no se
+copia la cabecera de otro proveedor, así que el antiguo aviso «plantilla de otro proveedor»
+desaparece y pasa a ser este error).
 
 Respuesta 200 (dry-run, commit o idempotente): todos los campos de la respuesta clásica (`ok`,
 `database`, `committed`, `dry_run`, `con_ide`, `cod`, `contrato`, `cabecera`, `lineas`,
@@ -185,25 +234,39 @@ details:{type, codigo, lineas?:[{indice, referencia_linea, codigo, mensaje}]}}`;
 Códigos de error: `peticion_mixta`, `escritura_albaranes_deshabilitada`,
 `base_de_datos_no_permitida`, `demasiadas_lineas`, `referencia_no_permitida`,
 `referencia_en_conflicto`, `obra_no_encontrada`, `obra_ambigua`, `contrato_no_encontrado`,
-`contrato_ambiguo`, `proveedor_sin_albaran_previo`, `estado_inicial_no_encontrado`,
+`contrato_ambiguo`, `usuario_no_valido`, `proveedor_sin_albaran_previo`, `estado_inicial_no_encontrado`,
 `almacen_de_obra_no_resuelto`, `colision_de_clave`, `filas_afectadas_inesperadas`,
 `lineas_no_validas`; por línea: `linea_no_es_del_contrato`, `producto_no_permitido`,
 `producto_no_encontrado`, `partida_no_encontrada`, `partida_ambigua`, `partida_no_imputable`.
-Avisos: `plantilla_de_otro_proveedor`, `producto_sin_historico`, `supera_pendiente`,
+Avisos: `producto_sin_historico`, `supera_pendiente`,
 `partida_distinta_del_contrato`, `precio_distinto_del_contrato`, `servido_negativo`,
 `stock_negativo`, `cod_provisional`. Para F-053: los «avisos bloqueantes» pasan a compararse por
 `codigo`, no por texto; `colision_de_clave` y los 500 se pueden reintentar con la misma
 referencia (la idempotencia lo hace seguro).
 
-## Preguntas abiertas
+## Preguntas abiertas (v3)
 
-Ninguna de diseño: las 1-17 están respondidas y la 18 es del líder de albaranes. Queda **T0**:
-si alguna medición contradice un punto [Mn] (sobre todo M2 `est`/`emp`, M5 devoluciones, M8
-almacén de obra, M14 lista de reseteo), la spec se corrige y vuelve a la PARADA 1.
+Las 1-17 de la v1 están respondidas; la 18 es del líder de albaranes. Nuevas, de T0:
+
+- **N1. Albaranes con fecha atrasada (M10).** El escritorio recalcula los movimientos de stock
+  posteriores cuando da de alta uno con fecha anterior; la API no (y los del pipeline llegan
+  siempre con fecha atrasada). ¿(a) recalcular dentro de la transacción los `mov` posteriores
+  del mismo producto y almacén (`UPDATE` de `almcan`/`almpma` en decenas o cientos de filas),
+  **(b) fechar el movimiento de stock en el momento del alta** (el albarán conserva su fecha;
+  la cadena queda bien sin tocar otras filas, pero el stock por fechas sitúa la entrada el día
+  del alta), o (c) como hoy (la cadena queda descuadrada hasta que algo la recalcule)?
+  Propuesta: **(b)**. La respuesta del humano en la v1 («sin recálculo») se dio antes de saber
+  esto; hace falta confirmarla.
+- **N2. Solo si la repetición de M3 da códigos repetidos entre partidas imputables de una
+  obra:** ¿se rechaza la línea con `partida_ambigua` (propuesta: es lo que dice la spec, y el
+  revisor lo corrige en sv4) o F-053 envía además el `paride`?
+
+`con.est` = 1 se decide (no es pregunta) y lo confirma la repetición de M13. La fila de `log`
+también se decide: el escritorio la escribe (M13).
 
 ## Riesgo residual
 
 Ninguna escritura hasta T22, con autorización expresa. Al desplegar con la llave en `false`, el
 `commit` del modo clásico y de `albaran-directo` queda cerrado (decidido; nadie los usa en
-vivo). Las devoluciones van con la hipótesis A si M5 no da muestra: riesgo aceptado, T24 lo
-vigila.
+vivo). Devoluciones con la regla A medida en el escritorio; T24 vigila la primera real del
+pipeline. Hasta contestar N1 y repetir M3, M7, M9, M11, M13 y M14, F-009 no pasa a `in_progress`.

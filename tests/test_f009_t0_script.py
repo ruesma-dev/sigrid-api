@@ -208,3 +208,116 @@ def test_f009_t0_m11_mira_cada_ma9999_y_no_solo_el_primero() -> None:
     t0.m11(cliente)  # type: ignore[arg-type]
     totales = [p for k, p in cliente.llamadas if k == "M11_total_producto"]
     assert totales == [[31], [1]]
+
+
+# --- Recorrido completo sin red: cada medición con datos de ejemplo ---------------------------
+
+_DATOS: dict[str, list[dict[str, Any]]] = {
+    "M1_total": [{"total": 10, "con_synckey": 0}],
+    "M1_prefijo_alb": [{"n": 0}],
+    "M2_est_emp": [{"emp": 1, "est": 10, "n": 8}, {"emp": 1, "est": 1, "n": 2}],
+    "M2_est_sin_facturar": [{"est": 3, "n": 5}],
+    "M2_mov_emp": [{"emp": 1, "n": 9}],
+    "M2_indices_con": [{"indice": "con_emptipcod", "unico": True, "columna": "emp", "orden": 1}],
+    "M3_partidas_usadas": [{"tip": 1, "tipdes": 0, "tipvis": 0, "n": 4}],
+    "M3_repetidos": [{"repetidos": 2}],
+    "M3_repetidos_imputables": [{"repetidos": 1, "filas": 2}],
+    "M4_vinculadas": [{"n": 10, "partida_distinta": 1, "precio_distinto": 1}],
+    "M4_nulos_ctrpro": [{"paride_null": 0, "cenide_null": 0, "caaide_null": 0, "n": 5}],
+    "M5_por_origen": [{"docoritip": 0, "n": 3}],
+    "M5_muestra": [
+        {"linea": 1, "cod": "AC", "mov": 9, "proide": 1, "almide": 2, "can": -2, "pre": 8,
+         "canent": -2, "cansal": 0, "almcan": 8, "almpma": 4.25},
+        {"linea": 2, "cod": "AC", "mov": None, "proide": 1, "almide": 2, "can": -1, "pre": 1},
+    ],
+    "M5_mov_anterior": [{"almcan": 10, "almpma": 5}],
+    "M6_muestra": [{"ide": 1, "can": -3, "ctrprodes_can": -3}],
+    "M6_revisadas": [{"lineas_contrato": 4, "canser_negativo": 1}],
+    "M6_descuadres": [{"descuadres": 0}],
+    "M7_desglose": [{"lineas": 10, "con_desglose": 0, "parcandes": 0}],
+    "M8_almacenes_por_obra": [{"n_almacenes": 1, "obras": 3}],
+    "M8_almacen_del_contrato": [{"alm_de_su_obra": 9, "n": 10}],
+    "M8_lineas_sin_partida": [{"tipo": "alm_de_la_obra", "alm_paride": 0, "cen_del_alm": 1, "n": 5}],
+    "M9_por_tipsininv": [{"tipsininv": 0, "albaranes": 2, "lineas": 4, "movs": 3}],
+    "M9_por_partida": [{"tipo": "con_partida", "lineas": 4, "con_mov": 3}],
+    "M9_por_banderas": [{"tipmov": 1, "tipinv": 1, "lineas": 4, "con_mov": 3}],
+    "M9_sin_mov_por_producto": [{"proide": 5, "cod": "X", "emp": 1, "lineas": 1}],
+    "M10_atrasados": [{"proide": 1, "almide": 2, "fechor": 20260901.1}, {"proide": 1, "almide": 2, "fechor": 1}],
+    "M10_serie": [{"ide": 2, "almcan": 5}, {"ide": 1, "almcan": 7, "canent": 2, "cansal": 0}],
+    "M11_productos": [{"ide": 1, "cod": "MA9999", "emp": 1, "comide": 0, "ivacomide": 0, "natide": 274}],
+    "M11_total_producto": [{"lineas": 100, "desde": 20080101, "hasta": 20261001}],
+    "M11_lineas_producto": [{"cueide": 7, "ivaide": 8, "natide": 274, "unimed": "UD", "n": 90}],
+    "M11_iva_usado": [{"ivaide": 8, "cod": "I21", "iva": 0.21, "lineas": 90, "ivacuo_distinto": 0}],
+    "M12_mezcla": [{"con_lineas_sin_vincular": 7, "con_contrato": 10}],
+    "M13_est_alta": [{"est": 1, "ori": 0, "n": 50}],
+    "M13_cobertura": [{"albaranes": 60, "con_log": 50}],
+    "M14_api": [{"ide": 99, "cod": "AC26/15951"}],
+    "M14_escritorio": [{"ide": 1, "cod": "AC26/1"}],
+    "M14_prv": [{"n": 10, "pagide_del_prv": 9, "efeide_del_prv": 9}],
+    "M14_prepma": [{"n": 10, "igual_pmp_resultante": 10, "igual_prepma_del_mov": 0}],
+    "M14_con": [{"ide": 1, "est": 1}, {"ide": 99, "est": 1}],
+    "M14_dca": [{"ide": 1, "pagide": 23}, {"ide": 99, "pagide": 36}],
+    "M14_dcapro": [{"docide": 1, "prepma": 1.5}, {"docide": 99, "prepma": 69.5}],
+    "M15_stock_negativo": [{"n": 7, "almacenes": 2}],
+}
+
+
+def test_f009_t0_cada_medicion_se_recorre_entera_con_datos_de_ejemplo() -> None:
+    cliente = _ClienteFalso(_DATOS)
+    for clave, medir in t0.MEDICIONES.items():
+        informe = medir(cliente)  # type: ignore[arg-type]
+        assert informe.clave == clave and informe.conclusiones, clave
+    textos = {k: m(_ClienteFalso(_DATOS)).texto() for k, m in t0.MEDICIONES.items()}  # type: ignore[arg-type]
+    assert "Reglas en la muestra: A en 1 de 2" in textos["M5"] and "sin_mov en 1 de 2" in textos["M5"]
+    assert "pagide (lista de reseteo)" not in textos["M14"] and "dca.pagide" in textos["M14"]
+    assert "prepma (lista de reseteo)" in textos["M14"]
+
+
+def test_f009_t0_mediciones_sin_datos_no_revientan() -> None:
+    for clave, medir in t0.MEDICIONES.items():
+        assert medir(_ClienteFalso({})).texto().startswith(f"=== {clave}"), clave  # type: ignore[arg-type]
+
+
+def test_f009_t0_main_escribe_el_fichero_y_sigue_tras_un_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                              capsys: pytest.CaptureFixture[str]) -> None:
+    class _ConFallo(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL["M7_desglose"]:
+                raise t0.ErrorDeLectura("HTTP 500: error 130")
+            return super().leer(sql, parametros, **kw)
+
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ConFallo(_DATOS))
+    salida = tmp_path / "t0.txt"
+    assert t0.main(["--solo", "M7", "M15", "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert "=== M7 === ERROR: HTTP 500: error 130" in texto and "=== M15 ·" in texto
+    impreso = capsys.readouterr().out
+    assert "clave-secreta-123" not in impreso + texto and "ejemplo.invalid" not in impreso + texto
+
+
+def test_f009_t0_errores_de_red_y_de_formato_del_cliente() -> None:
+    class _Rota:
+        def post(self, *a: Any, **k: Any) -> Any:
+            raise ConnectionError("https://ejemplo.invalid caído")
+
+    with pytest.raises(t0.ErrorDeLectura) as exc:
+        t0.ClienteLectura("https://ejemplo.invalid", "k", sesion=_Rota()).leer("SELECT 1 AS x")
+    assert "ejemplo.invalid" not in str(exc.value)
+
+    class _SinJson(_Respuesta):
+        def json(self) -> dict[str, Any]:
+            raise ValueError("no es JSON")
+
+    with pytest.raises(t0.ErrorDeLectura, match="sin JSON"):
+        t0.ClienteLectura("https://ejemplo.invalid", "k", sesion=_Sesion([_SinJson({}, 502)])).leer("SELECT 1 AS x")
+
+
+def test_f009_t0_marcadores_y_dotenv(tmp_path: Path) -> None:
+    assert t0.marcadores(3) == "?, ?, ?"
+    with pytest.raises(ValueError):
+        t0.marcadores(0)
+    env = tmp_path / ".env"
+    env.write_text("# comentario\n\nSIN_IGUAL\nSIGRID_API_BASE_URL='https://a.invalid'\n", encoding="utf-8")
+    assert t0.leer_dotenv(env) == {"SIGRID_API_BASE_URL": "https://a.invalid"}
+    assert t0.leer_dotenv(tmp_path / "no-existe") == {}
