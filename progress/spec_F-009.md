@@ -260,6 +260,12 @@ Las 1-17 de la v1 están respondidas; la 18 es del líder de albaranes. Nuevas, 
 - **N2. Solo si la repetición de M3 da códigos repetidos entre partidas imputables de una
   obra:** ¿se rechaza la línea con `partida_ambigua` (propuesta: es lo que dice la spec, y el
   revisor lo corrige en sv4) o F-053 envía además el `paride`?
+- **N3. El script de T0 entra en el alcance de F-009.** `scripts/` no está excluido de las
+  puertas del arnés: sus ~460 líneas cuentan para la cobertura (el portero se puso en rojo al
+  44,7 % al commitear el script; con la prueba de humo ampliada está en 97,4 %) y entrarán en
+  la campaña de mutación `critico` de T16, con exigencia de cero supervivientes. Propuesta:
+  **retirarlo de la rama (`git rm`) en cuanto T0 quede cerrada**, antes de T1; queda en el
+  historial de git. Alternativa: mantenerlo y matar sus mutantes en T16.
 
 `con.est` = 1 se decide (no es pregunta) y lo confirma la repetición de M13. La fila de `log`
 también se decide: el escritorio la escribe (M13).
