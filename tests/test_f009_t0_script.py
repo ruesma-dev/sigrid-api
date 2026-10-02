@@ -147,3 +147,64 @@ def test_f009_t0_el_guardia_de_lectura_de_la_api_acepta_cada_sentencia(nombre: s
     peticion = SqlReadRequest.model_construct(database="ruesma", sql=_sql_completa(t0.SQL[nombre]).strip(),
                                               parameters=[], timeout_seconds=t0.TIMEOUT_PESADO_S, max_rows=500)
     SqlQueryGuard(ajustes).validate(peticion)
+
+
+# --- Error 130 de SQL Server (T0 del 2026-10-02: M7 y M9 cayeron por esto) ------------------
+
+
+@pytest.mark.parametrize("nombre", sorted(t0.SQL))
+def test_f009_t0_ninguna_sentencia_agrega_sobre_una_subconsulta(nombre: str) -> None:
+    assert not t0.agregado_con_subconsulta(_sql_completa(t0.SQL[nombre])), nombre
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # Las dos formas que fallaron en producción (texto de la versión anterior del script).
+        (
+            "SELECT COUNT(*) AS lineas, SUM(CASE WHEN EXISTS (SELECT 1 FROM dbo.dcapropar x "
+            "WHERE x.docproide = d.ide) THEN 1 ELSE 0 END) AS con_desglose FROM dbo.dcapro d"
+        ),
+        (
+            "SELECT d.tipsininv, SUM(x.lineas) AS lineas FROM dbo.dca d CROSS APPLY (SELECT (SELECT COUNT(*) "
+            "FROM dbo.dcapro p WHERE p.docide = d.ide) AS lineas) x GROUP BY d.tipsininv"
+        ),
+        "SELECT MAX((SELECT TOP 1 ide FROM dbo.con)) AS x FROM dbo.dca",
+    ],
+)
+def test_f009_t0_el_detector_reconoce_lo_que_da_el_error_130(sql: str) -> None:
+    assert t0.agregado_con_subconsulta(sql)
+
+
+def test_f009_t0_el_detector_no_confunde_subconsultas_fuera_del_agregado() -> None:
+    assert not t0.agregado_con_subconsulta(
+        "SELECT COUNT(*) AS n FROM dbo.ctrpro p WHERE ABS(p.canser - (SELECT ISNULL(SUM(s.can), 0) "
+        "FROM dbo.ctrprodes s WHERE s.docproide = p.ide)) > 0.001"
+    )
+
+
+# --- M11: hay un MA9999 por empresa ----------------------------------------------------------
+
+
+class _ClienteFalso:
+    def __init__(self, respuestas: dict[str, list[dict[str, Any]]]) -> None:
+        self.respuestas = respuestas
+        self.llamadas: list[tuple[str, list[Any]]] = []
+
+    def leer(self, sql: str, parametros: list[Any] | None = None, **_: Any) -> t0.Resultado:
+        clave = next(k for k, v in t0.SQL.items() if _sql_completa(v) == sql or v == sql
+                     or ("{in}" in v and sql.startswith(v.split("{in}")[0])))
+        self.llamadas.append((clave, parametros or []))
+        return t0.Resultado(self.respuestas.get(clave, []), False, 0.0)
+
+
+def test_f009_t0_m11_mira_cada_ma9999_y_no_solo_el_primero() -> None:
+    productos = [
+        {"ide": 31, "cod": "MA9999", "emp": 31, "comide": 0, "ivacomide": 0, "natide": 310},
+        {"ide": 1, "cod": "MA9999", "emp": 1, "comide": 0, "ivacomide": 0, "natide": 274},
+        {"ide": 7, "cod": "SB9999", "emp": 1, "comide": 0, "ivacomide": 0, "natide": 313},
+    ]
+    cliente = _ClienteFalso({"M11_productos": productos, "M11_total_producto": [{"lineas": 5}]})
+    t0.m11(cliente)  # type: ignore[arg-type]
+    totales = [p for k, p in cliente.llamadas if k == "M11_total_producto"]
+    assert totales == [[31], [1]]
