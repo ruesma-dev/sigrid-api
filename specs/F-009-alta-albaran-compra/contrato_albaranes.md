@@ -20,7 +20,13 @@ producto en la misma obra**, con salida si no hay (H10); H5 cerrado por F-051 v4
 humano): F-009 **absorbe** la lista blanca con `XA9999`; `mov` **si y solo si** `pro.tipmov` = 1 (H20 cerrado,
 sin puerta dura); anular **borra** el `con` (H9 cerrado); y la analítica de las sin vincular sale de la
 **naturaleza** de la línea, con un campo opcional nuevo **`naturaleza`** (§2.2, H10), condicional a la medición
-M16c (T0b-ter). Estado de §8, al final de esa sección.
+M16c (T0b-ter). Estado de §8, al final de esa sección. **v7.1** (2026-10-06; F-009 sigue en v7): decisiones del
+humano y medición del líder (Sigrid, solo lectura, 2026-10-05/06, `dca`/`dcapro`, emp 1). La regla de la analítica de
+las sin vincular queda **confirmada por Administración y Control de Costes** (correo del 2026-10-05) y medida, con el
+sufijo del `caagascod` **sin el prefijo `MOD.`** si lo lleva (H10); la **naturaleza** de las sin vincular sale de un
+**mapeo producto → naturaleza** en la configuración de sigrid-api (`MA9999`→`MA99`, `QA9999`→`QA99`,
+`XA9999`→`XA99`), nunca del maestro, que tiene mal la de `MA9999` (**H34**, nuevo); y las vinculadas copian del
+`ctrpro` el `cod2` y el enlace a la planificación de compras (**H35**, nuevo; H11). Lo que debe absorber F-009 v8: §8.
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -32,11 +38,12 @@ un hueco de §5, se resuelve en la spec que toque y se actualiza este documento.
 |---|---|
 | sigrid-api `specs/F-009-alta-albaran-compra/` y `progress/spec_F-009.md` | **v7** (2026-10-05: resultados de T0b-bis, §v7 de `progress/spec_F-009.md`). Antes **v6** (2026-10-05: huecos de §5, decisiones del humano sobre H4, H8, H9, H17, H20, H28 y H31, respuestas a N4-N12 y repetición de T0 con las decisiones del humano sobre la lista blanca y la analítica). Este documento se escribió contra la v4 (2026-10-02) y se actualizó a la v5, la v5.1 y la v6 |
 | sigrid-api código vivo: `create_purchase_albaran_use_case.py`, `create_direct_albaran_use_case.py`, sus modelos y `function_app.py` | rama `feature/F-009-alta-albaran-compra` |
-| albaranes F-053 `specs/F-053-alta-sigrid/` y `progress/spec_F-053.md` (worktree `albaranes-F-053`) | **v6** (2026-10-05, alineada con F-009 v6 y con este contrato v6.1; `pending` con 7 preguntas al humano, P1-P7). Antes v5 (2026-10-01, contra F-009 v2) |
+| albaranes F-053 `specs/F-053-alta-sigrid/` y `progress/spec_F-053.md` (worktree `albaranes-F-053`) | **v6** (2026-10-05, alineada con F-009 v6 y con este contrato v6.1; `pending` con 7 preguntas al humano, P1-P7; retocada el 2026-10-06 con la v7.1: `naturaleza_no_valida` y `analitica_no_resuelta`). Antes v5 (2026-10-01, contra F-009 v2) |
 | albaranes F-051 `specs/F-051-almacen-por-linea/` y `progress/spec_F-051.md` + decisiones del humano del 2026-10-05 (D1, D2, D3, D4, D5, D7) | **v4** (2026-10-05: toda línea con partida final vacía es almacén, tenga o no marca) |
 | Medición del líder en Sigrid (solo lectura, 2026-10-05): analítica de `dcapro` por vínculo y por (obra, producto genérico) | resultados en H10 |
+| Medición del líder en Sigrid (solo lectura, 2026-10-05/06) y correo del director de Administración y Control de Costes (2026-10-05): analítica por naturaleza, naturaleza de las sin vincular, `cod2` y enlace DNC | resultados en H10, H34 y H35 (v7.1) |
 | albaranes F-049 `specs/F-049-partida-de-la-lista/` y `progress/spec_F-049.md` | v4 (2026-10-03) |
-| `azure-apps/sigrid_api.md` y `azure-apps/sigrid_tablas.md` (`con`, `dca`, `dcapro`, `ctrpro`, `ctrprodes`, `obrparpar`, `alm`, `obr`) | `f7da7cd` |
+| `azure-apps/sigrid_api.md` y `azure-apps/sigrid_tablas.md` (`con`, `dca`, `dcapro`, `ctrpro`, `ctrprodes`, `obrparpar`, `alm`, `obr`; en la v7.1 también `auxpronat`, `caa`, `dnc`, `dncpro`) | `f7da7cd` (v7.1: `02b647a`) |
 
 ---
 
@@ -59,24 +66,30 @@ un hueco de §5, se resuelve en la spec que toque y se actualiza este documento.
   cualquier familia (D2). Pasar después la línea a partida (al desacopiar) se hace en Sigrid, fuera
   de la API.
 - **Estado del contrato**: la forma está cerrada en F-009 v4, pero **F-053 v5 se alineó con F-009 v2**
-  y hay huecos que, sin resolver, hacen fallar o escribir mal el alta. **33 huecos** en §5. Tras
+  y hay huecos que, sin resolver, hacen fallar o escribir mal el alta. **35 huecos** en §5 (H34 y H35, v7.1). Tras
   **F-009 v7** quedan abiertos los de albaranes y lo que depende de la tercera repetición de T0
-  (T0b-ter: M16c, analítica de las sin vincular; y `prepma`, pregunta P1); tabla de estado al principio de §5:
+  (T0b-ter: M16c, analítica de las sin vincular; y `prepma`, pregunta P1); en la v7.1, lo que debe absorber F-009
+  v8 (§8: H10, H11, H34, H35). Tabla de estado al principio de §5:
 
   | Gravedad | Huecos | Qué pasa si no se resuelven |
   |---|---|---|
   | **Bloqueantes** (el alta falla o escribe en la empresa/obra equivocada) | H1, H2, H3, H4, H5, H6, H7, H8, H9 | `usu` ausente ⇒ todas las altas a `error`; obras repetidas entre empresas ⇒ `obra_ambigua`; albarán clonado en otra empresa; partida validada en albaranes y rechazada en sigrid-api; líneas sin partida rechazadas aunque el humano decidió que son válidas; longitudes; unidad incoherente con la cantidad en vinculadas; descuentos convertidos en devoluciones; reintento tras anular |
-  | **Importantes** (escribe, con datos dudosos) | H10-H21 | analítica/almacén/columnas heredadas de otra obra; aviso de vinculada sin partida; obras con dos almacenes; precio «distinto» por decimales; IVA de otro proveedor; cuentas bancarias guardadas en albaranes; partida ambigua sin salida; idempotencia sin casar líneas; fechas absurdas; servicios como material; CIF |
+  | **Importantes** (escribe, con datos dudosos) | H10-H21, H34, H35 | analítica/almacén/columnas heredadas de otra obra; aviso de vinculada sin partida; obras con dos almacenes; precio «distinto» por decimales; IVA de otro proveedor; cuentas bancarias guardadas en albaranes; partida ambigua sin salida; idempotencia sin casar líneas; fechas absurdas; servicios como material; CIF; naturaleza equivocada del maestro de MA9999 (H34); `cod2` y planificación de compras perdidos o ajenos en las vinculadas (H35) |
   | **Menores / a confirmar** | H22-H33 | topes, repartos con cantidad 0, mapeo de códigos en F-053, índices, avisos, mediciones T0 pendientes, decisiones a confirmar, documentación |
 
 - **Quién mueve ficha** (un hueco puede tocar a varios):
   - **F-009** (spec v5/v5.1 de sigrid-api, ya incorporados): H2, H3, H10-H18, H21, H26, H27, H32, H33.
     **Absorbidos en la v7**: H9 (M17b), H20 (`XA9999` y M9) y H10 (regla de la naturaleza, condicional a M16c); §8.
+    **Para la v8** (contrato v7.1): H10 (sufijo sin `MOD.`), H11, H34 (mapeo producto → naturaleza) y H35 (`cod2`
+    y enlace DNC del `ctrpro`); §8.
   - **F-053**: H1, H5-H8, H12-H14, H16, H18, H19, H21, H22, H24-H26. **Incorporados en F-053 v6** salvo H8
-    (pregunta P2 al humano); H17 por su parte, pregunta P4.
+    (pregunta P2 al humano); H17 por su parte, pregunta P4. v7.1: F-053 no manda `naturaleza` y lleva
+    `naturaleza_no_valida` a `error` (H34); H35 no le pide nada.
   - **F-049**: H4, H17 (conservar el `ide` de cada partida, v6), H23. **F-051**: H5 (**cerrado** en su v4).
-  - **Humano** (decisión o medición): H4, H8, H9, H17, H20, H28-H31. Decididos ya: H4, H31 (N4), H20 (v6.1 y v7) y H9
-    (medido, v7: responde P3); abiertos como preguntas de F-053 v6: H8 (P2), H17 (P4), H29 (P5), H30 (P6), H28 (P7).
+  - **Humano** (decisión o medición): H4, H8, H9, H17, H20, H28-H31, H34, H35. Decididos ya: H4, H31 (N4), H20 (v6.1
+    y v7), H9 (medido, v7: responde P3) y, en la v7.1, H10 (confirmado por negocio), H34 y H35; abiertos como
+    preguntas de F-053 v6: H8 (P2), H17 (P4), H29 (P5), H30 (P6), H28 (P7). **Hallazgo para Administración** (H34):
+    el maestro de `MA9999` tiene mal su naturaleza (`MA1501`); corregirlo es un cambio de datos en Sigrid, no de F-009.
   - Ninguno exige un servicio nuevo ni sale del límite de sigrid-api.
 
 ---
@@ -122,6 +135,7 @@ Para que una **grabación** llegue a Sigrid tienen que estar abiertas **todas**:
 | Credenciales `SQL_SERVER_WRITE_*` + `ALLOWED_WRITE_DATABASES=["ruesma"]` | sigrid-api | — | Sin ellas, `escritura_albaranes_deshabilitada` / `base_de_datos_no_permitida` (vacía **no** abre) |
 | `SIGRID_ALBARAN_PREFIJOS_REFERENCIA` (**nueva**) | sigrid-api | `[]` (despliegue `["ALB-"]`) | Vacía ⇒ toda referencia rechazada, **también en previa** |
 | `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO` (**nueva**) | sigrid-api | `[]` (despliegue `["MA9999", "QA9999", "XA9999"]`, v6.1) | Productos admitidos en líneas sin vincular: materiales, alquiler de maquinaria y alquiler de medios auxiliares. Debe contener los valores del mapeo `ALTA_SIGRID_PRODUCTO_POR_DEFECTO` de sv9 |
+| `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (**nueva**, propuesta v7.1, H34) | sigrid-api | `{}` (despliegue `{"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}`) | Naturaleza (`auxpronat.cod`) de las sin vincular por producto; debe cubrir toda la lista blanca. Producto sin entrada ⇒ `naturaleza_no_valida` |
 | `SIGRID_ALBARAN_MAX_LINEAS` (**nueva**) | sigrid-api | `100` | Tope de líneas, también en previa |
 | `SIGRID_ALBARAN_EMPRESAS_OBRA` (**nueva**, v5, H2) | sigrid-api | `[]` (despliegue `[1]`) | Empresas en que se busca la obra. Vacía ⇒ `obra_de_empresa_no_permitida`, también en previa |
 
@@ -167,24 +181,24 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 | Campo | Tipo | Oblig. | Long. / dominio | Origen en albaranes (`albaran_line_valuations` salvo indicación) | Destino en Sigrid | Notas |
 |---|---|---|---|---|---|---|
 | `referencia_linea` | str | sí | **1-24** (v6); única en la petición | `str(id)` de la línea valorada | respuesta, errores y **`dcapro.refent`** (M18: libre en el 100 %, no pasa a la factura; **H18**, F-009 R30c) | sv9 casa la respuesta por este campo, nunca por posición; también la de `idempotente` |
-| `ctrpro_ide` | int ≥1 | uno de los dos | — | Vinculada: `albaran_contrato_lines_merge.sigrid_ide` de `matched_contrato_line_id`, con `sigrid_ide` no nulo y `derived_contrato_line_id` nulo | `dcapro.linoriide`, `docoritip 44`, `docoriide`; `ctrprodes.docproide`; `ctrpro.canser` | Debe ser del contrato (`linea_no_es_del_contrato`) |
-| `producto` | str | uno de los dos | 1-24 | Sin vincular: **por línea** (v6.1, humano): el que el administrativo eligió en sv4 (`albaran_line_valuations.producto_sigrid`) o, si no eligió, el del mapeo de sv9 `ALTA_SIGRID_PRODUCTO_POR_DEFECTO` por la familia efectiva de la línea: `alquiler_maquinaria` → `QA9999`, `medios_auxiliares` → `XA9999`, resto → `MA9999` (F-053 v6 R12, R40-R43) | `dcapro.proide` resuelto por `(emp de la obra, cod)`, `tip 3` | Debe estar en `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO`; toda línea es vinculada o lleva uno de ellos. Decide la analítica (H10). **H20** |
+| `ctrpro_ide` | int ≥1 | uno de los dos | — | Vinculada: `albaran_contrato_lines_merge.sigrid_ide` de `matched_contrato_line_id`, con `sigrid_ide` no nulo y `derived_contrato_line_id` nulo | `dcapro.linoriide`, `docoritip 44`, `docoriide`; `dcapro.cod2`, `dncide`, `dncproide` = los del `ctrpro` (v7.1, **H35**); `ctrprodes.docproide`; `ctrpro.canser` | Debe ser del contrato (`linea_no_es_del_contrato`) |
+| `producto` | str | uno de los dos | 1-24 | Sin vincular: **por línea** (v6.1, humano): el que el administrativo eligió en sv4 (`albaran_line_valuations.producto_sigrid`) o, si no eligió, el del mapeo de sv9 `ALTA_SIGRID_PRODUCTO_POR_DEFECTO` por la familia efectiva de la línea: `alquiler_maquinaria` → `QA9999`, `medios_auxiliares` → `XA9999`, resto → `MA9999` (F-053 v6 R12, R40-R43) | `dcapro.proide` resuelto por `(emp de la obra, cod)`, `tip 3` | Debe estar en `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO`; toda línea es vinculada o lleva uno de ellos. Decide la naturaleza (mapeo de configuración, **H34**, v7.1) y con ella la analítica (H10). **H20** |
 | `descripcion` | str \| null | sí en sin vincular | ≤128 | Sin vincular: `descripcion_linea` (TEXT) o la de `albaran_lines_merge`, **recortada a 128**; sin ninguna, motivo local `falta_descripcion` (H6 cerrado en F-053 v6). Vinculada: **no se manda** (H7 cerrado) | `dcapro.res` (128) | Vinculada sin ella ⇒ `ctrpro.res` |
 | `unidad` | str \| null | no | ≤8 | Sin vincular: `unidad_albaran` (VARCHAR 32) recortada a 8. Vinculada: **no se manda** (H7 cerrado en F-053 v6) | `dcapro.unimed` (8) | Vinculada sin ella ⇒ `ctrpro.unimed` |
 | `cantidad` | float ≠ 0 | sí | negativa = devolución | Vinculada: `cantidad_convertida` (unidad del contrato); sin vincular: `cantidad_albaran`. **Signo = el de `importe_calculado`** (F-053 R12). **H8** | `dcapro.can`; `mov.canent`; `ctrprodes.can`; `ctrpro.canser += cantidad` | 0 o nula ⇒ F-053 `cantidad_no_valida`; vinculada sin convertida ⇒ `cantidad_sin_convertir` |
 | `precio` | float | **sí, también en vinculadas** | — | `abs(importe_calculado) / abs(cantidad)`: unitario **neto** (el importe ya lleva el descuento), redondeado a 6 decimales (H14, F-053 v6) | `dcapro.pre`; `tar` = `precio` y `dto = ''` si difiere del `ctrpro` (aviso), si no `tar`/`dto` del `ctrpro` | `tot = cantidad·precio` a 2 decimales con `ROUND_HALF_UP` (H33) = importe aprobado; igual al `ctrpro.pre` si difiere ≤ 0,0001 (H14); < 0 ⇒ fallo de línea `precio_negativo` (H8, v5) |
 | `partida` | str \| null | no (ausente o `null` ⇒ **sin partida**) | 1-24 | `codigo_partida_final` (VARCHAR 64) si **no está vacío** (ya es el código tal como figura en la lista de la obra, F-049 R20); vacío ⇒ no se manda, tenga o no marca de almacén (**H5 cerrado**: F-051 v4 y F-053 v6; > 24 ⇒ `campo_demasiado_largo` local) | `dcapro.paride` = `obrparpar.ide` de esa obra; sin partida, 0 | Nunca se hereda del `ctrpro` ni de otra línea (F-009 R14). **H4, H6, H17** |
 | `paride` | int ≥1 | no (opcional, v6) | — | `obrparpar.ide` de la partida elegida, que **F-049 debe conservar** (H17). F-053 v6 aún no lo manda (pregunta P4: provisionalmente `partida_ambigua` ⇒ `no_admitido`) | `dcapro.paride` | M3: 4.312 pares (obra, código) repetidos entre imputables ⇒ campo activo (F-009 R14b). Va con `partida` (sin ella, 400 sin código) y debe ser de la obra, imputable y con ese código (`paride_no_valido`); con él no hay `partida_ambigua` |
-| `naturaleza` | str \| null | no (solo sin vincular; v7) | 1-16 | **Pendiente de F-053**: qué naturaleza manda albaranes está consultado a negocio (Administración y Control de Costes). Hasta que se decida, no se manda y vale la del producto | `dcapro.natide`; de ella salen `caaide` y `cueide` (F-009 R13b, R15; H10) | Código de `auxpronat`. Si falta, la del producto (`pro.natide`). Debe existir, sin baja y ser de la empresa de la obra (`naturaleza_no_valida`). En una vinculada, 400 sin código. M16b: en MA9999 el escritorio cambia la naturaleza de la del producto en el ~51 % de las líneas |
+| `naturaleza` | str \| null | no (solo sin vincular; v7) | 1-16 | **F-053 no la manda** (v7.1): Administración y Control de Costes respondió (2026-10-05) y la naturaleza la fija sigrid-api por producto (**H34**) | `dcapro.natide`; de ella salen `caaide` y `cueide` (F-009 R13b, R15; H10) | Código de `auxpronat`. Si falta, la del mapeo `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (v7.1; **nunca** `pro.natide` ni la de la plantilla: el maestro de MA9999 está mal, H34). Debe existir, sin baja y ser de la empresa de la obra (`naturaleza_no_valida`). En una vinculada, 400 sin código. Medición v7.1: en MA9999 sin contrato el escritorio pone `MA99` en el 81 % |
 
 ### 2.3. Casos de línea
 
 | Caso | Campos que manda sv9 | Qué escribe sigrid-api |
 |---|---|---|
-| **Vinculada con partida** | `ctrpro_ide`, `cantidad` (convertida), `precio`, `partida` (y `paride` si se conserva) | `dcapro` con plantilla = última `dcapro` del producto del `ctrpro`; `proide`, `ivaide`, `unimed`, `almide`, `cenide`, `caaide` (**siempre** el del `ctrpro`, aunque cambie la partida: M16, v6), `docori*` y `res` del `ctrpro`; `refent` = `referencia_linea`; `paride` = la pedida (si ≠ la del `ctrpro`: aviso `partida_distinta_del_contrato`, el `ctrpro` no se toca); `ctrprodes` (1 por línea, `can` con signo); `canser += cantidad`; `mov` si y solo si `pro.tipmov` = 1 (M9, v7) |
-| **Vinculada sin partida** (D4) | `ctrpro_ide`, `cantidad`, `precio`, sin `partida` | Igual que la anterior (mismo contrato, precio y servido: **consume medición**) pero `paride = 0` (nunca la del `ctrpro`) y `almide` del `ctrpro` o del contrato. Aviso `sin_partida_en_linea_con_partida` si el `ctrpro` tiene partida (H12, v5.1) |
-| **Sin vincular con partida** | `producto` de la lista (`MA9999`, `QA9999`, `XA9999`; v6.1), `descripcion`, `unidad`, `cantidad`, `precio`, `partida` (y `paride`; y `naturaleza` si F-053 la manda) | `dcapro` con plantilla = última `dcapro` del producto **de esa empresa**; `ivaide` de la última `dcapro` del producto **del mismo proveedor** o, si no hay, de la del producto con aviso `iva_de_otro_proveedor` (**H15**, v5; M11 lo justifica, v7); `natide` = la `naturaleza` pedida o la del producto, y de ella `cueide` (la cuenta de su `cuacomcod`) y `caaide` (v7, abajo); `mov` si y solo si `pro.tipmov` = 1 (M9); `pre` = `tar` = `precio`, `dto ''`; `refent` = `referencia_linea`; sin `docori*`, sin `ctrprodes`, sin tocar `canser`; almacén y centro del contrato o de la obra (H10, M16); `caaide` = la cuenta analítica del centro de la línea con código `<código de obra>.<lo que sigue al primer «.» del caagascod de la naturaleza>` (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`; M16b, condicional a M16c, H10 v7); si no existe, fallo de línea `analitica_no_resuelta`; columnas ajenas de la plantilla a vacío (H11, M14) |
-| **Sin vincular sin partida** | ídem sin `partida` | `paride = 0`; almacén y centro del contrato o, sin él, de la ficha de obra (`obr.almide`/`cenide`) o de su único `alm` (orden confirmado por M16); si no sale uno ⇒ `almacen_de_obra_no_resuelto` (**H13**, v5); `caaide` como la sin vincular con partida (la partida no cuenta; H10 v7) |
+| **Vinculada con partida** | `ctrpro_ide`, `cantidad` (convertida), `precio`, `partida` (y `paride` si se conserva) | `dcapro` con plantilla = última `dcapro` del producto del `ctrpro`; `proide`, `ivaide`, `unimed`, `almide`, `cenide`, `caaide` (**siempre** el del `ctrpro`, aunque cambie la partida: M16, v6), `docori*` y `res` del `ctrpro`; `cod2`, `dncide` y `dncproide` del `ctrpro` (vacíos/0 si no los tiene; nunca de la plantilla; **H35**, v7.1); `refent` = `referencia_linea`; `paride` = la pedida (si ≠ la del `ctrpro`: aviso `partida_distinta_del_contrato`, el `ctrpro` no se toca); `ctrprodes` (1 por línea, `can` con signo); `canser += cantidad`; `mov` si y solo si `pro.tipmov` = 1 (M9, v7) |
+| **Vinculada sin partida** (D4) | `ctrpro_ide`, `cantidad`, `precio`, sin `partida` | Igual que la anterior (mismo contrato, precio y servido: **consume medición**; `cod2` y DNC del `ctrpro`, H35) pero `paride = 0` (nunca la del `ctrpro`) y `almide` del `ctrpro` o del contrato. Aviso `sin_partida_en_linea_con_partida` si el `ctrpro` tiene partida (H12, v5.1) |
+| **Sin vincular con partida** | `producto` de la lista (`MA9999`, `QA9999`, `XA9999`; v6.1), `descripcion`, `unidad`, `cantidad`, `precio`, `partida` (y `paride`; sin `naturaleza`: F-053 no la manda, v7.1) | `dcapro` con plantilla = última `dcapro` del producto **de esa empresa**; `ivaide` de la última `dcapro` del producto **del mismo proveedor** o, si no hay, de la del producto con aviso `iva_de_otro_proveedor` (**H15**, v5; M11 lo justifica, v7); `natide` = la `naturaleza` pedida o, sin ella, la del **mapeo producto → naturaleza** de la configuración (`MA9999`→`MA99`, `QA9999`→`QA99`, `XA9999`→`XA99`; nunca la del producto ni la de la plantilla; **H34**, v7.1), y de ella `cueide` (la cuenta de su `cuacomcod`; ver P4 de F-009 en H34) y `caaide` (abajo); `mov` si y solo si `pro.tipmov` = 1 (M9); `pre` = `tar` = `precio`, `dto ''`; `refent` = `referencia_linea`; sin `docori*`, sin `ctrprodes`, sin tocar `canser`; almacén y centro del contrato o de la obra (H10, M16); `caaide` = la cuenta analítica (`con` con fila en `caa`) de código `<código de obra>.<sufijo>`, con sufijo = `caagascod` de la naturaleza **sin el prefijo `MOD.`** si lo lleva (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`; `MOD.CDQA12` ⇒ `<obra>.CDQA12`; `CDXA01` ⇒ `<obra>.CDXA01`; confirmada por negocio, H10 v7.1); si no existe, fallo de línea `analitica_no_resuelta`; `cod2`, `dncide` y `dncproide` vacíos/0 y demás columnas ajenas de la plantilla a vacío (H11, H35, M14) |
+| **Sin vincular sin partida** | ídem sin `partida` | `paride = 0`; almacén y centro del contrato o, sin él, de la ficha de obra (`obr.almide`/`cenide`) o de su único `alm` (orden confirmado por M16); si no sale uno ⇒ `almacen_de_obra_no_resuelto` (**H13**, v5); `natide`, `caaide`, `cod2` y DNC como la sin vincular con partida (la partida no cuenta; H10, H34, H35) |
 | **Devolución** (cantidad < 0), vinculada o no | `cantidad` negativa, `precio` ≥0 | `can`, `tot`, `ivacuo` negativos; `mov` de **entrada** con `canent` < 0 y PMP `(stock·pma + can·pre)/(stock + can)` (regla A medida en M5); vinculada: `ctrprodes.can` negativa, `canser += cantidad` aunque quede < 0 (aviso `servido_negativo`); stock < 0 ⇒ aviso `stock_negativo`; `estser` puede volver a 0 |
 | **Varias líneas al mismo `ctrpro`** (p. ej. una compuesta repartida por F-049, o la misma línea de contrato en dos partidas) | un `ctrpro_ide` repetido con distinta `referencia_linea` | Cada una su `dcapro`, su `ctrprodes` y su `mov`; **no se suman** (F-009 R12) |
 | **Línea resultado de reparto de compuesta** (F-049 R23: `P4/P5.01.09` ⇒ N líneas con una parte cada una, cantidad e importe a partes iguales, la primera con el resto) | N líneas normales, una partida cada una | N `dcapro` normales; sigrid-api no sabe que vinieron de una compuesta. **H23** |
@@ -214,9 +228,9 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 6. **Longitudes** antes de llamar (F-053 v6 R10, H6): obra, CIF, contrato y partida ≤24; número ≤128;
    `descripcion` recortada a 128 y `unidad` a 8; sin vincular sin descripción ⇒ `falta_descripcion`.
    Orden de `lineas` (H26): por `line_index` de la línea del merge, las manuales al final por `id`.
-7. **Nada de `lineas_recibidas`**, `almide`, `cenide`, cuenta ni analítica en la petición: los resuelve
-   sigrid-api (F-009 fuera de alcance). Solo la `naturaleza` opcional de la sin vincular (v7), pendiente de
-   que negocio diga cuál manda albaranes. `paride`, solo el que
+7. **Nada de `lineas_recibidas`**, `almide`, `cenide`, cuenta, analítica, `cod2` ni enlace DNC en la petición:
+   los resuelve sigrid-api (F-009 fuera de alcance; `cod2` y DNC del `ctrpro`, H35). Tampoco la `naturaleza`
+   opcional (v7.1): negocio respondió y la pone sigrid-api por producto (H34). `paride`, solo el que
    F-049 conserve de la partida elegida (H17, v6).
 8. Las decisiones de F-051 D3 (el botón «Almacén a todas» pisa también las líneas con partida), D5
    (el almacén elegido se pierde al revalorar; también el producto elegido, F-053 R42) y D7 (re-alcance
@@ -327,8 +341,8 @@ cabecera cortan antes de mirar las líneas.
 | ↳ `partida_ambigua` | línea | el código se repite entre las imputables de la obra y la línea no trae `paride` (N2) | `no_admitido` | H17: con `paride` no se da (v6) |
 | ↳ `precio_negativo` | línea | `precio` < 0: segunda barrera tras sv9 (v5) | `error`: sv9 nunca manda precio negativo (manda el cociente de valores absolutos), así que llegar aquí es un fallo | H8 (los signos, pregunta P2 de F-053) |
 | ↳ `paride_no_valido` | línea | `paride` no es de la obra, no es imputable o no tiene ese código (R14b, activa en la v6) | `no_admitido` | H17 |
-| ↳ `naturaleza_no_valida` (v7) | línea | `naturaleza` inexistente, de baja o de otra empresa (F-009 R13b) | **propuesta**: `no_admitido` si la eligió el administrativo; lo fija F-053 | H10 |
-| ↳ `analitica_no_resuelta` (v7, F-009 R15) | línea | sin vincular cuya cuenta analítica compuesta (`<obra>.<sufijo del caagascod>`) no existe en el centro de la línea (H10; el sentido de la propuesta v6.1 queda superado) | `no_admitido` («la obra no tiene la cuenta analítica de esa naturaleza: alta a mano») | H10 |
+| ↳ `naturaleza_no_valida` (v7) | línea | `naturaleza` inexistente, de baja o de otra empresa (F-009 R13b); v7.1: también producto sin entrada en `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` o naturaleza del mapeo que no valga | `error` (v7.1: sv9 no manda `naturaleza`, así que solo puede venir de la configuración de sigrid-api) | H10, H34 |
+| ↳ `analitica_no_resuelta` (v7, F-009 R15) | línea | sin vincular cuya cuenta analítica `<obra>.<sufijo>` (sufijo = `caagascod` de la naturaleza sin el prefijo `MOD.`) no existe (H10 v7.1; medido: la tienen 38 de 39 obras recientes; el sentido de la propuesta v6.1 queda superado) | `no_admitido` («la obra no tiene la cuenta analítica de esa naturaleza: alta a mano») | H10 |
 
 F-053 v6 (H25): un `codigo` que no esté en esta tabla ⇒ `error`; en `lineas_no_validas`, si alguna línea trae un
 código que va a `error`, gana `error`.
@@ -389,7 +403,8 @@ código que va a `error`, gana `error`.
 - **No elige producto**: el código lo trae sv9 línea a línea y debe estar en la lista blanca (v6).
 - **No recibe** almacén, centro, cuenta analítica ni IVA en la petición: los deriva (la analítica, del
   vínculo: el `ctrpro` en las vinculadas; en las sin vincular, la naturaleza y la obra, H10 v7). La única
-  entrada es la `naturaleza` opcional de la sin vincular.
+  entrada es la `naturaleza` opcional de la sin vincular, que F-053 no manda (v7.1: sin ella, la del mapeo por
+  producto, H34). `cod2` y el enlace DNC salen del `ctrpro` (H35).
   `paride` es opcional (R14b, H17).
 - **No adjunta el PDF** (es `concepto-grafico`, §7), no modifica ni anula albaranes (anular es desde
   la UI de Sigrid), no registra varios albaranes por petición, no recalcula `mov` posteriores.
@@ -410,6 +425,7 @@ Donde un texto cite el campo `almacen`, «en almacén» o `fecha_no_valida`, lé
 sin vincular, léase la v6.1: un producto de la lista blanca (`MA9999`, `QA9999` o `XA9999`) elegido por línea
 según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**: lo de F-009; las notas
 **«F-053 v6»** dicen qué incorporó albaranes el 2026-10-05 y **«v6.1»**, lo que este contrato propone a F-009.
+**«v7.1»**: lo que este contrato propone a F-009 v8 (2026-10-06; detalle en §8).
 
 | H | Estado tras F-009 v6 | Dónde |
 |---|---|---|
@@ -422,8 +438,8 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 | H7 | **Cerrado en F-053 v6** (vinculadas sin `unidad` ni `descripcion`); F-009 toma `ctrpro.unimed`/`res` | R12 |
 | H8 | **Decidido** en F-009: `precio_negativo` (antes `ge=0` de Pydantic, 400 sin código); descuentos, a mano. Signos en F-053: **pregunta P2** de F-053 v6 (recomendación: `signo_incoherente` ⇒ `revisar`) | R17, design §Riesgos |
 | H9 | **Cerrado** (v7, M17b): anular **borra** el `con`. Tras la `ope` 2 de `log` el albarán no existe en el 62,6 %; el 37,2 % que «existe» es el mismo `cod` **reutilizado** por un alta posterior (el escritorio reutiliza códigos borrados, coherente con el índice único `(emp, tip, cod)`). R30 sin cambios y R30b retirada: tras `anulado`, F-053 puede repetir el alta con la **misma** `referencia_externa` (no hace falta `ALB-{id}-{n}`; responde la pregunta P3 de F-053 v6). F-053 detecta la anulación por `con.ide` (§7), no por `cod` | R30, design L11 |
-| H10 | **Resuelto** almacén y centro de toda sin vincular (orden confirmado por M16) y `caaide` de las **vinculadas** (siempre el del `ctrpro`, M16; la medición del líder da 99,8 %). `caaide` de las **sin vincular** (v7, M16b; **condicional a M16c**, T0b-ter): la cuenta analítica de código `<obra>.<sufijo del caagascod de la naturaleza de la línea>`, y `cueide` la del `cuacomcod` de esa naturaleza; naturaleza = campo opcional `naturaleza` o la del producto; sin cuenta, `analitica_no_resuelta`. Supera la propuesta v6.1 (texto de H10). Sin reparto en `dcaproana` (0 de 189.373) | R13b, R15, design §Analítica |
-| H11 | **Resuelto** (M14, v6): ninguna columna se arrastra de la plantilla; lista de reseteo ampliada, todas a 0/`''`; `cod2` pendiente de una consulta a negocio (vacío por defecto). `prepma` (v7): = `mov.prepma` de su `mov` (100 %); su valor, pregunta P1 de F-009 (M14c) | R13, R21, design §Reseteo |
+| H10 | **Resuelto** almacén y centro de toda sin vincular (orden confirmado por M16) y `caaide` de las **vinculadas** (siempre el del `ctrpro`, M16; la medición del líder da 99,8 %). `caaide` de las **sin vincular** (v7, M16b; **condicional a M16c**, T0b-ter): la cuenta analítica de código `<obra>.<sufijo del caagascod de la naturaleza de la línea>`, y `cueide` la del `cuacomcod` de esa naturaleza; naturaleza = campo opcional `naturaleza` o la del producto; sin cuenta, `analitica_no_resuelta`. Supera la propuesta v6.1 (texto de H10). Sin reparto en `dcaproana` (0 de 189.373). **v7.1**: regla **confirmada por negocio** y medida (QA9999 99,8 %, MA9999 con `MA99` 98 %, XA9999 87 %); sufijo = `caagascod` **sin el prefijo `MOD.`** (no «lo que sigue al primer `.`»: `CDXA01` de `XA99` no lleva punto); la naturaleza, la de H34 | R13b, R15, design §Analítica |
+| H11 | **Resuelto** (M14, v6): ninguna columna se arrastra de la plantilla; lista de reseteo ampliada, todas a 0/`''`; `cod2` pendiente de una consulta a negocio (vacío por defecto). `prepma` (v7): = `mov.prepma` de su `mov` (100 %); su valor, pregunta P1 de F-009 (M14c). **v7.1**: `cod2` **decidido** (humano): en sin vincular, vacío como `dncide`/`dncproide` (siguen en el reseteo); en vinculadas, los tres del `ctrpro` (H35); `natide` nunca de la plantilla (H34) | R13, R21, design §Reseteo |
 | H12 | **Resuelto**: aviso informativo `sin_partida_en_linea_con_partida` (v5.1; en la v5 se llamaba `almacen_en_linea_con_partida`); informativo en F-053 v6 | R16 |
 | H13 | **Resuelto** en F-009 (`obr.almide`/`cenide` antes que `alm`; **confirmado por M16**, v6); `no_admitido` en F-053 v6 | R15, design L10 |
 | H14 | **Resuelto** en F-009 (tolerancia 0,0001 y `pre` del contrato); redondeo a 6 decimales en F-053 v6 | R17 |
@@ -432,7 +448,7 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 | H17 | **Resuelto** (M3, v6: 4.312 pares repetidos entre imputables): `paride` opcional con `partida` (`paride_no_valido`). **F-049 debe conservar el `ide` de cada partida** y F-053 mandarlo (F-053 v6, pregunta P4: hasta entonces no lo manda) | R14b |
 | H18 | **Resuelto** (v6): `committed`/`dry_run`/`indice`; `referencia_linea` (1-24) en `dcapro.refent` (M18: vacío en el 100 %, no se copia a la factura; N9) y devuelta en `idempotente`; F-053 v6 compara totales también en `idempotente` (`registrado` con motivo `registrado_distinto`, no `revisar`: el albarán ya está en Sigrid y debe seguir bloqueado) | R30, R30c |
 | H19 | **De albaranes entero** (humano, v5.1): sigrid-api no rechaza fechas futuras (solo formato y rango); futuras y ventana de 365 días: `fecha_no_plausible` ⇒ `revisar` en F-053 v6 (R39) | R6 |
-| H20 | **Cerrado** (v7). Producto por familia de la línea (v6.1: `QA9999` alquiler de maquinaria, `XA9999` medios auxiliares, `MA9999` el resto), cambiable por el administrativo; lista blanca `["MA9999", "QA9999", "XA9999"]`, **absorbida en F-009 v7**. M9: `pro.tipmov` decide el `mov` (`tipmov` 1: con `mov` el 99,8 %; 0: ninguna); MA9999 y QA9999 (emp 1) tienen `tipmov` 1 y lo generan en el 100 %. **Decisión del humano: se replica el escritorio**, `mov` si y solo si `tipmov` = 1, para cualquier producto; la puerta dura se retira (cumplida). `XA9999` no se midió | R10, R19 |
+| H20 | **Cerrado** (v7). Producto por familia de la línea (v6.1: `QA9999` alquiler de maquinaria, `XA9999` medios auxiliares, `MA9999` el resto), cambiable por el administrativo; lista blanca `["MA9999", "QA9999", "XA9999"]`, **absorbida en F-009 v7**. M9: `pro.tipmov` decide el `mov` (`tipmov` 1: con `mov` el 99,8 %; 0: ninguna); MA9999 y QA9999 (emp 1) tienen `tipmov` 1 y lo generan en el 100 %. **Decisión del humano: se replica el escritorio**, `mov` si y solo si `tipmov` = 1, para cualquier producto; la puerta dura se retira (cumplida). `XA9999` no se midió. **v7.1**: cada producto de la lista blanca lleva su naturaleza en el mapeo de H34 (`MA99`, `QA99`, `XA99`) | R10, R19 |
 | H21 | **Resuelto** en F-009 (mayúsculas sin espacios); F-053 v6 normaliza y valida (`cif_no_valido`) | R5 |
 | H22-H25 | H22, H24 y H25 **cerrados en F-053 v6** (§3.3, con los códigos nuevos de v5/v6); H23 de F-049 | — |
 | H26 | **Resuelto** en F-009 (`indice` desde 0); orden de líneas en F-053 v6 (`line_index`, manuales al final) | R7 |
@@ -442,6 +458,8 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 | H31 | **Cerrado**: F-009 lo admite (`cod_contrato` sin vinculadas; sin `UPDATE`) y F-053 v6 lo manda siempre que la valoración tenga contrato (N4, aprobada) | R6, R20 |
 | H32 | **Resuelto**: docstring y `sigrid_api.md` §4, §7.5, §7.6, §8.6 | R36, tasks T13 y T18 |
 | H33 | **Resuelto**: `Decimal` con `ROUND_HALF_UP` | R17, design §Importes |
+| H34 | **Nuevo** (v7.1), decidido por el humano y medido: naturaleza de la sin vincular = `naturaleza` si viene (F-053 no la manda) o la del mapeo `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`; nunca `pro.natide` ni la plantilla. **Para F-009 v8** (§8) | R10, R13b, design §Analítica |
+| H35 | **Nuevo** (v7.1), decidido por el humano y medido: vinculadas con `cod2`, `dncide` y `dncproide` del `ctrpro` (vacíos si no los tiene); sin vincular, vacíos. **Para F-009 v8** (§8) | R12, R21, design §Filas, §Reseteo, §Equivalencia |
 
 ### Bloqueantes
 
@@ -557,12 +575,30 @@ SB9999, nunca. **Decisión del humano**: campo opcional `naturaleza` en la sin v
 si falta, usa la del producto. Supera la regla propuesta arriba (sin salida para la primera línea de un
 producto en la obra). Qué naturaleza manda albaranes: consulta a negocio, pendiente de F-053.
 
+**v7.1 · confirmada por negocio y medida** (2026-10-05/06). El director de Administración y Control de Costes
+confirma la regla (correo del 2026-10-05): cuenta analítica = **código de obra + `.` + sufijo de la cuenta analítica
+de gastos de la naturaleza de la línea** (`auxpronat.caagascod`, **quitando el prefijo `MOD.` si lo lleva**). La
+cuenta es un `con` con fila en `caa` cuyo `cod` es `obra.sufijo`, y `dcapro.caaide` = ese `con.ide`. Ejemplos:
+`MA99` «SUMINISTRO DE MATERIALES», `MOD.CDSB37`, obra `0678` ⇒ `0678.CDSB37`; `QA99` «ALQUILER DE MAQUINARIA»,
+`MOD.CDQA12` ⇒ `<obra>.CDQA12`; `XA99` «ALQUILER MEDIOS AUXILIARES», `CDXA01` (sin `MOD.`) ⇒ `<obra>.CDXA01`.
+Cumplimiento medido: QA9999 99,8 %; MA9999 con naturaleza `MA99` 98 %; XA9999 con sufijo `.CDXA01` 87 % (el resto,
+sufijos de otras naturalezas tecleados a mano). Las obras recientes (07xx, emp 1) tienen creadas esas cuentas en
+38 de 39. Si `obra.sufijo` no existe ⇒ `analitica_no_resuelta` (F-053 ⇒ `no_admitido`, alta a mano). **Choca con
+F-009 v7** en un punto: el sufijo no es «lo que sigue al primer `.`» y un `caagascod` sin punto no es error
+(`CDXA01`: con la regla de la v7, toda XA9999 daría `analitica_no_resuelta`). La naturaleza es la de **H34**. Las
+vinculadas no cambian (analítica del `ctrpro`, 99,8 %). *F-009 v8 (§8).*
+
 **H11. Columnas arrastradas de la plantilla en las sin vincular.** El hallazgo 5 de
 `progress/spec_F-009.md` (la plantilla «arrastra medición, analítica, desglose y `prepma` ajenos»)
 solo se resolvió para `prepma`; M14 comparó **vinculadas**. Quedan `med`, `canmed`, `parcandes`,
 `tex`, `texcom`, `anades`, `serdes`, `fecimp`, `refent`, `cod2`, `item`, `pac`, `anexo`, `taride`,
 `fec`, `pla`. **Propuesta**: lista explícita de reseteo para sin vincular (a 0/`''`), con test que
 compare con una `dcapro` del escritorio sin contrato (ampliar M14). *F-009.*
+
+**v7.1**: `cod2` deja de estar pendiente (decisión del humano del 2026-10-05, H35): en las sin vincular, `cod2`,
+`dncide` y `dncproide` siguen en la lista de reseteo (vacío/0); en las **vinculadas**, que no pasan por el reseteo y
+hoy los heredarían de la plantilla (la última `dcapro` del producto, de otro albarán y quizá de otra obra), se copian
+del `ctrpro`. `natide` de las sin vincular tampoco sale de la plantilla: del mapeo de H34. *F-009 v8.*
 
 **H12. Vinculada en almacén: sin aviso definido.** F-009 la admite (R6, R15; consume `canser` como
 cualquier vinculada, coherente con D4), pero R16 solo habla de «partida distinta». **Propuesta**:
@@ -632,11 +668,44 @@ M9 cubre los tres. *F-009 (lista blanca, §8), F-053 v6.*
 `tipmov` 1 y lo generan siempre. El humano decide replicar el escritorio (`mov` si y solo si `tipmov` = 1):
 un porte de MA9999 sube el stock igual que si lo diera de alta el escritorio.
 
+**v7.1**: el producto elegido decide también la naturaleza (mapeo de H34: `MA9999`→`MA99`, `QA9999`→`QA99`,
+`XA9999`→`XA99`) y con ella la analítica (H10). Lista blanca y mapeo deben cubrir los mismos productos.
+
 **H21. Formato del CIF.** F-009 compara `dca.entcif` / `ctr.entcif` exacto; Sigrid lo guarda sin
 prefijo de país (`sigrid_api.md` §9.4). Un `ES` delante, guiones o minúsculas darían
 `proveedor_sin_albaran_previo` o `contrato_no_encontrado`. **Propuesta**: fijar aquí el formato
 (mayúsculas, sin prefijo de país, sin espacios ni guiones); lo garantiza albaranes (F-052 / sv9) y
 F-009 normaliza mayúsculas y espacios. *F-053, F-009.*
+
+**H34. Naturaleza de las sin vincular: el maestro de MA9999 está mal** (v7.1, 2026-10-06). F-009 v7 (R13b) toma,
+sin campo `naturaleza`, la del producto (`pro.natide`). Medido (líder, solo lectura, emp 1): el maestro tiene la
+naturaleza por defecto de `MA9999` **mal**, `MA1501` «CERÁMICO PAVIMENTO, REVESTIMIENTO Y TEJAS» (`MOD.CDMA15`); quien
+registra a mano la cambia a **`MA99` «SUMINISTRO DE MATERIALES»** en el **81 %** de las líneas sin contrato (97.896
+frente a 22.374 que se quedaron en cerámico). `QA9999` y `XA9999` ya tienen la buena (`QA99`, `XA99`). **Decisión**
+(humano y Administración, 2026-10-05): en las sin vincular `dcapro.natide` **no** se copia del producto ni de la
+plantilla; sale de un **mapeo producto → naturaleza en la configuración de sigrid-api**
+(`SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`, §1.3: `MA9999`→`MA99`, `QA9999`→`QA99`, `XA9999`→`XA99`), y la analítica
+(H10) y la cuenta se calculan con esa naturaleza. **Propuesta para F-009 v8**: sexta App Setting de R10 con defecto
+cerrado `{}`; producto de la lista blanca sin entrada, o código del mapeo inexistente, de baja o de otra empresa ⇒
+`naturaleza_no_valida` (configuración: F-053 ⇒ `error`); el campo opcional `naturaleza` (decisión del humano de la
+v7) se conserva y, si viene, manda, pero F-053 no lo manda (a confirmar por el humano si se retira). **Abierto**: la
+P4 de F-009 (`cueide`): M16b vio que, cuando el escritorio cambia la naturaleza, la cuenta financiera sigue la del
+producto (`MOD.CDMA15`); con el mapeo eso afecta al 81 % de las MA9999, así que conviene cerrarla (M16c ya mide
+`cueide` de la línea frente al del producto) antes de la v8. **Hallazgo para Administración** (no es de F-009): el
+maestro de `MA9999` debería llevar `MA99`; corregirlo es un cambio de datos en Sigrid que deciden ellos, y no hace
+innecesario el mapeo (protege de otro cambio del maestro). *F-009 v8, humano, Administración.*
+
+**H35. `cod2` y planificación de compras en las vinculadas** (v7.1, 2026-10-06). `dcapro.cod2` («código alternativo»
+en la UI de Sigrid; el jefe de obra lo usa para agrupar y filtrar en el DPC, Documento de Planificación de Compras) y
+el enlace al documento de necesidades de compra (`dcapro.dncide` → `dnc`, y `dcapro.dncproide` → `dncpro`, su
+línea; las mismas tres columnas existen en `ctrpro`, `sigrid_tablas.md`) no los copia F-009 v7: en sin vincular se
+resetean (H11) y en vinculadas se heredan de la plantilla, que es una línea de **otro** albarán. Medido (líder, emp 1):
+`dcapro.cod2` = `ctrpro.cod2` en el **99,9 %** de las vinculadas que lo llevan; el enlace DNC está en el **86 %** de
+las vinculadas. **Decisión del humano** (2026-10-05): «el cod2 hay que traerlo, así como la vinculación a
+planificación de compras. si no viene originalmente se deja vacío». **Regla**: en vinculadas, sigrid-api copia
+`cod2`, `dncide` y `dncproide` del `ctrpro` tal cual (`''`/0 si el `ctrpro` no los tiene; nunca de la plantilla);
+en sin vincular, vacíos (como hoy). sv9 no manda nada nuevo. En R33 es una diferencia declarada frente al clásico, que
+los hereda de la plantilla y no se toca. *F-009 v8.*
 
 ### Menores y a confirmar
 
@@ -809,7 +878,9 @@ Respuesta 200 (solo lo que cambia frente a 6.a):
 Las dos primeras líneas apuntan al mismo `ctrpro` y producen dos `dcapro`, dos `ctrprodes` y
 `canser += 6` y `+= 2` por separado; la segunda va sin partida (`paride` 0) aunque el `ctrpro` la
 tenga. El aviso `sin_partida_en_linea_con_partida` lo define F-009 v5.1 (R16, H12). sv9: `creado` ⇒ `registrado` con `con_ide` 9123461 y `cod`
-`AC26/16004`; después, el adjunto.
+`AC26/16004`; después, el adjunto. Lo que no sale en la respuesta resumida (v7.1): las dos vinculadas llevan `cod2`,
+`dncide` y `dncproide` del `ctrpro` 700101 (H35); las dos `MA9999`, `natide` de `MA99` por el mapeo (no el `MA1501`
+del maestro; H34), `caaide` de la cuenta `0404.CDSB37` (H10) y `cod2`/DNC vacíos.
 
 ### 6.c. Devolución (vinculada y sin vincular), grabación
 
@@ -924,7 +995,7 @@ La línea 90504 es válida y no aparece. sv9: con `producto_no_permitido` entre 
 corregir y «Solicitar alta en Sigrid». (sv9 solo manda productos de la lista blanca, `MA9999`, `QA9999` o
 `XA9999`: la tercera línea es solo para ilustrar el código.)
 
-### 6.f. Producto por línea y primera línea de un producto en la obra (v6.1, previa)
+### 6.f. Producto por línea y obra sin la cuenta analítica de una naturaleza (v6.1, revisado en v7.1; previa)
 
 Albarán mixto de alquiler: la línea de la retro tiene familia `alquiler_maquinaria` (⇒ `QA9999` por defecto);
 la del andamio no tiene familia propia (⇒ `MA9999` por defecto) y el administrativo la cambió a `XA9999` en sv4;
@@ -946,21 +1017,22 @@ el porte se queda en `MA9999`. Las tres sin partida (almacén) salvo la retro.
 }
 ```
 
-Si en el centro de la línea no existe la cuenta analítica que compone la naturaleza de `XA9999` con la obra `0404` (H10
-v7), respuesta **400**:
+Naturalezas por el mapeo (H34): `QA99`, `XA99` y `MA99`; cuentas analíticas `0404.CDQA12`, `0404.CDXA01` y
+`0404.CDSB37` (H10 v7.1). Si la obra `0404` no tuviera `0404.CDXA01`, respuesta **400**:
 
 ```json
 {
   "ok": false, "error": "Hay líneas que no se pueden dar de alta.",
   "details": { "type": "AlbaranCompraError", "codigo": "lineas_no_validas", "lineas": [
     { "indice": 1, "referencia_linea": "90602", "codigo": "analitica_no_resuelta",
-      "mensaje": "La obra 0404 no tiene la cuenta analítica de la naturaleza de XA9999." } ] }
+      "mensaje": "La obra 0404 no tiene la cuenta analítica 0404.CDXA01 (naturaleza XA99)." } ] }
 }
 ```
 
 sv9 ⇒ `no_admitido` con el mensaje de esa línea en el panel: alta a mano en Sigrid o crear la cuenta. Con la
 cuenta, la respuesta es un 200 `previsto` normal con `producto` `QA9999`/`XA9999`/`MA9999` en cada línea.
-`analitica_no_resuelta` está en F-009 v7 (R15), condicional a M16c.
+`analitica_no_resuelta` está en F-009 v7 (R15), condicional a M16c; con la regla de la v7 («lo que sigue al primer
+`.`») la `XA9999` fallaría siempre, porque `CDXA01` no lleva punto: lo corrige la v8 (§8).
 
 ---
 
@@ -978,7 +1050,7 @@ sv9 no llama a `sql/write`, ni a `sigrid/albaran` en modo clásico, ni a `albara
 
 ---
 
-## 8. Qué debía absorber F-009 en su próxima versión (estado tras la v7, al final)
+## 8. Qué debe absorber F-009 en su próxima versión (lo de la v7, ya absorbido; lo de la v8, al final)
 
 Lo que este contrato v6.1 dice y la spec de F-009 v6 aún no. Hasta que lo absorba (su próxima versión, v7), **manda
 la spec de F-009** y esto es propuesta.
@@ -1004,4 +1076,18 @@ su tabla de códigos (design §2) al implementar: sus tests usan el contrato tal
 | 3 | **Superado**: M16c mide la regla de la naturaleza (T0b-ter) |
 | 4 | **Superado**: H20 cerrado por M9 sin puerta (`mov` según `tipmov`). `XA9999` no se midió: su existencia y su `tipmov` se ven en la previa de T21 o en el primer alta |
 | 5, 6 | Anotados en `progress/spec_F-009.md` §v7 (solo texto) |
-| Nuevo | **F-053**: campo `naturaleza` (qué manda, consulta a negocio pendiente) y el estado de `naturaleza_no_valida` |
+| Nuevo | **F-053**: campo `naturaleza` (qué manda, consulta a negocio pendiente) y el estado de `naturaleza_no_valida`. **Resuelto en la v7.1**: F-053 no la manda (H34) y `naturaleza_no_valida` ⇒ `error` |
+
+### Para F-009 v8 (contrato v7.1, 2026-10-06)
+
+Lo que este contrato v7.1 dice y la spec de F-009 v7 aún no. Hasta que lo absorba, **manda la spec de F-009** y
+esto es propuesta; F-053 ya se alinea con ello (sus tests usan el contrato tal como quede).
+
+| # | Qué | Dónde en F-009 | Hueco |
+|---|---|---|---|
+| 7 | Sufijo de la cuenta analítica = `caagascod` de la naturaleza **sin el prefijo `MOD.`** si lo lleva (no «lo que sigue al primer `.`»; un `caagascod` sin punto, como `CDXA01` de `XA99`, es válido); `caagascod` vacío ⇒ `analitica_no_resuelta` | R15, design §Analítica, L15b | H10 |
+| 8 | La regla de la analítica está **confirmada por negocio** y medida (QA9999 99,8 %, MA9999 con `MA99` 98 %, XA9999 87 %; cuentas creadas en 38 de 39 obras recientes): F-009 decide si M16c (T0b-ter) se da por cerrada con esta medición o se reduce a sus preguntas abiertas (P2 `numemp`, P3 `cua`, P4 `cueide`) | design §Condicionales, tasks T0b-ter y T0c, `progress/spec_F-009.md` §v7 | H10, H28 |
+| 9 | Naturaleza de la sin vincular = `naturaleza` si viene o, sin ella, la del mapeo de la sexta App Setting `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (defecto `{}`; despliegue `{"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}`); **nunca** `pro.natide` ni la plantilla; producto sin entrada o naturaleza del mapeo no válida ⇒ `naturaleza_no_valida`. L7 deja de necesitar `p.natide` para esto; L15a lee las naturalezas del mapeo | R10, R13b, design §Ficheros a modificar (`config/settings.py`) y §Analítica, L15a, tasks T2, T6, T7, T19 y T21 (la «`naturaleza` distinta de la del producto» de T21 pasa a ser la del mapeo) | H34 |
+| 10 | Cerrar la P4 (`cueide` con la naturaleza cambiada) antes de fijar la v8: con el mapeo, la naturaleza de la línea difiere de la del maestro en toda MA9999 | design §Analítica, `progress/spec_F-009.md` §v7 P4 | H34 |
+| 11 | Vinculadas: `cod2`, `dncide` y `dncproide` del `ctrpro` (`''`/0 si no los tiene), nunca de la plantilla; sin vincular, siguen en §Reseteo (`cod2` ya no está «pendiente de negocio»). Diferencia declarada nueva en §Equivalencia (R33) | R12, R21, design §Filas, §Reseteo y §Equivalencia, tasks T6, T12 y T22 (revisar `cod2` y DNC en la UI) | H11, H35 |
+| 12 | Hallazgo para Administración (solo texto): el maestro de `MA9999` tiene `MA1501`; corregirlo es un cambio de datos en Sigrid que deciden ellos, fuera de F-009 | `progress/spec_F-009.md` | H34 |
