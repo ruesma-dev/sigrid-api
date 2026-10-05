@@ -93,7 +93,8 @@ COLUMNAS_SV: tuple[tuple[str, str], ...] = (
     *((col, f"ISNULL(d.{col}, 0) <> 0") for col in (
         "dncide", "dncproide", "edilin", "garfec", "mesrevpre", "ejerevpre", "prepma")),
 )
-UMBRAL_CASI_TODO = 0.95      # «≥ 95 %», «≈» y «dominante» de la spec v5 §T0
+UMBRAL_CASI_TODO = 0.95      # «≥ 95 %» y «≈» de la spec v5 §T0 (no «dominante»: ver la siguiente)
+UMBRAL_DOMINANTE = 0.5       # M16 «dominante»: ≥ 50 % de las líneas y no menos que la alternativa
 UMBRAL_CASI_NADA = 0.001     # «≤ 0,1 %» de M18 (y «≈ 0» de M14 ampliada)
 UMBRAL_BORRA = 0.05          # M17: «con_existe ≈ 0»
 EMPRESA_ARRASTRE = 1         # M14 ampliada: el MA9999 de la empresa 1
@@ -866,7 +867,7 @@ def m11(c: ClienteLectura) -> Informe:
                          f"{_pct(_num(top.get('n')), total)}; maestro: comide={ma.get('comide')} "
                          f"ivacomide={ma.get('ivacomide')} natide={ma.get('natide')}.")
         _m11_iva_por_proveedor(c, inf, ma)
-    iv =c.leer(SQL["M11_iva_usado"], max_rows=200, timeout_s=TIMEOUT_PESADO_S)
+    iv = c.leer(SQL["M11_iva_usado"], max_rows=200, timeout_s=TIMEOUT_PESADO_S)
     inf.tabla("IVA usados en líneas de albarán de 2026", iv, limite=30)
     total = sum(_num(x.get("lineas")) for x in iv.filas)
     distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv.filas)
@@ -874,14 +875,36 @@ def m11(c: ClienteLectura) -> Informe:
     return inf
 
 
+def tasa_mismo_prv(acierto: dict[str, Any]) -> float:
+    """Aciertos del mismo proveedor sobre las líneas que TIENEN previa de ese proveedor: la primera
+    línea de cada proveedor no puede acertar, y contarla sesgaría contra L8b."""
+    base = _num(acierto.get("lineas")) - _num(acierto.get("sin_previa_del_prv"))
+    return _num(acierto.get("acierta_mismo_prv")) / base if base > 0 else 0.0
+
+
+def tasa_cualquiera(acierto: dict[str, Any]) -> float:
+    lineas = _num(acierto.get("lineas"))
+    return _num(acierto.get("acierta_cualquiera")) / lineas if lineas > 0 else 0.0
+
+
+def _leer_o_anotar(c: ClienteLectura, inf: Informe, nombre: str, parametros: list[Any] | None = None,
+                   **kw: Any) -> Resultado | None:
+    """T0 se ejecuta una sola vez (H28): una sentencia nueva que falla se anota y el bloque sigue."""
+    try:
+        return c.leer(SQL[nombre], parametros, **kw)
+    except ErrorDeLectura as exc:
+        inf.concluir(f"{nombre} no se pudo leer ({exc}); el resto del bloque sigue.")
+        return None
+
+
 def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -> str:
     """Spec v5 §T0, M11 ampliada: ¿justifica la medición L8b (plantilla del mismo proveedor)?"""
     isp1 = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) == 1}
     resto = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) != 1}
     motivos = []
-    if acierto and _num(acierto.get("acierta_mismo_prv")) > _num(acierto.get("acierta_cualquiera")):
+    if acierto and tasa_mismo_prv(acierto) > tasa_cualquiera(acierto):
         motivos.append("acierta más la línea previa del mismo proveedor")
-    if isp1 and isp1 != resto:
+    if isp1 - resto:
         motivos.append("IVA distinto con tipisp 1")
     if motivos:
         return f"L8b JUSTIFICADA ({'; '.join(motivos)})."
@@ -893,12 +916,15 @@ def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -
 def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) -> None:
     """T0a (spec v5, H15): IVA de un MA9999 por proveedor, ISP y acierto de la línea previa."""
     ide, emp = ma.get("ide"), ma.get("emp")
-    r = c.leer(SQL["M11_iva_por_proveedor"], [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA desde 2025", r)
-    f = r.filas[0] if r.filas else {}
-    inf.concluir(f"MA9999 emp {emp}: proveedores con más de un IVA {_pct(_num(f.get('con_varios_iva')), _num(f.get('proveedores')))}.")
-    isp = c.leer(SQL["M11_iva_y_isp"], [ide], max_rows=100, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla(f"MA9999 emp {emp}: IVA por tipisp", isp, limite=20)
+    r = _leer_o_anotar(c, inf, "M11_iva_por_proveedor", [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    if r is not None:
+        inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA desde 2025", r)
+        f = r.filas[0] if r.filas else {}
+        inf.concluir(f"MA9999 emp {emp}: proveedores con más de un IVA "
+                     f"{_pct(_num(f.get('con_varios_iva')), _num(f.get('proveedores')))}.")
+    isp = _leer_o_anotar(c, inf, "M11_iva_y_isp", [ide], max_rows=100, timeout_s=TIMEOUT_PESADO_S)
+    if isp is not None:
+        inf.tabla(f"MA9999 emp {emp}: IVA por tipisp", isp, limite=20)
     acierto: dict[str, Any] | None = None
     try:
         a = c.leer(SQL["M11_acierto"], [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
@@ -908,11 +934,12 @@ def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) 
     else:
         inf.tabla(f"MA9999 emp {emp}: acierto del IVA de la línea previa", a)
         acierto = a.filas[0] if a.filas else {}
-        n = _num(acierto.get("lineas"))
-        inf.concluir(f"MA9999 emp {emp}: acierta el IVA previo del mismo proveedor {_pct(_num(acierto.get('acierta_mismo_prv')), n)}; "
-                     f"el previo de cualquiera {_pct(_num(acierto.get('acierta_cualquiera')), n)}; "
-                     f"sin previa del proveedor {_num(acierto.get('sin_previa_del_prv')):.0f}.")
-    inf.concluir(f"MA9999 emp {emp}: {lectura_l8b(acierto, isp.filas)}")
+        n, sin_previa = _num(acierto.get("lineas")), _num(acierto.get("sin_previa_del_prv"))
+        inf.concluir(f"MA9999 emp {emp}: acierta el IVA previo del mismo proveedor "
+                     f"{_pct(_num(acierto.get('acierta_mismo_prv')), n - sin_previa)} (sobre las líneas con previa "
+                     f"del proveedor); el previo de cualquiera {_pct(_num(acierto.get('acierta_cualquiera')), n)}; "
+                     f"sin previa del proveedor {sin_previa:.0f}.")
+    inf.concluir(f"MA9999 emp {emp}: {lectura_l8b(acierto, isp.filas if isp else [])}")
 
 
 def m12(c: ClienteLectura) -> Informe:
@@ -943,8 +970,14 @@ def m13(c: ClienteLectura) -> Informe:
 
 def m14(c: ClienteLectura) -> Informe:
     inf = Informe("M14", "diff de columnas frente a AC26/15951 (API) y columnas de la dcapro sin vincular")
-    _m14_frente_a_la_api(c, inf)
-    _m14_sin_vincular(c, inf)
+    # T0 se ejecuta una sola vez (H28): si una parte falla, se anota y las demás siguen.
+    partes = (("comparación con la API", _m14_frente_a_la_api), ("valores de las sin vincular", _m14_sv_valores),
+              ("arrastre desde la plantilla", _m14_arrastre))
+    for nombre, parte in partes:
+        try:
+            parte(c, inf)
+        except ErrorDeLectura as exc:
+            inf.concluir(f"M14, {nombre}: no se pudo leer ({exc}); el resto del bloque sigue.")
     return inf
 
 
@@ -998,13 +1031,15 @@ def lectura_sv_valores(fila: dict[str, Any]) -> list[str]:
     n = _num(fila.get("n"))
     if not n:
         return ["No hay líneas sin vincular desde 2026: sin medición de columnas."]
-    vacias = [col for col, _ in COLUMNAS_SV if _num(fila.get(col)) / n <= UMBRAL_CASI_NADA]
-    llenas = [f"{col} {_pct(_num(fila.get(col)), n)}" for col, _ in COLUMNAS_SV if col not in vacias]
-    fuera = sorted(col for col, _ in COLUMNAS_SV if col not in LISTA_DE_RESETEO)
+    # Solo las columnas DE LA LISTA se clasifican (spec §T0 v5 M14); las de fuera (tex), aparte.
+    de_la_lista = [col for col, _ in COLUMNAS_SV if col in LISTA_DE_RESETEO]
+    vacias = [col for col in de_la_lista if _num(fila.get(col)) / n <= UMBRAL_CASI_NADA]
+    llenas = [f"{col} {_pct(_num(fila.get(col)), n)}" for col in de_la_lista if col not in vacias]
+    fuera = [f"{col} {_pct(_num(fila.get(col)), n)}" for col, _ in COLUMNAS_SV if col not in LISTA_DE_RESETEO]
     salida = [
         f"Sin vincular de 2026 ({n:.0f} líneas), vacías (≤ 0,1 %) ⇒ reseteo confirmado: " + (", ".join(vacias) or "ninguna") + ".",
         "Con valores ⇒ revisar §Reseteo (v6): " + (", ".join(llenas) or "ninguna") + ".",
-        f"Fuera de la lista de reseteo (solo informativas): {', '.join(fuera)}.",
+        "Fuera de la lista de reseteo (solo informativas): " + (", ".join(fuera) or "ninguna") + ".",
     ]
     igual = _num(fila.get("fec_igual_albaran"))
     if igual / n >= UMBRAL_CASI_TODO:
@@ -1014,12 +1049,16 @@ def lectura_sv_valores(fila: dict[str, Any]) -> list[str]:
     return salida
 
 
-def _m14_sin_vincular(c: ClienteLectura, inf: Informe) -> None:
-    """T0a (spec v5, H11): columnas de la dcapro sin vincular y arrastre desde su plantilla."""
+def _m14_sv_valores(c: ClienteLectura, inf: Informe) -> None:
+    """T0a (spec v5, H11): columnas de la lista de reseteo en la dcapro sin vincular."""
     r = c.leer(SQL["M14_sv_valores"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     inf.tabla("sin vincular de 2026: líneas con valor en cada columna", r)
     for texto in lectura_sv_valores(r.filas[0] if r.filas else {}):
         inf.concluir(texto)
+
+
+def _m14_arrastre(c: ClienteLectura, inf: Informe) -> None:
+    """T0a (spec v5, H11): qué no copia el escritorio de la plantilla en las últimas sin vincular."""
     p = c.leer(SQL["M14_sv_ma9999"], ["MA9999", EMPRESA_ARRASTRE], max_rows=5)
     inf.tabla(f"MA9999 de la empresa {EMPRESA_ARRASTRE}", p)
     if not p.filas:
@@ -1092,7 +1131,7 @@ def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]]
     def dominante(cabecera: str, campo: str, otro: str) -> bool:
         n, a, b = (_suma(alm_sv, k, cabecera=cabecera) for k in ("n", campo, otro))
         salida.append(f"{cabecera}: {campo} {_pct(a, n)}, {otro} {_pct(b, n)}.")
-        return n > 0 and a >= b and a / n >= 0.5
+        return n > 0 and a >= b and a / n >= UMBRAL_DOMINANTE
 
     ok_ctr = dominante("con_contrato", "alm_del_contrato", "alm_de_la_ficha")
     ok_ficha = dominante("sin_contrato", "alm_de_la_ficha", "alm_del_contrato")
@@ -1103,6 +1142,8 @@ def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]]
     salida.append("Orden de R15 (contrato → ficha de obra → único alm): "
                   + ("CONFIRMADO." if ok_r15 else
                      f"NO confirmado (contrato dominante: {_si(ok_ctr)}, ficha dominante: {_si(ok_ficha)}) ⇒ PARADA y v6."))
+    salida.append(f"(dominante = ≥ {UMBRAL_DOMINANTE:.0%} de las líneas y no menos que la alternativa; "
+                  f"ficha de obra ≥ {UMBRAL_CASI_TODO:.0%}.)".replace("%", " %"))
     return salida
 
 

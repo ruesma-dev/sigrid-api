@@ -498,3 +498,78 @@ def test_f009_t0a_main_con_la_lista_de_t0b(tmp_path: Path, monkeypatch: pytest.M
     assert t0.main(["--solo", *lista, "--salida", str(salida)]) == 0
     texto = salida.read_text(encoding="utf-8")
     assert all(f"=== {k} ·" in texto for k in lista) and "ERROR" not in texto
+
+
+# --- T0a, ciclo 1 de revisión ----------------------------------------------------------------
+
+
+def _ficha_ok() -> dict[str, Any]:
+    return {"obras": 100, "con_almide": 100, "almide_de_su_obra": 100}
+
+
+@pytest.mark.parametrize(("a", "confirmado"), [(50, True), (49, False)])
+def test_f009_t0a_r1_dominante_en_el_limite_del_umbral(a: int, confirmado: bool) -> None:
+    assert t0.UMBRAL_DOMINANTE == 0.5
+    alm = [{"cabecera": "con_contrato", "n": 100, "alm_del_contrato": a, "alm_de_la_ficha": 40},
+           {"cabecera": "sin_contrato", "n": 100, "alm_del_contrato": 0, "alm_de_la_ficha": 100}]
+    texto = " ".join(t0.lectura_m16([], [], alm, _ficha_ok()))
+    assert ("Orden de R15 (contrato → ficha de obra → único alm): CONFIRMADO." in texto) is confirmado
+    assert "dominante = ≥ 50 % de las líneas y no menos que la alternativa" in texto
+
+
+def test_f009_t0a_r1_dominante_exige_no_ser_menor_que_la_alternativa() -> None:
+    alm = [{"cabecera": "con_contrato", "n": 100, "alm_del_contrato": 60, "alm_de_la_ficha": 61},
+           {"cabecera": "sin_contrato", "n": 100, "alm_del_contrato": 0, "alm_de_la_ficha": 100}]
+    assert "contrato dominante: NO" in " ".join(t0.lectura_m16([], [], alm, _ficha_ok()))
+
+
+def test_f009_t0a_r2_sv_valores_no_clasifica_columnas_fuera_de_la_lista() -> None:
+    sv = t0.lectura_sv_valores({"n": 1000, "tex": 300, "fec": 1000, "fec_igual_albaran": 0})
+    clasificadas = [c.split(" ")[0] for linea in sv[:2] for c in linea.split(": ", 1)[1].rstrip(".").split(", ")]
+    assert "tex" not in clasificadas and "texcom" in clasificadas
+    assert "fec 1000 de 1000" in sv[1]
+    assert "Fuera de la lista de reseteo (solo informativas): tex 300 de 1000 (30.0 %)." == sv[2]
+
+
+def test_f009_t0a_l8b_isp_solo_cuenta_un_iva_que_el_resto_no_usa() -> None:
+    # tipisp 1 usa un IVA (8) que también usan los demás: con `isp1 != resto` salía «justificada».
+    mismo_iva = [{"tipisp": 0, "ivaide": 8}, {"tipisp": 0, "ivaide": 7}, {"tipisp": 1, "ivaide": 8}]
+    assert "JUSTIFICADA" not in t0.lectura_l8b(None, mismo_iva)
+    assert "IVA distinto con tipisp 1" in t0.lectura_l8b(None, [*mismo_iva, {"tipisp": 1, "ivaide": 9}])
+
+
+def test_f009_t0a_l8b_compara_tasas_sobre_las_lineas_con_previa_del_proveedor() -> None:
+    # En bruto 45 < 50 (inocua); en tasa 45/50 = 90 % frente a 50/100 = 50 % (justificada).
+    acierto = {"lineas": 100, "sin_previa_del_prv": 50, "acierta_mismo_prv": 45, "acierta_cualquiera": 50}
+    assert "L8b JUSTIFICADA (acierta más la línea previa del mismo proveedor)" in t0.lectura_l8b(acierto, [])
+    igual = {"lineas": 100, "sin_previa_del_prv": 50, "acierta_mismo_prv": 25, "acierta_cualquiera": 50}
+    assert "inocua" in t0.lectura_l8b(igual, [])
+
+
+@pytest.mark.parametrize("rota", ["M11_iva_por_proveedor", "M11_iva_y_isp"])
+def test_f009_t0a_m11_un_fallo_de_una_sentencia_nueva_no_pierde_el_bloque(rota: str) -> None:
+    class _Rota(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL[rota]:
+                raise t0.ErrorDeLectura("HTTP 500: timeout")
+            return super().leer(sql, parametros, **kw)
+
+    texto = t0.m11(_Rota(_DATOS)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer (HTTP 500: timeout)" in texto
+    assert "ivacuo ≠ round(tot·iva, 2)" in texto and "acierta el IVA previo del mismo proveedor" in texto
+
+
+@pytest.mark.parametrize(("rota", "sigue"), [
+    ("M14_sv_valores", "[arrastre] línea 50"),
+    ("M14_sv_ultimas", "reseteo confirmado"),
+    ("M14_api", "reseteo confirmado"),
+])
+def test_f009_t0a_m14_un_fallo_de_una_parte_no_pierde_el_bloque(rota: str, sigue: str) -> None:
+    class _Rota(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL[rota]:
+                raise t0.ErrorDeLectura("HTTP 500: timeout")
+            return super().leer(sql, parametros, **kw)
+
+    texto = t0.m14(_Rota(_DATOS)).texto()  # type: ignore[arg-type]
+    assert "no se pudo leer (HTTP 500: timeout)" in texto and sigue in texto
