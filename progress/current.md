@@ -10,8 +10,13 @@ resultado → decisión). Cerradas: M3 (`paride` opcional, R14b), M7 (sin `dcapr
 `["MA9999", "QA9999"]` con producto por línea (H20 para los dos) y analítica de las sin vincular
 condicional a M16b, sin regla provisional. Abiertas a **T0b-bis** (`--solo M9 M11 M14 M16 M17`, tras
 ampliar el script con M14b, M16b y M17b; M9 y M11 deben cubrir también QA9999): M9, M11, M14b, M16b,
-M17b. **Para el humano:** validar la v6; `cod2` (consulta a negocio, no bloquea); confirmar `tex`
-vacío en las sin vincular. Topes: requirements 150/150, design 250/250.
+M17b. **Para el humano:** validar la v6; `cod2` y `dncide` (consultados por correo al director de
+Administración y Control de Costes el 2026-10-05; no bloquean); confirmar `tex` vacío en las sin
+vincular. Topes: requirements 150/150, design 250/250 (la regla de M16b tendrá que resumir y enlazar).
+**T0a-bis hecha** (script de la segunda pasada, `00179a2`, `0037c72`, `c42bb2b`; APPROVED en la
+segunda pasada: [`review_F-009_T0a_bis.md`](review_F-009_T0a_bis.md)). **Siguiente, del humano
+(T0b-bis):** `--solo M9 M11 M14 M16 M17` (comando en [`impl_F-009_T0a_bis.md`](impl_F-009_T0a_bis.md))
+y pegar el fichero de `%TEMP%`. Después T0c: v7 (o PARADA si M16b no da regla) y retirar el script.
 
 *(Lo que sigue es el estado de la v5.1, ya superado por T0b.)*
 
@@ -94,6 +99,13 @@ ajeno; lo borra el humano si quiere.
   el primer commit (`e903394`, 2026-04-16), en `origin/main` y `origin/dev`.
   Lo que cierra el hueco es **rotarlas** en Sigrid y en el Key Vault; después
   `git rm --cached local.settings.json` y `.gitignore`.
+- **`sql/read` no aplica `timeout_seconds` como tope de la consulta** (hallazgo del reviewer de
+  F-009 T0a-bis, 2026-10-05): `sql_server_repository.py:43` lo pasa a `pyodbc.connect(timeout=…)`,
+  que es el tiempo de *login*; los casos de uso de dominio sí fijan `cursor.connection.timeout`.
+  Una lectura que el balanceador corta a 230 s **sigue corriendo en el SQL Server de producción**
+  (verosímil causa del 1205 y de los 121 s de M14 en T0b). Afecta a todos los consumidores:
+  feature propia (fijar `connection.timeout` en `execute_read_query` y actualizar
+  `azure-apps/sigrid_api.md`). Mientras tanto, no relanzar una lectura justo después de un corte.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
 - **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`; no se probó `DELETE`.
 - El guard de `ALLOWED_WRITE_DATABASES` vacía **falla abierto** en los cuatro
