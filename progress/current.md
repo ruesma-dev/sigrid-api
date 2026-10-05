@@ -1,6 +1,23 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-009 spec v7 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-ter
+
+**v7 (spec-author):** T0b-bis volcada ([`spec_F-009.md`](spec_F-009.md) §v7, tabla M → resultado →
+decisión). Cerradas: M9 (`mov` si y solo si `pro.tipmov` = 1; **H20 cerrado**, sin puerta dura), M11
+(L8b), M14b (L5), M17b (anular borra; **H9 cerrado**, R30b retirada) y `dcaproana` (no se escribe).
+M14 corrige R21: `dcapro.prepma` = `mov.prepma`. Decisión del humano aplicada: campo opcional
+`naturaleza` en la sin vincular (`naturaleza_no_valida`); analítica = `caa` `<obra>.<sufijo del
+caagascod>` y cuenta del `cuacomcod` de la naturaleza, **condicional a M16c** (`analitica_no_resuelta`).
+Lista blanca con `XA9999` (contrato v6.1). Contrato con albaranes al día (§2.2, §3.3, H9, H10, H20, §8).
+Topes: 150/150 y 250/250. **Para el humano:** validar la v7 y las preguntas **P1-P6** de §v7: P1
+(`mov.prepma`: ¿M14c en T0b-ter?), P2 (`numemp`), P3 (`cua` por empresa), P4 (cuenta cuando el
+usuario cambia la naturaleza: la muestra apunta a la del producto, contra la decisión), P5 (`XA9999`
+sin medir), P6 (F-053). **Siguiente:** T0b-ter (`--solo M16` con M16c, en curso por el implementer;
+`--solo M14 M16` si se aprueba M14c) → T0c (v8 y retirada del script).
+
+*(Lo que sigue es el estado de la v6, ya superado por T0b-bis.)*
+
 ## F-009 spec v6 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-bis
 
 **v6 (spec-author):** T0b volcada en la spec ([`spec_F-009.md`](spec_F-009.md) §v6, tabla M →

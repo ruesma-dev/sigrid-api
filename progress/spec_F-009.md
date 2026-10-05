@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v6
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v7
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,102 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v7: resultados de T0b-bis (2026-10-05) y decisiones del humano
+
+Spec-author. Solo spec; sin llamar a la API, Azure ni el SQL Server. Fuente: el fichero de resultados
+del humano (`%TEMP%`, 2026-10-05 16:32; **no** se versiona: lleva datos de negocio). Aquí solo cifras
+agregadas y conclusiones; ni proveedores, ni filas, ni importes. Definiciones de M14b, M16b y M17b:
+`impl_F-009_T0a_bis.md`; las anteriores, §T0 v5.
+
+### Resultados de T0b-bis y decisión
+
+| M | Resultado agregado | Decisión en la v7 |
+|---|---|---|
+| M9 | Albaranes de septiembre de 2026 (2.724; 11.121 líneas): con `mov` el 74,7 %. Por `pro.tipmov`: 1 ⇒ 8.302 de 8.319 (99,8 %); 0 ⇒ 0 de 2.782; −1 ⇒ 0 de 20. `pro.tipinv` no lo explica (0 ⇒ 22,7 %). Genéricos de la empresa 1, julio-septiembre: MA9999 5.871 de 5.871 y QA9999 2.031 de 2.031 (100 %), SB9999 99,9 %, SM9999 98,9 %; los cuatro con `tipmov` 1 | **Cerrada**: `mov` si y solo si `pro.tipmov` = 1, para cualquier producto, vinculado o no (R19; L7b lee el de los `ctrpro`). **H20 cerrado** (decisión del humano: se replica el escritorio); la puerta dura se retira como cumplida (R35, T22) |
+| M11 | Genéricos en las empresas 1, 31 y 34, con `comide`/`ivacomide` 0; en 31 y 34, sin líneas en la ventana. Empresa 1, julio-septiembre: MA9999, 13,3 % de proveedores con más de un IVA; el IVA de la línea previa **del mismo proveedor** acierta el 97,7 % frente al 95,0 % de la previa de cualquiera. QA9999: 6,0 %; 99,5 % frente a 95,9 %. La combinación más frecuente (cuenta, IVA, naturaleza, unidad) cubre solo el 6,6 % / 9,0 %. `ivacuo` ≠ `round(tot·iva, 2)` en 13 de 40.601 | **Cerrada**: L8b justificada (R13, H15); `ivacuo` con `dbo.iva` (R17) |
+| M14 (`prepma`) | `dcapro.prepma` = `mov.prepma` de su propio `mov` en 8.328 de 8.328 (100 %); = `mov.almpma` (el PMP resultante) solo en 215 (2,6 %) | **Corrige R21** de la v6 (decía «PMP resultante»): `dcapro.prepma` = `mov.prepma`. Qué valor es `mov.prepma` y cuál lleva la línea sin `mov`: **P1** [M14c] |
+| M14 (API) | Albarán de la API frente a tres del escritorio del mismo proveedor: ninguna columna de `con`, `dca` ni `dcapro` con un valor que el escritorio no use. Sin vincular de 2026 (94.750): las proporciones de T0b se repiten | Sin cambios (§Reseteo cerrada en la v6) |
+| M14b | 2.744 albaranes desde 2026-09; 2.725 con albarán anterior del mismo proveedor y empresa: `pagide` 94,5 % frente al 81,5 % del maestro del proveedor; `efeide` 97,8 % frente a 87,1 % | **Cerrada**: la plantilla L5 se mantiene (R21) |
+| M16 | Repite T0b: vinculadas, `caaide` del `ctrpro` 100 % (misma partida) y 99,9 % (distinta); sin vincular, de la partida 2,7 %; orden de almacén de R15 confirmado | Sin cambios |
+| M16b | 189.373 sin vincular desde 2025. Ningún campo da el código de la `caa` por sí solo (`caagascod`, `caaexicod`, `cuafaccod`, cuenta: 0 %; partida 6,4 % en el resto, 0 % en los genéricos). Propiedades: `caa.cenide` = `dcapro.cenide` ~100 %; el código de la `caa` contiene el de la obra y el del centro ~100 %; cuenta 6XX ~100 %; cuenta = `cuacomcod` de la naturaleza **del producto** 100 % en MA9999 (QA9999 99,9 %; resto 96,7 % / 70,4 %). Naturaleza de la línea = la del producto: MA9999 48,7 % (con partida) y 52,0 % (sin); QA9999, SB9999 y SM9999 100 %. Muestra de las 20 combinaciones más frecuentes (54.572 líneas): todas siguen `<obra>.<lo que sigue al «.» del caagascod de la naturaleza de la línea>` (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`); en las dos en que la naturaleza de la línea difiere de la del producto manda la de la línea. `dcaproana`: 0 de 189.373 | **Regla de la naturaleza, condicional a M16c** (≥ 95 %; si no, PARADA): design §Analítica, R13b, R15, L15a-c. Campo opcional **`naturaleza`** (decisión del humano), `naturaleza_no_valida`; `analitica_no_resuelta` si no existe la `caa` compuesta. Sin `dcaproana` (R25) |
+| M17 / M17b | `log` sobre albaranes (último millón de `ide`): `ope` 2 en 820 filas. Tras la `ope` 2: el albarán no existe en 513 (62,6 %); existe con el mismo `cod` y un alta posterior en 305 (37,2 %); sin alta posterior, 2 (0,2 %). Ningún albarán con `fecbaj`; `est` 1, 2, 3, 10 (y 0 en 6) | **Cerrada**: anular **borra** el `con` y el escritorio **reutiliza** el `cod` (coherente con el índice único `(emp, tip, cod)`). H9 cerrado: R30 sin cambios, R30b retirada; F-053 puede repetir el alta con la misma referencia tras anular. T23 comprueba que el `con` ya no existe |
+
+### Decisiones del humano aplicadas (2026-10-05)
+
+- **H20**: se replica el escritorio, `mov` si y solo si `pro.tipmov` = 1, para cualquier producto.
+- **Naturaleza**: campo opcional `naturaleza` (`auxpronat.cod`, 1-16) en la sin vincular; sigrid-api lo
+  valida (existe, sin baja, de la empresa de la obra; si no, `naturaleza_no_valida`) y, si falta, usa la del
+  producto. `natide`, `caaide` y `cueide` salen de la naturaleza resultante. Qué naturaleza manda albaranes
+  está consultado a negocio (Administración y Control de Costes): pendiente de F-053, no bloquea F-009.
+- **Vinculadas**: sin cambio, `caaide` del `ctrpro`.
+- Del contrato v6.1 (decisión del humano del mismo día) se absorbe la lista blanca con `XA9999` (R10, T19).
+  Su regla de analítica (la de la última sin vincular del par obra-producto) queda superada por M16b.
+
+### Qué cambió en la spec
+
+| Cambio | Dónde |
+|---|---|
+| `mov` según `pro.tipmov`; L7b; H20 cerrado sin puerta; `mov` con `tipmov` 0 como diferencia declarada del clásico | R19, R35; design §Filas, L7, §Condicionales, §Equivalencia; tasks T6, T22; contrato §2.3, §4.2, H20 |
+| Naturaleza, analítica y cuenta de las sin vincular; campo `naturaleza`; L15a-c; `naturaleza_no_valida` y `analitica_no_resuelta` | R6, R13, R13b, R15, R34 (fase RED); design §Modelo, §Filas, §Analítica, §Sentencias, §Códigos, §Flujo; tasks T3, T4, T6, T7, T21; contrato §2.2-§2.4, §3.3, §4, H10, §6.f |
+| `dcapro.prepma` = `mov.prepma` (corrige la v6); su valor [M14c] | R21; design §Filas, §Condicionales |
+| L8b (M11) y L5 (M14b) cerradas | R13, R17, R21; design L5, L8b, L9; contrato H15 |
+| Anular borra: R30b retirada, L11 sin filtro | R30; design L11; tasks T8, T23; contrato H9, §0 |
+| Sin `dcaproana` | R25, fuera de alcance |
+| Lista blanca con `XA9999` | R10; tasks T19; contrato §8 |
+| T0b-bis hecha; **T0b-ter** `--solo M16` (M16c); T0c vuelca en la v8 y retira el script | tasks; R35; contrato H28 |
+
+Topes tras la v7 (`python -m harness.tamano --feature F-009`): `requirements.md` 150/150 y `design.md`
+250/250. Para caber se reescribieron sin perder reglas: R2, R6, R7, R9, R10, R36 y fuera de alcance;
+en design, §Caracterización, §Importes, §Devoluciones, §Códigos, §Equivalencia, el paso 3 del flujo y
+§Riesgos (los descartes de analítica viven ahora en §Analítica).
+
+### Coherencia de `prepma` (P1)
+
+T0b-bis prueba que `dcapro.prepma` y `mov.prepma` son **el mismo valor**, no qué valor es. La regla A
+(M5) solo comprobó `almcan` y `almpma` del `mov`, nunca `mov.prepma`, así que no la contradice. El
+clásico escribe `mov.prepma` = PMP resultante (= `almpma`), lo que el escritorio hace solo en el 2,6 %:
+el clásico tampoco lo replica (no se toca, R2). La primera pasada de M14 decía que el `prepma` del
+escritorio «coincide con el PMP vigente del almacén», sin compararlo con el `mov`. Dos hipótesis:
+(a) el PMP del almacén **antes** del movimiento (el `almpma` del `mov` anterior del mismo producto y
+almacén por `fechor`), que sigue L12/E7 sin escribir nada más; (b) el precio medio global del producto
+(`pro.prepma`, «Precio Medio Almacén» en el diccionario; `mov.prepma` se titula «Precio Medio Compra»),
+que podría exigir que el escritorio actualice `pro.prepma`/`pro.canact` en cada alta: una escritura que
+F-009 no hace (R25, fuera de alcance «escribir `pro`») ⇒ PARADA. No hay evidencia para elegir sin medir.
+
+### Preguntas abiertas (numeradas)
+
+1. **P1 · `prepma`**: ¿se añade **M14c** a T0b-ter? Propuesta: `mov.prepma` frente a (a) y (b) en los
+   `mov` de albarán desde 2026-09, y `dcapro.prepma` de las líneas sin `mov` frente a 0 y a `pro.prepma`.
+   Sin M14c, la alternativa es fijar (a) sin medir (no recomendado: es otro valor «plausible»). Para la
+   línea sin `mov`, la propuesta provisional es 0 (no hay movimiento de almacén), también a M14c.
+2. **P2 · «naturaleza de la empresa»**: se interpreta como `auxpronat.numemp` = empresa de la obra, pero
+   no está medido y hay indicio en contra: la combinación más frecuente en las líneas de MA9999 de la
+   empresa 1 usa la naturaleza del maestro de MA9999 de las empresas 31 y 34, no la del de la 1. Propuesta:
+   que M16c (o una lectura en T21) cuente el `numemp` de las naturalezas usadas en la empresa 1; si sale 0
+   u otra empresa, la validación pasa a «existe y sin baja» (o `numemp` en {0, empresa}).
+3. **P3 · `cua` por empresa**: L15c busca la cuenta por `cod` y `con.emp`; no medido. Propuesta: que
+   M16c compruebe que el `cuacomcod` de cada naturaleza da una sola `cua` en la empresa 1.
+4. **P4 · cuenta con la naturaleza cambiada**: el humano decide que `cueide` sale de la naturaleza
+   resultante, pero en la muestra de M16b, cuando el usuario cambia la naturaleza, la cuenta financiera
+   coincide con la de la naturaleza **del producto** (la de `MOD.CDMA15`, no la de `MOD.CDSB37`). M16c ya
+   mide `cueide_linea` frente a `cueide_producto`. Si gana la del producto, PARADA: o se replica el
+   escritorio (cuenta del producto, analítica de la línea) o se mantiene la decisión.
+5. **P5 · `XA9999`**: no lo midieron M9, M11 ni M16b (no estaba en el script). Con H20 cerrado no
+   bloquea (su `tipmov` decide), pero conviene añadirlo a los genéricos de T0b-ter o verlo en T21.
+6. **P6 · F-053** (no bloquea F-009): qué `naturaleza` manda albaranes (consulta a negocio) y qué estado da
+   a `naturaleza_no_valida` (propuesta: `no_admitido`).
+7. Heredadas de la v6, sin cambios: `cod2` (consulta a negocio; vacío por defecto) y `tex` vacío en las
+   sin vincular (confirmar).
+
+### Notas para el líder y el implementer
+
+- **T0b-ter** = `--solo M16` con M16c (en curso). Si el humano aprueba P1, añadir M14c y lanzar
+  `--solo M14 M16`. P2, P3 y P5 caben en la misma pasada como lecturas informativas.
+- La spec no cambia de forma con M16c si sale ≥ 95 % con la naturaleza de la línea y la obra; si gana el
+  centro o la naturaleza del producto, es un cambio de una línea en design §Analítica y L15b (PARADA corta).
+- L15b busca la `caa` por (`cenide` de la línea, `cod`), como el control de `caa` repetidas de M16c.
+- T0c: volcado de T0b-ter en la v8 y retirada del script y su test (N3) antes de T1.
 
 ## v6: resultados de T0 (repetición del 2026-10-05) y decisiones del humano
 
