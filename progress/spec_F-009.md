@@ -203,6 +203,11 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
 
 ## Forma final para alinear F-053 (pregunta 18, la hace el líder de albaranes) — v3
 
+> **Contrato completo con albaranes (2026-10-05):**
+> `specs/F-009-alta-albaran-compra/contrato_albaranes.md` — petición y respuesta campo a campo, casos
+> de línea (almacén, devoluciones, compuestas repartidas), códigos → estados de F-053 y **33 huecos**
+> entre F-009 v4, F-053 v5, F-051 v3 y F-049 v4 (9 bloqueantes). Lo de abajo es el resumen de la v3.
+
 Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
 
 ```json
