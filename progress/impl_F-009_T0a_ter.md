@@ -1,219 +1,207 @@
 <!-- progress/impl_F-009_T0a_ter.md -->
-# Informe del implementer · F-009 T0a-ter (M16c en el script de T0)
+# Informe del implementer · F-009 T0a-ter (M16c, M14c, XA9999 y numemp en el script de T0)
 
 Fecha: 2026-10-05. Rama `feature/F-009-alta-albaran-compra`. F-009 sigue en `spec_ready`; T0 está
 autorizada por el humano. **No se ha llamado a la API, ni a Azure, ni al SQL Server**: el script lo lanza
-el humano. Origen: el bloque M16 de `%TEMP%\f009_t0_20261005_163206.txt` (M16b y su muestra TOP 20).
+el humano. Origen: el bloque M16 de `%TEMP%\f009_t0_20261005_163206.txt` y `progress/spec_F-009.md` §v7.
+Tres commits: `38d3571` (M16c), `ade7b47` (ciclo 1 de revisión) y el de la ampliación (M14c, XA9999, P2).
 
 ## Qué cambió
 
 | Fichero | Cambio |
 |---|---|
-| `scripts/medir_f009_t0.py` | M16c como **subbloque de M16** (se lanza con `--solo M16`): 3 sentencias, 3 lecturas, umbral con nombre |
-| `tests/test_f009_t0_script.py` | 374 → 402 tests, sin red ni BBDD |
+| `scripts/medir_f009_t0.py` | M16c (subbloque de M16), ciclo 1, M14c (parte de M14), XA9999 en los genéricos, `M16c_numemp` |
+| `tests/test_f009_t0_script.py` | 374 → 426 tests, sin red ni BBDD |
 
-No se han tocado la spec, `progress/spec_F-009.md`, `progress/current.md`, `harness/features.json`,
-`BACKLOG.md`, `infrastructure/`, `.env` ni el fichero sin trackear de la raíz. El cambio sin commit de
-`specs/F-009-…/requirements.md` que hay en el árbol es del spec-author: no entra en mi commit.
+No se han tocado la spec ni el contrato, `progress/spec_F-009.md`, `progress/current.md`,
+`harness/features.json`, `BACKLOG.md`, `infrastructure/`, `.env` ni el fichero sin trackear de la raíz.
+`MEDICIONES` sigue siendo M1-M18 (un test lo fija): **M16c es subbloque de M16 y M14c parte de M14**.
+M16c va antes de `M16b_dcaproana` (la más expuesta por volumen). Diccionario (`sigrid_tablas.md`): `caa`,
+`cua`, `obr`, `cen` son «Propiedades de con» (código en `con.cod`); `caa.cenide`, `auxpronat.caagascod/
+caaexicod/cuacomcod/numemp`, `ctrpro.natide/cenide/caaide/obride`, `mov.prepma/almpma/fechor`
+(índice `pafhi` = producto, almacén, fechor) y `pro.prepma` existen.
 
-**Elección: subbloque de M16, no bloque nuevo.** `MEDICIONES` sigue siendo M1-M18 (la spec numera así
-y hay un test que lo fija); M16c comparte universo, grupos y joins con M16b, y el humano la lanza con
-`--solo M16` (unos 20 s en total si M16c tarda como M16b). Va **antes** de `M16b_dcaproana`, que es la
-sentencia más expuesta por volumen de M16: si esa se corta, M16c ya está medida.
+## M16c (primera entrega) · regla del código de la caa
 
-## M16c: qué mide
-
-Universo de M16b: líneas de albarán **sin vincular desde 2025**, por grupo (`MA9999`, `QA9999`,
-`SM9999`, `SB9999` de la empresa 1 y «resto», como `?`) × con/sin partida. Alias de M16b: `k` (caa de
-la línea), `kc`/`cf`/`oc`/`ec` (con de la caa, de la cuenta, de la obra y del centro), `nl` (naturaleza
-de la línea, `dcapro.natide`) y `nt` (la del producto, `pro.natide`). Diccionario: `caa`, `cua`, `obr`
-y `cen` son «Propiedades de con» (su código está en `con.cod`, texto de 24); `caa.cenide` existe;
-`auxpronat.caagascod/caaexicod/cuacomcod` son texto de 24; `ctrpro` tiene `natide`, `cenide`,
-`caaide` y `obride`.
-
-**Regla de la caa** (`_regla_caa(nat, codigo)`), con `gas = RTRIM(LTRIM(<nat>.caagascod))`:
+Universo de M16b: sin vincular desde 2025, por grupo (genéricos de la empresa 1 y «resto», con `?`) ×
+con/sin partida. `_regla_caa(nat, codigo)`, con `gas = RTRIM(LTRIM(<nat>.caagascod))`:
 
 ```
 k.cenide = d.cenide AND CHARINDEX('.', gas) > 0
 AND RTRIM(LTRIM(kc.cod)) = RTRIM(LTRIM(<obra|centro>.cod)) + '.' + SUBSTRING(gas, CHARINDEX('.', gas) + 1, 24)
-AND u.cod IS NULL
+AND u.cod IS NULL      -- u = (cenide, código) repetidos entre las caa: ahí la regla no fija UNA caa
 ```
 
-- Sin `.` en `caagascod` (o nulo) no casa. Códigos recortados por si son `CHAR`.
-- `u` = pares (`cenide`, código) **repetidos** entre las caa (`caa` ⨝ `con`, `GROUP BY … HAVING
-  COUNT(*) > 1`). Una regla escribible busca LA caa por centro y código: si el par se repite, no fija
-  una y la línea **no cuenta como acierto**. Es lo que separa «caaide = la caa con …» de «el código de
-  su caa tiene esa forma» (criterio identificativa/propiedad de la revisión de T0a-bis).
-- Cuatro variantes: naturaleza de la **línea**/del **producto** × código de la **obra**/del **centro**.
-
-**Sentencias** (todas `SELECT` de una sentencia, valores de fuera con `?`, agregados sobre banderas de
-una tabla derivada, sin `ISNULL(…, -1)`):
-
-| Sentencia | Qué devuelve | Parámetros |
-|---|---|---|
-| `M16c_reglas` | por grupo × partida: `n`, `regla_linea_obra/centro`, `regla_producto_obra/centro`, `cueide_linea/producto` (`cf.cod` = `cuacomcod` recortado, no vacío), `linea_sin_mod`, `linea_sin_punto`, `linea_sin_naturaleza`, `producto_sin_mod`, `linea_caaexicod`, `producto_caaexicod`, `caa_repetida`, `obra_igual_centro` | empresa + 4 genéricos |
-| `M16c_naturalezas_ma` | TOP 15 naturalezas de la línea en el MA9999 de la empresa 1: código, resumen, `caagascod`, líneas, aciertos de la regla línea/producto (obra), líneas con naturaleza = la del producto | empresa, `GENERICO_NATURALEZAS_M16C` |
-| `M16c_vinculadas` | control: la misma regla sobre `ctrpro` (su `natide`, `obride`, `cenide`, `caaide`), por grupo; cuenta **líneas de contrato distintas** (`COUNT(DISTINCT CASE …)`) | empresa + 4 genéricos |
-
-El control de las vinculadas **sí es barato**: entra por `ctrpro` con su clave primaria
-(`t.ide = d.linoriide`, `d.docoritip = 44`), el mismo camino que `M16_caa_con_partida` (1,0 s el
-2026-10-05). No se omite.
-
-**Lecturas automáticas** (umbral con nombre `UMBRAL_REGLA_ESCRIBIBLE = 0.95`):
-
-- `lectura_m16c`: por grupo × partida y en **TOTAL**: «caa ⇒ REGLA escribible «…» x de n» si la mejor
-  candidata llega al 95 %, o «sin regla escribible (la mejor: …)»; lo mismo para `cueide`. Desempate
-  en orden: línea antes que producto, obra antes que centro; las empatadas se nombran. Una segunda
-  línea por grupo con «dónde no aplica o puede fallar» (sin `MOD.`, sin `.`, sin naturaleza,
-  `caaexicod`, caa repetida, obra = centro). Cierra con «Hipótesis M16c … CONFIRMADA / NO confirmada
-  en el total» (la de la línea ≥ 95 % y no menor que la del producto).
-- `lectura_m16c_naturalezas`: las tres más usadas y en cuáles la regla de la línea no llega al 95 %.
-- `lectura_m16c_vinculadas`: % de `ctrpro` que cumple la regla ⇒ «también explica las del contrato» o
-  «NO sigue la regla (no sirve de control)».
-- **`None` (falló la lectura) ⇒ «`<sentencia>` SIN MEDICIÓN»; `[]` ⇒ texto con «cero filas»**. Nunca
-  se confunden: hay test de las tres lecturas y del bloque con cada sentencia rota.
-
-## Decisiones y desviaciones
-
-1. Subbloque de M16 (arriba). 2. La variante «centro» usa el código del centro de la **línea**
-(`ec` = `con` de `dcapro.cenide`), como pide el encargo. 3. `caa_repetida` y el filtro `u.cod IS NULL`
-no estaban pedidos: sin ellos la regla mediría una propiedad del código y no que identifique UNA caa.
-Coste: agrupar `caa` ⨝ `con` (tabla de cuentas, no de movimientos). 4. Sin medir, también, la naturaleza
-del producto en el control de las vinculadas: el encargo pide «la naturaleza de la línea del contrato».
-5. Texto de cero filas de `M16c_reglas` nombra la sentencia: con «No hay líneas sin vincular…» chocaba
-con el test de T0a-bis que prohíbe esa frase cuando falla `M16b_fuentes` (un falso positivo de redacción,
-no de lógica; se vio en verde→rojo al ejecutar el fichero entero).
-
-## Riesgo de tiempo
-
-Bajo. `M16c_reglas` y `M16c_naturalezas_ma` hacen los mismos joins que `M16b_codigos` (6,1 s) más el
-`LEFT JOIN` a `u`; `M16c_vinculadas`, los de `M16_caa_con_partida` (1,0 s) más `auxpronat` y tres `con`
-por clave primaria. Todas con `TIMEOUT_PESADO_S` y envueltas: una que falle se anota y el bloque sigue.
-
-## Fase RED (comando exacto, salida real)
-
-Tests nuevos escritos antes que el código:
-
-```
-$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_ter"
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_existen_las_sentencias_de_m16c
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo[M16c_reglas]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo[M16c_naturalezas_ma]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo[M16c_vinculadas]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_construye_el_codigo_con_la_naturaleza_de_la_linea_y_la_del_producto
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_la_regla_exige_que_centro_y_codigo_identifiquen_una_sola_caa
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16c_vinculadas_usa_la_linea_del_contrato
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_m16_pasa_los_grupos_y_el_generico_de_las_naturalezas
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_m16c_regla_escribible_y_manda_la_linea
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_m16c_en_el_limite_del_umbral[95-True]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_m16c_en_el_limite_del_umbral[94-False]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_m16c_manda_el_producto_si_acierta_mas
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lecturas_m16c_distinguen_sin_medicion_de_cero_filas
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_de_las_naturalezas_de_ma9999
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_lectura_del_control_con_las_vinculadas
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio[M16c_reglas]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio[M16c_naturalezas_ma]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio[M16c_vinculadas]
-FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_main_solo_m16_con_m16c
-19 failed, 374 deselected in 2.24s
-```
-
-Errores distintos (agrupados con `grep "^E " | sort | uniq -c`): `KeyError: 'M16c_reglas'`;
-`AttributeError: … no attribute 'UMBRAL_REGLA_ESCRIBIBLE'`; `… 'lectura_m16c'` (×4);
-`… 'lectura_m16c_naturalezas'`; `… 'lectura_m16c_vinculadas'`; `assert ['M16c_reglas...c_vinculadas'] == []`;
-y el de `main`: `'M16c' in '=== M16 · analítica, almacén y centro de las líneas (H10, H13) y origen de
-caaide (M16b) ==='` falso.
-
-Tras el código, fichero entero: `1 failed, 401 passed` (la colisión de redacción de la decisión 5); tras
-corregirla, `402 passed, 1 warning in 2.19s`. ruff limpio en los dos ficheros (por defecto y con
-`--preview --select E2,W,E7,F`; un `ISC004` intermedio se corrigió).
-
-## Trazabilidad (encargo → test)
-
-| Punto del encargo | Test |
+| Sentencia | Qué devuelve |
 |---|---|
-| `regla_linea` / `regla_producto`, obra y centro, `SUBSTRING`/`CHARINDEX`, sin `.` no casa, `RTRIM`/`LTRIM` | `..._m16c_construye_el_codigo_con_la_naturaleza_de_la_linea_y_la_del_producto` |
-| (centro, código) identifica una sola caa | `..._m16c_la_regla_exige_que_centro_y_codigo_identifiquen_una_sola_caa` |
-| `cueide_linea` / `cueide_producto` | el de construcción (`cf.cod` = `cuacomcod`) y `..._lectura_m16c_regla_escribible...` |
-| sin `MOD.`, `caaexicod` | el de construcción (columnas) y la lectura (`naturaleza de la línea sin «MOD.»`) |
-| naturalezas del MA9999 | `..._lectura_de_las_naturalezas_de_ma9999`, `..._m16_pasa_los_grupos_y_el_generico...` |
-| control vinculadas | `..._m16c_vinculadas_usa_la_linea_del_contrato`, `..._lectura_del_control_con_las_vinculadas` |
-| umbral con nombre, límite 95/94 | `..._lectura_m16c_en_el_limite_del_umbral[95-True/94-False]`, `..._manda_el_producto_si_acierta_mas` |
-| sin medición ≠ cero filas | `..._lecturas_m16c_distinguen_sin_medicion_de_cero_filas`, `..._un_fallo_de_m16c_no_pierde_el_bloque...` (×3) |
-| `?`, sin genéricos literales, sin `ISNULL(…, -1)` | `..._m16c_va_parametrizada_y_sin_isnull_con_literal_negativo` (×3) |
-| solo lectura, guardia real, error 130 | los parametrizados sobre todo `SQL` (`..._toda_sentencia_es_select...`, `..._el_guardia_de_lectura...`, `..._ninguna_sentencia_agrega_sobre_una_subconsulta`) |
-| `--solo M16` | `..._main_solo_m16_con_m16c` |
-| Ciclo 1: cuenta única por empresa, centro en naturalezas, control con caaide | `..._c1_la_cuenta_exige_la_empresa...`, `..._c1_naturalezas_miden_tambien_la_variante_centro`, `..._c1_el_control_cuenta_solo_las_lineas_de_contrato_con_caa` |
+| `M16c_reglas` | `regla_linea/producto_obra/centro`, `cueide_linea/producto` y avisos (sin `MOD.`, sin `.`, sin naturaleza, `caaexicod`, caa repetida, obra = centro) |
+| `M16c_naturalezas_ma` | TOP 15 naturalezas de la línea en el MA9999 de la empresa 1 con sus aciertos |
+| `M16c_vinculadas` | control: la regla sobre `ctrpro` por clave primaria (`t.ide = d.linoriide`), líneas de contrato distintas |
 
-## Ciclo 1 de revisión (`progress/review_F-009_T0a_ter.md`, CHANGES_REQUESTED)
+Lecturas con `UMBRAL_REGLA_ESCRIBIBLE = 0.95`: por grupo y TOTAL, «⇒ REGLA escribible «…»» o «sin regla
+escribible (la mejor: …)», desempate línea > producto y obra > centro con empates nombrados; «Hipótesis
+M16c … CONFIRMADA / NO confirmada» (la de la línea ≥ 95 % y no menor que la del producto). `None` ⇒
+«`<sentencia>` SIN MEDICIÓN»; `[]` ⇒ «cero filas» (la de `M16c_reglas` nombra la sentencia: con «No hay
+líneas sin vincular…» chocaba con un test de T0a-bis).
+
+## Ciclo 1 de revisión (`progress/review_F-009_T0a_ter.md`, CHANGES_REQUESTED) · `ade7b47`
 
 | Punto | Cambio |
 |---|---|
-| 1 Cuenta identificativa (P3 de la spec v7) | `cueide_linea/producto` exigen `cf.emp = c.emp` (la `cua` es de la empresa del albarán) y `w.cod IS NULL`, con `w` = (`emp`, código) repetidos entre las `cua` (`dbo.cua` ⨝ `dbo.con`, `GROUP BY c3.emp, RTRIM(LTRIM(c3.cod)) HAVING COUNT(*) > 1`), como `u` para la caa. Banderas informativas `cua_repetida` y `cua_de_otra_empresa` en `AVISOS_M16C`; la frase de cierre dice «La de la cuenta exige …». Sin `?` nuevos (5, 2 y 5; el test lo fija) |
-| obs. a | `M16c_naturalezas_ma` trae `regla_linea_centro`; `lectura_m16c_naturalezas` usa la mejor de obra y centro |
-| obs. b | `caa_informada` en `M16c_reglas` (aviso «caaide informado») |
-| obs. c | `lectura_m16c_vinculadas` muestra «caaide informado x de n» y mide la regla sobre las líneas de contrato **con** caaide; si no hay ninguna, «no sirve de control (sin contraejemplos)», nunca «NO sigue la regla» |
+| 1 Cuenta identificativa (P3) | `cueide_linea/producto` exigen `cf.emp = c.emp` y `w.cod IS NULL`, con `w` = (`emp`, código) repetidos entre las `cua` (`dbo.cua` ⨝ `dbo.con`, `HAVING COUNT(*) > 1`). Avisos `cua_repetida` y `cua_de_otra_empresa` (no pedida: explica el fallo si las `cua` se comparten); cierre «La de la cuenta exige …». Sin `?` nuevos |
+| obs. a | `M16c_naturalezas_ma` trae `regla_linea_centro`; la lectura usa la mejor de obra y centro |
+| obs. b, c | `caa_informada` en `M16c_reglas`; el control de vinculadas mide sobre las líneas de contrato **con** caaide y, si no hay, «no sirve de control (sin contraejemplos)» |
 
-`cua_de_otra_empresa` no la pedía la revisión: dice por qué falla la cuenta si las `cua` se comparten
-entre empresas (`CASE WHEN cf.ide IS NOT NULL AND cf.emp <> c.emp`, sin `ISNULL` con literal).
-La ampliación del líder (M14c, XA9999, `numemp`) llegó tras cerrar este ciclo: va en su propio commit.
+## Ampliación del líder (aprobada por el humano; T0b-ter = `--solo M9 M14 M16`)
 
-RED del ciclo (tests nuevos antes del código):
+1. **M14c (P1)**, parte nueva de M14, ventana `VENTANA_M9` (un mes, `?`) y `mov` por `doclin` como M9:
+   - `M14c_mov_prepma`: por cada `mov` de albarán (`m.doctip = 14`), el `almpma` del `mov` **anterior** del
+     mismo producto y almacén (`OUTER APPLY (SELECT TOP 1 … ORDER BY p.fechor DESC, p.ide DESC)`, por el
+     índice `pafhi`; anterior = `fechor` menor, o igual con `ide` menor). Banderas: `igual_anterior` (a),
+     `igual_resultante` (b, `m.almpma`), `igual_pro_prepma`, `anterior_igual_resultante` (no
+     discriminan), `sin_anterior`, `prepma_cero`, `linea_igual_mov`. Tolerancia `0.0001` (la de
+     `M14_prepma`). El APPLY es una tabla (TOP 1), no una subconsulta escalar, y va dentro de la derivada:
+     fuera solo se suman banderas (no es el patrón del error 130, y el detector lo confirma).
+   - `M14c_sin_mov`: líneas sin `mov` de la ventana por `tipmov` (`COALESCE(CAST … AS int), -1)`):
+     `dcapro.prepma` = 0, = `pro.prepma` (≠ 0) y `pro.prepma` = 0.
+   - `lectura_m14c` (`UMBRAL_REGLA_PREPMA = 0.95`): «PMP vigente ANTES de la entrada (hipótesis a)»
+     (sobre los `mov` con anterior), «PMP RESULTANTE», «pro.prepma ⇒ PARADA (R25)», «no discrimina» si a
+     y b llegan a la vez, o «no concluyente»; para la línea sin `mov`, «lleva prepma 0» / «lleva
+     pro.prepma» / «no concluyente».
+2. **XA9999 (P5)**: `PRODUCTOS_GENERICOS` + `XA9999`; `LISTA_BLANCA_GENERICOS = ("MA9999", "QA9999",
+   "XA9999")`. M9 (`mov`, `tipmov`), M11 (IVA, L8b) y M16b/M16c lo miden y concluyen aparte; los `?` de
+   las listas IN salen de la tupla (5 genéricos), los tests lo comprueban.
+3. **P2 (`M16c_numemp`)**, informativa: líneas sin vincular desde 2025 de la empresa `?` (1) por clase de
+   `auxpronat.numemp` de la naturaleza de la línea (`igual_empresa` = `c.emp`, `cero`, `otra_empresa`,
+   `sin_naturaleza`), con naturalezas distintas y `numemp` = empresa de la obra. Lectura: «numemp =
+   empresa: la validación por numemp es viable» / «numemp en {0, empresa}» / «la validación pasa a
+   «existe y sin baja»».
+
+Riesgo de tiempo: bajo. `M14c_mov_prepma` hace un TOP 1 por índice por cada `mov` del mes (~8.300 el
+2026-09 según `M14_prepma`); `M14c_sin_mov` es el camino de `M9_sin_mov_por_producto`; `M16c_numemp`, el
+de M16b sin `pro`. Todas envueltas (`_leer_tabla`): una que falle se anota y el bloque sigue.
+
+Ajuste de test: `..._un_fallo_de_m16c_no_pierde_el_bloque...` usa ahora los datos con `M16c_numemp`; con
+la fixture anterior esa sentencia nueva devolvía cero filas legítimas y su texto contenía «cero filas».
+
+## Fase RED (comandos exactos, salidas reales)
+
+Primera entrega (`-k "t0a_ter"`), tests antes que el código:
 
 ```
-$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_ter_c1"
-E   AssertionError: nl
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_ter"
+FAILED ...::test_f009_t0a_ter_existen_las_sentencias_de_m16c
+FAILED ...::test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo[M16c_reglas]  (y las otras 2)
+FAILED ...::test_f009_t0a_ter_m16c_construye_el_codigo_con_la_naturaleza_de_la_linea_y_la_del_producto
+FAILED ...::test_f009_t0a_ter_m16c_la_regla_exige_que_centro_y_codigo_identifiquen_una_sola_caa
+FAILED ...::test_f009_t0a_ter_m16c_vinculadas_usa_la_linea_del_contrato
+FAILED ...::test_f009_t0a_ter_m16_pasa_los_grupos_y_el_generico_de_las_naturalezas
+FAILED ...::test_f009_t0a_ter_lectura_m16c_regla_escribible_y_manda_la_linea
+FAILED ...::test_f009_t0a_ter_lectura_m16c_en_el_limite_del_umbral[95-True]  (y [94-False])
+FAILED ...::test_f009_t0a_ter_lectura_m16c_manda_el_producto_si_acierta_mas
+FAILED ...::test_f009_t0a_ter_lecturas_m16c_distinguen_sin_medicion_de_cero_filas
+FAILED ...::test_f009_t0a_ter_lectura_de_las_naturalezas_de_ma9999
+FAILED ...::test_f009_t0a_ter_lectura_del_control_con_las_vinculadas
+FAILED ...::test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio[M16c_reglas]  (y las otras 2)
+FAILED ...::test_f009_t0a_ter_main_solo_m16_con_m16c
+19 failed, 374 deselected in 2.24s
+E  KeyError: 'M16c_reglas' · AttributeError: ... no attribute 'UMBRAL_REGLA_ESCRIBIBLE' · ... 'lectura_m16c' (×4)
+```
+
+(«(y …)» agrupa casos que la salida listaba uno a uno.) Tras el código: `402 passed`.
+
+Ciclo 1 (`-k "t0a_ter_c1"`):
+
+```
 E   assert "cf.emp = c.emp AND ISNULL(nl.cuacomcod, '') <> '' AND RTRIM(LTRIM(cf.cod)) = RTRIM(LTRIM(nl.cuacomcod)) AND w.cod IS NULL" in 'SELECT x.grupo, ...
 E   AssertionError: assert ('AS regla_linea_centro,' in 'SELECT TOP 15 nl.cod AS nat_cod, ...
-E   AssertionError: assert 'caaide informado 50 de 100 (50.0 %)' in 'Control con las vinculadas (100 líneas de contrato): ctrpro.caaide = ... 49 de 100 (49.0 %); con el centro ...
+E   AssertionError: assert 'caaide informado 50 de 100 (50.0 %)' in 'Control con las vinculadas (100 líneas de contrato): ctrpro.caaide = ... 49 de 100 (49.0 %); ...
 FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_la_cuenta_exige_la_empresa_del_albaran_y_un_solo_codigo
 FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_naturalezas_miden_tambien_la_variante_centro
 FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_el_control_cuenta_solo_las_lineas_de_contrato_con_caa
 3 failed, 402 deselected in 0.36s
 ```
 
-Tras el código: `405 passed, 1 warning in 3.88s`; ruff limpio (por defecto y E2/W/E7/F).
+Tras el código: `405 passed`. Ampliación (`-k "t0a_ter_amp"`):
 
-## Salida real de `bash harness/init.sh`
+```
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_ter_amp"
+FAILED ...::test_f009_t0a_ter_amp_sentencias_parametrizadas_sin_isnull_negativo[M14c_mov_prepma]  (y M14c_sin_mov, M16c_numemp)
+FAILED ...::test_f009_t0a_ter_amp_xa9999_se_mide_y_concluye_como_ma9999_y_qa9999
+FAILED ...::test_f009_t0a_ter_amp_m14c_compara_con_el_mov_anterior_por_indice
+FAILED ...::test_f009_t0a_ter_amp_m14_pasa_la_ventana_de_un_mes_a_m14c
+FAILED ...::test_f009_t0a_ter_amp_lectura_m14c_anterior_resultante_o_pro
+FAILED ...::test_f009_t0a_ter_amp_lecturas_distinguen_sin_medicion_de_cero_filas
+FAILED ...::test_f009_t0a_ter_amp_un_fallo_de_m14c_no_pierde_el_bloque[M14c_mov_prepma]  (y [M14c_sin_mov])
+FAILED ...::test_f009_t0a_ter_amp_numemp_de_las_naturalezas_de_la_empresa_1
+FAILED ...::test_f009_t0a_ter_amp_main_con_la_lista_de_t0b_ter
+12 failed, 405 deselected in 3.63s
+E  AssertionError: assert ('XA9999' in ('MA9999', 'SM9999', 'SB9999', 'QA9999'))
+E  AttributeError: ... no attribute 'UMBRAL_REGLA_PREPMA' · ... 'lectura_m14c' · KeyError: 'M14c_mov_prepma' (×4)
+E  KeyError: 'M14c_sin_mov' (×2) · KeyError: 'M16c_numemp' (×2) · AssertionError: (hipótesis a)
+```
+
+Tras el código: 3 fallos del ajuste de fixture de arriba; corregido, `426 passed, 1 warning in 2.61s`.
+ruff limpio en los dos ficheros (por defecto y `--preview --select E2,W,E7,F`).
+
+## Trazabilidad (encargo → test, prefijo `test_f009_t0a_ter_`)
+
+| Punto | Test |
+|---|---|
+| Regla caa (composición, línea/producto × obra/centro, caa única) | `m16c_construye_el_codigo...`, `m16c_la_regla_exige_que_centro_y_codigo...` |
+| Cuenta única por empresa (ciclo 1, P3) | `c1_la_cuenta_exige_la_empresa_del_albaran_y_un_solo_codigo` |
+| Naturalezas MA9999 (con centro) y control vinculadas (con caaide) | `lectura_de_las_naturalezas...`, `c1_naturalezas_miden...`, `lectura_del_control...`, `c1_el_control_cuenta...` |
+| Umbrales con nombre y límites | `lectura_m16c_en_el_limite_del_umbral[95/94]`, `amp_lectura_m14c_anterior_resultante_o_pro` (95 justo) |
+| M14c: mov anterior por índice, ventana, sin mov | `amp_m14c_compara_con_el_mov_anterior_por_indice`, `amp_m14_pasa_la_ventana...` |
+| XA9999 en M9, M11 y M16 | `amp_xa9999_se_mide_y_concluye_como_ma9999_y_qa9999` |
+| numemp (P2) | `amp_numemp_de_las_naturalezas_de_la_empresa_1` |
+| Sin medición ≠ cero filas; el bloque sigue | `lecturas_m16c_distinguen...`, `un_fallo_de_m16c...` (×3), `amp_lecturas_distinguen...`, `amp_un_fallo_de_m14c...` (×2) |
+| `?`, sin literales, sin `ISNULL(…, -1)`, guardia real, error 130 | `m16c_va_parametrizada...` (×3), `amp_sentencias_parametrizadas...` (×3) y los parametrizados sobre todo `SQL` |
+| `--solo M16` y `--solo M9 M14 M16` | `main_solo_m16_con_m16c`, `amp_main_con_la_lista_de_t0b_ter` |
+
+## Salida real de `bash harness/init.sh` (tras la ampliación)
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2138 passed, 1 skipped, 1 warning in 114.65s (0:01:54)          (tras el ciclo 1)
+2159 passed, 1 skipped, 1 warning in 72.14s (0:01:12)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 98.6% de 962 líneas cambiadas cubiertas (949/962, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.5% de 951 líneas cambiadas cubiertas (937/951, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 250/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
 ```
 
-## Comando para el humano (PowerShell 5.1)
+## Comando para el humano (PowerShell 5.1) · T0b-ter
 
 ```powershell
 Set-Location C:\Users\pgris\PycharmProjects\sigrid-api
 git switch feature/F-009-alta-albaran-compra
-& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M16
+& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M9 M14 M16
 ```
 
 - Solo lecturas por `POST /api/sql/read`; credenciales del entorno o del `.env`, nunca impresas.
-- Repite M16 y M16b (unos segundos) y añade M16c. Se mira en la CONCLUSIÓN: las líneas «M16c MA9999 /
-  …», «M16c TOTAL …», «M16c Hipótesis M16c …», «M16c Naturalezas …» y «M16c Control …».
-- Si sale «SIN MEDICIÓN», se repite `--solo M16`; no relanzar justo tras un corte (obs. a de T0a-bis).
-- El fichero `%TEMP%\f009_t0_<fecha>.txt` lleva datos de negocio (códigos y resúmenes de naturalezas,
-  muestra de M16b): **se pega entero** en la conversación y **no se versiona**.
+- Se mira en la CONCLUSIÓN: «XA9999 emp 1: …» (M9), «M14c mov.prepma …» y «M14c línea sin mov …» (M14),
+  «M16c … / TOTAL / Hipótesis / Naturalezas / Control / numemp …» (M16), y XA9999 en M16b/M16c.
+- **El IVA y L8b de XA9999 son de M11**, que esa lista no lanza: para medirlos, añadir `M11`
+  (`--solo M9 M11 M14 M16`; M11 va por ventana corta desde T0a-bis).
+- Si sale «SIN MEDICIÓN», se repite ese bloque con `--solo Mn`; no relanzar justo tras un corte.
+- El fichero `%TEMP%\f009_t0_<fecha>.txt` lleva datos de negocio: **se pega entero** y no se versiona.
 
 ## Qué queda fuera y qué falta
 
 - Fuera: ejecutar el script (humano); volcar el resultado en la spec (spec-author); retirar script y
-  test antes de T1 (N3); el timeout de `sql/read` (observación a de T0a-bis).
-- MANUAL pendiente: la ejecución de `--solo M16` por el humano.
+  test antes de T1 (N3); el timeout de `sql/read` (obs. a de T0a-bis).
+- MANUAL pendiente: T0b-ter (`--solo M9 M14 M16`, o con M11 si se quiere el IVA de XA9999).
+- `pro.prepma` es el valor de hoy, no el del momento del `mov`: un acierto bajo frente a él no descarta
+  del todo la hipótesis (b) en productos que cambiaron después; la lectura solo la proclama si llega al 95 %.
 
 ## Evidencias
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 405 pasan (antes 374; 402 en la primera entrega), 3,88 s |
-| Suite completa | 2138 passed, 1 skipped, 114,65 s |
-| Cobertura de líneas cambiadas | 98,6 % (949/962), `PUERTA COBERTURA` de init.sh |
+| Tests de la prueba de humo | 426 pasan (antes 374), 2,61 s |
+| Suite completa | 2159 passed, 1 skipped, 72,14 s |
+| Cobertura de líneas cambiadas | 98,5 % (937/951), `PUERTA COBERTURA` de init.sh |
 | Mutación | No aplica: script de mediciones desechable que se retira antes de T1 (N3, decisión del humano); no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |

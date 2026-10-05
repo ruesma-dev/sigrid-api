@@ -20,6 +20,7 @@ Uso:
     python -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14 M16 M17 M18   # repetición T0b
     python -m scripts.medir_f009_t0 --solo M9 M11 M14 M16 M17                  # segunda pasada (T0a-bis)
     python -m scripts.medir_f009_t0 --solo M16                                 # M16c (T0a-ter)
+    python -m scripts.medir_f009_t0 --solo M9 M14 M16                          # T0b-ter (M14c, XA9999, numemp)
     python -m scripts.medir_f009_t0 --salida C:\\ruta\\fuera\\del\\repo.txt
 
 Resultado: por pantalla y en un fichero de %TEMP% (`f009_t0_<fecha>.txt`), que
@@ -49,8 +50,9 @@ TIMEOUT_PESADO_S = 200          # el balanceador corta a 230 s
 MUESTRA_DEVOLUCIONES = 20
 MUESTRA_FECHA_ATRASADA = 3
 COD_ALBARAN_API = "AC26/15951"  # creado por la API en junio (desde contrato)
-PRODUCTOS_GENERICOS = ("MA9999", "SM9999", "SB9999", "QA9999")
-LISTA_BLANCA_GENERICOS = ("MA9999", "QA9999")   # spec v6: M11 mide y concluye cada uno por separado
+PRODUCTOS_GENERICOS = ("MA9999", "SM9999", "SB9999", "QA9999", "XA9999")
+# Spec v6/v7: M11 mide y concluye cada uno por separado; XA9999, P5 de la v7 (lista blanca de despliegue).
+LISTA_BLANCA_GENERICOS = ("MA9999", "QA9999", "XA9999")
 LISTA_DE_RESETEO = (
     "fec", "pla", "refent", "cod2", "dncide", "dncproide", "anades", "serdes",
     "parcandes", "med", "canmed", "item", "pac", "desesp", "edilin", "texcom",
@@ -98,6 +100,7 @@ _CON_MOV = (
 # bit). Ciclo 1 de revisión de T0a-bis: se convierten antes a int.
 _TIPMOV, _TIPINV = "COALESCE(CAST(r.tipmov AS int), -1)", "COALESCE(CAST(r.tipinv AS int), -1)"
 _M11_LINEAS = "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide"
+_TOL_PRECIO = "0.0001"   # M14c: la de M14_prepma (valores copiados, no recalculados)
 # T0a-bis, M16b: grupo de producto (cada genérico de la empresa EMPRESA_GENERICOS por separado y «resto»).
 # Lleva `?`: se calcula en una tabla derivada y se agrupa por su alias (repetir la expresión con otros
 # `?` en el GROUP BY no lo aceptaría SQL Server).
@@ -210,6 +213,7 @@ VENTANA_M11 = (20260701, 20260930)
 DESDE_M14B, DESDE_LAG_M14B = 20260901, 20260101   # M14b: albaranes desde 2026-09, el anterior desde 2026
 EMPRESA_GENERICOS = 1        # M16b: los genéricos de la empresa 1, cada uno por separado
 UMBRAL_REGLA_ESCRIBIBLE = 0.95   # M16c: «≥ 95 % ⇒ REGLA escribible» (encargo de T0a-ter)
+UMBRAL_REGLA_PREPMA = 0.95       # M14c: «≥ 95 % ⇒ ese es el valor de prepma» (ampliación de T0a-ter, P1)
 GENERICO_NATURALEZAS_M16C = "MA9999"   # M16c: qué naturalezas eligen los usuarios en el MA9999 de la empresa 1
 REINTENTOS_INTERBLOQUEO = 2  # error 1205 de SQL Server (transitorio): se reintenta con espera creciente
 ESPERA_INTERBLOQUEO_S = 5
@@ -462,6 +466,37 @@ SQL: dict[str, str] = {
         "AS igual_prepma_del_mov FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide "
         "JOIN dbo.mov m ON m.docide = d.docide AND m.linide = d.ide WHERE c.tip = 14 AND c.fec >= 20260901"
     ),
+    # T0a-ter, M14c (P1 de la spec v7): ¿qué es mov.prepma? Frente al PMP del almacén ANTES de la entrada
+    # (almpma del mov anterior del mismo producto y almacén, por fechor e ide: índice pafhi), al PMP resultante
+    # (almpma del propio mov) y a pro.prepma. Ventana VENTANA_M9 y mov por `doclin`, como M9. El mov anterior
+    # va en un OUTER APPLY TOP 1 (tabla, no subconsulta escalar) dentro de una derivada: solo se suman banderas.
+    "M14c_mov_prepma": (
+        "SELECT COUNT(*) AS n, SUM(x.sin_anterior) AS sin_anterior, SUM(x.igual_anterior) AS igual_anterior, "
+        "SUM(x.igual_resultante) AS igual_resultante, SUM(x.igual_pro_prepma) AS igual_pro_prepma, "
+        "SUM(x.anterior_igual_resultante) AS anterior_igual_resultante, SUM(x.prepma_cero) AS prepma_cero, "
+        "SUM(x.linea_igual_mov) AS linea_igual_mov "
+        "FROM (SELECT CASE WHEN a.almpma IS NULL THEN 1 ELSE 0 END AS sin_anterior, "
+        f"CASE WHEN ABS(m.prepma - a.almpma) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS igual_anterior, "
+        f"CASE WHEN ABS(m.prepma - m.almpma) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS igual_resultante, "
+        f"CASE WHEN ABS(m.prepma - r.prepma) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS igual_pro_prepma, "
+        f"CASE WHEN ABS(a.almpma - m.almpma) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS anterior_igual_resultante, "
+        f"CASE WHEN ABS(ISNULL(m.prepma, 0)) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS prepma_cero, "
+        f"CASE WHEN ABS(d.prepma - m.prepma) < {_TOL_PRECIO} THEN 1 ELSE 0 END AS linea_igual_mov "
+        "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.mov m ON m.docide = d.docide "
+        "AND m.linide = d.ide LEFT JOIN dbo.pro r ON r.ide = d.proide "
+        "OUTER APPLY (SELECT TOP 1 p.almpma FROM dbo.mov p WHERE p.proide = m.proide AND p.almide = m.almide "
+        "AND (p.fechor < m.fechor OR (p.fechor = m.fechor AND p.ide < m.ide)) ORDER BY p.fechor DESC, p.ide DESC) a "
+        f"{_M9_VENTANA} AND m.doctip = 14) x"
+    ),
+    # Líneas SIN mov de la misma ventana (H20: las de pro.tipmov 0): dcapro.prepma frente a 0 y a pro.prepma.
+    "M14c_sin_mov": (
+        f"SELECT {_TIPMOV} AS tipmov, COUNT(*) AS n, "
+        f"SUM(CASE WHEN ABS(ISNULL(d.prepma, 0)) < {_TOL_PRECIO} THEN 1 ELSE 0 END) AS prepma_cero, "
+        f"SUM(CASE WHEN ISNULL(r.prepma, 0) <> 0 AND ABS(d.prepma - r.prepma) < {_TOL_PRECIO} THEN 1 ELSE 0 END) "
+        "AS igual_pro_prepma, SUM(CASE WHEN ISNULL(r.prepma, 0) = 0 THEN 1 ELSE 0 END) AS pro_prepma_cero "
+        f"FROM dbo.con c {_M9_LINEAS_Y_MOV} LEFT JOIN dbo.pro r ON r.ide = d.proide {_M9_VENTANA} AND m.ide IS NULL "
+        f"GROUP BY {_TIPMOV} ORDER BY n DESC"
+    ),
     "M14_api": "SELECT ide, cod FROM dbo.con WHERE tip = 14 AND cod = ?",
     "M14_con": "SELECT * FROM dbo.con WHERE ide IN ({in})",
     "M14_dca": "SELECT * FROM dbo.dca WHERE ide IN ({in})",
@@ -662,6 +697,18 @@ SQL: dict[str, str] = {
         f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_UNE_CUA_REPETIDAS} "
         f"{_SIN_VINCULAR_DESDE_2025}) x "
         "GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
+    ),
+    # Ampliación de T0a-ter, P2: auxpronat.numemp de las naturalezas de la línea en las sin vincular de la
+    # empresa del parámetro, desde 2025. Informativa. numemp es Entero (no Byte).
+    "M16c_numemp": (
+        "SELECT x.clase, COUNT(*) AS lineas, COUNT(DISTINCT x.natide) AS naturalezas, "
+        "SUM(x.igual_empresa_obra) AS igual_empresa_obra "
+        "FROM (SELECT CASE WHEN nl.ide IS NULL THEN 'sin_naturaleza' WHEN ISNULL(nl.numemp, 0) = 0 THEN 'cero' "
+        "WHEN nl.numemp = c.emp THEN 'igual_empresa' ELSE 'otra_empresa' END AS clase, d.natide, "
+        "CASE WHEN nl.numemp = oc.emp THEN 1 ELSE 0 END AS igual_empresa_obra "
+        "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide LEFT JOIN dbo.auxpronat nl ON nl.ide = d.natide "
+        f"LEFT JOIN dbo.con oc ON oc.ide = d.obride {_SIN_VINCULAR_DESDE_2025} AND c.emp = ?) x "
+        "GROUP BY x.clase ORDER BY x.clase"
     ),
     # Qué naturalezas ponen los usuarios en las líneas del genérico (parámetros: empresa y código).
     "M16c_naturalezas_ma": (
@@ -1385,10 +1432,12 @@ def m13(c: ClienteLectura) -> Informe:
 
 
 def m14(c: ClienteLectura) -> Informe:
-    inf = Informe("M14", "diff de columnas frente a AC26/15951 (API) y columnas de la dcapro sin vincular")
+    inf = Informe("M14", "diff de columnas frente a AC26/15951 (API), columnas de la dcapro sin vincular y "
+                         "valor de prepma (M14c)")
     # T0 se ejecuta una sola vez (H28): si una parte falla, se anota y las demás siguen.
     partes = (("comparación con la API", _m14_frente_a_la_api), ("valores de las sin vincular", _m14_sv_valores),
-              ("arrastre desde la plantilla", _m14_arrastre), ("pago del albarán anterior", _m14b_pago))
+              ("arrastre desde la plantilla", _m14_arrastre), ("pago del albarán anterior", _m14b_pago),
+              ("prepma del mov (M14c)", _m14c_prepma))
     for nombre, parte in partes:
         try:
             parte(c, inf)
@@ -1531,6 +1580,69 @@ def _m14b_pago(c: ClienteLectura, inf: Informe) -> None:
     if r:
         for texto in lectura_m14b(r[0]):
             inf.concluir(texto)
+
+
+def _veredicto_m14c(f: dict[str, Any]) -> str:
+    n, base = _num(f.get("n")), _num(f.get("n")) - _num(f.get("sin_anterior"))
+    anterior = _cumple(_num(f.get("igual_anterior")), base, UMBRAL_REGLA_PREPMA)
+    resultante = _cumple(_num(f.get("igual_resultante")), n, UMBRAL_REGLA_PREPMA)
+    if anterior and resultante:
+        return "⇒ anterior y resultante a la vez: no discrimina (mirar las que difieren)."
+    if anterior:
+        return ("⇒ mov.prepma = PMP vigente ANTES de la entrada (hipótesis a): R21 = almpma del mov anterior del "
+                "mismo producto y almacén.")
+    if resultante:
+        return "⇒ mov.prepma = PMP RESULTANTE (almpma del propio mov)."
+    if _cumple(_num(f.get("igual_pro_prepma")), n, UMBRAL_REGLA_PREPMA):
+        return "⇒ mov.prepma = pro.prepma (hipótesis b) ⇒ PARADA: F-009 no escribe pro (R25)."
+    return f"⇒ ninguna llega al {UMBRAL_REGLA_PREPMA:.0%}: no concluyente.".replace("%", " %")
+
+
+def lectura_m14c(movs: Filas | None, sin_mov: Filas | None) -> list[str]:
+    """Ampliación de T0a-ter, M14c (P1): qué valor es mov.prepma y cuál lleva dcapro.prepma en la línea sin mov.
+    None = no se pudo leer (SIN MEDICIÓN); [] o n = 0 = cero filas."""
+    salida: list[str] = []
+    f = (movs or [{}])[0]
+    n = _num(f.get("n"))
+    if movs is None:
+        salida.append(f"M14c mov.prepma: {sin_medicion('M14c_mov_prepma', 'M14')} ⇒ no se concluye qué valor es.")
+    elif n <= 0:
+        salida.append("M14c mov.prepma: cero filas (ningún mov de albarán en la ventana) ⇒ no se concluye.")
+    else:
+        base = n - _num(f.get("sin_anterior"))
+        salida.append(
+            f"M14c mov.prepma ({n:.0f} mov de albarán): = PMP vigente antes de la entrada "
+            f"{_pct(_num(f.get('igual_anterior')), base)} (sin mov anterior: {_num(f.get('sin_anterior')):.0f}); "
+            f"= PMP resultante {_pct(_num(f.get('igual_resultante')), n)}; = pro.prepma "
+            f"{_pct(_num(f.get('igual_pro_prepma')), n)}; anterior = resultante (no discriminan) "
+            f"{_pct(_num(f.get('anterior_igual_resultante')), n)}; mov.prepma = 0 {_pct(_num(f.get('prepma_cero')), n)}; "
+            f"dcapro.prepma = mov.prepma {_pct(_num(f.get('linea_igual_mov')), n)} {_veredicto_m14c(f)}")
+    if sin_mov is None:
+        salida.append(f"M14c línea sin mov: {sin_medicion('M14c_sin_mov', 'M14')} ⇒ no se concluye.")
+        return salida
+    total = _suma(sin_mov, "n")
+    if total <= 0:
+        salida.append("M14c línea sin mov: cero filas (todas las líneas de la ventana tienen mov).")
+        return salida
+    cero, pro = _suma(sin_mov, "prepma_cero"), _suma(sin_mov, "igual_pro_prepma")
+    if _cumple(cero, total, UMBRAL_REGLA_PREPMA):
+        veredicto = "⇒ la línea sin mov lleva prepma 0."
+    elif _cumple(pro, total, UMBRAL_REGLA_PREPMA):
+        veredicto = "⇒ la línea sin mov lleva pro.prepma."
+    else:
+        veredicto = "⇒ no concluyente."
+    salida.append(f"M14c línea sin mov ({total:.0f} líneas; con pro.tipmov 0: {_suma(sin_mov, 'n', tipmov=0):.0f}): "
+                  f"dcapro.prepma = 0 {_pct(cero, total)}; = pro.prepma (≠ 0) {_pct(pro, total)} {veredicto}")
+    return salida
+
+
+def _m14c_prepma(c: ClienteLectura, inf: Informe) -> None:
+    kw = {"max_rows": 10, "timeout_s": TIMEOUT_PESADO_S}
+    movs = _leer_tabla(c, inf, "M14c_mov_prepma", "M14c: mov.prepma frente al PMP anterior, al resultante y a pro",
+                       list(VENTANA_M9), **kw)
+    sin_mov = _leer_tabla(c, inf, "M14c_sin_mov", "M14c: dcapro.prepma de las líneas sin mov", list(VENTANA_M9), **kw)
+    for texto in lectura_m14c(movs, sin_mov):
+        inf.concluir(texto)
 
 
 def m15(c: ClienteLectura) -> Informe:
@@ -1854,6 +1966,31 @@ def lectura_m16c_vinculadas(filas: Filas | None) -> str:
                "la caa del contrato NO sigue la regla (no sirve de control)."))
 
 
+def lectura_m16c_numemp(filas: Filas | None) -> str:
+    """Ampliación de T0a-ter, P2 (informativa): ¿«naturaleza de la empresa» = auxpronat.numemp?"""
+    cab = f"numemp de las naturalezas de la línea (sin vincular, empresa {EMPRESA_GENERICOS}, desde 2025)"
+    if filas is None:
+        return f"{cab}: {sin_medicion('M16c_numemp', 'M16')}."
+    n = _suma(filas, "lineas")
+    if n <= 0:
+        return f"{cab}: cero filas (ninguna línea)."
+
+    def clase(nombre: str) -> str:
+        return (f"{_pct(_suma(filas, 'lineas', clase=nombre), n)}, "
+                f"{_suma(filas, 'naturalezas', clase=nombre):.0f} naturalezas")
+
+    igual, cero = _suma(filas, "lineas", clase="igual_empresa"), _suma(filas, "lineas", clase="cero")
+    if _cumple(igual, n, UMBRAL_REGLA_ESCRIBIBLE):
+        veredicto = "numemp = empresa: la validación por numemp es viable"
+    elif _cumple(igual + cero, n, UMBRAL_REGLA_ESCRIBIBLE):
+        veredicto = "numemp en {0, empresa}: validar así, no por igualdad"
+    else:
+        veredicto = "numemp no identifica la empresa: la validación pasa a «existe y sin baja»"
+    return (f"{cab} ({n:.0f} líneas): = empresa del albarán {clase('igual_empresa')}; 0: {clase('cero')}; "
+            f"otra empresa: {clase('otra_empresa')}; sin naturaleza: {clase('sin_naturaleza')}; = empresa de la "
+            f"obra {_pct(_suma(filas, 'igual_empresa_obra'), n)} ⇒ {veredicto} (informativa, P2).")
+
+
 def _m16c(c: ClienteLectura, inf: Informe, grupos: list[Any]) -> None:
     kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
     reglas = _leer_tabla(c, inf, "M16c_reglas", "M16c: regla del código de la caa y de la cuenta (sin vincular)",
@@ -1865,6 +2002,9 @@ def _m16c(c: ClienteLectura, inf: Informe, grupos: list[Any]) -> None:
     inf.concluir("M16c " + lectura_m16c_naturalezas(nat))
     vinc = _leer_tabla(c, inf, "M16c_vinculadas", "M16c: control con la línea de contrato (vinculadas)", grupos, **kw)
     inf.concluir("M16c " + lectura_m16c_vinculadas(vinc))
+    numemp = _leer_tabla(c, inf, "M16c_numemp", "M16c: numemp de las naturalezas de la línea (P2)",
+                         [EMPRESA_GENERICOS], **kw)
+    inf.concluir("M16c " + lectura_m16c_numemp(numemp))
 
 
 def m16(c: ClienteLectura) -> Informe:

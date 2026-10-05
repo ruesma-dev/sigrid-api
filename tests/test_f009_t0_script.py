@@ -1012,7 +1012,7 @@ def test_f009_t0a_ter_existen_las_sentencias_de_m16c() -> None:
 def test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo(nombre: str) -> None:
     sql = t0.SQL[nombre]
     assert "?" in sql and "{" not in sql, nombre
-    for literal in ("MA9999", "QA9999", "SM9999", "SB9999"):
+    for literal in ("MA9999", "QA9999", "SM9999", "SB9999", "XA9999"):
         assert literal not in sql, (nombre, literal)
     assert ", -1)" not in sql, nombre  # nada de ISNULL(..., -1) (columnas Byte, ciclo 1 de T0a-bis)
 
@@ -1167,7 +1167,7 @@ def test_f009_t0a_ter_lectura_del_control_con_las_vinculadas() -> None:
 
 @pytest.mark.parametrize("rota", _NUEVAS_T0A_TER)
 def test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio(rota: str) -> None:
-    texto = t0.m16(_rompe(rota, _datos_ter())).texto()  # type: ignore[arg-type]
+    texto = t0.m16(_rompe(rota, _datos_ampliacion())).texto()  # type: ignore[arg-type]  (con M16c_numemp)
     assert f"{rota} no se pudo leer (ReadTimeout" in texto and f"{rota} SIN MEDICIÓN" in texto
     assert texto.count("no se pudo leer") == 1 and "cero filas" not in texto
     assert "Orden de R15" in texto and "dcaproana" in texto  # lo de después sigue
@@ -1184,4 +1184,137 @@ def test_f009_t0a_ter_main_solo_m16_con_m16c(tmp_path: Path, monkeypatch: pytest
     for esperado in ("M16c MA9999 / con_partida (1000 líneas): caa ⇒ REGLA escribible",
                      "M16c Naturalezas de la línea en MA9999", "M16c Control con las vinculadas",
                      "M16c Hipótesis M16c"):
+        assert esperado in texto, esperado
+
+
+# --- T0a-ter, ampliación del líder (T0b-ter = --solo M9 M14 M16): M14c (P1), XA9999 (P5) y numemp (P2) ---
+
+_NUEVAS_AMPLIACION = ("M14c_mov_prepma", "M14c_sin_mov", "M16c_numemp")
+
+_DATOS_AMPLIACION: dict[str, list[dict[str, Any]]] = {
+    "M14c_mov_prepma": [{"n": 1000, "sin_anterior": 20, "igual_anterior": 970, "igual_resultante": 40,
+                         "igual_pro_prepma": 10, "anterior_igual_resultante": 30, "prepma_cero": 0,
+                         "linea_igual_mov": 1000}],
+    "M14c_sin_mov": [{"tipmov": 0, "n": 300, "prepma_cero": 297, "igual_pro_prepma": 0, "pro_prepma_cero": 300},
+                     {"tipmov": 1, "n": 10, "prepma_cero": 10, "igual_pro_prepma": 0, "pro_prepma_cero": 5}],
+    "M16c_numemp": [{"clase": "cero", "lineas": 900, "naturalezas": 40, "igual_empresa_obra": 0},
+                    {"clase": "igual_empresa", "lineas": 50, "naturalezas": 3, "igual_empresa_obra": 50},
+                    {"clase": "otra_empresa", "lineas": 50, "naturalezas": 2, "igual_empresa_obra": 0}],
+}
+
+
+def _datos_ampliacion() -> dict[str, list[dict[str, Any]]]:
+    return {**_datos_ter(), **_DATOS_AMPLIACION}
+
+
+@pytest.mark.parametrize("nombre", _NUEVAS_AMPLIACION)
+def test_f009_t0a_ter_amp_sentencias_parametrizadas_sin_isnull_negativo(nombre: str) -> None:
+    import re
+
+    sql = t0.SQL[nombre]
+    assert "?" in sql and "{" not in sql and "IN (SELECT" not in sql.upper(), nombre
+    for literal in t0.PRODUCTOS_GENERICOS:
+        assert literal not in sql, (nombre, literal)
+    assert not re.search(r"ISNULL\([^()]*,\s*-1\)", sql), nombre
+
+
+def test_f009_t0a_ter_amp_xa9999_se_mide_y_concluye_como_ma9999_y_qa9999() -> None:
+    assert "XA9999" in t0.PRODUCTOS_GENERICOS and t0.LISTA_BLANCA_GENERICOS == ("MA9999", "QA9999", "XA9999")
+    productos = [{"ide": 1, "cod": "MA9999", "emp": 1}, {"ide": 9, "cod": "XA9999", "emp": 1}]
+    cliente = _ClienteFalso({**_DATOS, "M11_productos": productos})
+    texto = t0.m11(cliente).texto()  # type: ignore[arg-type]
+    assert [p[-1] for k, p in cliente.llamadas if k == "M11_total_producto"] == [1, 9]
+    assert "XA9999 emp 1: L8b" in texto and "XA9999 emp 1 (ide 9): total de líneas" in texto
+    genericos = [{"cod": "XA9999", "emp": 1, "lineas": 20, "con_mov": 0}]
+    assert "XA9999 emp 1: NO genera mov (0 de 20" in " ".join(t0.lectura_m9([], genericos))
+    assert t0.SQL["M9_genericos"].count("?") == 2 + len(t0.PRODUCTOS_GENERICOS)
+    assert t0.SQL["M16c_reglas"].count("?") == 1 + len(t0.PRODUCTOS_GENERICOS)
+
+
+def test_f009_t0a_ter_amp_m14c_compara_con_el_mov_anterior_por_indice() -> None:
+    sql = t0.SQL["M14c_mov_prepma"]
+    assert "c.fec >= ? AND c.fec <= ?" in sql and "m.docide = d.docide AND m.linide = d.ide" in sql
+    assert ("OUTER APPLY (SELECT TOP 1 p.almpma FROM dbo.mov p WHERE p.proide = m.proide AND p.almide = m.almide "
+            "AND (p.fechor < m.fechor OR (p.fechor = m.fechor AND p.ide < m.ide)) ORDER BY p.fechor DESC, p.ide DESC) a"
+            ) in sql
+    assert "m.doctip = 14" in sql and "ABS(m.prepma - a.almpma)" in sql and "ABS(m.prepma - m.almpma)" in sql
+    assert "ABS(m.prepma - r.prepma)" in sql
+    for col in ("sin_anterior", "igual_anterior", "igual_resultante", "igual_pro_prepma", "anterior_igual_resultante",
+                "prepma_cero", "linea_igual_mov"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    sin = t0.SQL["M14c_sin_mov"]
+    assert "m.ide IS NULL" in sin and "COALESCE(CAST(r.tipmov AS int), -1)" in sin and "r.prepma" in sin
+    assert "c.fec >= ? AND c.fec <= ?" in sin and "m.docide = d.docide AND m.linide = d.ide" in sin
+
+
+def test_f009_t0a_ter_amp_m14_pasa_la_ventana_de_un_mes_a_m14c() -> None:
+    cliente = _ClienteFalso(_datos_ampliacion())
+    t0.m14(cliente)  # type: ignore[arg-type]
+    llamadas = dict(cliente.llamadas)
+    assert llamadas["M14c_mov_prepma"] == list(t0.VENTANA_M9) and llamadas["M14c_sin_mov"] == list(t0.VENTANA_M9)
+
+
+def test_f009_t0a_ter_amp_lectura_m14c_anterior_resultante_o_pro() -> None:
+    assert t0.UMBRAL_REGLA_PREPMA == 0.95
+    texto = " ".join(t0.lectura_m14c(_DATOS_AMPLIACION["M14c_mov_prepma"], _DATOS_AMPLIACION["M14c_sin_mov"]))
+    assert "= PMP vigente antes de la entrada 970 de 980 (99.0 %)" in texto
+    assert "⇒ mov.prepma = PMP vigente ANTES de la entrada (hipótesis a)" in texto
+    assert "M14c línea sin mov (310 líneas; con pro.tipmov 0: 300)" in texto
+    assert "dcapro.prepma = 0 307 de 310" in texto and "⇒ la línea sin mov lleva prepma 0" in texto
+
+    def fila(**kw: int) -> list[dict[str, Any]]:
+        base = {"n": 100, "sin_anterior": 0, "igual_anterior": 0, "igual_resultante": 0, "igual_pro_prepma": 0}
+        return [{**base, **kw}]
+
+    assert "⇒ mov.prepma = PMP RESULTANTE" in " ".join(t0.lectura_m14c(fila(igual_resultante=96), []))
+    assert "PARADA" in " ".join(t0.lectura_m14c(fila(igual_pro_prepma=99), []))
+    assert "no discrimina" in " ".join(t0.lectura_m14c(fila(igual_anterior=99, igual_resultante=99), []))
+    assert "no concluyente" in " ".join(t0.lectura_m14c(fila(igual_anterior=94, igual_resultante=5), []))
+    assert "(hipótesis a)" in " ".join(t0.lectura_m14c(fila(igual_anterior=95), []))  # límite: 95 % justo
+    pro = [{"tipmov": 0, "n": 100, "prepma_cero": 1, "igual_pro_prepma": 98}]
+    assert "⇒ la línea sin mov lleva pro.prepma" in " ".join(t0.lectura_m14c([], pro))
+
+
+def test_f009_t0a_ter_amp_lecturas_distinguen_sin_medicion_de_cero_filas() -> None:
+    rota = " ".join(t0.lectura_m14c(None, None))
+    assert "M14c_mov_prepma SIN MEDICIÓN" in rota and "M14c_sin_mov SIN MEDICIÓN" in rota and "cero filas" not in rota
+    vacia = " ".join(t0.lectura_m14c([], []))
+    assert vacia.count("cero filas") == 2 and "SIN MEDICIÓN" not in vacia and "hipótesis" not in vacia
+    assert "M16c_numemp SIN MEDICIÓN" in t0.lectura_m16c_numemp(None)
+    assert "cero filas" in t0.lectura_m16c_numemp([]) and "SIN MEDICIÓN" not in t0.lectura_m16c_numemp([])
+
+
+@pytest.mark.parametrize("rota", ["M14c_mov_prepma", "M14c_sin_mov"])
+def test_f009_t0a_ter_amp_un_fallo_de_m14c_no_pierde_el_bloque(rota: str) -> None:
+    texto = t0.m14(_rompe(rota, _datos_ampliacion())).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer (ReadTimeout" in texto and f"{rota} SIN MEDICIÓN" in texto
+    assert texto.count("no se pudo leer") == 1 and "acierta más el ALBARÁN ANTERIOR" in texto
+
+
+def test_f009_t0a_ter_amp_numemp_de_las_naturalezas_de_la_empresa_1() -> None:
+    sql = t0.SQL["M16c_numemp"]
+    assert "nl.numemp = c.emp" in sql and "c.emp = ?" in sql and "COUNT(DISTINCT x.natide)" in sql
+    assert "nl.numemp = oc.emp" in sql and "ISNULL(d.docoritip, 0) <> 44" in sql
+    cliente = _ClienteFalso(_datos_ampliacion())
+    texto = t0.m16(cliente).texto()  # type: ignore[arg-type]
+    assert dict(cliente.llamadas)["M16c_numemp"] == [t0.EMPRESA_GENERICOS]
+    lectura = t0.lectura_m16c_numemp(_DATOS_AMPLIACION["M16c_numemp"])
+    assert "(1000 líneas): = empresa del albarán 50 de 1000 (5.0 %), 3 naturalezas; 0: 900 de 1000" in lectura
+    assert "numemp en {0, empresa}" in lectura and "M16c numemp de las naturalezas" in texto
+    solo_igual = [{"clase": "igual_empresa", "lineas": 100, "naturalezas": 4, "igual_empresa_obra": 100}]
+    assert "= empresa: la validación por numemp es viable" in t0.lectura_m16c_numemp(solo_igual)
+    otra = [{"clase": "otra_empresa", "lineas": 100, "naturalezas": 4, "igual_empresa_obra": 0}]
+    assert "existe y sin baja" in t0.lectura_m16c_numemp(otra)
+
+
+def test_f009_t0a_ter_amp_main_con_la_lista_de_t0b_ter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ClienteFalso(_datos_ampliacion()))
+    salida = tmp_path / "t0bter.txt"
+    assert t0.main(["--solo", "M9", "M14", "M16", "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert all(f"=== {k} ·" in texto for k in ("M9", "M14", "M16"))
+    assert "SIN MEDICIÓN" not in texto and "no se pudo leer" not in texto and "ERROR" not in texto
+    for esperado in ("(hipótesis a)", "la línea sin mov lleva prepma 0", "M16c numemp de las naturalezas",
+                     "XA9999 emp 1: sin líneas en la ventana"):
         assert esperado in texto, esperado
