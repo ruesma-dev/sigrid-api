@@ -127,19 +127,13 @@ FAILED ...::test_f009_t0a_quater_m14_pasa_la_ventana_de_un_mes_a_m14d
 FAILED ...::test_f009_t0a_quater_lectura_m14d_arrastre_y_candidatas
 FAILED ...::test_f009_t0a_quater_lectura_m14d_en_el_limite_del_umbral[95-True]  (y [94-False])
 FAILED ...::test_f009_t0a_quater_lectura_m14d_sin_medicion_frente_a_cero_filas
-FAILED ...::test_f009_t0a_quater_m16d_sql_de_excepciones_y_candidatas
-FAILED ...::test_f009_t0a_quater_m16d_eleccion_por_obra_proveedor_y_usuario
-FAILED ...::test_f009_t0a_quater_m16_pasa_xa9999_y_ma9999_a_las_excepciones
+FAILED ...::test_f009_t0a_quater_m16d_sql_de_excepciones_y_candidatas  (y m16d_eleccion…, m16_pasa_xa9999…)
 FAILED ...::test_f009_t0a_quater_lecturas_m16d_maestro_excepciones_y_sufijos
-FAILED ...::test_f009_t0a_quater_lectura_m16d_candidatas
-FAILED ...::test_f009_t0a_quater_lectura_m16d_candidatas_en_el_limite[95-True]  (y [94-False])
+FAILED ...::test_f009_t0a_quater_lectura_m16d_candidatas  (y …_en_el_limite[95-True], [94-False])
 FAILED ...::test_f009_t0a_quater_lectura_m16d_eleccion_por_dimension
 FAILED ...::test_f009_t0a_quater_lecturas_m16d_sin_medicion_frente_a_cero_filas
-FAILED ...::test_f009_t0a_quater_m19_sql - KeyError:...
-FAILED ...::test_f009_t0a_quater_m19_pasa_los_parametros
-FAILED ...::test_f009_t0a_quater_lectura_m19_dnc - A...
-FAILED ...::test_f009_t0a_quater_lectura_m19_cod2_origen_y_vinculadas
-FAILED ...::test_f009_t0a_quater_lectura_m19_usuarios_y_api
+FAILED ...::test_f009_t0a_quater_m19_sql - KeyError:...  (y m19_pasa_los_parametros)
+FAILED ...::test_f009_t0a_quater_lectura_m19_dnc - A...  (y …_cod2_origen_y_vinculadas, …_usuarios_y_api)
 FAILED ...::test_f009_t0a_quater_lecturas_m19_sin_medicion_frente_a_cero_filas
 FAILED ...::test_f009_t0a_quater_un_fallo_no_pierde_el_bloque[m14-M14d_prepma_producto]  (y las otras 15)
 FAILED ...::test_f009_t0a_quater_main_con_la_lista_de_t0b_quater
@@ -174,14 +168,14 @@ M16d): con la fixture anterior, M16d devolvía cero filas legítimas y su texto 
 | Guardia real de `sql/read`, error 130, solo SELECT | los parametrizados previos sobre todo `SQL` (ya incluyen las 16 nuevas) |
 | `--solo M14 M16 M19` | `main_con_la_lista_de_t0b_quater` |
 
-## Salida real de `bash harness/init.sh`
+## Salida real de `bash harness/init.sh` (tras el commit `aa599f0`)
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2363 passed, 1 skipped, 1 warning in 75.86s (0:01:15)
+2363 passed, 1 skipped, 1 warning in 74.48s (0:01:14)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 98.4% de 881 líneas cambiadas cubiertas (867/881, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.9% de 1322 líneas cambiadas cubiertas (1307/1322, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 250/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
@@ -217,7 +211,7 @@ git switch feature/F-009-alta-albaran-compra
 | Evidencia | Valor real |
 |---|---|
 | Tests de la prueba de humo | 630 pasan (antes 426), 2,08 s |
-| Suite completa | 2363 passed, 1 skipped, 75,86 s |
-| Cobertura de líneas cambiadas | 98,4 % (867/881), `PUERTA COBERTURA` de init.sh |
+| Suite completa | 2363 passed, 1 skipped, 74,48 s |
+| Cobertura de líneas cambiadas | 98,9 % (1307/1322) tras el commit; antes de él, 98,4 % (867/881) |
 | Mutación | No aplica: script de mediciones desechable que se retira antes de T1 (N3, decisión del humano), como en T0a-ter; no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |
