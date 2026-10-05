@@ -153,8 +153,18 @@ def _regla_caa(nat: str, codigo: str, caa: str = "k", caa_cod: str = "kc", centr
             f"{_recorta(codigo + '.cod')} + '.' + SUBSTRING({gas}, CHARINDEX('.', {gas}) + 1, 24) AND u.cod IS NULL")
 
 
+# Ciclo 1 de revisión de T0a-ter: L15c busca la cua por (con.emp, cod). La cuenta de la línea solo cuenta como
+# acierto si es de la empresa del albarán y (empresa, código) no se repite entre las cua (`w`, como `u`).
+_CUA_REPETIDAS = (
+    "(SELECT c3.emp, RTRIM(LTRIM(c3.cod)) AS cod FROM dbo.cua a3 JOIN dbo.con c3 ON c3.ide = a3.ide "
+    "GROUP BY c3.emp, RTRIM(LTRIM(c3.cod)) HAVING COUNT(*) > 1)"
+)
+_UNE_CUA_REPETIDAS = f"LEFT JOIN {_CUA_REPETIDAS} w ON w.emp = cf.emp AND w.cod = RTRIM(LTRIM(cf.cod))"
+
+
 def _cuenta_es_cuacomcod(nat: str) -> str:
-    return f"ISNULL({nat}.cuacomcod, '') <> '' AND {_recorta('cf.cod')} = {_recorta(nat + '.cuacomcod')}"
+    return (f"cf.emp = c.emp AND ISNULL({nat}.cuacomcod, '') <> '' AND {_recorta('cf.cod')} = "
+            f"{_recorta(nat + '.cuacomcod')} AND w.cod IS NULL")
 
 
 def _sin_mod(nat: str) -> str:
@@ -629,7 +639,8 @@ SQL: dict[str, str] = {
         "SUM(x.linea_sin_punto) AS linea_sin_punto, SUM(x.linea_sin_naturaleza) AS linea_sin_naturaleza, "
         "SUM(x.producto_sin_mod) AS producto_sin_mod, SUM(x.linea_caaexicod) AS linea_caaexicod, "
         "SUM(x.producto_caaexicod) AS producto_caaexicod, SUM(x.caa_repetida) AS caa_repetida, "
-        "SUM(x.obra_igual_centro) AS obra_igual_centro "
+        "SUM(x.obra_igual_centro) AS obra_igual_centro, SUM(x.cua_repetida) AS cua_repetida, "
+        "SUM(x.cua_de_otra_empresa) AS cua_de_otra_empresa, SUM(x.caa_informada) AS caa_informada "
         f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, {_CON_SIN_PARTIDA} AS partida, "
         f"CASE WHEN {_regla_caa('nl', 'oc')} THEN 1 ELSE 0 END AS regla_linea_obra, "
         f"CASE WHEN {_regla_caa('nl', 'ec')} THEN 1 ELSE 0 END AS regla_linea_centro, "
@@ -644,14 +655,19 @@ SQL: dict[str, str] = {
         "CASE WHEN ISNULL(nl.caaexicod, '') <> '' THEN 1 ELSE 0 END AS linea_caaexicod, "
         "CASE WHEN ISNULL(nt.caaexicod, '') <> '' THEN 1 ELSE 0 END AS producto_caaexicod, "
         "CASE WHEN u.cod IS NULL THEN 0 ELSE 1 END AS caa_repetida, "
-        "CASE WHEN RTRIM(LTRIM(oc.cod)) = RTRIM(LTRIM(ec.cod)) THEN 1 ELSE 0 END AS obra_igual_centro "
-        f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_SIN_VINCULAR_DESDE_2025}) x "
+        "CASE WHEN RTRIM(LTRIM(oc.cod)) = RTRIM(LTRIM(ec.cod)) THEN 1 ELSE 0 END AS obra_igual_centro, "
+        "CASE WHEN w.cod IS NULL THEN 0 ELSE 1 END AS cua_repetida, "
+        "CASE WHEN cf.ide IS NOT NULL AND cf.emp <> c.emp THEN 1 ELSE 0 END AS cua_de_otra_empresa, "
+        f"CASE WHEN {_CAA_INFORMADA} THEN 1 ELSE 0 END AS caa_informada "
+        f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_UNE_CUA_REPETIDAS} "
+        f"{_SIN_VINCULAR_DESDE_2025}) x "
         "GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
     ),
     # Qué naturalezas ponen los usuarios en las líneas del genérico (parámetros: empresa y código).
     "M16c_naturalezas_ma": (
         "SELECT TOP 15 nl.cod AS nat_cod, nl.res AS nat_res, nl.caagascod, COUNT(*) AS lineas, "
         f"SUM(CASE WHEN {_regla_caa('nl', 'oc')} THEN 1 ELSE 0 END) AS regla_linea_obra, "
+        f"SUM(CASE WHEN {_regla_caa('nl', 'ec')} THEN 1 ELSE 0 END) AS regla_linea_centro, "
         f"SUM(CASE WHEN {_regla_caa('nt', 'oc')} THEN 1 ELSE 0 END) AS regla_producto_obra, "
         "SUM(CASE WHEN ISNULL(d.natide, 0) = ISNULL(r.natide, 0) THEN 1 ELSE 0 END) AS igual_producto "
         f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_SIN_VINCULAR_DESDE_2025} "
@@ -1737,6 +1753,9 @@ AVISOS_M16C: tuple[tuple[str, str], ...] = (
     ("producto_caaexicod", "en la del producto"),
     ("caa_repetida", "caa con (centro, código) repetido"),
     ("obra_igual_centro", "código de obra = código de centro"),
+    ("cua_repetida", "cua con (empresa, código) repetido"),
+    ("cua_de_otra_empresa", "cua de otra empresa"),
+    ("caa_informada", "caaide informado"),
 )
 _UMBRAL_M16C_TXT = f"{UMBRAL_REGLA_ESCRIBIBLE:.0%}".replace("%", " %")
 
@@ -1785,7 +1804,8 @@ def lectura_m16c(reglas: Filas | None) -> list[str]:
                   f"{'CONFIRMADA' if ok else 'NO confirmada'} en el total (con la de la línea {_pct(linea, n)}; "
                   f"con la del producto {_pct(producto, n)}).")
     salida.append(f"(REGLA escribible = ≥ {_UMBRAL_M16C_TXT} de las líneas. La de la caa exige caa.cenide = "
-                  "dcapro.cenide y que (centro, código) no se repita entre las caa.)")
+                  "dcapro.cenide y que (centro, código) no se repita entre las caa. La de la cuenta exige que la "
+                  "cua sea de la empresa del albarán y que (empresa, código) no se repita entre las cua.)")
     return salida
 
 
@@ -1803,8 +1823,11 @@ def lectura_m16c_naturalezas(filas: Filas | None) -> str:
 
     usadas = [f"{nombre(f)} {str(f.get('nat_res') or '').strip()} ({str(f.get('caagascod') or '').strip()}) "
               f"{_pct(_num(f.get('lineas')), total)}" for f in filas[:3]]
-    fallan = [f"{nombre(f)} {_pct(_num(f.get('regla_linea_obra')), _num(f.get('lineas')))}" for f in filas
-              if not _cumple(_num(f.get("regla_linea_obra")), _num(f.get("lineas")), UMBRAL_REGLA_ESCRIBIBLE)]
+    def linea(f: dict[str, Any]) -> float:   # ciclo 1, obs. (a): la mejor de las variantes obra y centro
+        return max(_num(f.get("regla_linea_obra")), _num(f.get("regla_linea_centro")))
+
+    fallan = [f"{nombre(f)} {_pct(linea(f), _num(f.get('lineas')))}" for f in filas
+              if not _cumple(linea(f), _num(f.get("lineas")), UMBRAL_REGLA_ESCRIBIBLE)]
     return (f"{cab}, TOP {len(filas)} ({total:.0f} líneas): las más usadas {', '.join(usadas)}; la regla de la "
             f"línea no llega al {_UMBRAL_M16C_TXT} en: {', '.join(fallan) or 'ninguna'}.")
 
@@ -1816,9 +1839,17 @@ def lectura_m16c_vinculadas(filas: Filas | None) -> str:
     if not filas:
         return "Control con las vinculadas: ninguna línea vinculada desde 2025 (cero filas)."
     n, obra, centro = (_suma(filas, k) for k in ("ctrpro", "regla_linea_obra", "regla_linea_centro"))
-    ok = _cumple(max(obra, centro), n, UMBRAL_REGLA_ESCRIBIBLE)
-    return (f"Control con las vinculadas ({n:.0f} líneas de contrato): ctrpro.caaide = obra.sufijo de caagascod de "
-            f"la naturaleza de la línea del contrato {_pct(obra, n)}; con el centro {_pct(centro, n)} ⇒ "
+    # Ciclo 1, obs. (c): una línea de contrato sin caaide no es un contraejemplo; la base son las informadas.
+    con_caa = any("caa_informada" in f for f in filas)
+    base = _suma(filas, "caa_informada") if con_caa else n
+    cab = f"Control con las vinculadas ({n:.0f} líneas de contrato): "
+    if con_caa:
+        cab += f"caaide informado {_pct(base, n)}; "
+    if base <= 0:
+        return cab + "ninguna con caaide informado ⇒ no sirve de control (sin contraejemplos)."
+    ok = _cumple(max(obra, centro), base, UMBRAL_REGLA_ESCRIBIBLE)
+    return (f"{cab}ctrpro.caaide = obra.sufijo de caagascod de la naturaleza de la línea del contrato "
+            f"{_pct(obra, base)}; con el centro {_pct(centro, base)} ⇒ "
             + ("la regla también explica las del contrato." if ok else
                "la caa del contrato NO sigue la regla (no sirve de control)."))
 

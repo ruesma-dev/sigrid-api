@@ -1043,6 +1043,48 @@ def test_f009_t0a_ter_m16c_la_regla_exige_que_centro_y_codigo_identifiquen_una_s
     assert "u.cenide = k.cenide AND u.cod = RTRIM(LTRIM(kc.cod))" in t0.SQL["M16c_reglas"]
 
 
+def test_f009_t0a_ter_c1_la_cuenta_exige_la_empresa_del_albaran_y_un_solo_codigo() -> None:
+    """Ciclo 1, cambio 1: L15c busca la cua por (con.emp, cod). La regla de la cuenta solo acierta si la cua
+    de la línea es de la empresa del albarán y (empresa, código) no se repite entre las cua."""
+    sql = t0.SQL["M16c_reglas"]
+    for nat in ("nl", "nt"):
+        assert (f"cf.emp = c.emp AND ISNULL({nat}.cuacomcod, '') <> '' AND RTRIM(LTRIM(cf.cod)) = "
+                f"RTRIM(LTRIM({nat}.cuacomcod)) AND w.cod IS NULL") in sql, nat
+    assert ("(SELECT c3.emp, RTRIM(LTRIM(c3.cod)) AS cod FROM dbo.cua a3 JOIN dbo.con c3 ON c3.ide = a3.ide "
+            "GROUP BY c3.emp, RTRIM(LTRIM(c3.cod)) HAVING COUNT(*) > 1) w "
+            "ON w.emp = cf.emp AND w.cod = RTRIM(LTRIM(cf.cod))") in sql
+    for col in ("cua_repetida", "cua_de_otra_empresa", "caa_informada"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+        assert col in dict(t0.AVISOS_M16C), col
+    assert sql.count("?") == 1 + len(t0.PRODUCTOS_GENERICOS)  # sin `?` nuevos: los parámetros cuadran
+    fila = [{"grupo": "MA9999", "partida": "con_partida", "n": 100, "regla_linea_obra": 99, "cueide_producto": 99,
+             "cua_repetida": 3, "cua_de_otra_empresa": 1, "caa_informada": 100}]
+    texto = " ".join(t0.lectura_m16c(fila))
+    assert "cua con (empresa, código) repetido 3 de 100" in texto and "cua de otra empresa 1 de 100" in texto
+    assert "caaide informado 100 de 100" in texto
+    assert "La de la cuenta exige que la cua sea de la empresa del albarán" in texto
+
+
+def test_f009_t0a_ter_c1_naturalezas_miden_tambien_la_variante_centro() -> None:
+    sql = t0.SQL["M16c_naturalezas_ma"]
+    assert "AS regla_linea_centro," in sql and "RTRIM(LTRIM(ec.cod)) + '.' + SUBSTRING(" in sql
+    filas = [{"nat_cod": "CEN", "nat_res": "Por centro", "caagascod": "MOD.X", "lineas": 50,
+              "regla_linea_obra": 0, "regla_linea_centro": 50}]
+    texto = t0.lectura_m16c_naturalezas(filas)
+    assert "no llega al 95 % en: ninguna" in texto  # gana el centro: no se señala la naturaleza
+
+
+def test_f009_t0a_ter_c1_el_control_cuenta_solo_las_lineas_de_contrato_con_caa() -> None:
+    filas = [{"grupo": "resto", "ctrpro": 100, "caa_informada": 50, "regla_linea_obra": 49, "regla_linea_centro": 10}]
+    texto = t0.lectura_m16c_vinculadas(filas)
+    assert "caaide informado 50 de 100 (50.0 %)" in texto
+    assert "obra.sufijo de caagascod de la naturaleza de la línea del contrato 49 de 50 (98.0 %)" in texto
+    assert "la regla también explica las del contrato" in texto
+    vacias = [{"grupo": "resto", "ctrpro": 100, "caa_informada": 0, "regla_linea_obra": 0, "regla_linea_centro": 0}]
+    sin_caa = t0.lectura_m16c_vinculadas(vacias)
+    assert "ninguna con caaide informado" in sin_caa and "NO sigue la regla" not in sin_caa
+
+
 def test_f009_t0a_ter_m16c_vinculadas_usa_la_linea_del_contrato() -> None:
     sql = t0.SQL["M16c_vinculadas"]
     assert "t.ide = d.linoriide" in sql and "d.docoritip = 44" in sql

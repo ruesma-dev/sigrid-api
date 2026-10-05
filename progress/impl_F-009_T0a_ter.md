@@ -143,15 +143,45 @@ corregirla, `402 passed, 1 warning in 2.19s`. ruff limpio en los dos ficheros (p
 | `?`, sin genéricos literales, sin `ISNULL(…, -1)` | `..._m16c_va_parametrizada_y_sin_isnull_con_literal_negativo` (×3) |
 | solo lectura, guardia real, error 130 | los parametrizados sobre todo `SQL` (`..._toda_sentencia_es_select...`, `..._el_guardia_de_lectura...`, `..._ninguna_sentencia_agrega_sobre_una_subconsulta`) |
 | `--solo M16` | `..._main_solo_m16_con_m16c` |
+| Ciclo 1: cuenta única por empresa, centro en naturalezas, control con caaide | `..._c1_la_cuenta_exige_la_empresa...`, `..._c1_naturalezas_miden_tambien_la_variante_centro`, `..._c1_el_control_cuenta_solo_las_lineas_de_contrato_con_caa` |
+
+## Ciclo 1 de revisión (`progress/review_F-009_T0a_ter.md`, CHANGES_REQUESTED)
+
+| Punto | Cambio |
+|---|---|
+| 1 Cuenta identificativa (P3 de la spec v7) | `cueide_linea/producto` exigen `cf.emp = c.emp` (la `cua` es de la empresa del albarán) y `w.cod IS NULL`, con `w` = (`emp`, código) repetidos entre las `cua` (`dbo.cua` ⨝ `dbo.con`, `GROUP BY c3.emp, RTRIM(LTRIM(c3.cod)) HAVING COUNT(*) > 1`), como `u` para la caa. Banderas informativas `cua_repetida` y `cua_de_otra_empresa` en `AVISOS_M16C`; la frase de cierre dice «La de la cuenta exige …». Sin `?` nuevos (5, 2 y 5; el test lo fija) |
+| obs. a | `M16c_naturalezas_ma` trae `regla_linea_centro`; `lectura_m16c_naturalezas` usa la mejor de obra y centro |
+| obs. b | `caa_informada` en `M16c_reglas` (aviso «caaide informado») |
+| obs. c | `lectura_m16c_vinculadas` muestra «caaide informado x de n» y mide la regla sobre las líneas de contrato **con** caaide; si no hay ninguna, «no sirve de control (sin contraejemplos)», nunca «NO sigue la regla» |
+
+`cua_de_otra_empresa` no la pedía la revisión: dice por qué falla la cuenta si las `cua` se comparten
+entre empresas (`CASE WHEN cf.ide IS NOT NULL AND cf.emp <> c.emp`, sin `ISNULL` con literal).
+La ampliación del líder (M14c, XA9999, `numemp`) llegó tras cerrar este ciclo: va en su propio commit.
+
+RED del ciclo (tests nuevos antes del código):
+
+```
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_ter_c1"
+E   AssertionError: nl
+E   assert "cf.emp = c.emp AND ISNULL(nl.cuacomcod, '') <> '' AND RTRIM(LTRIM(cf.cod)) = RTRIM(LTRIM(nl.cuacomcod)) AND w.cod IS NULL" in 'SELECT x.grupo, ...
+E   AssertionError: assert ('AS regla_linea_centro,' in 'SELECT TOP 15 nl.cod AS nat_cod, ...
+E   AssertionError: assert 'caaide informado 50 de 100 (50.0 %)' in 'Control con las vinculadas (100 líneas de contrato): ctrpro.caaide = ... 49 de 100 (49.0 %); con el centro ...
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_la_cuenta_exige_la_empresa_del_albaran_y_un_solo_codigo
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_naturalezas_miden_tambien_la_variante_centro
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_ter_c1_el_control_cuenta_solo_las_lineas_de_contrato_con_caa
+3 failed, 402 deselected in 0.36s
+```
+
+Tras el código: `405 passed, 1 warning in 3.88s`; ruff limpio (por defecto y E2/W/E7/F).
 
 ## Salida real de `bash harness/init.sh`
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2135 passed, 1 skipped, 1 warning in 94.18s (0:01:34)
+2138 passed, 1 skipped, 1 warning in 114.65s (0:01:54)          (tras el ciclo 1)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 98.4% de 830 líneas cambiadas cubiertas (817/830, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.6% de 962 líneas cambiadas cubiertas (949/962, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 250/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
@@ -168,8 +198,7 @@ git switch feature/F-009-alta-albaran-compra
 - Solo lecturas por `POST /api/sql/read`; credenciales del entorno o del `.env`, nunca impresas.
 - Repite M16 y M16b (unos segundos) y añade M16c. Se mira en la CONCLUSIÓN: las líneas «M16c MA9999 /
   …», «M16c TOTAL …», «M16c Hipótesis M16c …», «M16c Naturalezas …» y «M16c Control …».
-- Si sale «SIN MEDICIÓN», se repite `--solo M16`. No relanzar justo después de un corte (observación a
-  de la revisión de T0a-bis).
+- Si sale «SIN MEDICIÓN», se repite `--solo M16`; no relanzar justo tras un corte (obs. a de T0a-bis).
 - El fichero `%TEMP%\f009_t0_<fecha>.txt` lleva datos de negocio (códigos y resúmenes de naturalezas,
   muestra de M16b): **se pega entero** en la conversación y **no se versiona**.
 
@@ -178,16 +207,13 @@ git switch feature/F-009-alta-albaran-compra
 - Fuera: ejecutar el script (humano); volcar el resultado en la spec (spec-author); retirar script y
   test antes de T1 (N3); el timeout de `sql/read` (observación a de T0a-bis).
 - MANUAL pendiente: la ejecución de `--solo M16` por el humano.
-- Límite conocido: «cueide» compara el código de la cuenta con `cuacomcod` sin filtrar por empresa, como
-  `cuenta_es_cuacomcod` de M16b. Si la regla sale escribible, la consulta de F-009 que la aplique tendrá
-  que fijar la empresa al buscar la `cua` por código (lo decide el spec-author con el dato).
 
 ## Evidencias
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 402 pasan (antes 374), 2,19 s |
-| Suite completa | 2135 passed, 1 skipped, 94,18 s |
-| Cobertura de líneas cambiadas | 98,4 % (817/830), `PUERTA COBERTURA` de init.sh |
+| Tests de la prueba de humo | 405 pasan (antes 374; 402 en la primera entrega), 3,88 s |
+| Suite completa | 2138 passed, 1 skipped, 114,65 s |
+| Cobertura de líneas cambiadas | 98,6 % (949/962), `PUERTA COBERTURA` de init.sh |
 | Mutación | No aplica: script de mediciones desechable que se retira antes de T1 (N3, decisión del humano); no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |
