@@ -1,15 +1,27 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v4 (2026-10-02), `spec_ready` — espera la repetición de T0
+## F-009 spec v5 (2026-10-05), `spec_ready` — espera N4-N12 y la repetición única de T0
 
 PRE-1 de albaranes F-053: **modo extendido de `sigrid/albaran`** (el clásico, idéntico y fijado
-por un test de caracterización previo). v3 con la primera pasada de T0 (regla A de
-devoluciones, `con.est` 1, plantilla del mismo proveedor, fila de `log`, producto por
-`(emp, cod)`). Rama `feature/F-009-alta-albaran-compra`; informe y resultados agregados en
-[`spec_F-009.md`](spec_F-009.md). N1-N3 respondidas (v4). Antes de `in_progress`: el humano
-repite `--solo M3 M7 M9 M11 M13 M14` y se retira el script de T0 (N3) (M7 y M9 fallaron por el error 130 de SQL
-Server, ya corregido). El fichero de resultados de T0 vive en `%TEMP%`, no en el repo.
+por un test de caracterización previo). **v5** incorpora los huecos de F-009 del contrato con
+albaranes ([`contrato_albaranes.md`](../specs/F-009-alta-albaran-compra/contrato_albaranes.md) §5,
+con tabla de estado H1-H33) y las decisiones del humano del 2026-10-05 (H4, H8, H9, H17, H20, H28,
+H31). Rama `feature/F-009-alta-albaran-compra`; cambios, mediciones nuevas (M16, M17, M18; M11 y
+M14 ampliadas) y preguntas en [`spec_F-009.md`](spec_F-009.md) §v5. Topes: requirements 150/150,
+design 249/250.
+
+**Decisiones abiertas para el humano:** N4 (¿F-053 manda `cod_contrato` sin vinculadas?), N5
+(defecto cerrado de `SIGRID_ALBARAN_EMPRESAS_OBRA`), N6 (obras de baja), N7 (`precio_negativo`
+sustituye al `ge=0` de Pydantic), N8 (aviso `iva_de_otro_proveedor`), N9 (`referencia_linea` en
+`dcapro.refent` si M18 lo permite), N10 (solo fechas futuras), N11 (CIF: solo mayúsculas y
+espacios), N12 (mapeo de códigos nuevos en F-053). **Antes de `in_progress`:** el implementer
+amplía el script (T0a), el humano lanza **una** repetición `--solo M3 M7 M9 M11 M13 M14 M16 M17
+M18` (T0b), se vuelca (v6 si cambia alguna regla condicional) y se retira el script (N3). Puerta
+dura H20: sin M9 cerrada no hay modo real. El fichero de resultados de T0 vive en `%TEMP%`.
+
+**Sin trackear:** `progress/para_albaranes_F-009.md` (no lo creó el spec-author de la v5; no se
+ha commiteado).
 
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
 

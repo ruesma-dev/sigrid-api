@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v4
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v5
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); **v4 del 2026-10-02** (respuestas a N1-N3). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,106 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v5 (2026-10-05): huecos del contrato con albaranes y decisiones del humano
+
+Fuente: `specs/F-009-alta-albaran-compra/contrato_albaranes.md` §5 (H1-H33, escrito el mismo día
+por el agente de albaranes contra la v4) y las decisiones del humano del 2026-10-05 sobre H4, H8,
+H9, H17, H20, H28 y H31. Estado de cada hueco: tabla al principio de §5 de ese documento. Topes:
+`requirements.md` 150/150 y `design.md` 249/250; para caber, el detalle campo a campo y los
+ejemplos se enlazan a `contrato_albaranes.md` y el razonamiento de N1 y de la regla A a este informe.
+
+### Qué cambió en la spec
+
+| Hueco | Cambio | Dónde |
+|---|---|---|
+| H2 | Obra solo en las empresas de `SIGRID_ALBARAN_EMPRESAS_OBRA` (quinta App Setting, defecto `[]`, despliegue `[1]`); código nuevo `obra_de_empresa_no_permitida`. Con `[1]`, `obra_ambigua` ya no puede darse (índice único `(emp, tip, cod)`, M2) | R10, R11, design L1 |
+| H3 | Plantilla de cabecera del mismo proveedor **en la empresa de la obra** (`AND c.emp = ?`) y `con.emp` = la de la obra | R11, design L5 |
+| H4 | Decidido: se conserva «imputable» y **no** se exige hoja | R14 |
+| H8 | Segunda barrera: `precio` < 0 ⇒ fallo de línea `precio_negativo`. **Ya existía algo equivalente**: `precio` con `ge=0` en Pydantic (400 sin código, toda la petición). Se sustituye por el fallo de línea con código para que F-053 lo pueda mapear; el efecto (rechazo) es el mismo | R17, design §Modelo y §Riesgos |
+| H9 | Regla condicional a M17 (R30b) | R30b, design §Condicionales |
+| H10 | Almacén y centro para **toda** sin vincular (con o sin partida); `caaide` por hipótesis condicionada a M16 | R15, design §Analítica |
+| H11 | Lista de reseteo cerrada para las sin vincular, confirmada con M14 ampliada | R13, design §Reseteo |
+| H12 | Aviso `almacen_en_linea_con_partida` | R16 |
+| H13 | `obr.almide`/`obr.cenide` antes que el único `alm` de la obra (orden: `ctrpro` o contrato → ficha de obra → único `alm`) | R15, design L10 |
+| H14 | Tolerancia 0,0001 (la de M4); si casa, `pre`, `tar` y `dto` del `ctrpro` | R17 |
+| H15 | Plantilla de la sin vincular = última `dcapro` del producto **del mismo proveedor** (L8b); si no hay, la del producto con aviso `iva_de_otro_proveedor` | R13, design L8b |
+| H16 | `COLUMNAS_BANCARIAS` (15 columnas de `dca` según el diccionario) fuera de `cabecera`, `filas.dca` y trazas; se escriben igual | R7, R32, design §Respuesta |
+| H17 | `paride` opcional solo si M3 da repetidos entre imputables (R14b, código `paride_no_valido`) | R14b |
+| H18 | `idempotente`: `committed` `false`, `dry_run` = `not commit`, líneas por `pos` con `indice` desde 0; `referencia_linea` en `dcapro.refent` condicionada a M18 (y entonces ≤24) | R30, R30b |
+| H19 | `fecha_no_valida` si `fecha_albaran` > hoy (Madrid), también en dry-run | R11 |
+| H20 | Puerta dura: sin M9 cerrada no hay modo real; si MA9999 mueve stock, PARADA | R35, tasks T22 |
+| H21 | `cif_proveedor` a mayúsculas sin espacios | R5 |
+| H26, H27 | `indice` desde 0; avisos `{codigo, mensaje}` y `warnings` = sus mensajes | R7 |
+| H28 | Una sola repetición de T0 con el script ampliado | R35, tasks T0a-T0c |
+| H31 | **Comprobado: F-009 ya admite** `cod_contrato` sin ninguna vinculada (ninguna regla lo prohíbe: se resuelve el contrato, `dca.ctride` queda enlazado y plantilla y almacén salen del contrato). Lo único que faltaba: sin vinculadas no hay `UPDATE` de `ctrpro` ni de `ctr` (E9-E11) | R6, R20, R25 |
+| H32 | Docstring de `sigrid_albaran` (T13) y `sigrid_api.md` §4, §7.5, §7.6, §8.6 (T18) | R36 |
+| H33 | `Decimal` + `ROUND_HALF_UP` en `tot` e `ivacuo`; diferencia declarada en R33 (el clásico usa `round`) | R17, R33 |
+
+Otros: `cantidad` y `precio` finitos (`NaN`/`inf` fuera); R34 añade fase RED en R11 y R17. Ningún
+hueco contradice el código ni las mediciones de la primera pasada. Matiz en H13: la propuesta decía
+«`obr.almide` primero»; se mantiene antes el almacén del `ctrpro`/contrato (M8: el del contrato es
+de su obra en el 99,4 %) y la ficha de obra pasa a ser el segundo recurso, antes que `alm`.
+
+### T0 v5: mediciones nuevas y ampliadas (solo lectura, `sql/read`)
+
+Una sola repetición (H28): `& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M3 M7 M9
+M11 M13 M14 M16 M17 M18`, después de que el implementer amplíe el script (tasks T0a). Las sentencias
+siguen la regla del error 130: nada de agregados sobre subconsultas o `APPLY` escalares; recuentos
+en tablas derivadas. M3, M7, M9 y M13 quedan como están en el script.
+
+- **M16 analítica, almacén y centro (H10, H13)** → decide design §Analítica y el orden de R15.
+  - `M16_caa_con_partida`: `SELECT CASE WHEN ISNULL(d.docoritip, 0) = 44 THEN 'vinculada' ELSE 'sin_vincular' END AS tipo, CASE WHEN ISNULL(d.docoritip, 0) = 44 AND ISNULL(d.paride, 0) <> ISNULL(t.paride, 0) THEN 1 ELSE 0 END AS partida_distinta, COUNT(*) AS n, SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(p.caaide, 0) THEN 1 ELSE 0 END) AS caa_de_la_partida, SUM(CASE WHEN ISNULL(p.caaide, 0) = 0 THEN 1 ELSE 0 END) AS partida_sin_caa, SUM(CASE WHEN t.ide IS NOT NULL AND ISNULL(d.caaide, 0) = ISNULL(t.caaide, 0) THEN 1 ELSE 0 END) AS caa_del_ctrpro FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide JOIN dbo.obrparpar p ON p.ide = d.paride LEFT JOIN dbo.ctrpro t ON t.ide = d.linoriide AND d.docoritip = 44 WHERE c.tip = 14 AND c.fec >= 20250101 AND d.paride > 0 GROUP BY` (las dos expresiones `CASE`).
+  - `M16_caa_almacen`: `SELECT CASE WHEN ISNULL(d.docoritip, 0) = 44 THEN 'vinculada' ELSE 'sin_vincular' END AS tipo, COUNT(*) AS n, SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(a.caaproide, 0) THEN 1 ELSE 0 END) AS caa_pro_del_alm, SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(a.caaseride, 0) THEN 1 ELSE 0 END) AS caa_ser_del_alm, SUM(CASE WHEN ISNULL(a.caaproide, 0) = 0 THEN 1 ELSE 0 END) AS alm_sin_caa FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide LEFT JOIN dbo.alm a ON a.ide = d.almide WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.paride, 0) = 0 GROUP BY` (el `CASE`).
+  - `M16_almacen_sin_vincular`: `SELECT CASE WHEN ISNULL(d.paride, 0) > 0 THEN 'con_partida' ELSE 'almacen' END AS tipo, CASE WHEN ISNULL(a.ctride, 0) > 0 THEN 'con_contrato' ELSE 'sin_contrato' END AS cabecera, COUNT(*) AS n, SUM(CASE WHEN d.almide = t.almide THEN 1 ELSE 0 END) AS alm_del_contrato, SUM(CASE WHEN d.almide = o.almide THEN 1 ELSE 0 END) AS alm_de_la_ficha, SUM(CASE WHEN d.cenide = t.cenide THEN 1 ELSE 0 END) AS cen_del_contrato, SUM(CASE WHEN d.cenide = o.cenide THEN 1 ELSE 0 END) AS cen_de_la_ficha FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide JOIN dbo.dca a ON a.ide = d.docide LEFT JOIN dbo.obr o ON o.ide = d.obride LEFT JOIN dbo.ctr t ON t.ide = a.ctride WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.docoritip, 0) <> 44 GROUP BY` (los dos `CASE`).
+  - `M16_ficha_obra`: `SELECT COUNT(*) AS obras, SUM(CASE WHEN ISNULL(o.almide, 0) > 0 THEN 1 ELSE 0 END) AS con_almide, SUM(CASE WHEN a.obride = o.ide THEN 1 ELSE 0 END) AS almide_de_su_obra, SUM(CASE WHEN ISNULL(o.cenide, 0) > 0 THEN 1 ELSE 0 END) AS con_cenide FROM dbo.obr o LEFT JOIN dbo.alm a ON a.ide = o.almide WHERE o.ide IN (SELECT d.obride FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = 14 AND c.fec >= 20250101)`.
+  - **Debe salir / decide**: `caa_de_la_partida` ≥ 95 % de `n` en las sin vincular y en las vinculadas con `partida_distinta` 1, y `caa_pro_del_alm` ≥ 95 % en almacén ⇒ hipótesis de design §Analítica confirmada. `alm_del_contrato` dominante en `con_contrato` y `alm_de_la_ficha` en `sin_contrato`, con `con_almide` ≈ `obras` y `almide_de_su_obra` ≈ `con_almide` ⇒ orden de R15 confirmado. Cualquier otro reparto ⇒ PARADA y v6.
+- **M17 anulación de albaranes (H9)** → decide R30b (ignorar anulados o no).
+  - `M17_ope`: `SELECT ope, COUNT(*) AS n, MIN(fec) AS desde, MAX(fec) AS hasta FROM dbo.log WHERE ide > (SELECT MAX(ide) - 1000000 FROM dbo.log) AND tab = 'con' AND tip = 14 GROUP BY ope ORDER BY ope` (qué operaciones registra el escritorio sobre albaranes; el diccionario no documenta los valores de `log.ope`).
+  - `M17_existe`: `SELECT l.ope, COUNT(*) AS n, SUM(CASE WHEN c.ide IS NULL THEN 0 ELSE 1 END) AS con_existe, SUM(CASE WHEN ISNULL(c.fecbaj, 0) > 0 THEN 1 ELSE 0 END) AS con_fecbaj FROM dbo.log l LEFT JOIN dbo.con c ON c.emp = l.emp AND c.tip = l.tip AND c.cod = l.cod WHERE l.ide > (SELECT MAX(ide) - 1000000 FROM dbo.log) AND l.tab = 'con' AND l.tip = 14 AND l.ope <> 1 GROUP BY l.ope ORDER BY l.ope` (si `log.emp` sale 0 o nulo, repetir el `JOIN` solo por `tip` y `cod`).
+  - `M17_marcas`: `SELECT est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END AS con_fecbaj, COUNT(*) AS n FROM dbo.con WHERE tip = 14 AND fec >= 20250101 GROUP BY est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END ORDER BY n DESC`.
+  - **Debe salir / decide**: si hay una `ope` distinta de alta y modificación cuyo `con_existe` ≈ 0 ⇒ anular **borra**: R30 sin cambios. Si `con_existe` ≈ `n` y aparece una marca (`fecbaj` > 0 o un `est` fuera de `conest`) ⇒ **marca**: L11 añade `AND <no marcado>` y F-053 usa `ALB-{id}-{n}`. Sin `ope` de baja clara ⇒ se decide con T23 (anulación del albarán de prueba, leída después).
+- **M18 uso de `dcapro.refent` (H18)** → decide R30b (escribir `referencia_linea` o no).
+  - `M18_refent`: `SELECT CASE WHEN ISNULL(d.docoritip, 0) = 44 THEN 'vinculada' ELSE 'sin_vincular' END AS tipo, COUNT(*) AS n, SUM(CASE WHEN ISNULL(d.refent, '') <> '' THEN 1 ELSE 0 END) AS con_refent FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 GROUP BY CASE WHEN ISNULL(d.docoritip, 0) = 44 THEN 'vinculada' ELSE 'sin_vincular' END`.
+  - `M18_valores`: `SELECT TOP 20 LEFT(d.refent, 8) AS prefijo, COUNT(*) AS n FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.refent, '') <> '' GROUP BY LEFT(d.refent, 8) ORDER BY n DESC`.
+  - `M18_propagacion` (¿pasa `refent` del albarán a la factura?): `SELECT COUNT(*) AS n, SUM(CASE WHEN ISNULL(f.refent, '') <> '' THEN 1 ELSE 0 END) AS con_refent, SUM(CASE WHEN ISNULL(d.refent, '') <> '' AND f.refent = d.refent THEN 1 ELSE 0 END) AS copiada FROM dbo.dcfpro f JOIN dbo.dcapro d ON d.ide = f.linoriide WHERE f.docoritip = 14 AND f.docide IN (SELECT ide FROM dbo.con WHERE fec >= 20250101)`.
+  - **Debe salir / decide**: `con_refent` ≤ 0,1 % de `n` ⇒ `refent` libre: se escribe `referencia_linea` (que baja a 1-24) y se devuelve en `idempotente`. Más ⇒ no se escribe. Si `copiada` > 0, la referencia llegaría a la factura (pregunta N9).
+- **M11 ampliada: IVA de MA9999 por proveedor (H15)** → confirma L8b. Por cada `ide` de MA9999 (uno por empresa):
+  - `M11_iva_por_proveedor`: `SELECT COUNT(*) AS proveedores, SUM(CASE WHEN x.n_iva > 1 THEN 1 ELSE 0 END) AS con_varios_iva FROM (SELECT a.entide, COUNT(DISTINCT d.ivaide) AS n_iva FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ? GROUP BY a.entide) x`.
+  - `M11_iva_y_isp`: `SELECT a.tipisp, d.ivaide, COUNT(DISTINCT a.entide) AS proveedores, COUNT(*) AS lineas FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ? GROUP BY a.tipisp, d.ivaide ORDER BY lineas DESC`.
+  - `M11_acierto`: `SELECT COUNT(*) AS lineas, SUM(CASE WHEN x.iva_prev_prv IS NULL THEN 1 ELSE 0 END) AS sin_previa_del_prv, SUM(CASE WHEN x.ivaide = x.iva_prev_prv THEN 1 ELSE 0 END) AS acierta_mismo_prv, SUM(CASE WHEN x.ivaide = x.iva_prev THEN 1 ELSE 0 END) AS acierta_cualquiera FROM (SELECT d.ivaide, LAG(d.ivaide) OVER (PARTITION BY a.entide ORDER BY d.ide) AS iva_prev_prv, LAG(d.ivaide) OVER (ORDER BY d.ide) AS iva_prev FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ?) x` (si `SqlQueryGuard` rechaza `OVER`, se queda con las dos primeras).
+  - **Debe salir / decide**: `acierta_mismo_prv` > `acierta_cualquiera` o IVA distinto con `tipisp` 1 ⇒ L8b justificada. Si aciertan igual, L8b es inocua y se queda. Sigue la comprobación de `ivacuo = round(tot·iva, 2)` de `M11_iva_usado`.
+- **M14 ampliada: columnas de la `dcapro` sin vincular (H11)** → confirma o corrige design §Reseteo.
+  - `M14_sv_valores`: `SELECT COUNT(*) AS n, SUM(CASE WHEN DATALENGTH(d.med) > 0 THEN 1 ELSE 0 END) AS med, SUM(CASE WHEN ISNULL(d.canmed, 0) <> 0 THEN 1 ELSE 0 END) AS canmed` y el mismo patrón para `parcandes`, `anades`, `serdes`, `fecimp`, `item`, `anexo`, `taride`, `fec`, `pla` (numéricas, `<> 0`), `tex`, `texcom` (`DATALENGTH > 0`), `cod2`, `pac`, `refent` (`<> ''`) y `SUM(CASE WHEN d.fec = c.fec THEN 1 ELSE 0 END) AS fec_igual_albaran`, `FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20260101 AND ISNULL(d.docoritip, 0) <> 44`.
+  - `M14_sv_arrastre`: las 3 últimas sin vincular de MA9999 de la empresa 1 (`SELECT TOP 3 d.ide, d.proide FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20260901 AND ISNULL(d.docoritip, 0) <> 44 AND d.proide = ? ORDER BY d.ide DESC`), cada una con `SELECT * FROM dbo.dcapro WHERE ide = ?` y su plantilla `SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? AND ide < ? ORDER BY ide DESC`; `columnas_distintas` entre cada línea y su plantilla.
+  - **Debe salir / decide**: columnas de la lista con ≈ 0 valores no vacíos ⇒ reseteo confirmado. Una que el escritorio rellene siempre (p. ej. `fec` = fecha del albarán, `fec_igual_albaran` ≈ `n`) ⇒ se corrige §Reseteo con ese valor (v6). Columnas fuera de la lista que el escritorio no arrastra de la plantilla ⇒ se añaden.
+
+### Preguntas abiertas para el humano (v5)
+
+- **N4 (H31).** F-009 admite `cod_contrato` sin ninguna línea vinculada: enlaza `dca.ctride`, toma
+  plantilla y almacén del contrato y no toca la medición. ¿Debe F-053 mandar `cod_contrato` siempre
+  que la valoración tenga contrato, aunque no case ninguna línea? Recomendación: **sí** (el albarán
+  queda colgado del contrato, como lo haría el escritorio). Es cambio de F-053 R12, no de F-009.
+- **N5 (H2).** `SIGRID_ALBARAN_EMPRESAS_OBRA` con defecto **cerrado** `[]` (sin ella el modo
+  extendido no encuentra ninguna obra: `obra_de_empresa_no_permitida`) y despliegue `[1]`, como las
+  otras listas de R10. Alternativa: defecto `[1]`. Recomendación: cerrado.
+- **N6 (H2, opcional).** ¿Rechazar obras de baja (`con.fecbaj` > 0)? Propuesta: **no** (un albarán
+  tardío de una obra cerrada debe poder entrar; con `[1]` ya no hay ambigüedad que resolver).
+- **N7 (H8).** El `precio ≥ 0` de Pydantic (400 sin código, toda la petición) pasa a fallo de línea
+  `precio_negativo` (400 `lineas_no_validas`, junto con los demás fallos). ¿Conforme?
+- **N8 (H15).** «Con aviso si difieren» se ha escrito como: aviso `iva_de_otro_proveedor` cuando el
+  proveedor no tiene ninguna línea previa del producto y se usa la de otro. ¿Conforme, y bloqueante o
+  informativo en F-053? Propuesta: informativo.
+- **N9 (H18, si M18 sale libre).** Escribir `referencia_linea` en `dcapro.refent` hace visible en la
+  UI de Sigrid el `id` de la línea de albaranes y obliga a `referencia_linea` ≤ 24 (sv9 manda un
+  entero). Si M18 muestra que `refent` se copia a la factura, también aparecería allí. ¿Conforme?
+- **N10 (H19).** F-009 solo rechaza fechas **futuras**; la ventana de plausibilidad (hoy − 365 días)
+  queda en F-053. ¿Conforme?
+- **N11 (H21).** F-009 normaliza mayúsculas y espacios del CIF, pero **no** quita el prefijo `ES` ni
+  guiones (lo garantiza albaranes con F-052). ¿Conforme?
+- **N12 (códigos nuevos).** Mapeo propuesto en `contrato_albaranes.md` §3.3 para F-053:
+  `fecha_no_valida` → `revisar`, `obra_de_empresa_no_permitida` → `error`, `precio_negativo` →
+  `revisar`, `paride_no_valido` → `no_admitido`; avisos nuevos, informativos. Es de albaranes (H25).
 
 ## Qué cambió en la v2 (lo que la v3 revisa va marcado)
 
@@ -59,13 +159,10 @@ Server, corregido en `28afc96`) y M11 tenía un fallo del script (abajo).
 **Para F-007 (proformas):** la serie `PROF<aa>/` es `tip 14`, como los albaranes: las proformas
 son albaranes de compra con otra serie.
 
-## Repetición de T0 (M3, M7, M9, M11, M13 y M14)
+## Repetición de T0 (v4; **sustituida por la de §T0 v5**)
 
-```powershell
-cd C:\Users\pgris\PycharmProjects\sigrid-api
-git switch feature/F-009-alta-albaran-compra
-& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14
-```
+> v5 (H28): **una sola** repetición, con el script ampliado (tasks T0a): `--solo M3 M7 M9 M11 M13
+> M14 M16 M17 M18`. Lo de abajo describe lo que ya traía el script para M3, M7, M9, M11, M13 y M14.
 
 M7 y M9 son las que fallaron. Las otras cuatro traen consultas nuevas para cerrar sus [Mn]:
 partidas repetidas entre imputables (M3), banderas `pro.tipmov`/`tipinv` y productos de las
@@ -267,8 +364,9 @@ F-053) es del líder de albaranes; para F-053, N1 no cambia el contrato.
 
 ## Riesgo residual
 
-Ninguna escritura hasta T22, con autorización expresa. Al desplegar con la llave en `false`, el
-`commit` del modo clásico y de `albaran-directo` queda cerrado (decidido; nadie los usa en
-vivo). Devoluciones con la regla A medida en el escritorio; T24 vigila la primera real del
-pipeline. Hasta repetir M3, M7, M9, M11, M13 y M14 (y retirar el script, N3), F-009 no pasa a
-`in_progress`.
+Ninguna escritura hasta T22, con autorización expresa, y T22 no se hace sin M9 cerrada (puerta
+H20). Al desplegar con la llave en `false`, el `commit` del modo clásico y de `albaran-directo`
+queda cerrado (decidido; nadie los usa en vivo). Devoluciones con la regla A medida en el
+escritorio; T24 vigila la primera real del pipeline. Hasta la repetición única de T0 (`--solo M3
+M7 M9 M11 M13 M14 M16 M17 M18`), su volcado en la spec (v6 si alguna regla condicional cambia), la
+retirada del script (N3) y las respuestas a N4-N12, F-009 no pasa a `in_progress`.
