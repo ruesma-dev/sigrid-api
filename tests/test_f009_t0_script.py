@@ -258,7 +258,7 @@ def test_f009_t0_m11_mira_cada_ma9999_y_no_solo_el_primero() -> None:
     cliente = _ClienteFalso({"M11_productos": productos, "M11_total_producto": [{"lineas": 5}]})
     t0.m11(cliente)  # type: ignore[arg-type]
     totales = [p for k, p in cliente.llamadas if k == "M11_total_producto"]
-    assert totales == [[31], [1]]
+    assert totales == [[*t0.VENTANA_M11, 31], [*t0.VENTANA_M11, 1]]  # T0a-bis: la ventana va delante
 
 
 # --- Recorrido completo sin red: cada medición con datos de ejemplo ---------------------------
@@ -434,7 +434,7 @@ def test_f009_t0a_m11_ampliada_va_por_cada_ma9999_con_su_ide_como_parametro() ->
     cliente = _ClienteFalso({**_DATOS, "M11_productos": productos})
     t0.m11(cliente)  # type: ignore[arg-type]
     for clave in ("M11_iva_por_proveedor", "M11_iva_y_isp", "M11_acierto"):
-        assert [p for k, p in cliente.llamadas if k == clave] == [[31], [1]], clave
+        assert [p[-1] for k, p in cliente.llamadas if k == clave] == [31, 1], clave
 
 
 def test_f009_t0a_m11_sigue_si_la_api_rechaza_over() -> None:
@@ -573,3 +573,269 @@ def test_f009_t0a_m14_un_fallo_de_una_parte_no_pierde_el_bloque(rota: str, sigue
 
     texto = t0.m14(_Rota(_DATOS)).texto()  # type: ignore[arg-type]
     assert "no se pudo leer (HTTP 500: timeout)" in texto and sigue in texto
+
+
+# --- T0a-bis (ejecución del 2026-10-05): M9 y M11 sin cortes, M14b, M16b, M17b y reintento 1205 ----
+
+_NUEVAS_T0A_BIS = (
+    "M9_genericos", "M14b_pago_previo", "M16b_fuentes", "M16b_codigos", "M16b_muestra",
+    "M17b_reutiliza", "M17b_perfil", "M17b_res",
+)
+_M9 = ("M9_por_tipsininv", "M9_por_partida", "M9_por_banderas", "M9_genericos", "M9_sin_mov_por_producto")
+_M11_POR_PRODUCTO = ("M11_total_producto", "M11_lineas_producto", "M11_iva_por_proveedor", "M11_iva_y_isp",
+                     "M11_acierto")
+
+_DATOS_BIS: dict[str, list[dict[str, Any]]] = {
+    "M9_por_banderas": [
+        {"tipmov": 1, "tipinv": 1, "fam_tipinv": 1, "lineas": 900, "con_mov": 899, "movs": 899},
+        {"tipmov": 1, "tipinv": 0, "fam_tipinv": 0, "lineas": 100, "con_mov": 98, "movs": 98},
+        {"tipmov": 0, "tipinv": 0, "fam_tipinv": 0, "lineas": 50, "con_mov": 0, "movs": 0},
+    ],
+    "M9_genericos": [
+        {"cod": "MA9999", "emp": 1, "tipmov": 1, "tipinv": 1, "lineas": 400, "con_mov": 400, "movs": 400},
+        {"cod": "MA9999", "emp": 31, "tipmov": 1, "tipinv": 1, "lineas": 10, "con_mov": 10, "movs": 10},
+        {"cod": "QA9999", "emp": 1, "tipmov": 0, "tipinv": 0, "lineas": 80, "con_mov": 0, "movs": 0},
+    ],
+    "M14b_pago_previo": [{"n": 1000, "sin_previo": 100, "pagide_del_previo": 880, "efeide_del_previo": 890,
+                          "pagide_del_prv_con_previo": 740, "efeide_del_prv_con_previo": 800,
+                          "pagide_del_prv": 829, "efeide_del_prv": 888}],
+    "M16b_fuentes": [
+        {"grupo": "MA9999", "partida": "con_partida", "n": 1000, "caa_cero": 10, "pro_gaside": 0, "cen_gaside": 5,
+         "cab_caaide": 20, "ctr_caaide": 0, "par_caaide": 30, "caa_del_centro": 980},
+        {"grupo": "resto", "partida": "sin_partida", "n": 200, "caa_cero": 150, "pro_gaside": 0, "cen_gaside": 0,
+         "cab_caaide": 0, "ctr_caaide": 0, "par_caaide": 0, "caa_del_centro": 40},
+    ],
+    "M16b_codigos": [
+        {"grupo": "MA9999", "partida": "con_partida", "n": 1000, "caa_cod_caagascod": 100, "caa_cod_caaexicod": 0,
+         "caa_cod_cuafaccod": 0, "caa_cod_cuenta": 0, "caa_cod_empieza_por_cuenta": 0, "caa_cod_contiene_obra": 0,
+         "caa_cod_contiene_centro": 0, "centro_y_caagascod": 960, "centro_y_cuenta": 0, "cuenta_6xx": 990,
+         "cuenta_es_cuacomcod": 950},
+        {"grupo": "resto", "partida": "sin_partida", "n": 200, "caa_cod_caagascod": 10, "caa_cod_caaexicod": 0,
+         "caa_cod_cuafaccod": 0, "caa_cod_cuenta": 0, "caa_cod_empieza_por_cuenta": 0, "caa_cod_contiene_obra": 0,
+         "caa_cod_contiene_centro": 0, "centro_y_caagascod": 10, "centro_y_cuenta": 0, "cuenta_6xx": 200,
+         "cuenta_es_cuacomcod": 0},
+    ],
+    "M16b_muestra": [
+        {"caa_cod": "6010001", "caagascod": "6010001", "caaexicod": "", "obra": "O-1", "centro": "C-1",
+         "cuenta": "60100000", "partida": "con_partida", "lineas": 70},
+        {"caa_cod": "O-2-601", "caagascod": "6010001", "caaexicod": "", "obra": "O-2", "centro": "C-2",
+         "cuenta": "60100000", "partida": "sin_partida", "lineas": 30},
+    ],
+    "M17b_reutiliza": [
+        {"caso": "no_existe", "n": 514, "con_alta_previa": 500, "con_fec_posterior": 0, "con_fec_anterior": 0},
+        {"caso": "existe_con_alta_posterior", "n": 300, "con_alta_previa": 290, "con_fec_posterior": 300,
+         "con_fec_anterior": 0},
+        {"caso": "existe_sin_alta_posterior", "n": 8, "con_alta_previa": 8, "con_fec_posterior": 0,
+         "con_fec_anterior": 8},
+    ],
+    "M17b_perfil": [{"ope": 2, "n": 822, "documentos": 800, "usuarios": 9, "estados": 1, "est_min": 0, "est_max": 0,
+                     "con_tex": 0}],
+    "M17b_res": [{"ope": 3, "res": "Impresión de documento", "n": 9000},
+                 {"ope": 5, "res": "Modificación", "n": 80000},
+                 {"ope": 30, "res": "XYZ", "n": 2000}],
+}
+
+
+def _datos_bis() -> dict[str, list[dict[str, Any]]]:
+    return {**_DATOS, **_DATOS_BIS}
+
+
+def test_f009_t0a_bis_existen_las_sentencias_nuevas() -> None:
+    assert [k for k in _NUEVAS_T0A_BIS if k not in t0.SQL] == []
+
+
+@pytest.mark.parametrize("nombre", _NUEVAS_T0A_BIS)
+def test_f009_t0a_bis_las_sentencias_nuevas_van_parametrizadas_o_sin_valores_de_fuera(nombre: str) -> None:
+    sql = t0.SQL[nombre]
+    assert "{" not in sql and "MA9999" not in sql and "QA9999" not in sql, nombre
+    if nombre.startswith(("M9", "M14b", "M16b_fuentes", "M16b_codigos")):
+        assert "?" in sql, nombre
+
+
+@pytest.mark.parametrize("nombre", _M9)
+def test_f009_t0a_bis_m9_va_por_ventana_corta_sin_subconsultas_in(nombre: str) -> None:
+    sql = t0.SQL[nombre]
+    assert "IN (SELECT" not in sql.upper(), nombre
+    assert "c.fec >= ? AND c.fec <= ?" in sql, nombre
+    assert "m.docide = d.docide AND m.linide = d.ide" in sql, nombre  # índice doclin de mov
+
+
+@pytest.mark.parametrize("nombre", [*_M11_POR_PRODUCTO, "M11_iva_usado"])
+def test_f009_t0a_bis_m11_va_por_ventana_corta(nombre: str) -> None:
+    sql = t0.SQL[nombre]
+    assert "c.fec >= ? AND c.fec <= ?" in sql, nombre
+    assert "20250101" not in sql and "20260101" not in sql, nombre
+
+
+def test_f009_t0a_bis_m11_pasa_la_ventana_y_el_ide_de_cada_ma9999() -> None:
+    productos = [{"ide": 31, "cod": "MA9999", "emp": 31}, {"ide": 1, "cod": "MA9999", "emp": 1}]
+    cliente = _ClienteFalso({**_DATOS, "M11_productos": productos})
+    t0.m11(cliente)  # type: ignore[arg-type]
+    for clave in _M11_POR_PRODUCTO:
+        assert [p for k, p in cliente.llamadas if k == clave] == [[*t0.VENTANA_M11, 31], [*t0.VENTANA_M11, 1]], clave
+    assert [p for k, p in cliente.llamadas if k == "M11_iva_usado"] == [list(t0.VENTANA_M11)]
+
+
+def test_f009_t0a_bis_m9_pasa_la_ventana_y_los_genericos() -> None:
+    cliente = _ClienteFalso(_datos_bis())
+    t0.m9(cliente)  # type: ignore[arg-type]
+    llamadas = dict(cliente.llamadas)
+    assert llamadas["M9_genericos"] == [*t0.VENTANA_M9, *t0.PRODUCTOS_GENERICOS]
+    assert llamadas["M9_por_banderas"] == list(t0.VENTANA_M9)
+
+
+def _rompe(rota: str, datos: dict[str, list[dict[str, Any]]] | None = None) -> _ClienteFalso:
+    class _Rota(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL[rota] or (rota == "M11_productos" and sql.startswith("SELECT c.ide, c.cod, c.res")):
+                raise t0.ErrorDeLectura("ReadTimeout al llamar a sql/read")
+            return super().leer(sql, parametros, **kw)
+
+    return _Rota(datos or _datos_bis())
+
+
+@pytest.mark.parametrize("rota", _M9)
+def test_f009_t0a_bis_m9_un_fallo_no_pierde_el_bloque(rota: str) -> None:
+    texto = t0.m9(_rompe(rota)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer (ReadTimeout al llamar a sql/read)" in texto
+    assert texto.count("no se pudo leer") == 1
+
+
+@pytest.mark.parametrize("rota", ["M11_productos", "M11_total_producto", "M11_lineas_producto", "M11_acierto",
+                                  "M11_iva_usado"])
+def test_f009_t0a_bis_m11_un_fallo_no_pierde_el_bloque(rota: str) -> None:
+    texto = t0.m11(_rompe(rota)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer (ReadTimeout" in texto or "M11_acierto (LAG ... OVER) no se pudo leer" in texto
+    if rota != "M11_iva_usado":
+        assert "ivacuo ≠ round(tot·iva, 2)" in texto
+
+
+@pytest.mark.parametrize("rota", ["M16_caa_con_partida", "M16b_fuentes", "M16b_codigos", "M16b_muestra"])
+def test_f009_t0a_bis_m16_un_fallo_no_pierde_el_bloque(rota: str) -> None:
+    texto = t0.m16(_rompe(rota)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer" in texto and "Orden de R15" in texto
+
+
+@pytest.mark.parametrize("rota", ["M17_ope", "M17_existe", "M17b_reutiliza", "M17b_res"])
+def test_f009_t0a_bis_m17_un_fallo_no_pierde_el_bloque(rota: str) -> None:
+    texto = t0.m17(_rompe(rota)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer" in texto and "Lectura automática" in texto
+
+
+@pytest.mark.parametrize("rota", ["M14_prepma", "M14_prv", "M14b_pago_previo"])
+def test_f009_t0a_bis_m14_un_fallo_no_pierde_la_comparacion(rota: str) -> None:
+    texto = t0.m14(_rompe(rota)).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer" in texto
+    assert "dcapro: columnas cuyo valor en la API no aparece en el escritorio" in texto
+
+
+def test_f009_t0a_bis_lectura_m9_tipmov_decide_y_genericos() -> None:
+    texto = " ".join(t0.lectura_m9(_DATOS_BIS["M9_por_banderas"], _DATOS_BIS["M9_genericos"]))
+    assert "pro.tipmov DECIDE si la línea genera mov" in texto
+    assert "pro.tipinv: no lo explica solo" in texto
+    assert "MA9999 emp 1: SÍ genera mov (400 de 400" in texto
+    assert "QA9999 emp 1: NO genera mov (0 de 80" in texto
+    assert "SM9999 emp 1: sin líneas en la ventana" in texto
+
+
+def test_f009_t0a_bis_lectura_m9_ninguna_bandera_y_a_veces() -> None:
+    banderas = [{"tipmov": 1, "tipinv": 1, "lineas": 100, "con_mov": 60}]
+    genericos = [{"cod": "MA9999", "emp": 1, "lineas": 100, "con_mov": 60}]
+    texto = " ".join(t0.lectura_m9(banderas, genericos))
+    assert "ni pro.tipmov ni pro.tipinv lo explican solos" in texto
+    assert "MA9999 emp 1: a veces (60 de 100" in texto
+    assert "ni pro.tipmov ni pro.tipinv" in " ".join(t0.lectura_m9([], []))
+
+
+def test_f009_t0a_bis_lectura_m16b_dice_que_fuente_domina() -> None:
+    texto = " ".join(t0.lectura_m16b(_DATOS_BIS["M16b_fuentes"], _DATOS_BIS["M16b_codigos"]))
+    # Gana la de mayor proporción; el orden de FUENTES_M16B solo desempata.
+    assert ("MA9999 / con_partida (1000 líneas): domina «caa del centro de la línea (caa.cenide = dcapro.cenide)» "
+            "980 de 1000") in texto
+    assert "resto / sin_partida (200 líneas): domina «caaide = 0» 150 de 200" in texto
+    assert "cuenta financiera 6XX" in texto
+    assert t0.UMBRAL_DOMINANTE == 0.5
+
+
+def test_f009_t0a_bis_lectura_m16b_sin_dominante_y_desempate() -> None:
+    fuentes = [{"grupo": "QA9999", "partida": "sin_partida", "n": 100, "caa_cero": 40, "pro_gaside": 0,
+                "caa_del_centro": 40}]
+    texto = " ".join(t0.lectura_m16b(fuentes, []))
+    assert "QA9999 / sin_partida (100 líneas): ninguna fuente domina (la mejor: «caaide = 0» 40 de 100" in texto
+    empate = [{"grupo": "SB9999", "partida": "con_partida", "n": 10, "caa_del_centro": 10}]
+    codigos = [{"grupo": "SB9999", "partida": "con_partida", "n": 10, "centro_y_caagascod": 10}]
+    assert "domina «caa del centro con código = auxpronat.caagascod»" in " ".join(t0.lectura_m16b(empate, codigos))
+    assert t0.lectura_m16b([], []) == ["No hay líneas sin vincular desde 2025: sin medición del origen de caaide."]
+
+
+def test_f009_t0a_bis_lectura_muestra_m16b_ve_el_patron_del_codigo() -> None:
+    texto = t0.lectura_muestra_m16b(_DATOS_BIS["M16b_muestra"])
+    assert "= caagascod 70 de 100" in texto and "contiene el código de obra 30 de 100" in texto
+    assert "empieza por la cuenta financiera 0 de 100" in texto
+    assert t0.lectura_muestra_m16b([]) == "Muestra vacía: sin patrón del código de caa."
+
+
+def test_f009_t0a_bis_lectura_m17b_borra_marca_o_no_concluyente() -> None:
+    assert "anular BORRA" in t0.lectura_m17b(_DATOS_BIS["M17b_reutiliza"])
+    assert "el cod se reutiliza" in t0.lectura_m17b(_DATOS_BIS["M17b_reutiliza"])
+    sigue = [{"caso": "existe_sin_alta_posterior", "n": 100}]
+    assert "MARCA" in t0.lectura_m17b(sigue)
+    mezcla = [{"caso": "no_existe", "n": 50}, {"caso": "existe_sin_alta_posterior", "n": 50}]
+    assert "no concluyente" in t0.lectura_m17b(mezcla)
+    assert "no concluyente" in t0.lectura_m17b([])
+
+
+def test_f009_t0a_bis_significado_de_ope_por_su_resumen() -> None:
+    texto = " ".join(t0.lectura_ope(_DATOS_BIS["M17b_res"]))
+    assert "ope 3: parece «impresión»" in texto and "ope 5: parece «modificación»" in texto
+    assert "ope 30: significado no deducible" in texto
+
+
+def test_f009_t0a_bis_lectura_m14b_anterior_frente_a_maestro() -> None:
+    texto = " ".join(t0.lectura_m14b(_DATOS_BIS["M14b_pago_previo"][0]))
+    assert "pagide: albarán anterior 880 de 900" in texto and "maestro del proveedor 740 de 900" in texto
+    assert "pagide: acierta más el ALBARÁN ANTERIOR" in texto
+    maestro = {"n": 10, "sin_previo": 0, "pagide_del_previo": 5, "pagide_del_prv_con_previo": 9,
+               "efeide_del_previo": 5, "efeide_del_prv_con_previo": 5}
+    texto = " ".join(t0.lectura_m14b(maestro))
+    assert "pagide: acierta más el MAESTRO" in texto and "efeide: empate" in texto
+    assert t0.lectura_m14b({}) == ["Sin albaranes desde 2026-09 con un albarán anterior del mismo proveedor."]
+
+
+def _respuesta_1205() -> _Respuesta:
+    return _Respuesta({"ok": False, "error": "Error interno ejecutando sql/read.",
+                       "details": {"exception": "('40001', '... interbloqueo ... (1205) (SQLExecDirectW)')"}}, 500)
+
+
+def test_f009_t0a_bis_el_cliente_reintenta_ante_el_interbloqueo_1205() -> None:
+    esperas: list[float] = []
+    sesion = _Sesion([_respuesta_1205(), _Respuesta({"ok": True, "columns": ["n"], "rows": [[1]]})])
+    cliente = t0.ClienteLectura("https://ejemplo.invalid", "k", sesion=sesion, dormir=esperas.append)
+    assert cliente.leer("SELECT 1 AS n").filas == [{"n": 1}]
+    assert len(sesion.llamadas) == 2 and esperas == [t0.ESPERA_INTERBLOQUEO_S]
+
+
+def test_f009_t0a_bis_el_cliente_se_rinde_tras_los_reintentos_y_no_reintenta_otros_errores() -> None:
+    esperas: list[float] = []
+    sesion = _Sesion([_respuesta_1205() for _ in range(t0.REINTENTOS_INTERBLOQUEO + 1)])
+    cliente = t0.ClienteLectura("https://ejemplo.invalid", "k", sesion=sesion, dormir=esperas.append)
+    with pytest.raises(t0.ErrorDeLectura, match="1205"):
+        cliente.leer("SELECT 1 AS n")
+    assert len(sesion.llamadas) == t0.REINTENTOS_INTERBLOQUEO + 1 and len(esperas) == t0.REINTENTOS_INTERBLOQUEO
+    otra = _Sesion([_Respuesta({"ok": False, "error": "timeout", "details": {}}, 500)])
+    with pytest.raises(t0.ErrorDeLectura):
+        t0.ClienteLectura("https://ejemplo.invalid", "k", sesion=otra, dormir=esperas.append).leer("SELECT 1 AS n")
+    assert len(otra.llamadas) == 1
+
+
+def test_f009_t0a_bis_main_con_la_lista_de_la_segunda_pasada(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ClienteFalso(_datos_bis()))
+    salida = tmp_path / "t0bis.txt"
+    lista = ["M9", "M11", "M14", "M16", "M17"]
+    assert t0.main(["--solo", *lista, "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert all(f"=== {k} ·" in texto for k in lista) and "ERROR" not in texto and "no se pudo leer" not in texto
+    for esperado in ("pro.tipmov DECIDE", "MA9999 emp 1: SÍ genera mov", "domina «", "anular BORRA",
+                     "acierta más el ALBARÁN ANTERIOR", "ope 5: parece «modificación»"):
+        assert esperado in texto, esperado

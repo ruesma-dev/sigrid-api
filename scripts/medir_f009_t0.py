@@ -5,8 +5,9 @@ F-009 · T0: mediciones M1-M18 de la spec, SOLO LECTURA.
 Lanza cada medición como SELECT por `POST /api/sql/read` contra la API
 desplegada y escribe, en español, la conclusión que necesita la spec
 (`specs/F-009-alta-albaran-compra/`, puntos [Mn]; M16-M18 y las ampliaciones de M11
-y M14, de `progress/spec_F-009.md` §T0 v5). No escribe nada en Sigrid,
-no llama a ningún endpoint de dominio (ni en dry-run) y no se conecta por SQL.
+y M14, de `progress/spec_F-009.md` §T0 v5; M9 y M11 por ventanas cortas, M14b, M16b y
+M17b, de la segunda pasada T0a-bis). No escribe nada en Sigrid, no llama a ningún
+endpoint de dominio (ni en dry-run) y no se conecta por SQL.
 
 Configuración (la de los demás scripts de este repositorio): variables de
 entorno o, si no están, el `.env` de la raíz del repositorio:
@@ -17,6 +18,7 @@ Uso:
     python -m scripts.medir_f009_t0                 # M1-M18
     python -m scripts.medir_f009_t0 --solo M5       # una (o varias: --solo M5 M6)
     python -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14 M16 M17 M18   # repetición T0b
+    python -m scripts.medir_f009_t0 --solo M9 M11 M14 M16 M17                  # segunda pasada (T0a-bis)
     python -m scripts.medir_f009_t0 --salida C:\\ruta\\fuera\\del\\repo.txt
 
 Resultado: por pantalla y en un fichero de %TEMP% (`f009_t0_<fecha>.txt`), que
@@ -77,6 +79,50 @@ _PARTIDA_DISTINTA = (
 _TIPO_PARTIDA = "CASE WHEN ISNULL(d.paride, 0) > 0 THEN 'con_partida' ELSE 'almacen' END"
 _CABECERA = "CASE WHEN ISNULL(a.ctride, 0) > 0 THEN 'con_contrato' ELSE 'sin_contrato' END"
 _VENTANA_LOG = "(SELECT MAX(ide) - 1000000 FROM dbo.log)"   # la de M13: log tiene millones de filas
+_CON_SIN_PARTIDA = "CASE WHEN ISNULL(d.paride, 0) > 0 THEN 'con_partida' ELSE 'sin_partida' END"
+_GENERICOS = marcadores(len(PRODUCTOS_GENERICOS))
+# T0a-bis, M9 y M11: ventana `c.fec >= ? AND c.fec <= ?` (parámetros) y mov por `doclin`.
+_VENTANA_PARAM = "c.tip = 14 AND c.fec >= ? AND c.fec <= ?"
+_M9_VENTANA = f"WHERE {_VENTANA_PARAM}"
+_M9_LINEAS_Y_MOV = (
+    "JOIN dbo.dcapro d ON d.docide = c.ide LEFT JOIN dbo.mov m ON m.docide = d.docide AND m.linide = d.ide"
+)
+_CON_MOV = (
+    "COUNT(DISTINCT d.ide) AS lineas, COUNT(DISTINCT CASE WHEN m.ide IS NULL THEN NULL ELSE d.ide END) AS con_mov, "
+    "COUNT(m.ide) AS movs"
+)
+_TIPMOV, _TIPINV = "ISNULL(r.tipmov, -1)", "ISNULL(r.tipinv, -1)"
+_M11_LINEAS = "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide"
+# T0a-bis, M16b: grupo de producto (cada genérico de la empresa EMPRESA_GENERICOS por separado y «resto»).
+# Lleva `?`: se calcula en una tabla derivada y se agrupa por su alias (repetir la expresión con otros
+# `?` en el GROUP BY no lo aceptaría SQL Server).
+_GRUPO_GENERICO = f"CASE WHEN kp.emp = ? AND kp.cod IN ({_GENERICOS}) THEN kp.cod ELSE 'resto' END"
+_CAA_INFORMADA = "ISNULL(d.caaide, 0) <> 0"
+_SIN_VINCULAR_DESDE_2025 = "WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.docoritip, 0) <> 44"
+_M16B_DESDE = (
+    "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide LEFT JOIN dbo.con kp ON kp.ide = d.proide "
+    "LEFT JOIN dbo.pro r ON r.ide = d.proide LEFT JOIN dbo.caa k ON k.ide = d.caaide"
+)
+# Código de la caa (kc), de la cuenta financiera (cf, `dcapro.cueide` → `cua`), de la obra (oc) y del
+# centro (ec): `caa`, `cua`, `obr` y `cen` son «Propiedades de con», así que su código está en `con.cod`.
+_M16B_CODIGOS = (
+    "LEFT JOIN dbo.auxpronat nt ON nt.ide = r.natide LEFT JOIN dbo.con kc ON kc.ide = d.caaide "
+    "LEFT JOIN dbo.con cf ON cf.ide = d.cueide LEFT JOIN dbo.con oc ON oc.ide = d.obride "
+    "LEFT JOIN dbo.con ec ON ec.ide = d.cenide"
+)
+_CAA_ES_CAAGASCOD = "ISNULL(nt.caagascod, '') <> '' AND kc.cod = nt.caagascod"
+_CAA_EMPIEZA_POR_CUENTA = "ISNULL(cf.cod, '') <> '' AND LEFT(kc.cod, LEN(cf.cod)) = cf.cod"
+_CAA_DEL_CENTRO = "k.cenide = d.cenide"
+# T0a-bis, M17b: altas (ope 1) de albarán en la ventana de log, por (emp, cod), y el caso de cada ope 2.
+_ALTAS_LOG = (
+    "(SELECT emp, cod, MIN(ide) AS pri_alta, MAX(ide) AS ult_alta FROM dbo.log "
+    f"WHERE ide > {_VENTANA_LOG} AND tab = 'con' AND tip = 14 AND ope = 1 GROUP BY emp, cod)"
+)
+_CASO_M17B = (
+    "CASE WHEN c.ide IS NULL THEN 'no_existe' WHEN p.ult_alta > l.ide THEN 'existe_con_alta_posterior' "
+    "ELSE 'existe_sin_alta_posterior' END"
+)
+_LOG_ALBARANES = f"WHERE l.ide > {_VENTANA_LOG} AND l.tab = 'con' AND l.tip = 14"
 
 # M14 ampliada (spec v5 §T0, H11): columna de dcapro y condición de «tiene valor», en el orden de la
 # spec. `med` es binario y `tex`/`texcom` texto ilimitado (DATALENGTH); `cod2`/`pac`/`refent`, texto.
@@ -98,6 +144,17 @@ UMBRAL_DOMINANTE = 0.5       # M16 «dominante»: ≥ 50 % de las líneas y no m
 UMBRAL_CASI_NADA = 0.001     # «≤ 0,1 %» de M18 (y «≈ 0» de M14 ampliada)
 UMBRAL_BORRA = 0.05          # M17: «con_existe ≈ 0»
 EMPRESA_ARRASTRE = 1         # M14 ampliada: el MA9999 de la empresa 1
+UMBRAL_CASI_NINGUNA = 0.05   # M9: «≈ 0» (simétrico de UMBRAL_CASI_TODO)
+
+# T0a-bis: la ejecución del 2026-10-05 perdió M9 y M11 enteras por ReadTimeout (el balanceador corta a
+# 230 s). Ventanas cortas y cerradas (el último mes completo: menos filas y menos bloqueos de las que el
+# escritorio está editando hoy), guiadas desde `con` (tip, fec) y con `mov` por su índice `doclin`.
+VENTANA_M9 = (20260901, 20260930)
+VENTANA_M11 = (20260701, 20260930)
+DESDE_M14B, DESDE_LAG_M14B = 20260901, 20260101   # M14b: albaranes desde 2026-09, el anterior desde 2026
+EMPRESA_GENERICOS = 1        # M16b: los genéricos de la empresa 1, cada uno por separado
+REINTENTOS_INTERBLOQUEO = 2  # error 1205 de SQL Server (transitorio): se reintenta con espera creciente
+ESPERA_INTERBLOQUEO_S = 5
 
 
 # ---------------------------------------------------------------------------
@@ -222,44 +279,37 @@ SQL: dict[str, str] = {
         "GROUP BY CASE WHEN a.obride = d.obride THEN 'alm_de_la_obra' ELSE 'otro' END, ISNULL(a.paride, 0), "
         "CASE WHEN d.cenide = a.cenide THEN 1 ELSE 0 END ORDER BY n DESC"
     ),
-    # Los recuentos por albarán y por línea se agregan ANTES (tablas derivadas) y se unen con
-    # LEFT JOIN: un SUM sobre subconsultas escalares da el error 130 de SQL Server.
+    # T0a-bis: M9 por la ventana VENTANA_M9 (parámetros), sin `IN (SELECT ...)`: `con` (tip, fec) →
+    # `dcapro` → `mov` por su índice `doclin` (docide, linide). Una línea puede tener más de un mov:
+    # se cuentan líneas distintas. Ningún agregado lleva subconsulta (error 130).
     "M9_por_tipsininv": (
-        "SELECT d.tipsininv, COUNT(*) AS albaranes, SUM(ISNULL(l.n, 0)) AS lineas, SUM(ISNULL(m.n, 0)) AS movs "
-        "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide "
-        "LEFT JOIN (SELECT docide, COUNT(*) AS n FROM dbo.dcapro WHERE docide IN (SELECT ide FROM dbo.con "
-        "WHERE tip = 14 AND fec >= 20260701) GROUP BY docide) l ON l.docide = d.ide "
-        "LEFT JOIN (SELECT docide, COUNT(*) AS n FROM dbo.mov WHERE doctip = 14 AND docide IN (SELECT ide "
-        "FROM dbo.con WHERE tip = 14 AND fec >= 20260701) GROUP BY docide) m ON m.docide = d.ide "
-        "WHERE c.tip = 14 AND c.fec >= 20260701 GROUP BY d.tipsininv"
+        f"SELECT a.tipsininv, COUNT(DISTINCT c.ide) AS albaranes, {_CON_MOV} "
+        f"FROM dbo.con c JOIN dbo.dca a ON a.ide = c.ide {_M9_LINEAS_Y_MOV} {_M9_VENTANA} GROUP BY a.tipsininv"
     ),
     "M9_por_partida": (
-        "SELECT CASE WHEN ISNULL(p.paride, 0) > 0 THEN 'con_partida' ELSE 'sin_partida' END AS tipo, "
-        "COUNT(*) AS lineas, SUM(CASE WHEN m.linide IS NULL THEN 0 ELSE 1 END) AS con_mov "
-        "FROM dbo.dcapro p JOIN dbo.con c ON c.ide = p.docide "
-        "LEFT JOIN (SELECT DISTINCT docide, linide FROM dbo.mov WHERE doctip = 14 AND docide IN (SELECT ide "
-        "FROM dbo.con WHERE tip = 14 AND fec >= 20260701)) m ON m.docide = p.docide AND m.linide = p.ide "
-        "WHERE c.tip = 14 AND c.fec >= 20260701 "
-        "GROUP BY CASE WHEN ISNULL(p.paride, 0) > 0 THEN 'con_partida' ELSE 'sin_partida' END"
+        f"SELECT {_CON_SIN_PARTIDA} AS tipo, {_CON_MOV} FROM dbo.con c {_M9_LINEAS_Y_MOV} {_M9_VENTANA} "
+        f"GROUP BY {_CON_SIN_PARTIDA}"
     ),
-    # ¿Qué decide que una línea no tenga mov? Banderas del maestro de productos
-    # (`pro.tipmov` «Hace movimientos», `pro.tipinv` «Es inventariable») frente al mov real.
+    # ¿Qué decide que una línea genere mov? Banderas del maestro de productos (`pro.tipmov` «Hace
+    # movimientos», `pro.tipinv` «Es inventariable») y de su familia (`auxfam.tipinv`).
     "M9_por_banderas": (
-        "SELECT ISNULL(r.tipmov, -1) AS tipmov, ISNULL(r.tipinv, -1) AS tipinv, COUNT(*) AS lineas, "
-        "SUM(CASE WHEN m.linide IS NULL THEN 0 ELSE 1 END) AS con_mov "
-        "FROM dbo.dcapro p JOIN dbo.con c ON c.ide = p.docide LEFT JOIN dbo.pro r ON r.ide = p.proide "
-        "LEFT JOIN (SELECT DISTINCT docide, linide FROM dbo.mov WHERE doctip = 14 AND docide IN (SELECT ide "
-        "FROM dbo.con WHERE tip = 14 AND fec >= 20260701)) m ON m.docide = p.docide AND m.linide = p.ide "
-        "WHERE c.tip = 14 AND c.fec >= 20260701 GROUP BY ISNULL(r.tipmov, -1), ISNULL(r.tipinv, -1) "
-        "ORDER BY lineas DESC"
+        f"SELECT {_TIPMOV} AS tipmov, {_TIPINV} AS tipinv, ISNULL(f.tipinv, -1) AS fam_tipinv, {_CON_MOV} "
+        f"FROM dbo.con c {_M9_LINEAS_Y_MOV} LEFT JOIN dbo.pro r ON r.ide = d.proide "
+        f"LEFT JOIN dbo.auxfam f ON f.ide = r.famide {_M9_VENTANA} "
+        f"GROUP BY {_TIPMOV}, {_TIPINV}, ISNULL(f.tipinv, -1) ORDER BY lineas DESC"
+    ),
+    # ¿Generan mov las líneas de los genéricos (MA9999, QA9999…)? Por código y empresa.
+    "M9_genericos": (
+        f"SELECT k.cod, k.emp, {_TIPMOV} AS tipmov, {_TIPINV} AS tipinv, {_CON_MOV} "
+        f"FROM dbo.con c {_M9_LINEAS_Y_MOV} JOIN dbo.con k ON k.ide = d.proide "
+        f"LEFT JOIN dbo.pro r ON r.ide = d.proide {_M9_VENTANA} AND k.cod IN ({_GENERICOS}) "
+        f"GROUP BY k.cod, k.emp, {_TIPMOV}, {_TIPINV} ORDER BY k.cod, k.emp"
     ),
     "M9_sin_mov_por_producto": (
-        "SELECT TOP 10 p.proide, k.cod, k.emp, COUNT(*) AS lineas FROM dbo.dcapro p "
-        "JOIN dbo.con c ON c.ide = p.docide JOIN dbo.con k ON k.ide = p.proide "
-        "LEFT JOIN (SELECT DISTINCT docide, linide FROM dbo.mov WHERE doctip = 14 AND docide IN (SELECT ide "
-        "FROM dbo.con WHERE tip = 14 AND fec >= 20260701)) m ON m.docide = p.docide AND m.linide = p.ide "
-        "WHERE c.tip = 14 AND c.fec >= 20260701 AND m.linide IS NULL GROUP BY p.proide, k.cod, k.emp "
-        "ORDER BY lineas DESC"
+        f"SELECT TOP 10 d.proide, k.cod, k.emp, {_TIPMOV} AS tipmov, {_TIPINV} AS tipinv, COUNT(*) AS lineas "
+        f"FROM dbo.con c {_M9_LINEAS_Y_MOV} LEFT JOIN dbo.con k ON k.ide = d.proide "
+        f"LEFT JOIN dbo.pro r ON r.ide = d.proide {_M9_VENTANA} AND m.ide IS NULL "
+        f"GROUP BY d.proide, k.cod, k.emp, {_TIPMOV}, {_TIPINV} ORDER BY lineas DESC"
     ),
     "M10_atrasados": (
         "SELECT TOP 20 m.ide, m.proide, m.almide, m.fechor, m.canent, m.almcan FROM dbo.mov m "
@@ -275,35 +325,35 @@ SQL: dict[str, str] = {
         "SELECT c.ide, c.cod, c.res, c.tip, c.emp, c.fecbaj, p.ivacomide, p.comide, p.natide, p.medide, "
         "p.gaside FROM dbo.con c JOIN dbo.pro p ON p.ide = c.ide WHERE c.cod IN ({in})"
     ),
+    # T0a-bis: todas las de M11 van por la ventana VENTANA_M11 (parámetros `?`, antes del `ide`).
     "M11_lineas_producto": (
-        "SELECT TOP 30 d.cueide, d.ivaide, d.natide, d.unimed, d.caaide, COUNT(*) AS n FROM dbo.dcapro d "
-        "JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ? "
+        f"SELECT TOP 30 d.cueide, d.ivaide, d.natide, d.unimed, d.caaide, COUNT(*) AS n {_M11_LINEAS} "
+        f"WHERE {_VENTANA_PARAM} AND d.proide = ? "
         "GROUP BY d.cueide, d.ivaide, d.natide, d.unimed, d.caaide ORDER BY n DESC"
     ),
     "M11_total_producto": (
-        "SELECT COUNT(*) AS lineas, MIN(c.fec) AS desde, MAX(c.fec) AS hasta FROM dbo.dcapro d "
-        "JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND d.proide = ?"
+        f"SELECT COUNT(*) AS lineas, MIN(c.fec) AS desde, MAX(c.fec) AS hasta {_M11_LINEAS} "
+        f"WHERE {_VENTANA_PARAM} AND d.proide = ?"
     ),
-    # Solo los IVA que usan las líneas de albarán de 2026, y si `ivacuo` = round(tot·iva, 2).
+    # Solo los IVA que usan las líneas de albarán de la ventana, y si `ivacuo` = round(tot·iva, 2).
     "M11_iva_usado": (
         "SELECT d.ivaide, k.cod, i.iva, COUNT(*) AS lineas, "
         "SUM(CASE WHEN ABS(d.ivacuo - ROUND(d.tot * i.iva, 2)) > 0.011 THEN 1 ELSE 0 END) AS ivacuo_distinto "
-        "FROM dbo.dcapro d JOIN dbo.con a ON a.ide = d.docide LEFT JOIN dbo.iva i ON i.ide = d.ivaide "
-        "LEFT JOIN dbo.con k ON k.ide = d.ivaide WHERE a.tip = 14 AND a.fec >= 20260101 "
+        f"{_M11_LINEAS} LEFT JOIN dbo.iva i ON i.ide = d.ivaide "
+        f"LEFT JOIN dbo.con k ON k.ide = d.ivaide WHERE {_VENTANA_PARAM} "
         "GROUP BY d.ivaide, k.cod, i.iva ORDER BY lineas DESC"
     ),
     # T0a (spec v5, H15): IVA de cada MA9999 por proveedor. El recuento por proveedor va en una
     # tabla derivada (regla del error 130).
     "M11_iva_por_proveedor": (
         "SELECT COUNT(*) AS proveedores, SUM(CASE WHEN x.n_iva > 1 THEN 1 ELSE 0 END) AS con_varios_iva "
-        "FROM (SELECT a.entide, COUNT(DISTINCT d.ivaide) AS n_iva FROM dbo.dcapro d JOIN dbo.dca a "
-        "ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 "
-        "AND d.proide = ? GROUP BY a.entide) x"
+        f"FROM (SELECT a.entide, COUNT(DISTINCT d.ivaide) AS n_iva {_M11_LINEAS} JOIN dbo.dca a "
+        f"ON a.ide = c.ide WHERE {_VENTANA_PARAM} AND d.proide = ? GROUP BY a.entide) x"
     ),
     "M11_iva_y_isp": (
         "SELECT a.tipisp, d.ivaide, COUNT(DISTINCT a.entide) AS proveedores, COUNT(*) AS lineas "
-        "FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide "
-        "WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ? GROUP BY a.tipisp, d.ivaide "
+        f"{_M11_LINEAS} JOIN dbo.dca a ON a.ide = c.ide "
+        f"WHERE {_VENTANA_PARAM} AND d.proide = ? GROUP BY a.tipisp, d.ivaide "
         "ORDER BY lineas DESC"
     ),
     # ¿Acierta más el IVA de la línea anterior del MISMO proveedor que el de la anterior de
@@ -313,8 +363,8 @@ SQL: dict[str, str] = {
         "SUM(CASE WHEN x.ivaide = x.iva_prev_prv THEN 1 ELSE 0 END) AS acierta_mismo_prv, "
         "SUM(CASE WHEN x.ivaide = x.iva_prev THEN 1 ELSE 0 END) AS acierta_cualquiera "
         "FROM (SELECT d.ivaide, LAG(d.ivaide) OVER (PARTITION BY a.entide ORDER BY d.ide) AS iva_prev_prv, "
-        "LAG(d.ivaide) OVER (ORDER BY d.ide) AS iva_prev FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide "
-        "JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ?) x"
+        f"LAG(d.ivaide) OVER (ORDER BY d.ide) AS iva_prev {_M11_LINEAS} JOIN dbo.dca a ON a.ide = c.ide "
+        f"WHERE {_VENTANA_PARAM} AND d.proide = ?) x"
     ),
     "M12_mezcla": (
         "SELECT COUNT(DISTINCT d.ide) AS con_lineas_sin_vincular, (SELECT COUNT(*) FROM dbo.dca d2 "
@@ -375,6 +425,26 @@ SQL: dict[str, str] = {
     ),
     "M14_sv_linea": "SELECT * FROM dbo.dcapro WHERE ide = ?",
     "M14_sv_plantilla": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? AND ide < ? ORDER BY ide DESC",
+    # T0a-bis, M14b: forma de pago y efecto del albarán ANTERIOR del mismo proveedor en la misma empresa
+    # (por ide) frente al maestro del proveedor. Las dos tasas se comparan sobre los mismos albaranes
+    # (los que tienen anterior); la del maestro sobre todos va aparte.
+    "M14b_pago_previo": (
+        "SELECT COUNT(*) AS n, SUM(CASE WHEN x.ide_previo IS NULL THEN 1 ELSE 0 END) AS sin_previo, "
+        "SUM(CASE WHEN x.ide_previo IS NOT NULL AND x.pagide = x.pag_previo THEN 1 ELSE 0 END) AS pagide_del_previo, "
+        "SUM(CASE WHEN x.ide_previo IS NOT NULL AND x.efeide = x.efe_previo THEN 1 ELSE 0 END) AS efeide_del_previo, "
+        "SUM(CASE WHEN x.ide_previo IS NOT NULL AND x.pagide = x.pag_prv THEN 1 ELSE 0 END) "
+        "AS pagide_del_prv_con_previo, "
+        "SUM(CASE WHEN x.ide_previo IS NOT NULL AND x.efeide = x.efe_prv THEN 1 ELSE 0 END) "
+        "AS efeide_del_prv_con_previo, "
+        "SUM(CASE WHEN x.pagide = x.pag_prv THEN 1 ELSE 0 END) AS pagide_del_prv, "
+        "SUM(CASE WHEN x.efeide = x.efe_prv THEN 1 ELSE 0 END) AS efeide_del_prv "
+        "FROM (SELECT c.fec, a.pagide, a.efeide, v.pagide AS pag_prv, v.efeide AS efe_prv, "
+        "LAG(c.ide) OVER (PARTITION BY c.emp, a.entide ORDER BY c.ide) AS ide_previo, "
+        "LAG(a.pagide) OVER (PARTITION BY c.emp, a.entide ORDER BY c.ide) AS pag_previo, "
+        "LAG(a.efeide) OVER (PARTITION BY c.emp, a.entide ORDER BY c.ide) AS efe_previo "
+        "FROM dbo.con c JOIN dbo.dca a ON a.ide = c.ide LEFT JOIN dbo.prv v ON v.ide = a.entide "
+        "WHERE c.tip = 14 AND c.fec >= ?) x WHERE x.fec >= ?"
+    ),
     "M15_stock_negativo": (
         "SELECT COUNT(*) AS n, COUNT(DISTINCT almide) AS almacenes FROM dbo.mov "
         "WHERE almcan < 0 AND fec >= 20250101"
@@ -416,6 +486,65 @@ SQL: dict[str, str] = {
         "FROM dbo.obr o LEFT JOIN dbo.alm a ON a.ide = o.almide WHERE o.ide IN (SELECT d.obride "
         "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = 14 AND c.fec >= 20250101)"
     ),
+    # --- T0a-bis, M16b: origen de dcapro.caaide en las líneas sin vincular, desde 2025 ---
+    # Cada candidata es una bandera 0/1 por línea en la tabla derivada; fuera solo se suman.
+    "M16b_fuentes": (
+        "SELECT x.grupo, x.partida, COUNT(*) AS n, SUM(x.caa_cero) AS caa_cero, SUM(x.pro_gaside) AS pro_gaside, "
+        "SUM(x.cen_gaside) AS cen_gaside, SUM(x.cab_caaide) AS cab_caaide, SUM(x.ctr_caaide) AS ctr_caaide, "
+        "SUM(x.par_caaide) AS par_caaide, SUM(x.caa_del_centro) AS caa_del_centro "
+        f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, {_CON_SIN_PARTIDA} AS partida, "
+        "CASE WHEN ISNULL(d.caaide, 0) = 0 THEN 1 ELSE 0 END AS caa_cero, "
+        f"CASE WHEN {_CAA_INFORMADA} AND d.caaide = r.gaside THEN 1 ELSE 0 END AS pro_gaside, "
+        f"CASE WHEN {_CAA_INFORMADA} AND d.caaide = e.gaside THEN 1 ELSE 0 END AS cen_gaside, "
+        f"CASE WHEN {_CAA_INFORMADA} AND d.caaide = a.caaide THEN 1 ELSE 0 END AS cab_caaide, "
+        f"CASE WHEN {_CAA_INFORMADA} AND d.caaide = t.caaide THEN 1 ELSE 0 END AS ctr_caaide, "
+        f"CASE WHEN {_CAA_INFORMADA} AND d.caaide = p.caaide THEN 1 ELSE 0 END AS par_caaide, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} THEN 1 ELSE 0 END AS caa_del_centro "
+        f"{_M16B_DESDE} JOIN dbo.dca a ON a.ide = c.ide LEFT JOIN dbo.cen e ON e.ide = d.cenide "
+        "LEFT JOIN dbo.ctr t ON t.ide = a.ctride LEFT JOIN dbo.obrparpar p ON p.ide = d.paride "
+        f"{_SIN_VINCULAR_DESDE_2025}) x GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
+    ),
+    # Pista de negocio (Administración y Control de Costes, 2026-09-29): la analítica va vinculada al
+    # centro de coste y a la cuenta financiera de gasto (6XX). Se prueba si el código de la caa sale del
+    # de la naturaleza, del de la cuenta financiera, del de la obra o del centro, solo y con su centro.
+    "M16b_codigos": (
+        "SELECT x.grupo, x.partida, COUNT(*) AS n, SUM(x.caa_cod_caagascod) AS caa_cod_caagascod, "
+        "SUM(x.caa_cod_caaexicod) AS caa_cod_caaexicod, SUM(x.caa_cod_cuafaccod) AS caa_cod_cuafaccod, "
+        "SUM(x.caa_cod_cuenta) AS caa_cod_cuenta, SUM(x.caa_cod_empieza_por_cuenta) AS caa_cod_empieza_por_cuenta, "
+        "SUM(x.caa_cod_contiene_obra) AS caa_cod_contiene_obra, "
+        "SUM(x.caa_cod_contiene_centro) AS caa_cod_contiene_centro, SUM(x.centro_y_caagascod) AS centro_y_caagascod, "
+        "SUM(x.centro_y_cuenta) AS centro_y_cuenta, SUM(x.cuenta_6xx) AS cuenta_6xx, "
+        "SUM(x.cuenta_es_cuacomcod) AS cuenta_es_cuacomcod "
+        f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, {_CON_SIN_PARTIDA} AS partida, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_ES_CAAGASCOD} THEN 1 ELSE 0 END AS caa_cod_caagascod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(nt.caaexicod, '') <> '' AND kc.cod = nt.caaexicod THEN 1 ELSE 0 END "
+        "AS caa_cod_caaexicod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(nt.cuafaccod, '') <> '' AND kc.cod = nt.cuafaccod THEN 1 ELSE 0 END "
+        "AS caa_cod_cuafaccod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(cf.cod, '') <> '' AND kc.cod = cf.cod THEN 1 ELSE 0 END "
+        "AS caa_cod_cuenta, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_EMPIEZA_POR_CUENTA} THEN 1 ELSE 0 END AS caa_cod_empieza_por_cuenta, "
+        f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(oc.cod, '') <> '' AND CHARINDEX(RTRIM(oc.cod), kc.cod) > 0 "
+        "THEN 1 ELSE 0 END AS caa_cod_contiene_obra, "
+        f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(ec.cod, '') <> '' AND CHARINDEX(RTRIM(ec.cod), kc.cod) > 0 "
+        "THEN 1 ELSE 0 END AS caa_cod_contiene_centro, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_CAA_ES_CAAGASCOD} THEN 1 ELSE 0 END "
+        "AS centro_y_caagascod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_CAA_EMPIEZA_POR_CUENTA} THEN 1 ELSE 0 END "
+        "AS centro_y_cuenta, "
+        "CASE WHEN LEFT(ISNULL(cf.cod, ''), 1) = '6' THEN 1 ELSE 0 END AS cuenta_6xx, "
+        "CASE WHEN ISNULL(nt.cuacomcod, '') <> '' AND cf.cod = nt.cuacomcod THEN 1 ELSE 0 END AS cuenta_es_cuacomcod "
+        f"{_M16B_DESDE} {_M16B_CODIGOS} {_SIN_VINCULAR_DESDE_2025}) x "
+        "GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
+    ),
+    # Muestra agregada por frecuencia para ver a ojo el patrón del código de la caa.
+    "M16b_muestra": (
+        "SELECT TOP 20 kc.cod AS caa_cod, nt.caagascod, nt.caaexicod, oc.cod AS obra, ec.cod AS centro, "
+        f"cf.cod AS cuenta, {_CON_SIN_PARTIDA} AS partida, COUNT(*) AS lineas {_M16B_DESDE} {_M16B_CODIGOS} "
+        f"{_SIN_VINCULAR_DESDE_2025} AND {_CAA_INFORMADA} "
+        f"GROUP BY kc.cod, nt.caagascod, nt.caaexicod, oc.cod, ec.cod, cf.cod, {_CON_SIN_PARTIDA} "
+        "ORDER BY lineas DESC"
+    ),
     # --- T0a (spec v5): M17 anulación de albaranes (H9). Ventana de log acotada por ide, como M13 ---
     "M17_ope": (
         "SELECT ope, COUNT(*) AS n, MIN(fec) AS desde, MAX(fec) AS hasta FROM dbo.log "
@@ -445,6 +574,30 @@ SQL: dict[str, str] = {
         "SELECT est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END AS con_fecbaj, COUNT(*) AS n "
         "FROM dbo.con WHERE tip = 14 AND fec >= 20250101 "
         "GROUP BY est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END ORDER BY n DESC"
+    ),
+    # --- T0a-bis, M17b: tras una ope 2, ¿el con con ese (emp, tip, cod) es el mismo o uno posterior? ---
+    # `log` no guarda el ide del registro (diccionario: ide, emp, ori, ope, fec, hor, usu, tab, tip, cod,
+    # res, tex, est, err): se busca un alta (ope 1) del mismo (emp, cod) POSTERIOR a la ope 2.
+    "M17b_reutiliza": (
+        f"SELECT {_CASO_M17B} AS caso, COUNT(*) AS n, "
+        "SUM(CASE WHEN p.pri_alta < l.ide THEN 1 ELSE 0 END) AS con_alta_previa, "
+        "SUM(CASE WHEN c.ide IS NOT NULL AND c.fec > l.fec THEN 1 ELSE 0 END) AS con_fec_posterior, "
+        "SUM(CASE WHEN c.ide IS NOT NULL AND c.fec <= l.fec THEN 1 ELSE 0 END) AS con_fec_anterior "
+        "FROM dbo.log l LEFT JOIN dbo.con c ON c.emp = l.emp AND c.tip = l.tip AND c.cod = l.cod "
+        f"LEFT JOIN {_ALTAS_LOG} p ON p.emp = l.emp AND p.cod = l.cod {_LOG_ALBARANES} AND l.ope = 2 "
+        f"GROUP BY {_CASO_M17B}"
+    ),
+    # Perfil de cada ope (filas por documento, usuarios, est) y su resumen más frecuente.
+    "M17b_perfil": (
+        "SELECT l.ope, COUNT(*) AS n, COUNT(DISTINCT l.cod) AS documentos, COUNT(DISTINCT l.usu) AS usuarios, "
+        "COUNT(DISTINCT l.est) AS estados, MIN(l.est) AS est_min, MAX(l.est) AS est_max, "
+        "SUM(CASE WHEN DATALENGTH(l.tex) > 0 THEN 1 ELSE 0 END) AS con_tex "
+        f"FROM dbo.log l {_LOG_ALBARANES} GROUP BY l.ope ORDER BY l.ope"
+    ),
+    "M17b_res": (
+        "SELECT TOP 40 l.ope, LEFT(ISNULL(l.res, ''), 40) AS res, COUNT(*) AS n "
+        f"FROM dbo.log l {_LOG_ALBARANES} AND l.ope <> 1 GROUP BY l.ope, LEFT(ISNULL(l.res, ''), 40) "
+        "ORDER BY n DESC"
     ),
     # --- T0a (spec v5): M18 uso de dcapro.refent (H18) ---
     "M18_refent": (
@@ -504,6 +657,12 @@ class ErrorDeLectura(Exception):
     pass
 
 
+def es_interbloqueo(texto: str) -> bool:
+    """Error 1205 de SQL Server (SQLSTATE 40001): la sentencia fue la víctima de un interbloqueo y
+    basta con repetirla (le pasó a M14 el 2026-10-05)."""
+    return "(1205)" in texto or "40001" in texto
+
+
 @dataclass
 class Resultado:
     filas: list[dict[str, Any]]
@@ -514,7 +673,8 @@ class Resultado:
 class ClienteLectura:
     """Solo `POST /api/sql/read`. Rechaza en local cualquier SQL que no sea lectura."""
 
-    def __init__(self, base_url: str, clave: str, sesion: Any = None) -> None:
+    def __init__(self, base_url: str, clave: str, sesion: Any = None,
+                 dormir: Callable[[float], Any] = time.sleep) -> None:
         self._url = base_url.rstrip("/") + "/api/sql/read"
         self._cabeceras = {"x-functions-key": clave, "Content-Type": "application/json"}
         if sesion is None:
@@ -522,9 +682,23 @@ class ClienteLectura:
 
             sesion = requests.Session()
         self._sesion = sesion
+        self._dormir = dormir
 
     def leer(self, sql: str, parametros: list[Any] | None = None, *, max_rows: int = 200,
              timeout_s: int = TIMEOUT_NORMAL_S) -> Resultado:
+        """Una lectura; ante el interbloqueo 1205 se repite hasta REINTENTOS_INTERBLOQUEO veces con
+        espera creciente. Cualquier otro error (también un ReadTimeout) sale a la primera."""
+        for intento in range(REINTENTOS_INTERBLOQUEO + 1):
+            try:
+                return self._leer_una_vez(sql, parametros, max_rows=max_rows, timeout_s=timeout_s)
+            except ErrorDeLectura as exc:
+                if intento == REINTENTOS_INTERBLOQUEO or not es_interbloqueo(str(exc)):
+                    raise
+                self._dormir(ESPERA_INTERBLOQUEO_S * (intento + 1))
+        raise AssertionError("inalcanzable")  # pragma: no cover
+
+    def _leer_una_vez(self, sql: str, parametros: list[Any] | None, *, max_rows: int,
+                      timeout_s: int) -> Resultado:
         if not es_solo_lectura(sql):
             raise ErrorDeLectura("SQL rechazada en local: solo SELECT/WITH de una sentencia.")
         cuerpo = {"database": DATABASE, "sql": sql, "parameters": parametros or [],
@@ -795,28 +969,73 @@ def m8(c: ClienteLectura) -> Informe:
     return inf
 
 
+def _veredicto_mov(con_mov: float, lineas: float) -> str:
+    if lineas <= 0:
+        return "sin líneas en la ventana"
+    tasa, texto = con_mov / lineas, _pct(con_mov, lineas)
+    if tasa >= UMBRAL_CASI_TODO:
+        return f"SÍ genera mov ({texto})"
+    if tasa <= UMBRAL_CASI_NINGUNA:
+        return f"NO genera mov ({texto})"
+    return f"a veces ({texto})"
+
+
+def _explica_mov(banderas: list[dict[str, Any]], campo: str) -> tuple[bool, str]:
+    """¿Decide `campo` (1 ⇒ casi todas con mov; otro valor ⇒ casi ninguna)?"""
+    valores = sorted({str(f.get(campo)) for f in banderas})
+    partes, ok = [], bool(valores)
+    for v in valores:
+        con, n = _suma(banderas, "con_mov", **{campo: v}), _suma(banderas, "lineas", **{campo: v})
+        partes.append(f"{campo}={v} → con mov {_pct(con, n)}")
+        if n > 0:
+            tasa = con / n
+            ok = ok and (tasa >= UMBRAL_CASI_TODO if v == "1" else tasa <= UMBRAL_CASI_NINGUNA)
+    return ok, ", ".join(partes)
+
+
+def lectura_m9(banderas: list[dict[str, Any]], genericos: list[dict[str, Any]]) -> list[str]:
+    """T0a-bis, M9: ¿qué decide que una línea genere mov? ¿Lo generan los genéricos?"""
+    salida = []
+    decide = []
+    for campo in ("tipmov", "tipinv"):
+        ok, detalle = _explica_mov(banderas, campo)
+        salida.append(f"pro.{campo}: " + (f"DECIDE si la línea genera mov ({detalle})." if ok
+                                           else f"no lo explica solo ({detalle or 'sin datos'})."))
+        if ok:
+            decide.append(campo)
+    salida.append("Lectura automática: " + (f"pro.{decide[0]} DECIDE si la línea genera mov." if decide else
+                                            "ni pro.tipmov ni pro.tipinv lo explican solos: mirar las combinaciones "
+                                            "(y tipsininv de la cabecera)."))
+    for cod in PRODUCTOS_GENERICOS:
+        emp1 = _veredicto_mov(_suma(genericos, "con_mov", cod=cod, emp=EMPRESA_GENERICOS),
+                              _suma(genericos, "lineas", cod=cod, emp=EMPRESA_GENERICOS))
+        todas = _veredicto_mov(_suma(genericos, "con_mov", cod=cod), _suma(genericos, "lineas", cod=cod))
+        salida.append(f"{cod} emp {EMPRESA_GENERICOS}: {emp1}; todas las empresas: {todas}.")
+    return salida
+
+
 def m9(c: ClienteLectura) -> Informe:
-    inf = Informe("M9", "¿un mov por línea? (desde 2026-07)")
-    r = c.leer(SQL["M9_por_tipsininv"], max_rows=20, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("por tipsininv", r)
-    for f in r.filas:
+    desde, hasta = VENTANA_M9
+    inf = Informe("M9", f"¿un mov por línea? ¿qué lo decide? (albaranes de {desde} a {hasta})")
+    ventana = list(VENTANA_M9)
+    kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
+    for f in _leer_tabla(c, inf, "M9_por_tipsininv", "por tipsininv", ventana, **kw):
         inf.concluir(f"tipsininv={f.get('tipsininv')}: {_num(f.get('albaranes')):.0f} albaranes, "
-                     f"{_num(f.get('lineas')):.0f} líneas, {_num(f.get('movs')):.0f} mov.")
-    r = c.leer(SQL["M9_por_partida"], max_rows=5, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("líneas con mov según partida", r)
-    for f in r.filas:
+                     f"{_num(f.get('lineas')):.0f} líneas, con mov {_pct(_num(f.get('con_mov')), _num(f.get('lineas')))}.")
+    for f in _leer_tabla(c, inf, "M9_por_partida", "líneas con mov según partida", ventana, **kw):
         inf.concluir(f"{f.get('tipo')}: con mov {_pct(_num(f.get('con_mov')), _num(f.get('lineas')))}.")
-    r = c.leer(SQL["M9_por_banderas"], max_rows=20, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("líneas con mov según pro.tipmov / pro.tipinv", r)
-    for f in r.filas:
-        inf.concluir(f"pro.tipmov={f.get('tipmov')} tipinv={f.get('tipinv')}: con mov "
-                     f"{_pct(_num(f.get('con_mov')), _num(f.get('lineas')))} líneas.")
-    r = c.leer(SQL["M9_sin_mov_por_producto"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("productos de las líneas sin mov", r)
-    if r.filas:
-        top = r.filas[0]
-        inf.concluir(f"Producto con más líneas sin mov: {top.get('cod')} (ide {top.get('proide')}, emp {top.get('emp')}), "
-                     f"{_num(top.get('lineas')):.0f} líneas.")
+    banderas = _leer_tabla(c, inf, "M9_por_banderas", "líneas con mov según pro.tipmov / pro.tipinv / auxfam.tipinv",
+                           ventana, **kw)
+    genericos = _leer_tabla(c, inf, "M9_genericos", "líneas con mov de los productos genéricos",
+                            [*ventana, *PRODUCTOS_GENERICOS], **kw)
+    sin_mov = _leer_tabla(c, inf, "M9_sin_mov_por_producto", "productos de las líneas sin mov", ventana,
+                          max_rows=10, timeout_s=TIMEOUT_PESADO_S)
+    if sin_mov:
+        top = sin_mov[0]
+        inf.concluir(f"Producto con más líneas sin mov: {top.get('cod')} (ide {top.get('proide')}, emp {top.get('emp')}, "
+                     f"tipmov {top.get('tipmov')}, tipinv {top.get('tipinv')}), {_num(top.get('lineas')):.0f} líneas.")
+    for texto in lectura_m9(banderas, genericos):
+        inf.concluir(texto)
     return inf
 
 
@@ -843,35 +1062,37 @@ def m10(c: ClienteLectura) -> Informe:
 
 
 def m11(c: ClienteLectura) -> Informe:
-    inf = Informe("M11", "productos genéricos (MA9999…) e IVA")
+    desde, hasta = VENTANA_M11
+    inf = Informe("M11", f"productos genéricos (MA9999…) e IVA (líneas de {desde} a {hasta})")
     sql = SQL["M11_productos"].format(**{"in": marcadores(len(PRODUCTOS_GENERICOS))})
-    r = c.leer(sql, list(PRODUCTOS_GENERICOS), max_rows=20)
-    inf.tabla("maestro de productos", r)
-    for f in r.filas:
+    productos = _leer_tabla(c, inf, "M11_productos", "maestro de productos", list(PRODUCTOS_GENERICOS),
+                            sql=sql, max_rows=20)
+    for f in productos:
         inf.concluir(f"{f.get('cod')}: ide={f.get('ide')} tip={f.get('tip')} emp={f.get('emp')} fecbaj={f.get('fecbaj')} "
                      f"comide={f.get('comide')} ivacomide={f.get('ivacomide')} natide={f.get('natide')}.")
     # Hay un MA9999 por empresa (1, 31, 34): se mira cada uno, no el primero que llegue.
-    for ma in (f for f in r.filas if str(f.get("cod", "")).strip().upper() == "MA9999"):
-        t = c.leer(SQL["M11_total_producto"], [ma.get("ide")], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
-        inf.tabla(f"MA9999 emp {ma.get('emp')} (ide {ma.get('ide')}): total de líneas", t)
-        tot = t.filas[0] if t.filas else {}
-        inf.concluir(f"MA9999 emp {ma.get('emp')}: {_num(tot.get('lineas')):.0f} líneas de albarán, "
-                     f"de {tot.get('desde')} a {tot.get('hasta')}.")
-        lp = c.leer(SQL["M11_lineas_producto"], [ma.get("ide")], max_rows=30, timeout_s=TIMEOUT_PESADO_S)
-        inf.tabla(f"MA9999 emp {ma.get('emp')}: combinaciones desde 2025", lp, limite=10)
-        if lp.filas:
-            top = lp.filas[0]
-            total = sum(_num(x.get("n")) for x in lp.filas)
-            inf.concluir(f"MA9999 emp {ma.get('emp')}, combinación más frecuente: cueide={top.get('cueide')} "
+    for ma in (f for f in productos if str(f.get("cod", "")).strip().upper() == "MA9999"):
+        emp, por_producto = ma.get("emp"), [*VENTANA_M11, ma.get("ide")]
+        t = _leer_tabla(c, inf, "M11_total_producto", f"MA9999 emp {emp} (ide {ma.get('ide')}): total de líneas",
+                        por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+        if t:
+            inf.concluir(f"MA9999 emp {emp}: {_num(t[0].get('lineas')):.0f} líneas de albarán en la ventana, "
+                         f"de {t[0].get('desde')} a {t[0].get('hasta')}.")
+        lp = _leer_tabla(c, inf, "M11_lineas_producto", f"MA9999 emp {emp}: combinaciones", por_producto,
+                         limite=10, max_rows=30, timeout_s=TIMEOUT_PESADO_S)
+        if lp:
+            top = lp[0]
+            total = sum(_num(x.get("n")) for x in lp)
+            inf.concluir(f"MA9999 emp {emp}, combinación más frecuente: cueide={top.get('cueide')} "
                          f"ivaide={top.get('ivaide')} natide={top.get('natide')} unimed={top.get('unimed')} en "
                          f"{_pct(_num(top.get('n')), total)}; maestro: comide={ma.get('comide')} "
                          f"ivacomide={ma.get('ivacomide')} natide={ma.get('natide')}.")
         _m11_iva_por_proveedor(c, inf, ma)
-    iv = c.leer(SQL["M11_iva_usado"], max_rows=200, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("IVA usados en líneas de albarán de 2026", iv, limite=30)
-    total = sum(_num(x.get("lineas")) for x in iv.filas)
-    distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv.filas)
-    inf.concluir(f"ivacuo ≠ round(tot·iva, 2): {_pct(distintos, total)} líneas de 2026 (dbo.iva.iva es una fracción).")
+    iv = _leer_tabla(c, inf, "M11_iva_usado", "IVA usados en líneas de albarán de la ventana", list(VENTANA_M11),
+                     limite=30, max_rows=200, timeout_s=TIMEOUT_PESADO_S)
+    total = sum(_num(x.get("lineas")) for x in iv)
+    distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv)
+    inf.concluir(f"ivacuo ≠ round(tot·iva, 2): {_pct(distintos, total)} líneas de la ventana (dbo.iva.iva es una fracción).")
     return inf
 
 
@@ -888,13 +1109,24 @@ def tasa_cualquiera(acierto: dict[str, Any]) -> float:
 
 
 def _leer_o_anotar(c: ClienteLectura, inf: Informe, nombre: str, parametros: list[Any] | None = None,
-                   **kw: Any) -> Resultado | None:
-    """T0 se ejecuta una sola vez (H28): una sentencia nueva que falla se anota y el bloque sigue."""
+                   *, sql: str | None = None, **kw: Any) -> Resultado | None:
+    """T0 se ejecuta una sola vez (H28): una sentencia que falla se anota y el bloque sigue.
+    `sql` sustituye a `SQL[nombre]` cuando hay que completarla (listas IN)."""
     try:
-        return c.leer(SQL[nombre], parametros, **kw)
+        return c.leer(sql or SQL[nombre], parametros, **kw)
     except ErrorDeLectura as exc:
         inf.concluir(f"{nombre} no se pudo leer ({exc}); el resto del bloque sigue.")
         return None
+
+
+def _leer_tabla(c: ClienteLectura, inf: Informe, nombre: str, titulo: str, parametros: list[Any] | None = None,
+                *, limite: int = 40, **kw: Any) -> list[dict[str, Any]]:
+    """`_leer_o_anotar` + tabla en el informe. Devuelve las filas ([] si falló)."""
+    r = _leer_o_anotar(c, inf, nombre, parametros, **kw)
+    if r is None:
+        return []
+    inf.tabla(titulo, r, limite=limite)
+    return r.filas
 
 
 def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -> str:
@@ -916,18 +1148,19 @@ def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -
 def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) -> None:
     """T0a (spec v5, H15): IVA de un MA9999 por proveedor, ISP y acierto de la línea previa."""
     ide, emp = ma.get("ide"), ma.get("emp")
-    r = _leer_o_anotar(c, inf, "M11_iva_por_proveedor", [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    por_producto = [*VENTANA_M11, ide]
+    r = _leer_o_anotar(c, inf, "M11_iva_por_proveedor", por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     if r is not None:
-        inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA desde 2025", r)
+        inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA en la ventana", r)
         f = r.filas[0] if r.filas else {}
         inf.concluir(f"MA9999 emp {emp}: proveedores con más de un IVA "
                      f"{_pct(_num(f.get('con_varios_iva')), _num(f.get('proveedores')))}.")
-    isp = _leer_o_anotar(c, inf, "M11_iva_y_isp", [ide], max_rows=100, timeout_s=TIMEOUT_PESADO_S)
+    isp = _leer_o_anotar(c, inf, "M11_iva_y_isp", por_producto, max_rows=100, timeout_s=TIMEOUT_PESADO_S)
     if isp is not None:
         inf.tabla(f"MA9999 emp {emp}: IVA por tipisp", isp, limite=20)
     acierto: dict[str, Any] | None = None
     try:
-        a = c.leer(SQL["M11_acierto"], [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+        a = c.leer(SQL["M11_acierto"], por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     except ErrorDeLectura as exc:
         inf.concluir(f"MA9999 emp {emp}: M11_acierto (LAG ... OVER) no se pudo leer ({exc}); "
                      "según la spec se queda con las dos primeras.")
@@ -972,7 +1205,7 @@ def m14(c: ClienteLectura) -> Informe:
     inf = Informe("M14", "diff de columnas frente a AC26/15951 (API) y columnas de la dcapro sin vincular")
     # T0 se ejecuta una sola vez (H28): si una parte falla, se anota y las demás siguen.
     partes = (("comparación con la API", _m14_frente_a_la_api), ("valores de las sin vincular", _m14_sv_valores),
-              ("arrastre desde la plantilla", _m14_arrastre))
+              ("arrastre desde la plantilla", _m14_arrastre), ("pago del albarán anterior", _m14b_pago))
     for nombre, parte in partes:
         try:
             parte(c, inf)
@@ -992,16 +1225,17 @@ def _m14_frente_a_la_api(c: ClienteLectura, inf: Informe) -> None:
     e = c.leer(SQL["M14_escritorio"], [ide_api, ide_api], max_rows=3)
     inf.tabla("albaranes del escritorio del mismo proveedor", e)
     ides_esc = [f.get("ide") for f in e.filas]
-    p = c.leer(SQL["M14_prv"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("forma de pago y efecto frente al maestro del proveedor", p)
-    fp = p.filas[0] if p.filas else {}
-    inf.concluir(f"Albaranes desde 2026-09 con pagide del maestro del proveedor: {_pct(_num(fp.get('pagide_del_prv')), _num(fp.get('n')))}; "
-                 f"efeide: {_pct(_num(fp.get('efeide_del_prv')), _num(fp.get('n')))}.")
-    q = c.leer(SQL["M14_prepma"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("dcapro.prepma frente a su mov", q)
-    fq = q.filas[0] if q.filas else {}
-    inf.concluir(f"dcapro.prepma = PMP resultante del mov en {_pct(_num(fq.get('igual_pmp_resultante')), _num(fq.get('n')))}; "
-                 f"= mov.prepma en {_pct(_num(fq.get('igual_prepma_del_mov')), _num(fq.get('n')))} líneas desde 2026-09.")
+    # T0a-bis: un fallo de estas dos (el 1205 del 2026-10-05 cayó en una) ya no se lleva la comparación.
+    p = _leer_tabla(c, inf, "M14_prv", "forma de pago y efecto frente al maestro del proveedor", max_rows=1,
+                    timeout_s=TIMEOUT_PESADO_S)
+    if p:
+        inf.concluir(f"Albaranes desde 2026-09 con pagide del maestro del proveedor: "
+                     f"{_pct(_num(p[0].get('pagide_del_prv')), _num(p[0].get('n')))}; "
+                     f"efeide: {_pct(_num(p[0].get('efeide_del_prv')), _num(p[0].get('n')))}.")
+    q = _leer_tabla(c, inf, "M14_prepma", "dcapro.prepma frente a su mov", max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    if q:
+        inf.concluir(f"dcapro.prepma = PMP resultante del mov en {_pct(_num(q[0].get('igual_pmp_resultante')), _num(q[0].get('n')))}; "
+                     f"= mov.prepma en {_pct(_num(q[0].get('igual_prepma_del_mov')), _num(q[0].get('n')))} líneas desde 2026-09.")
     if not ides_esc:
         inf.concluir("No hay albaranes del escritorio del mismo proveedor: no se compara columna a columna.")
         return
@@ -1085,6 +1319,37 @@ def _m14_arrastre(c: ClienteLectura, inf: Informe) -> None:
                  + (", ".join(f"{col} ({k})" for col, k in sorted(fuera.items())) or "ninguna") + ".")
 
 
+def lectura_m14b(fila: dict[str, Any]) -> list[str]:
+    """T0a-bis, M14b: ¿acierta más la forma de pago / el efecto del albarán anterior del mismo proveedor
+    (regla de la spec) o los del maestro del proveedor? Las dos tasas, sobre los mismos albaranes."""
+    n = _num(fila.get("n"))
+    base = n - _num(fila.get("sin_previo"))
+    if base <= 0:
+        return ["Sin albaranes desde 2026-09 con un albarán anterior del mismo proveedor."]
+    salida = [f"Albaranes desde 2026-09: {n:.0f}; con albarán anterior del mismo proveedor y empresa: {base:.0f}."]
+    for campo in ("pagide", "efeide"):
+        previo, maestro = _num(fila.get(f"{campo}_del_previo")), _num(fila.get(f"{campo}_del_prv_con_previo"))
+        if previo > maestro:
+            veredicto = "acierta más el ALBARÁN ANTERIOR ⇒ la regla de la spec se sostiene"
+        elif maestro > previo:
+            veredicto = "acierta más el MAESTRO del proveedor ⇒ revisar la regla de cabecera (v6)"
+        else:
+            veredicto = "empate ⇒ cualquiera de las dos"
+        salida.append(f"{campo}: albarán anterior {_pct(previo, base)}, maestro del proveedor {_pct(maestro, base)} "
+                      f"(mismos albaranes; el maestro sobre todos: {_pct(_num(fila.get(f'{campo}_del_prv')), n)}). "
+                      f"{campo}: {veredicto}.")
+    return salida
+
+
+def _m14b_pago(c: ClienteLectura, inf: Informe) -> None:
+    """T0a-bis, M14b: pagide y efeide del albarán anterior del mismo proveedor frente al maestro."""
+    r = _leer_tabla(c, inf, "M14b_pago_previo", "pago y efecto: albarán anterior frente al maestro del proveedor",
+                    [DESDE_LAG_M14B, DESDE_M14B], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    if r:
+        for texto in lectura_m14b(r[0]):
+            inf.concluir(texto)
+
+
 def m15(c: ClienteLectura) -> Informe:
     inf = Informe("M15", "stock negativo en mov desde 2025")
     r = c.leer(SQL["M15_stock_negativo"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
@@ -1147,18 +1412,98 @@ def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]]
     return salida
 
 
+# Candidatas de M16b en orden de desempate: las más específicas primero (a igual proporción, gana la de
+# más arriba). Cada una: (columna de M16b_fuentes o M16b_codigos, descripción).
+FUENTES_M16B: tuple[tuple[str, str], ...] = (
+    ("caa_cero", "caaide = 0"),
+    ("pro_gaside", "pro.gaside del producto"),
+    ("cen_gaside", "cen.gaside del centro de la línea"),
+    ("cab_caaide", "dca.caaide de la cabecera"),
+    ("ctr_caaide", "ctr.caaide del contrato de la cabecera"),
+    ("par_caaide", "obrparpar.caaide de la partida"),
+    ("centro_y_caagascod", "caa del centro con código = auxpronat.caagascod"),
+    ("centro_y_cuenta", "caa del centro cuyo código empieza por la cuenta financiera"),
+    ("caa_cod_caagascod", "código de caa = auxpronat.caagascod"),
+    ("caa_cod_caaexicod", "código de caa = auxpronat.caaexicod"),
+    ("caa_cod_cuafaccod", "código de caa = auxpronat.cuafaccod"),
+    ("caa_cod_cuenta", "código de caa = cuenta financiera de la línea"),
+    ("caa_cod_empieza_por_cuenta", "código de caa empieza por la cuenta financiera"),
+    ("caa_cod_contiene_obra", "código de caa contiene el de la obra"),
+    ("caa_cod_contiene_centro", "código de caa contiene el del centro"),
+    ("caa_del_centro", "caa del centro de la línea (caa.cenide = dcapro.cenide)"),
+)
+
+
+def lectura_m16b(fuentes: list[dict[str, Any]], codigos: list[dict[str, Any]]) -> list[str]:
+    """T0a-bis, M16b: por grupo de producto y con/sin partida, qué fuente explica `dcapro.caaide`.
+    Domina la de mayor proporción si llega a UMBRAL_DOMINANTE; ≥ UMBRAL_CASI_TODO es «regla»."""
+    filas: dict[tuple[str, str], dict[str, Any]] = {}
+    for f in [*fuentes, *codigos]:
+        filas.setdefault((str(f.get("grupo")), str(f.get("partida"))), {}).update(f)
+    if not filas:
+        return ["No hay líneas sin vincular desde 2025: sin medición del origen de caaide."]
+    salida = []
+    for (grupo, partida), f in sorted(filas.items()):
+        n = _num(f.get("n"))
+        mejor, desc_mejor = 0.0, ""
+        for campo, desc in FUENTES_M16B:
+            if _num(f.get(campo)) > mejor:
+                mejor, desc_mejor = _num(f.get(campo)), desc
+        cab = f"{grupo} / {partida} ({n:.0f} líneas): "
+        if n > 0 and mejor / n >= UMBRAL_DOMINANTE:
+            regla = " ⇒ REGLA" if mejor / n >= UMBRAL_CASI_TODO else ""
+            texto = f"domina «{desc_mejor}» {_pct(mejor, n)}{regla}"
+        else:
+            texto = f"ninguna fuente domina (la mejor: «{desc_mejor or '-'}» {_pct(mejor, n)})"
+        extra = ""
+        if "cuenta_6xx" in f:
+            extra = (f"; cuenta financiera 6XX {_pct(_num(f.get('cuenta_6xx')), n)}, cuenta = auxpronat.cuacomcod "
+                     f"{_pct(_num(f.get('cuenta_es_cuacomcod')), n)}")
+        salida.append(cab + texto + extra + ".")
+    salida.append(f"(domina = la de mayor proporción con ≥ {UMBRAL_DOMINANTE:.0%}; REGLA = ≥ {UMBRAL_CASI_TODO:.0%}.)"
+                  .replace("%", " %"))
+    return salida
+
+
+def lectura_muestra_m16b(muestra: list[dict[str, Any]]) -> str:
+    """Patrón del código de caa en la muestra TOP 20 (ponderado por líneas)."""
+    total = sum(_num(f.get("lineas")) for f in muestra)
+    if not total:
+        return "Muestra vacía: sin patrón del código de caa."
+
+    def peso(cumple: Callable[[str, dict[str, Any]], bool]) -> float:
+        return sum(_num(f.get("lineas")) for f in muestra if cumple(str(f.get("caa_cod") or "").strip(), f))
+
+    def txt(f: dict[str, Any], campo: str) -> str:
+        return str(f.get(campo) or "").strip()
+
+    igual = peso(lambda caa, f: bool(caa) and caa == txt(f, "caagascod"))
+    obra = peso(lambda caa, f: bool(txt(f, "obra")) and txt(f, "obra") in caa)
+    centro = peso(lambda caa, f: bool(txt(f, "centro")) and txt(f, "centro") in caa)
+    cuenta = peso(lambda caa, f: bool(txt(f, "cuenta")) and caa.startswith(txt(f, "cuenta")))
+    return (f"Muestra TOP 20 ({total:.0f} líneas): código de caa = caagascod {_pct(igual, total)}; "
+            f"contiene el código de obra {_pct(obra, total)}; contiene el del centro {_pct(centro, total)}; "
+            f"empieza por la cuenta financiera {_pct(cuenta, total)}.")
+
+
 def m16(c: ClienteLectura) -> Informe:
-    inf = Informe("M16", "analítica, almacén y centro de las líneas (H10, H13)")
-    r1 = c.leer(SQL["M16_caa_con_partida"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("caaide de las líneas con partida desde 2025", r1)
-    r2 = c.leer(SQL["M16_caa_almacen"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("caaide de las líneas sin partida frente al almacén", r2)
-    r3 = c.leer(SQL["M16_almacen_sin_vincular"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("almacén y centro de las sin vincular", r3)
-    r4 = c.leer(SQL["M16_ficha_obra"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("ficha de las obras con albaranes desde 2025", r4)
-    for texto in lectura_m16(r1.filas, r2.filas, r3.filas, r4.filas[0] if r4.filas else {}):
+    inf = Informe("M16", "analítica, almacén y centro de las líneas (H10, H13) y origen de caaide (M16b)")
+    kw = {"max_rows": 10, "timeout_s": TIMEOUT_PESADO_S}
+    r1 = _leer_tabla(c, inf, "M16_caa_con_partida", "caaide de las líneas con partida desde 2025", **kw)
+    r2 = _leer_tabla(c, inf, "M16_caa_almacen", "caaide de las líneas sin partida frente al almacén", **kw)
+    r3 = _leer_tabla(c, inf, "M16_almacen_sin_vincular", "almacén y centro de las sin vincular", **kw)
+    r4 = _leer_tabla(c, inf, "M16_ficha_obra", "ficha de las obras con albaranes desde 2025", max_rows=1,
+                     timeout_s=TIMEOUT_PESADO_S)
+    for texto in lectura_m16(r1, r2, r3, r4[0] if r4 else {}):
         inf.concluir(texto)
+    grupos = [EMPRESA_GENERICOS, *PRODUCTOS_GENERICOS]
+    kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
+    fuentes = _leer_tabla(c, inf, "M16b_fuentes", "M16b: origen de caaide en las sin vincular (campos)", grupos, **kw)
+    codigos = _leer_tabla(c, inf, "M16b_codigos", "M16b: origen de caaide en las sin vincular (códigos)", grupos, **kw)
+    muestra = _leer_tabla(c, inf, "M16b_muestra", "M16b: muestra (caa, naturaleza, obra, centro, cuenta)", **kw)
+    for texto in lectura_m16b(fuentes, codigos):
+        inf.concluir("M16b " + texto)
+    inf.concluir("M16b " + lectura_muestra_m16b(muestra))
     return inf
 
 
@@ -1178,32 +1523,69 @@ def lectura_m17(existe: list[dict[str, Any]], marcas: list[dict[str, Any]], esta
     return "Lectura automática: sin ope de baja clara ⇒ se decide con T23 (anulación del albarán de prueba)."
 
 
+def lectura_m17b(reutiliza: list[dict[str, Any]]) -> str:
+    """T0a-bis, M17b: tras una ope 2 sobre un albarán, ¿desaparece el registro (y el cod se reutiliza)
+    o sigue el mismo?"""
+    n = _suma(reutiliza, "n")
+    no_existe = _suma(reutiliza, "n", caso="no_existe")
+    reutilizado = _suma(reutiliza, "n", caso="existe_con_alta_posterior")
+    sigue = _suma(reutiliza, "n", caso="existe_sin_alta_posterior")
+    cifras = (f"no existe {_pct(no_existe, n)}, existe con un alta posterior del mismo cod {_pct(reutilizado, n)}, "
+              f"sigue sin alta posterior {_pct(sigue, n)}")
+    if _cumple(no_existe + reutilizado, n):
+        return (f"Lectura automática M17b: ope 2 ⇒ anular BORRA ({cifras}); "
+                f"el cod se reutiliza en {reutilizado:.0f}: R30 sin cambios.")
+    if _cumple(sigue, n):
+        return f"Lectura automática M17b: ope 2 no borra ⇒ MARCA o no es anulación ({cifras})."
+    return f"Lectura automática M17b: no concluyente ({cifras or 'sin ope 2'}) ⇒ se decide con T23."
+
+
+# Palabras del resumen (`log.res`) que delatan el significado de una ope.
+_SIGNIFICADOS_OPE = (
+    ("modific", "modificación"), ("impr", "impresión"), ("anul", "anulación"), ("baja", "baja"),
+    ("borr", "borrado"), ("elimin", "borrado"), ("estado", "cambio de estado"), ("contab", "contabilización"),
+    ("factur", "facturación"), ("consult", "consulta"), ("envi", "envío"), ("correo", "envío"),
+    ("mail", "envío"), ("export", "exportación"), ("alta", "alta"),
+)
+
+
+def lectura_ope(res: list[dict[str, Any]]) -> list[str]:
+    """T0a-bis, M17b: significado deducible de cada ope ≠ 1 por su resumen más frecuente."""
+    salida = []
+    for ope in sorted({f.get("ope") for f in res}, key=lambda o: _num(o)):
+        top = max((f for f in res if f.get("ope") == ope), key=lambda f: _num(f.get("n")))
+        texto = str(top.get("res") or "").strip()
+        guess = next((nombre for clave, nombre in _SIGNIFICADOS_OPE if clave in texto.lower()), None)
+        detalle = f"(res más frecuente: '{texto}', {_num(top.get('n')):.0f} filas)"
+        salida.append(f"ope {ope}: parece «{guess}» {detalle}." if guess
+                      else f"ope {ope}: significado no deducible por su resumen {detalle}.")
+    return salida
+
+
 def m17(c: ClienteLectura) -> Informe:
-    inf = Informe("M17", "anulación de albaranes: ¿borra o marca? (H9)")
-    r = c.leer(SQL["M17_ope"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("operaciones de log sobre albaranes (últimos 1.000.000 ide)", r)
-    for f in r.filas:
+    inf = Informe("M17", "anulación de albaranes: ¿borra o marca? (H9) y reutilización del código (M17b)")
+    kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
+    for f in _leer_tabla(c, inf, "M17_ope", "operaciones de log sobre albaranes (últimos 1.000.000 ide)", **kw):
         inf.concluir(f"log.ope={f.get('ope')}: {_num(f.get('n')):.0f} filas, de {f.get('desde')} a {f.get('hasta')}.")
-    e = c.leer(SQL["M17_emp_log"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("log.emp de las operaciones que no son alta", e)
-    sin_emp = sum(_num(f.get("n")) for f in e.filas if f.get("emp") in (0, -1, None))
-    x = c.leer(SQL["M17_existe"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("¿sigue existiendo el albarán? (JOIN por emp, tip, cod)", x)
-    existe = x.filas
+    e = _leer_tabla(c, inf, "M17_emp_log", "log.emp de las operaciones que no son alta", **kw)
+    sin_emp = sum(_num(f.get("n")) for f in e if f.get("emp") in (0, -1, None))
+    existe = _leer_tabla(c, inf, "M17_existe", "¿sigue existiendo el albarán? (JOIN por emp, tip, cod)", **kw)
     if sin_emp > 0:
         inf.concluir(f"log.emp sale 0 o nulo en {sin_emp:.0f} filas: se repite el JOIN solo por tip y cod (spec) "
                      "y la lectura usa esa repetición (un cod repetido entre empresas cuenta de más).")
-        y = c.leer(SQL["M17_existe_sin_emp"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
-        inf.tabla("¿sigue existiendo el albarán? (JOIN solo por tip, cod)", y)
-        existe = y.filas
+        existe = _leer_tabla(c, inf, "M17_existe_sin_emp", "¿sigue existiendo el albarán? (JOIN solo por tip, cod)",
+                             **kw)
     for f in existe:
         inf.concluir(f"ope={f.get('ope')}: existe {_pct(_num(f.get('con_existe')), _num(f.get('n')))}; "
                      f"con fecbaj {_num(f.get('con_fecbaj')):.0f}.")
-    m = c.leer(SQL["M17_marcas"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
-    inf.tabla("albaranes desde 2025 por est y fecbaj", m)
-    k = c.leer(SQL["M2_conest"], max_rows=50)
-    inf.tabla("estados de conest (tip 14)", k)
-    inf.concluir(lectura_m17(existe, m.filas, {str(f.get("est")) for f in k.filas}))
+    m = _leer_tabla(c, inf, "M17_marcas", "albaranes desde 2025 por est y fecbaj", **kw)
+    k = _leer_tabla(c, inf, "M2_conest", "estados de conest (tip 14)", max_rows=50)
+    inf.concluir(lectura_m17(existe, m, {str(f.get("est")) for f in k}))
+    reutiliza = _leer_tabla(c, inf, "M17b_reutiliza", "M17b: tras ope 2, ¿mismo registro o cod reutilizado?", **kw)
+    inf.concluir(lectura_m17b(reutiliza))
+    _leer_tabla(c, inf, "M17b_perfil", "M17b: perfil de cada ope (documentos, usuarios, est)", **kw)
+    for texto in lectura_ope(_leer_tabla(c, inf, "M17b_res", "M17b: resumen más frecuente por ope", **kw)):
+        inf.concluir(texto)
     return inf
 
 
