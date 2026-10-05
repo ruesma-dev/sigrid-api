@@ -13,8 +13,14 @@ Lista blanca con `XA9999` (contrato v6.1). Contrato con albaranes al día (§2.2
 Topes: 150/150 y 250/250. **Para el humano:** validar la v7 y las preguntas **P1-P6** de §v7: P1
 (`mov.prepma`: ¿M14c en T0b-ter?), P2 (`numemp`), P3 (`cua` por empresa), P4 (cuenta cuando el
 usuario cambia la naturaleza: la muestra apunta a la del producto, contra la decisión), P5 (`XA9999`
-sin medir), P6 (F-053). **Siguiente:** T0b-ter (`--solo M16` con M16c, en curso por el implementer;
-`--solo M14 M16` si se aprueba M14c) → T0c (v8 y retirada del script).
+sin medir), P6 (F-053). **Respuestas del humano (2026-10-05):** `XA9999` es decisión suya
+(confirmado); P1 (M14c), P2, P3 y P5 se miden en la misma pasada. **T0a-ter hecha** (M16c, M14c,
+`XA9999`, `numemp`; `38d3571`, `ade7b47`, `bda26b1`; APPROVED en la segunda pasada:
+[`review_F-009_T0a_ter.md`](review_F-009_T0a_ter.md)). **Siguiente, del humano (T0b-ter):**
+`--solo M9 M14 M16` (comando en [`impl_F-009_T0a_ter.md`](impl_F-009_T0a_ter.md)) → T0c (v8 y
+retirada del script). **Ojo:** la sesión del agente de albaranes editó `contrato_albaranes.md` en este
+repo (`844ebc8`, v6.1); la v7 lo integró. El contrato es de sigrid-api: albaranes debería proponer, no
+editar.
 
 *(Lo que sigue es el estado de la v6, ya superado por T0b-bis.)*
 
