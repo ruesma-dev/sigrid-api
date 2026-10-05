@@ -616,7 +616,8 @@ _DATOS_BIS: dict[str, list[dict[str, Any]]] = {
          "cuenta_es_cuacomcod": 0},
     ],
     "M16b_muestra": [
-        {"caa_cod": "6010001", "caagascod": "6010001", "caaexicod": "", "obra": "O-1", "centro": "C-1",
+        {"caa_cod": "6010001", "caagascod": "6010001", "caagascod_linea": "6010001", "caaexicod": "", "obra": "O-1",
+         "centro": "C-1",
          "cuenta": "60100000", "partida": "con_partida", "lineas": 70},
         {"caa_cod": "O-2-601", "caagascod": "6010001", "caaexicod": "", "obra": "O-2", "centro": "C-2",
          "cuenta": "60100000", "partida": "sin_partida", "lineas": 30},
@@ -680,7 +681,7 @@ def test_f009_t0a_bis_m9_pasa_la_ventana_y_los_genericos() -> None:
     cliente = _ClienteFalso(_datos_bis())
     t0.m9(cliente)  # type: ignore[arg-type]
     llamadas = dict(cliente.llamadas)
-    assert llamadas["M9_genericos"] == [*t0.VENTANA_M9, *t0.PRODUCTOS_GENERICOS]
+    assert llamadas["M9_genericos"] == [*t0.VENTANA_M11, *t0.PRODUCTOS_GENERICOS]  # ciclo 1, obs. (b)
     assert llamadas["M9_por_banderas"] == list(t0.VENTANA_M9)
 
 
@@ -744,14 +745,19 @@ def test_f009_t0a_bis_lectura_m9_ninguna_bandera_y_a_veces() -> None:
     texto = " ".join(t0.lectura_m9(banderas, genericos))
     assert "ni pro.tipmov ni pro.tipinv lo explican solos" in texto
     assert "MA9999 emp 1: a veces (60 de 100" in texto
-    assert "ni pro.tipmov ni pro.tipinv" in " ".join(t0.lectura_m9([], []))
+    # Cero filas es «sin líneas»; no se pudo leer (None) es SIN MEDICIÓN (ciclo 1, cambio 2).
+    vacio = " ".join(t0.lectura_m9([], []))
+    assert "sin líneas en la ventana" in vacio and "SIN MEDICIÓN" not in vacio
 
 
 def test_f009_t0a_bis_lectura_m16b_dice_que_fuente_domina() -> None:
     texto = " ".join(t0.lectura_m16b(_DATOS_BIS["M16b_fuentes"], _DATOS_BIS["M16b_codigos"]))
-    # Gana la de mayor proporción; el orden de FUENTES_M16B solo desempata.
-    assert ("MA9999 / con_partida (1000 líneas): domina «caa del centro de la línea (caa.cenide = dcapro.cenide)» "
-            "980 de 1000") in texto
+    # Ciclo 1, cambio 3: «caa del centro» (980) es una propiedad, no fija la caa: no compite. Domina la
+    # mejor identificativa, la que sí se puede escribir como regla.
+    assert ("MA9999 / con_partida (1000 líneas): domina «caa del centro con código = caagascod de la "
+            "naturaleza del producto» 960 de 1000 (96.0 %) ⇒ REGLA") in texto
+    assert "domina «caa del centro de la línea" not in texto
+    assert "propiedades (no fijan la caa): caa del centro de la línea (caa.cenide = dcapro.cenide) 980 de 1000" in texto
     assert "resto / sin_partida (200 líneas): domina «caaide = 0» 150 de 200" in texto
     assert "cuenta financiera 6XX" in texto
     assert t0.UMBRAL_DOMINANTE == 0.5
@@ -759,13 +765,118 @@ def test_f009_t0a_bis_lectura_m16b_dice_que_fuente_domina() -> None:
 
 def test_f009_t0a_bis_lectura_m16b_sin_dominante_y_desempate() -> None:
     fuentes = [{"grupo": "QA9999", "partida": "sin_partida", "n": 100, "caa_cero": 40, "pro_gaside": 0,
-                "caa_del_centro": 40}]
+                "caa_del_centro": 90}]
     texto = " ".join(t0.lectura_m16b(fuentes, []))
-    assert "QA9999 / sin_partida (100 líneas): ninguna fuente domina (la mejor: «caaide = 0» 40 de 100" in texto
-    empate = [{"grupo": "SB9999", "partida": "con_partida", "n": 10, "caa_del_centro": 10}]
-    codigos = [{"grupo": "SB9999", "partida": "con_partida", "n": 10, "centro_y_caagascod": 10}]
-    assert "domina «caa del centro con código = auxpronat.caagascod»" in " ".join(t0.lectura_m16b(empate, codigos))
+    assert ("QA9999 / sin_partida (100 líneas): ninguna identificativa domina (la mejor: «caaide = 0» 40 de 100"
+            in texto)
+    # Empate entre la naturaleza de la línea y la del producto: se nombran las dos.
+    codigos = [{"grupo": "SB9999", "partida": "con_partida", "n": 10, "lin_centro_y_caagascod": 10,
+                "centro_y_caagascod": 10}]
+    empate = " ".join(t0.lectura_m16b([], codigos))
+    assert "domina «caa del centro con código = caagascod de la naturaleza de la línea»" in empate
+    assert "empata con: caa del centro con código = caagascod de la naturaleza del producto" in empate
     assert t0.lectura_m16b([], []) == ["No hay líneas sin vincular desde 2025: sin medición del origen de caaide."]
+
+
+@pytest.mark.parametrize("col", ["caa_del_centro", "caa_cod_empieza_por_cuenta", "caa_cod_contiene_obra",
+                                 "caa_cod_contiene_centro", "centro_y_cuenta"])
+def test_f009_t0a_bis_c1_las_propiedades_no_compiten_por_la_regla(col: str) -> None:
+    assert col in dict(t0.PROPIEDADES_M16B) and col not in dict(t0.IDENTIFICATIVAS_M16B)
+    fila = [{"grupo": "MA9999", "partida": "con_partida", "n": 100, col: 100, "caa_cero": 1}]
+    texto = " ".join(t0.lectura_m16b(fila, []))
+    assert "REGLA" not in texto and "ninguna identificativa domina (la mejor: «caaide = 0» 1 de 100" in texto
+
+
+def test_f009_t0a_bis_c1_m16b_mide_tambien_la_naturaleza_de_la_linea() -> None:
+    sql = t0.SQL["M16b_codigos"]
+    assert "nt.ide = r.natide" in sql and "nl.ide = d.natide" in sql
+    for col in ("lin_caa_cod_caagascod", "lin_caa_cod_caaexicod", "lin_centro_y_caagascod", "lin_centro_y_caaexicod",
+                "centro_y_caaexicod", "nat_linea_igual_producto"):
+        assert f"AS {col}" in sql, col
+    for col in ("lin_caa_cod_caagascod", "lin_caa_cod_caaexicod", "lin_centro_y_caagascod", "lin_centro_y_caaexicod"):
+        assert col in dict(t0.IDENTIFICATIVAS_M16B), col
+    assert "nl.caagascod" in t0.SQL["M16b_muestra"]
+
+
+def test_f009_t0a_bis_c1_tipmov_y_tipinv_son_byte_sin_isnull_con_literal() -> None:
+    """`pro.tipmov`/`tipinv` son Byte: ISNULL(col, -1) toma el tipo de la columna (error 220 o -1 → 1)."""
+    import re
+
+    for nombre, sql in t0.SQL.items():
+        assert not re.search(r"ISNULL\(\s*\w+\.tip(mov|inv)\b", sql, re.IGNORECASE), nombre
+    for nombre in ("M9_por_banderas", "M9_genericos", "M9_sin_mov_por_producto"):
+        assert "COALESCE(CAST(r.tipmov AS int), -1)" in t0.SQL[nombre], nombre
+        assert "COALESCE(CAST(r.tipinv AS int), -1)" in t0.SQL[nombre], nombre
+
+
+def test_f009_t0a_bis_c1_lecturas_distinguen_no_se_pudo_leer_de_cero_filas() -> None:
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_m9(None, _DATOS_BIS["M9_genericos"]))
+    sin_genericos = " ".join(t0.lectura_m9(_DATOS_BIS["M9_por_banderas"], None))
+    assert "SIN MEDICIÓN" in sin_genericos and "sin líneas en la ventana" not in sin_genericos
+    assert "pro.tipmov DECIDE" in sin_genericos
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_m16b(None, None))
+    assert "No hay líneas sin vincular" not in " ".join(t0.lectura_m16b(None, None))
+    parcial = " ".join(t0.lectura_m16b(_DATOS_BIS["M16b_fuentes"], None))
+    assert "M16b_codigos SIN MEDICIÓN" in parcial and "domina «caaide = 0» 150 de 200" in parcial
+    assert "SIN MEDICIÓN" in t0.lectura_muestra_m16b(None)
+    m17b = t0.lectura_m17b(None)
+    assert "SIN MEDICIÓN" in m17b and "T23" not in m17b
+    assert "sin ope 2" in t0.lectura_m17b([])
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_ope(None))
+    assert "SIN MEDICIÓN" in t0.lectura_m17(None, [], set())
+    assert "SIN MEDICIÓN" in t0.lectura_m17([{"ope": 3, "n": 10, "con_existe": 10}], None, set())
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_m16(None, [], [], {}))
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_m16([], [], None, {}))
+    assert "SIN MEDICIÓN" in " ".join(t0.lectura_m16([], [], [], None))
+    assert "SIN MEDICIÓN" in t0.lectura_l8b(None, None)
+
+
+@pytest.mark.parametrize(("medir", "rota", "prohibido", "esperado"), [
+    ("m9", "M9_genericos", "sin líneas en la ventana", "M9_genericos SIN MEDICIÓN"),
+    ("m9", "M9_por_banderas", "lo explican solos", "M9_por_banderas SIN MEDICIÓN"),
+    ("m16", "M16b_fuentes", "No hay líneas sin vincular", "M16b_fuentes SIN MEDICIÓN"),
+    ("m17", "M17b_reutiliza", "Lectura automática M17b: no concluyente", "M17b_reutiliza SIN MEDICIÓN"),
+    ("m11", "M11_iva_y_isp", "L8b inocua (aciertan igual o menos): se queda.", "M11_iva_y_isp SIN MEDICIÓN"),
+])
+def test_f009_t0a_bis_c1_un_fallo_no_se_lee_como_dato_vacio(medir: str, rota: str, prohibido: str,
+                                                            esperado: str) -> None:
+    datos = _datos_bis()
+    if rota == "M16b_fuentes":
+        datos = {**datos, "M16b_codigos": []}
+    if rota == "M11_iva_y_isp":
+        datos = {**datos, "M11_acierto": [{"lineas": 90, "sin_previa_del_prv": 10, "acierta_mismo_prv": 1,
+                                           "acierta_cualquiera": 60}]}
+
+    class _Rota(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL[rota] or (rota == "M16b_fuentes" and sql == t0.SQL["M16b_codigos"]):
+                raise t0.ErrorDeLectura("ReadTimeout al llamar a sql/read")
+            return super().leer(sql, parametros, **kw)
+
+    texto = getattr(t0, medir)(_Rota(datos)).texto()
+    assert prohibido not in texto and esperado in texto
+
+
+def test_f009_t0a_bis_c1_lectura_m9_compara_el_codigo_sin_espacios() -> None:
+    genericos = [{"cod": "MA9999  ", "emp": 1, "lineas": 10, "con_mov": 10},
+                 {"cod": "QA9999 ", "emp": 1, "lineas": 10, "con_mov": 0}]
+    texto = " ".join(t0.lectura_m9([], genericos))
+    assert "MA9999 emp 1: SÍ genera mov" in texto and "QA9999 emp 1: NO genera mov" in texto
+
+
+def test_f009_t0a_bis_c1_dcaproana_informativa_y_envuelta() -> None:
+    sql = t0.SQL["M16b_dcaproana"]
+    assert "dbo.dcaproana" in sql and "GROUP BY docproide" in sql
+    datos = {**_datos_bis(), "M16b_dcaproana": [{"n": 1000, "con_ana": 40, "ana_caa_distinta": 5,
+                                                  "ana_varias_filas": 3}]}
+    texto = t0.m16(_ClienteFalso(datos)).texto()  # type: ignore[arg-type]
+    assert "dcaproana: 40 de 1000 (4.0 %) sin vincular tienen reparto analítico" in texto
+    assert "con caa distinta de dcapro.caaide 5" in texto
+    assert "M16b_dcaproana no se pudo leer" in t0.m16(_rompe("M16b_dcaproana")).texto()  # type: ignore[arg-type]
+
+
+def test_f009_t0a_bis_c1_ope_envio_con_tilde() -> None:
+    assert "parece «envío»" in " ".join(t0.lectura_ope([{"ope": 7, "res": "Envío de documento", "n": 3}]))
 
 
 def test_f009_t0a_bis_lectura_muestra_m16b_ve_el_patron_del_codigo() -> None:
@@ -773,6 +884,7 @@ def test_f009_t0a_bis_lectura_muestra_m16b_ve_el_patron_del_codigo() -> None:
     assert "= caagascod 70 de 100" in texto and "contiene el código de obra 30 de 100" in texto
     assert "empieza por la cuenta financiera 0 de 100" in texto
     assert t0.lectura_muestra_m16b([]) == "Muestra vacía: sin patrón del código de caa."
+    assert "= caagascod de la naturaleza de la línea" in texto
 
 
 def test_f009_t0a_bis_lectura_m17b_borra_marca_o_no_concluyente() -> None:
@@ -782,7 +894,7 @@ def test_f009_t0a_bis_lectura_m17b_borra_marca_o_no_concluyente() -> None:
     assert "MARCA" in t0.lectura_m17b(sigue)
     mezcla = [{"caso": "no_existe", "n": 50}, {"caso": "existe_sin_alta_posterior", "n": 50}]
     assert "no concluyente" in t0.lectura_m17b(mezcla)
-    assert "no concluyente" in t0.lectura_m17b([])
+    assert "no concluyente" in t0.lectura_m17b([]) and "sin ope 2" in t0.lectura_m17b([])
 
 
 def test_f009_t0a_bis_significado_de_ope_por_su_resumen() -> None:
@@ -836,6 +948,7 @@ def test_f009_t0a_bis_main_con_la_lista_de_la_segunda_pasada(tmp_path: Path, mon
     assert t0.main(["--solo", *lista, "--salida", str(salida)]) == 0
     texto = salida.read_text(encoding="utf-8")
     assert all(f"=== {k} ·" in texto for k in lista) and "ERROR" not in texto and "no se pudo leer" not in texto
+    assert "SIN MEDICIÓN" not in texto
     for esperado in ("pro.tipmov DECIDE", "MA9999 emp 1: SÍ genera mov", "domina «", "anular BORRA",
                      "acierta más el ALBARÁN ANTERIOR", "ope 5: parece «modificación»"):
         assert esperado in texto, esperado

@@ -32,6 +32,7 @@ import re
 import sys
 import tempfile
 import time
+import unicodedata
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -92,7 +93,9 @@ _CON_MOV = (
     "COUNT(DISTINCT d.ide) AS lineas, COUNT(DISTINCT CASE WHEN m.ide IS NULL THEN NULL ELSE d.ide END) AS con_mov, "
     "COUNT(m.ide) AS movs"
 )
-_TIPMOV, _TIPINV = "ISNULL(r.tipmov, -1)", "ISNULL(r.tipinv, -1)"
+# `pro.tipmov`/`tipinv` son Byte: ISNULL(col, -1) tomaría el tipo de la columna (error 220 con tinyint, 1 con
+# bit). Ciclo 1 de revisión de T0a-bis: se convierten antes a int.
+_TIPMOV, _TIPINV = "COALESCE(CAST(r.tipmov AS int), -1)", "COALESCE(CAST(r.tipinv AS int), -1)"
 _M11_LINEAS = "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide"
 # T0a-bis, M16b: grupo de producto (cada genérico de la empresa EMPRESA_GENERICOS por separado y «resto»).
 # Lleva `?`: se calcula en una tabla derivada y se agrupa por su alias (repetir la expresión con otros
@@ -106,12 +109,21 @@ _M16B_DESDE = (
 )
 # Código de la caa (kc), de la cuenta financiera (cf, `dcapro.cueide` → `cua`), de la obra (oc) y del
 # centro (ec): `caa`, `cua`, `obr` y `cen` son «Propiedades de con», así que su código está en `con.cod`.
+# `nt`: naturaleza del producto (`pro.natide`); `nl`: la de la línea (`dcapro.natide`, ciclo 1).
 _M16B_CODIGOS = (
-    "LEFT JOIN dbo.auxpronat nt ON nt.ide = r.natide LEFT JOIN dbo.con kc ON kc.ide = d.caaide "
+    "LEFT JOIN dbo.auxpronat nt ON nt.ide = r.natide LEFT JOIN dbo.auxpronat nl ON nl.ide = d.natide "
+    "LEFT JOIN dbo.con kc ON kc.ide = d.caaide "
     "LEFT JOIN dbo.con cf ON cf.ide = d.cueide LEFT JOIN dbo.con oc ON oc.ide = d.obride "
     "LEFT JOIN dbo.con ec ON ec.ide = d.cenide"
 )
-_CAA_ES_CAAGASCOD = "ISNULL(nt.caagascod, '') <> '' AND kc.cod = nt.caagascod"
+
+
+def _caa_es(alias: str, campo: str) -> str:
+    """El código de la caa de la línea es el `campo` de la naturaleza `alias` (fragmento fijo)."""
+    return f"ISNULL({alias}.{campo}, '') <> '' AND kc.cod = {alias}.{campo}"
+
+
+_CAA_ES_CAAGASCOD = _caa_es("nt", "caagascod")
 _CAA_EMPIEZA_POR_CUENTA = "ISNULL(cf.cod, '') <> '' AND LEFT(kc.cod, LEN(cf.cod)) = cf.cod"
 _CAA_DEL_CENTRO = "k.cenide = d.cenide"
 # T0a-bis, M17b: altas (ope 1) de albarán en la ventana de log, por (emp, cod), y el caso de cada ope 2.
@@ -294,10 +306,10 @@ SQL: dict[str, str] = {
     # ¿Qué decide que una línea genere mov? Banderas del maestro de productos (`pro.tipmov` «Hace
     # movimientos», `pro.tipinv` «Es inventariable») y de su familia (`auxfam.tipinv`).
     "M9_por_banderas": (
-        f"SELECT {_TIPMOV} AS tipmov, {_TIPINV} AS tipinv, ISNULL(f.tipinv, -1) AS fam_tipinv, {_CON_MOV} "
+        f"SELECT {_TIPMOV} AS tipmov, {_TIPINV} AS tipinv, COALESCE(CAST(f.tipinv AS int), -1) AS fam_tipinv, {_CON_MOV} "
         f"FROM dbo.con c {_M9_LINEAS_Y_MOV} LEFT JOIN dbo.pro r ON r.ide = d.proide "
         f"LEFT JOIN dbo.auxfam f ON f.ide = r.famide {_M9_VENTANA} "
-        f"GROUP BY {_TIPMOV}, {_TIPINV}, ISNULL(f.tipinv, -1) ORDER BY lineas DESC"
+        f"GROUP BY {_TIPMOV}, {_TIPINV}, COALESCE(CAST(f.tipinv AS int), -1) ORDER BY lineas DESC"
     ),
     # ¿Generan mov las líneas de los genéricos (MA9999, QA9999…)? Por código y empresa.
     "M9_genericos": (
@@ -515,7 +527,11 @@ SQL: dict[str, str] = {
         "SUM(x.caa_cod_contiene_obra) AS caa_cod_contiene_obra, "
         "SUM(x.caa_cod_contiene_centro) AS caa_cod_contiene_centro, SUM(x.centro_y_caagascod) AS centro_y_caagascod, "
         "SUM(x.centro_y_cuenta) AS centro_y_cuenta, SUM(x.cuenta_6xx) AS cuenta_6xx, "
-        "SUM(x.cuenta_es_cuacomcod) AS cuenta_es_cuacomcod "
+        "SUM(x.cuenta_es_cuacomcod) AS cuenta_es_cuacomcod, SUM(x.centro_y_caaexicod) AS centro_y_caaexicod, "
+        "SUM(x.lin_caa_cod_caagascod) AS lin_caa_cod_caagascod, SUM(x.lin_caa_cod_caaexicod) AS lin_caa_cod_caaexicod, "
+        "SUM(x.lin_centro_y_caagascod) AS lin_centro_y_caagascod, "
+        "SUM(x.lin_centro_y_caaexicod) AS lin_centro_y_caaexicod, "
+        "SUM(x.nat_linea_igual_producto) AS nat_linea_igual_producto "
         f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, {_CON_SIN_PARTIDA} AS partida, "
         f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_ES_CAAGASCOD} THEN 1 ELSE 0 END AS caa_cod_caagascod, "
         f"CASE WHEN {_CAA_INFORMADA} AND ISNULL(nt.caaexicod, '') <> '' AND kc.cod = nt.caaexicod THEN 1 ELSE 0 END "
@@ -534,17 +550,39 @@ SQL: dict[str, str] = {
         f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_CAA_EMPIEZA_POR_CUENTA} THEN 1 ELSE 0 END "
         "AS centro_y_cuenta, "
         "CASE WHEN LEFT(ISNULL(cf.cod, ''), 1) = '6' THEN 1 ELSE 0 END AS cuenta_6xx, "
-        "CASE WHEN ISNULL(nt.cuacomcod, '') <> '' AND cf.cod = nt.cuacomcod THEN 1 ELSE 0 END AS cuenta_es_cuacomcod "
+        "CASE WHEN ISNULL(nt.cuacomcod, '') <> '' AND cf.cod = nt.cuacomcod THEN 1 ELSE 0 END AS cuenta_es_cuacomcod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_caa_es('nt', 'caaexicod')} THEN 1 ELSE 0 END "
+        "AS centro_y_caaexicod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_caa_es('nl', 'caagascod')} THEN 1 ELSE 0 END AS lin_caa_cod_caagascod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_caa_es('nl', 'caaexicod')} THEN 1 ELSE 0 END AS lin_caa_cod_caaexicod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_caa_es('nl', 'caagascod')} THEN 1 ELSE 0 END "
+        "AS lin_centro_y_caagascod, "
+        f"CASE WHEN {_CAA_INFORMADA} AND {_CAA_DEL_CENTRO} AND {_caa_es('nl', 'caaexicod')} THEN 1 ELSE 0 END "
+        "AS lin_centro_y_caaexicod, "
+        "CASE WHEN ISNULL(d.natide, 0) = ISNULL(r.natide, 0) THEN 1 ELSE 0 END AS nat_linea_igual_producto "
         f"{_M16B_DESDE} {_M16B_CODIGOS} {_SIN_VINCULAR_DESDE_2025}) x "
         "GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
     ),
     # Muestra agregada por frecuencia para ver a ojo el patrón del código de la caa.
     "M16b_muestra": (
-        "SELECT TOP 20 kc.cod AS caa_cod, nt.caagascod, nt.caaexicod, oc.cod AS obra, ec.cod AS centro, "
+        "SELECT TOP 20 kc.cod AS caa_cod, nt.caagascod, nl.caagascod AS caagascod_linea, nt.caaexicod, "
+        "oc.cod AS obra, ec.cod AS centro, "
         f"cf.cod AS cuenta, {_CON_SIN_PARTIDA} AS partida, COUNT(*) AS lineas {_M16B_DESDE} {_M16B_CODIGOS} "
         f"{_SIN_VINCULAR_DESDE_2025} AND {_CAA_INFORMADA} "
-        f"GROUP BY kc.cod, nt.caagascod, nt.caaexicod, oc.cod, ec.cod, cf.cod, {_CON_SIN_PARTIDA} "
+        f"GROUP BY kc.cod, nt.caagascod, nl.caagascod, nt.caaexicod, oc.cod, ec.cod, cf.cod, {_CON_SIN_PARTIDA} "
         "ORDER BY lineas DESC"
+    ),
+    # Ciclo 1, obs. (d): ¿reparte el escritorio la analítica en `dcaproana` (1N de dcapro)? Informativa.
+    # El reparto se agrega antes por línea (tabla derivada): ningún agregado lleva subconsulta.
+    "M16b_dcaproana": (
+        "SELECT COUNT(*) AS n, SUM(CASE WHEN x.docproide IS NULL THEN 0 ELSE 1 END) AS con_ana, "
+        "SUM(CASE WHEN x.docproide IS NOT NULL AND (x.caa_min <> ISNULL(d.caaide, 0) "
+        "OR x.caa_max <> ISNULL(d.caaide, 0)) THEN 1 ELSE 0 END) AS ana_caa_distinta, "
+        "SUM(CASE WHEN x.filas > 1 THEN 1 ELSE 0 END) AS ana_varias_filas "
+        "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide "
+        "LEFT JOIN (SELECT docproide, COUNT(*) AS filas, MIN(ISNULL(caaide, 0)) AS caa_min, "
+        "MAX(ISNULL(caaide, 0)) AS caa_max FROM dbo.dcaproana GROUP BY docproide) x ON x.docproide = d.ide "
+        f"{_SIN_VINCULAR_DESDE_2025}"
     ),
     # --- T0a (spec v5): M17 anulación de albaranes (H9). Ventana de log acotada por ide, como M13 ---
     "M17_ope": (
@@ -994,19 +1032,33 @@ def _explica_mov(banderas: list[dict[str, Any]], campo: str) -> tuple[bool, str]
     return ok, ", ".join(partes)
 
 
-def lectura_m9(banderas: list[dict[str, Any]], genericos: list[dict[str, Any]]) -> list[str]:
-    """T0a-bis, M9: ¿qué decide que una línea genere mov? ¿Lo generan los genéricos?"""
+def lectura_m9(banderas: Filas | None, genericos: Filas | None) -> list[str]:
+    """T0a-bis, M9: ¿qué decide que una línea genere mov? ¿Lo generan los genéricos?
+    None = la sentencia no se pudo leer: SIN MEDICIÓN, nunca «sin líneas»."""
     salida = []
-    decide = []
-    for campo in ("tipmov", "tipinv"):
-        ok, detalle = _explica_mov(banderas, campo)
-        salida.append(f"pro.{campo}: " + (f"DECIDE si la línea genera mov ({detalle})." if ok
-                                           else f"no lo explica solo ({detalle or 'sin datos'})."))
-        if ok:
-            decide.append(campo)
-    salida.append("Lectura automática: " + (f"pro.{decide[0]} DECIDE si la línea genera mov." if decide else
-                                            "ni pro.tipmov ni pro.tipinv lo explican solos: mirar las combinaciones "
-                                            "(y tipsininv de la cabecera)."))
+    if banderas is None:
+        salida.append(f"pro.tipmov / pro.tipinv: {sin_medicion('M9_por_banderas', 'M9')}.")
+        salida.append("Lectura automática: M9_por_banderas SIN MEDICIÓN ⇒ no se concluye qué decide el mov.")
+    else:
+        decide = []
+        for campo in ("tipmov", "tipinv"):
+            ok, detalle = _explica_mov(banderas, campo)
+            salida.append(f"pro.{campo}: " + (f"DECIDE si la línea genera mov ({detalle})." if ok
+                                               else f"no lo explica solo ({detalle or 'sin líneas en la ventana'})."))
+            if ok:
+                decide.append(campo)
+        if decide:
+            salida.append(f"Lectura automática: pro.{decide[0]} DECIDE si la línea genera mov.")
+        elif banderas:
+            salida.append("Lectura automática: ni pro.tipmov ni pro.tipinv lo explican solos: mirar las "
+                          "combinaciones (y tipsininv de la cabecera).")
+        else:
+            salida.append("Lectura automática: sin líneas en la ventana ⇒ no se concluye qué decide el mov.")
+    if genericos is None:
+        salida.append(f"Genéricos: {sin_medicion('M9_genericos', 'M9')} ⇒ no se concluye si generan mov.")
+        return salida
+    # `con.cod` puede venir con espacios (CHAR): se compara recortado, como en m11.
+    genericos = [{**f, "cod": str(f.get("cod") or "").strip().upper()} for f in genericos]
     for cod in PRODUCTOS_GENERICOS:
         emp1 = _veredicto_mov(_suma(genericos, "con_mov", cod=cod, emp=EMPRESA_GENERICOS),
                               _suma(genericos, "lineas", cod=cod, emp=EMPRESA_GENERICOS))
@@ -1017,18 +1069,20 @@ def lectura_m9(banderas: list[dict[str, Any]], genericos: list[dict[str, Any]]) 
 
 def m9(c: ClienteLectura) -> Informe:
     desde, hasta = VENTANA_M9
-    inf = Informe("M9", f"¿un mov por línea? ¿qué lo decide? (albaranes de {desde} a {hasta})")
+    inf = Informe("M9", f"¿un mov por línea? ¿qué lo decide? (albaranes de {desde} a {hasta}; genéricos, "
+                        f"de {VENTANA_M11[0]} a {VENTANA_M11[1]})")
     ventana = list(VENTANA_M9)
     kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
-    for f in _leer_tabla(c, inf, "M9_por_tipsininv", "por tipsininv", ventana, **kw):
+    for f in _leer_tabla(c, inf, "M9_por_tipsininv", "por tipsininv", ventana, **kw) or []:
         inf.concluir(f"tipsininv={f.get('tipsininv')}: {_num(f.get('albaranes')):.0f} albaranes, "
                      f"{_num(f.get('lineas')):.0f} líneas, con mov {_pct(_num(f.get('con_mov')), _num(f.get('lineas')))}.")
-    for f in _leer_tabla(c, inf, "M9_por_partida", "líneas con mov según partida", ventana, **kw):
+    for f in _leer_tabla(c, inf, "M9_por_partida", "líneas con mov según partida", ventana, **kw) or []:
         inf.concluir(f"{f.get('tipo')}: con mov {_pct(_num(f.get('con_mov')), _num(f.get('lineas')))}.")
     banderas = _leer_tabla(c, inf, "M9_por_banderas", "líneas con mov según pro.tipmov / pro.tipinv / auxfam.tipinv",
                            ventana, **kw)
-    genericos = _leer_tabla(c, inf, "M9_genericos", "líneas con mov de los productos genéricos",
-                            [*ventana, *PRODUCTOS_GENERICOS], **kw)
+    # Ciclo 1, obs. (b): los genéricos con la ventana de M11 (tres meses), para que QA9999 tenga líneas.
+    genericos = _leer_tabla(c, inf, "M9_genericos", "líneas con mov de los productos genéricos (ventana de M11)",
+                            [*VENTANA_M11, *PRODUCTOS_GENERICOS], **kw)
     sin_mov = _leer_tabla(c, inf, "M9_sin_mov_por_producto", "productos de las líneas sin mov", ventana,
                           max_rows=10, timeout_s=TIMEOUT_PESADO_S)
     if sin_mov:
@@ -1068,6 +1122,7 @@ def m11(c: ClienteLectura) -> Informe:
     sql = SQL["M11_productos"].format(**{"in": marcadores(len(PRODUCTOS_GENERICOS))})
     productos = _leer_tabla(c, inf, "M11_productos", "maestro de productos", list(PRODUCTOS_GENERICOS),
                             sql=sql, max_rows=20)
+    productos = productos or []
     for f in productos:
         inf.concluir(f"{f.get('cod')}: ide={f.get('ide')} tip={f.get('tip')} emp={f.get('emp')} fecbaj={f.get('fecbaj')} "
                      f"comide={f.get('comide')} ivacomide={f.get('ivacomide')} natide={f.get('natide')}.")
@@ -1092,9 +1147,11 @@ def m11(c: ClienteLectura) -> Informe:
         _m11_iva_por_proveedor(c, inf, ma)
     iv = _leer_tabla(c, inf, "M11_iva_usado", "IVA usados en líneas de albarán de la ventana", list(VENTANA_M11),
                      limite=30, max_rows=200, timeout_s=TIMEOUT_PESADO_S)
-    total = sum(_num(x.get("lineas")) for x in iv)
-    distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv)
-    inf.concluir(f"ivacuo ≠ round(tot·iva, 2): {_pct(distintos, total)} líneas de la ventana (dbo.iva.iva es una fracción).")
+    if iv is not None:
+        total = sum(_num(x.get("lineas")) for x in iv)
+        distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv)
+        inf.concluir(f"ivacuo ≠ round(tot·iva, 2): {_pct(distintos, total)} líneas de la ventana "
+                     "(dbo.iva.iva es una fracción).")
     return inf
 
 
@@ -1121,29 +1178,45 @@ def _leer_o_anotar(c: ClienteLectura, inf: Informe, nombre: str, parametros: lis
         return None
 
 
+Filas = list[dict[str, Any]]
+
+
 def _leer_tabla(c: ClienteLectura, inf: Informe, nombre: str, titulo: str, parametros: list[Any] | None = None,
-                *, limite: int = 40, **kw: Any) -> list[dict[str, Any]]:
-    """`_leer_o_anotar` + tabla en el informe. Devuelve las filas ([] si falló)."""
+                *, limite: int = 40, **kw: Any) -> Filas | None:
+    """`_leer_o_anotar` + tabla en el informe. Devuelve las filas, o None si NO se pudo leer: cero filas
+    es una medición; None, no (ciclo 1 de revisión: un fallo nunca se lee como dato vacío)."""
     r = _leer_o_anotar(c, inf, nombre, parametros, **kw)
     if r is None:
-        return []
+        return None
     inf.tabla(titulo, r, limite=limite)
     return r.filas
 
 
-def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -> str:
-    """Spec v5 §T0, M11 ampliada: ¿justifica la medición L8b (plantilla del mismo proveedor)?"""
-    isp1 = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) == 1}
-    resto = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) != 1}
+def sin_medicion(nombre: str, clave: str) -> str:
+    """Texto de una lectura cuya sentencia no se pudo leer: no se concluye nada de ella."""
+    return f"{nombre} SIN MEDICIÓN (falló la lectura; repetir con --solo {clave})"
+
+
+def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: Filas | None) -> str:
+    """Spec v5 §T0, M11 ampliada: ¿justifica la medición L8b (plantilla del mismo proveedor)?
+    `iva_isp` None = M11_iva_y_isp no se pudo leer (no es «sin ISP»)."""
+    filas = iva_isp or []
+    isp1 = {f.get("ivaide") for f in filas if _num(f.get("tipisp")) == 1}
+    resto = {f.get("ivaide") for f in filas if _num(f.get("tipisp")) != 1}
+    sin_isp = "" if iva_isp is not None else f"{sin_medicion('M11_iva_y_isp', 'M11')}: el motivo ISP no se evaluó"
     motivos = []
     if acierto and tasa_mismo_prv(acierto) > tasa_cualquiera(acierto):
         motivos.append("acierta más la línea previa del mismo proveedor")
     if isp1 - resto:
         motivos.append("IVA distinto con tipisp 1")
     if motivos:
-        return f"L8b JUSTIFICADA ({'; '.join(motivos)})."
-    if acierto:
+        return f"L8b JUSTIFICADA ({'; '.join(motivos)})." + (f" ({sin_isp}.)" if sin_isp else "")
+    if acierto and not sin_isp:
         return "L8b inocua (aciertan igual o menos): se queda."
+    if acierto:
+        return f"L8b sin decisión: el acierto no la justifica, pero {sin_isp}."
+    if sin_isp:
+        return "L8b SIN MEDICIÓN: ni M11_acierto ni M11_iva_y_isp se pudieron leer (repetir con --solo M11)."
     return "Sin M11_acierto ni IVA distinto con tipisp 1: L8b ni justificada ni descartada por la medición."
 
 
@@ -1175,7 +1248,7 @@ def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) 
                      f"{_pct(_num(acierto.get('acierta_mismo_prv')), n - sin_previa)} (sobre las líneas con previa "
                      f"del proveedor); el previo de cualquiera {_pct(_num(acierto.get('acierta_cualquiera')), n)}; "
                      f"sin previa del proveedor {sin_previa:.0f}.")
-    inf.concluir(f"{cod} emp {emp}: {lectura_l8b(acierto, isp.filas if isp else [])}")
+    inf.concluir(f"{cod} emp {emp}: {lectura_l8b(acierto, isp.filas if isp is not None else None)}")
 
 
 def m12(c: ClienteLectura) -> Informe:
@@ -1378,9 +1451,25 @@ def _si(ok: bool) -> str:
     return "sí" if ok else "NO"
 
 
-def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]],
-                alm_sv: list[dict[str, Any]], ficha: dict[str, Any]) -> list[str]:
-    """Spec v5 §T0, M16 «debe salir / decide»: hipótesis de design §Analítica y orden de R15."""
+def lectura_m16(caa_partida: Filas | None, caa_alm: Filas | None,
+                alm_sv: Filas | None, ficha: dict[str, Any] | None) -> list[str]:
+    """Spec v5 §T0, M16 «debe salir / decide»: hipótesis de design §Analítica y orden de R15.
+    None = la sentencia no se pudo leer: esa parte sale SIN MEDICIÓN."""
+    salida: list[str] = []
+    if caa_partida is None or caa_alm is None:
+        rotas = [n for n, v in (("M16_caa_con_partida", caa_partida), ("M16_caa_almacen", caa_alm)) if v is None]
+        salida.append(f"Hipótesis de design §Analítica: {sin_medicion(' y '.join(rotas), 'M16')} ⇒ no se concluye.")
+    else:
+        salida.extend(_lectura_analitica(caa_partida, caa_alm))
+    if alm_sv is None or ficha is None:
+        rotas = [n for n, v in (("M16_almacen_sin_vincular", alm_sv), ("M16_ficha_obra", ficha)) if v is None]
+        salida.append(f"Orden de R15: {sin_medicion(' y '.join(rotas), 'M16')} ⇒ no se concluye.")
+    else:
+        salida.extend(_lectura_r15(alm_sv, ficha))
+    return salida
+
+
+def _lectura_analitica(caa_partida: Filas, caa_alm: Filas) -> list[str]:
     salida: list[str] = []
     n_sv, caa_sv = _suma(caa_partida, "n", tipo="sin_vincular"), _suma(caa_partida, "caa_de_la_partida", tipo="sin_vincular")
     n_vd = _suma(caa_partida, "n", tipo="vinculada", partida_distinta=1)
@@ -1395,6 +1484,11 @@ def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]]
         salida.append(f"{texto}: {_pct(parte, total)} (≥ 95 %: {_si(_cumple(parte, total))}).")
     ok_analitica = all(_cumple(p, t) for p, t in analitica.values())
     salida.append("Hipótesis de design §Analítica: " + ("CONFIRMADA." if ok_analitica else "NO confirmada ⇒ PARADA y v6."))
+    return salida
+
+
+def _lectura_r15(alm_sv: Filas, ficha: dict[str, Any]) -> list[str]:
+    salida: list[str] = []
 
     def dominante(cabecera: str, campo: str, otro: str) -> bool:
         n, a, b = (_suma(alm_sv, k, cabecera=cabecera) for k in ("n", campo, otro))
@@ -1415,61 +1509,90 @@ def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]]
     return salida
 
 
-# Candidatas de M16b en orden de desempate: las más específicas primero (a igual proporción, gana la de
-# más arriba). Cada una: (columna de M16b_fuentes o M16b_codigos, descripción).
-FUENTES_M16B: tuple[tuple[str, str], ...] = (
+# Candidatas de M16b. Ciclo 1 de revisión: solo las IDENTIFICATIVAS (fijan UNA caa y se pueden escribir
+# como regla, L15) compiten por «domina» y «⇒ REGLA», en orden de desempate (a igual proporción gana la
+# de más arriba y se nombran las empatadas). Las PROPIEDADES (dicen algo de la caa sin fijar cuál) van
+# en una línea informativa. Cada una: (columna de M16b_fuentes o M16b_codigos, descripción).
+IDENTIFICATIVAS_M16B: tuple[tuple[str, str], ...] = (
     ("caa_cero", "caaide = 0"),
     ("pro_gaside", "pro.gaside del producto"),
     ("cen_gaside", "cen.gaside del centro de la línea"),
     ("cab_caaide", "dca.caaide de la cabecera"),
     ("ctr_caaide", "ctr.caaide del contrato de la cabecera"),
     ("par_caaide", "obrparpar.caaide de la partida"),
-    ("centro_y_caagascod", "caa del centro con código = auxpronat.caagascod"),
-    ("centro_y_cuenta", "caa del centro cuyo código empieza por la cuenta financiera"),
-    ("caa_cod_caagascod", "código de caa = auxpronat.caagascod"),
-    ("caa_cod_caaexicod", "código de caa = auxpronat.caaexicod"),
-    ("caa_cod_cuafaccod", "código de caa = auxpronat.cuafaccod"),
+    ("lin_centro_y_caagascod", "caa del centro con código = caagascod de la naturaleza de la línea"),
+    ("centro_y_caagascod", "caa del centro con código = caagascod de la naturaleza del producto"),
+    ("lin_centro_y_caaexicod", "caa del centro con código = caaexicod de la naturaleza de la línea"),
+    ("centro_y_caaexicod", "caa del centro con código = caaexicod de la naturaleza del producto"),
+    ("lin_caa_cod_caagascod", "código de caa = caagascod de la naturaleza de la línea"),
+    ("caa_cod_caagascod", "código de caa = caagascod de la naturaleza del producto"),
+    ("lin_caa_cod_caaexicod", "código de caa = caaexicod de la naturaleza de la línea"),
+    ("caa_cod_caaexicod", "código de caa = caaexicod de la naturaleza del producto"),
+    ("caa_cod_cuafaccod", "código de caa = cuafaccod de la naturaleza del producto"),
     ("caa_cod_cuenta", "código de caa = cuenta financiera de la línea"),
+)
+PROPIEDADES_M16B: tuple[tuple[str, str], ...] = (
+    ("caa_del_centro", "caa del centro de la línea (caa.cenide = dcapro.cenide)"),
+    ("centro_y_cuenta", "caa del centro cuyo código empieza por la cuenta financiera"),
     ("caa_cod_empieza_por_cuenta", "código de caa empieza por la cuenta financiera"),
     ("caa_cod_contiene_obra", "código de caa contiene el de la obra"),
     ("caa_cod_contiene_centro", "código de caa contiene el del centro"),
-    ("caa_del_centro", "caa del centro de la línea (caa.cenide = dcapro.cenide)"),
 )
 
 
-def lectura_m16b(fuentes: list[dict[str, Any]], codigos: list[dict[str, Any]]) -> list[str]:
-    """T0a-bis, M16b: por grupo de producto y con/sin partida, qué fuente explica `dcapro.caaide`.
-    Domina la de mayor proporción si llega a UMBRAL_DOMINANTE; ≥ UMBRAL_CASI_TODO es «regla»."""
+def _lectura_grupo_m16b(grupo: str, partida: str, f: dict[str, Any]) -> list[str]:
+    n = _num(f.get("n"))
+    cab = f"{grupo} / {partida} ({n:.0f} líneas): "
+    mejor, desc_mejor = 0.0, ""
+    for campo, desc in IDENTIFICATIVAS_M16B:
+        if _num(f.get(campo)) > mejor:
+            mejor, desc_mejor = _num(f.get(campo)), desc
+    empatadas = [desc for campo, desc in IDENTIFICATIVAS_M16B
+                 if desc != desc_mejor and mejor > 0 and _num(f.get(campo)) == mejor]
+    empate = f" (empata con: {', '.join(empatadas)})" if empatadas else ""
+    if n > 0 and mejor / n >= UMBRAL_DOMINANTE:
+        regla = " ⇒ REGLA" if mejor / n >= UMBRAL_CASI_TODO else ""
+        texto = f"domina «{desc_mejor}» {_pct(mejor, n)}{regla}{empate}"
+    else:
+        texto = f"ninguna identificativa domina (la mejor: «{desc_mejor or '-'}» {_pct(mejor, n)}){empate}"
+    extra = ""
+    if "cuenta_6xx" in f:
+        extra = (f"; cuenta financiera 6XX {_pct(_num(f.get('cuenta_6xx')), n)}, cuenta = auxpronat.cuacomcod "
+                 f"{_pct(_num(f.get('cuenta_es_cuacomcod')), n)}, naturaleza de la línea = la del producto "
+                 f"{_pct(_num(f.get('nat_linea_igual_producto')), n)}")
+    salida = [cab + texto + extra + "."]
+    props = [f"{desc} {_pct(_num(f.get(campo)), n)}" for campo, desc in PROPIEDADES_M16B if campo in f]
+    if props:
+        salida.append(f"{grupo} / {partida}: propiedades (no fijan la caa): {'; '.join(props)}.")
+    return salida
+
+
+def lectura_m16b(fuentes: Filas | None, codigos: Filas | None) -> list[str]:
+    """T0a-bis, M16b: por grupo de producto y con/sin partida, qué fuente IDENTIFICATIVA explica
+    `dcapro.caaide`. Domina la de mayor proporción si llega a UMBRAL_DOMINANTE; ≥ UMBRAL_CASI_TODO es
+    «regla». None = la sentencia no se pudo leer (SIN MEDICIÓN, nunca «no hay líneas»)."""
+    rotas = [n for n, v in (("M16b_fuentes", fuentes), ("M16b_codigos", codigos)) if v is None]
+    avisos = [f"{sin_medicion(n, 'M16')}: sus candidatas no compiten." for n in rotas]
     filas: dict[tuple[str, str], dict[str, Any]] = {}
-    for f in [*fuentes, *codigos]:
+    for f in [*(fuentes or []), *(codigos or [])]:
         filas.setdefault((str(f.get("grupo")), str(f.get("partida"))), {}).update(f)
     if not filas:
+        if rotas:
+            return [*avisos, "No se concluye el origen de caaide."]
         return ["No hay líneas sin vincular desde 2025: sin medición del origen de caaide."]
-    salida = []
+    salida = list(avisos)
     for (grupo, partida), f in sorted(filas.items()):
-        n = _num(f.get("n"))
-        mejor, desc_mejor = 0.0, ""
-        for campo, desc in FUENTES_M16B:
-            if _num(f.get(campo)) > mejor:
-                mejor, desc_mejor = _num(f.get(campo)), desc
-        cab = f"{grupo} / {partida} ({n:.0f} líneas): "
-        if n > 0 and mejor / n >= UMBRAL_DOMINANTE:
-            regla = " ⇒ REGLA" if mejor / n >= UMBRAL_CASI_TODO else ""
-            texto = f"domina «{desc_mejor}» {_pct(mejor, n)}{regla}"
-        else:
-            texto = f"ninguna fuente domina (la mejor: «{desc_mejor or '-'}» {_pct(mejor, n)})"
-        extra = ""
-        if "cuenta_6xx" in f:
-            extra = (f"; cuenta financiera 6XX {_pct(_num(f.get('cuenta_6xx')), n)}, cuenta = auxpronat.cuacomcod "
-                     f"{_pct(_num(f.get('cuenta_es_cuacomcod')), n)}")
-        salida.append(cab + texto + extra + ".")
-    salida.append(f"(domina = la de mayor proporción con ≥ {UMBRAL_DOMINANTE:.0%}; REGLA = ≥ {UMBRAL_CASI_TODO:.0%}.)"
+        salida.extend(_lectura_grupo_m16b(grupo, partida, f))
+    salida.append(f"(domina = la identificativa de mayor proporción con ≥ {UMBRAL_DOMINANTE:.0%}; con "
+                  f"≥ {UMBRAL_CASI_TODO:.0%} se marca como regla escribible; las propiedades solo informan.)"
                   .replace("%", " %"))
     return salida
 
 
-def lectura_muestra_m16b(muestra: list[dict[str, Any]]) -> str:
+def lectura_muestra_m16b(muestra: Filas | None) -> str:
     """Patrón del código de caa en la muestra TOP 20 (ponderado por líneas)."""
+    if muestra is None:
+        return f"Muestra: {sin_medicion('M16b_muestra', 'M16')}."
     total = sum(_num(f.get("lineas")) for f in muestra)
     if not total:
         return "Muestra vacía: sin patrón del código de caa."
@@ -1481,12 +1604,24 @@ def lectura_muestra_m16b(muestra: list[dict[str, Any]]) -> str:
         return str(f.get(campo) or "").strip()
 
     igual = peso(lambda caa, f: bool(caa) and caa == txt(f, "caagascod"))
+    igual_linea = peso(lambda caa, f: bool(caa) and caa == txt(f, "caagascod_linea"))
     obra = peso(lambda caa, f: bool(txt(f, "obra")) and txt(f, "obra") in caa)
     centro = peso(lambda caa, f: bool(txt(f, "centro")) and txt(f, "centro") in caa)
     cuenta = peso(lambda caa, f: bool(txt(f, "cuenta")) and caa.startswith(txt(f, "cuenta")))
-    return (f"Muestra TOP 20 ({total:.0f} líneas): código de caa = caagascod {_pct(igual, total)}; "
+    return (f"Muestra TOP 20 ({total:.0f} líneas): código de caa = caagascod {_pct(igual, total)} (naturaleza del "
+            f"producto); = caagascod de la naturaleza de la línea {_pct(igual_linea, total)}; "
             f"contiene el código de obra {_pct(obra, total)}; contiene el del centro {_pct(centro, total)}; "
             f"empieza por la cuenta financiera {_pct(cuenta, total)}.")
+
+
+def lectura_dcaproana(fila: dict[str, Any]) -> str:
+    """Ciclo 1, obs. (d): reparto analítico en `dcaproana` de las sin vincular (informativa)."""
+    n, con = _num(fila.get("n")), _num(fila.get("con_ana"))
+    return (f"dcaproana: {_pct(con, n)} sin vincular tienen reparto analítico; con caa distinta de "
+            f"dcapro.caaide {_num(fila.get('ana_caa_distinta')):.0f}; con varias filas "
+            f"{_num(fila.get('ana_varias_filas')):.0f}"
+            + (" ⇒ en esas líneas dcapro.caaide no cuenta toda la analítica (informativo)." if con > 0
+               else " ⇒ el escritorio no reparte la analítica de estas líneas en dcaproana."))
 
 
 def m16(c: ClienteLectura) -> Informe:
@@ -1497,7 +1632,8 @@ def m16(c: ClienteLectura) -> Informe:
     r3 = _leer_tabla(c, inf, "M16_almacen_sin_vincular", "almacén y centro de las sin vincular", **kw)
     r4 = _leer_tabla(c, inf, "M16_ficha_obra", "ficha de las obras con albaranes desde 2025", max_rows=1,
                      timeout_s=TIMEOUT_PESADO_S)
-    for texto in lectura_m16(r1, r2, r3, r4[0] if r4 else {}):
+    ficha = None if r4 is None else (r4[0] if r4 else {})
+    for texto in lectura_m16(r1, r2, r3, ficha):
         inf.concluir(texto)
     grupos = [EMPRESA_GENERICOS, *PRODUCTOS_GENERICOS]
     kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
@@ -1507,15 +1643,25 @@ def m16(c: ClienteLectura) -> Informe:
     for texto in lectura_m16b(fuentes, codigos):
         inf.concluir("M16b " + texto)
     inf.concluir("M16b " + lectura_muestra_m16b(muestra))
+    ana = _leer_tabla(c, inf, "M16b_dcaproana", "M16b: reparto analítico (dcaproana) de las sin vincular",
+                      max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    if ana is not None:
+        inf.concluir("M16b " + lectura_dcaproana(ana[0] if ana else {}))
     return inf
 
 
-def lectura_m17(existe: list[dict[str, Any]], marcas: list[dict[str, Any]], estados: set[str]) -> str:
-    """Spec v5 §T0, M17 «debe salir / decide»: ¿anular borra, marca o no se sabe?"""
+def lectura_m17(existe: Filas | None, marcas: Filas | None, estados: set[str] | None) -> str:
+    """Spec v5 §T0, M17 «debe salir / decide»: ¿anular borra, marca o no se sabe?
+    None = la sentencia no se pudo leer: no se concluye a partir de ella."""
+    if existe is None:
+        return f"Lectura automática: {sin_medicion('M17_existe', 'M17')} ⇒ no se concluye."
     borran = [str(f.get("ope")) for f in existe if _num(f.get("n")) > 0
               and _num(f.get("con_existe")) / _num(f.get("n")) <= UMBRAL_BORRA]
     if borran:
         return f"Lectura automática: ope {', '.join(borran)} con con_existe ≈ 0 ⇒ anular BORRA: R30 sin cambios."
+    if marcas is None or estados is None:
+        rotas = " y ".join(n for n, v in (("M17_marcas", marcas), ("M2_conest", estados)) if v is None)
+        return f"Lectura automática: sin ope de baja clara y {sin_medicion(rotas, 'M17')} ⇒ no se concluye."
     todas = bool(existe) and all(_cumple(_num(f.get("con_existe")), _num(f.get("n"))) for f in existe)
     con_fecbaj = _suma(marcas, "n", con_fecbaj=1)
     fuera = sorted({str(f.get("est")) for f in marcas if str(f.get("est")) not in estados})
@@ -1526,10 +1672,14 @@ def lectura_m17(existe: list[dict[str, Any]], marcas: list[dict[str, Any]], esta
     return "Lectura automática: sin ope de baja clara ⇒ se decide con T23 (anulación del albarán de prueba)."
 
 
-def lectura_m17b(reutiliza: list[dict[str, Any]]) -> str:
+def lectura_m17b(reutiliza: Filas | None) -> str:
     """T0a-bis, M17b: tras una ope 2 sobre un albarán, ¿desaparece el registro (y el cod se reutiliza)
-    o sigue el mismo?"""
+    o sigue el mismo? None = no se pudo leer (no se concluye); [] = no hay ope 2 en la ventana."""
+    if reutiliza is None:
+        return f"Lectura automática M17b: {sin_medicion('M17b_reutiliza', 'M17')} ⇒ no se concluye."
     n = _suma(reutiliza, "n")
+    if n <= 0:
+        return "Lectura automática M17b: no concluyente (sin ope 2 en la ventana de log) ⇒ se decide con T23."
     no_existe = _suma(reutiliza, "n", caso="no_existe")
     reutilizado = _suma(reutiliza, "n", caso="existe_con_alta_posterior")
     sigue = _suma(reutiliza, "n", caso="existe_sin_alta_posterior")
@@ -1540,7 +1690,7 @@ def lectura_m17b(reutiliza: list[dict[str, Any]]) -> str:
                 f"el cod se reutiliza en {reutilizado:.0f}: R30 sin cambios.")
     if _cumple(sigue, n):
         return f"Lectura automática M17b: ope 2 no borra ⇒ MARCA o no es anulación ({cifras})."
-    return f"Lectura automática M17b: no concluyente ({cifras or 'sin ope 2'}) ⇒ se decide con T23."
+    return f"Lectura automática M17b: no concluyente ({cifras}) ⇒ se decide con T23."
 
 
 # Palabras del resumen (`log.res`) que delatan el significado de una ope.
@@ -1552,13 +1702,20 @@ _SIGNIFICADOS_OPE = (
 )
 
 
-def lectura_ope(res: list[dict[str, Any]]) -> list[str]:
-    """T0a-bis, M17b: significado deducible de cada ope ≠ 1 por su resumen más frecuente."""
+def _sin_tildes(texto: str) -> str:
+    return "".join(ch for ch in unicodedata.normalize("NFD", texto) if unicodedata.category(ch) != "Mn")
+
+
+def lectura_ope(res: Filas | None) -> list[str]:
+    """T0a-bis, M17b: significado deducible de cada ope ≠ 1 por su resumen más frecuente. Se compara
+    sin tildes («Envío» casa con `envi`, ciclo 1, obs. e)."""
+    if res is None:
+        return [f"Significado de las ope: {sin_medicion('M17b_res', 'M17')}."]
     salida = []
     for ope in sorted({f.get("ope") for f in res}, key=lambda o: _num(o)):
         top = max((f for f in res if f.get("ope") == ope), key=lambda f: _num(f.get("n")))
         texto = str(top.get("res") or "").strip()
-        guess = next((nombre for clave, nombre in _SIGNIFICADOS_OPE if clave in texto.lower()), None)
+        guess = next((nombre for clave, nombre in _SIGNIFICADOS_OPE if clave in _sin_tildes(texto.lower())), None)
         detalle = f"(res más frecuente: '{texto}', {_num(top.get('n')):.0f} filas)"
         salida.append(f"ope {ope}: parece «{guess}» {detalle}." if guess
                       else f"ope {ope}: significado no deducible por su resumen {detalle}.")
@@ -1568,22 +1725,22 @@ def lectura_ope(res: list[dict[str, Any]]) -> list[str]:
 def m17(c: ClienteLectura) -> Informe:
     inf = Informe("M17", "anulación de albaranes: ¿borra o marca? (H9) y reutilización del código (M17b)")
     kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
-    for f in _leer_tabla(c, inf, "M17_ope", "operaciones de log sobre albaranes (últimos 1.000.000 ide)", **kw):
+    for f in _leer_tabla(c, inf, "M17_ope", "operaciones de log sobre albaranes (últimos 1.000.000 ide)", **kw) or []:
         inf.concluir(f"log.ope={f.get('ope')}: {_num(f.get('n')):.0f} filas, de {f.get('desde')} a {f.get('hasta')}.")
     e = _leer_tabla(c, inf, "M17_emp_log", "log.emp de las operaciones que no son alta", **kw)
-    sin_emp = sum(_num(f.get("n")) for f in e if f.get("emp") in (0, -1, None))
+    sin_emp = sum(_num(f.get("n")) for f in e or [] if f.get("emp") in (0, -1, None))
     existe = _leer_tabla(c, inf, "M17_existe", "¿sigue existiendo el albarán? (JOIN por emp, tip, cod)", **kw)
     if sin_emp > 0:
         inf.concluir(f"log.emp sale 0 o nulo en {sin_emp:.0f} filas: se repite el JOIN solo por tip y cod (spec) "
                      "y la lectura usa esa repetición (un cod repetido entre empresas cuenta de más).")
         existe = _leer_tabla(c, inf, "M17_existe_sin_emp", "¿sigue existiendo el albarán? (JOIN solo por tip, cod)",
                              **kw)
-    for f in existe:
+    for f in existe or []:
         inf.concluir(f"ope={f.get('ope')}: existe {_pct(_num(f.get('con_existe')), _num(f.get('n')))}; "
                      f"con fecbaj {_num(f.get('con_fecbaj')):.0f}.")
     m = _leer_tabla(c, inf, "M17_marcas", "albaranes desde 2025 por est y fecbaj", **kw)
     k = _leer_tabla(c, inf, "M2_conest", "estados de conest (tip 14)", max_rows=50)
-    inf.concluir(lectura_m17(existe, m, {str(f.get("est")) for f in k}))
+    inf.concluir(lectura_m17(existe, m, None if k is None else {str(f.get("est")) for f in k}))
     reutiliza = _leer_tabla(c, inf, "M17b_reutiliza", "M17b: tras ope 2, ¿mismo registro o cod reutilizado?", **kw)
     inf.concluir(lectura_m17b(reutiliza))
     _leer_tabla(c, inf, "M17b_perfil", "M17b: perfil de cada ope (documentos, usuarios, est)", **kw)
