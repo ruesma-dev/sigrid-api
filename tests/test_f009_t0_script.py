@@ -80,6 +80,15 @@ def test_f009_t0a_m14_sv_valores_cuenta_las_columnas_de_la_spec() -> None:
     assert "ISNULL(d.canmed, 0) <> 0" in sql and "d.fec = c.fec" in sql
 
 
+@pytest.mark.parametrize("col", t0.LISTA_DE_RESETEO)
+def test_f009_t0a_m14_sv_valores_cuenta_toda_la_lista_de_reseteo(col: str) -> None:
+    """T0 se ejecuta una sola vez (H28): M14 tiene que poder confirmar la lista de reseteo entera."""
+    sql = t0.SQL["M14_sv_valores"]
+    assert f"(d.{col})" in sql or f"(d.{col}," in sql, col
+    assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    assert col in dict(t0.COLUMNAS_SV), col
+
+
 def test_f009_t0a_solo_acepta_la_repeticion_unica_de_t0b() -> None:
     lista = ["M3", "M7", "M9", "M11", "M13", "M14", "M16", "M17", "M18"]
     assert t0.analizar_argumentos(["--solo", *lista]).solo == lista

@@ -10,7 +10,7 @@ Azure, ni al SQL Server**: el script lo lanza el humano en T0b.
 | Fichero | Cambio |
 |---|---|
 | `scripts/medir_f009_t0.py` | M16, M17 y M18 nuevas; M11 y M14 ampliadas según `progress/spec_F-009.md` §T0 v5; `--solo` acepta M16-M18; docstring y ayuda dicen M1-M18 |
-| `tests/test_f009_t0_script.py` | 79 tests más (163 → 242), todos sin red ni BBDD |
+| `tests/test_f009_t0_script.py` | 102 tests más (163 → 265), todos sin red ni BBDD |
 
 No se han tocado la spec (`specs/F-009-…/*`), `progress/spec_F-009.md`, `harness/features.json`,
 `BACKLOG.md`, `progress/current.md`, `progress/para_albaranes_F-009.md`, `.env` ni el fichero sin
@@ -80,12 +80,16 @@ automática orienta, pero las cifras van siempre al lado y decide el humano.
 4. **M14 arrastre, columnas ignoradas**: las de `PROPIAS_DEL_DOCUMENTO` (las que cambian por
    construcción: `ide`, `docide`, `pos`, `can`, `pre`, `almide`…) **menos** las de la lista de
    reseteo, para que `fec` (que está en ambas) sí se compare.
-5. **`M14_sv_valores` cuenta exactamente las columnas que nombra la spec.** Ocho columnas de
-   `LISTA_DE_RESETEO` no están en esa lista (`dncide`, `dncproide`, `desesp`, `edilin`, `garfec`,
-   `mesrevpre`, `ejerevpre`, `prepma`): no se cuentan ahí; sí salen en el arrastre si difieren de
-   la plantilla, y `prepma` ya lo mide `M14_prepma`. Si el humano las quiere en el recuento, es
-   añadir una tupla a `COLUMNAS_SV`. `tex` (que la spec sí pide) no está en la lista de reseteo y
-   se marca como «solo informativa».
+5. **`M14_sv_valores` cuenta la lista de reseteo ENTERA** (ajuste del líder del 2026-10-05: T0 se
+   ejecuta una sola vez, H28, y M14 debe poder confirmar toda la lista sin otra pasada). Además de
+   las 16 columnas que nombra la spec, cuenta las ocho de `LISTA_DE_RESETEO` que la spec no
+   nombraba: `desesp` (texto ilimitado, `DATALENGTH > 0`) y `dncide`, `dncproide`, `edilin`,
+   `garfec`, `mesrevpre`, `ejerevpre`, `prepma` (numéricas, `<> 0`; tipos según el diccionario).
+   Queda en una sola sentencia de 25 `SUM(CASE …)` sobre columnas de la propia fila: no hay
+   subconsultas, así que no aplica el error 130 y no hace falta partirla. `tex` (que la spec sí
+   pide) no está en la lista de reseteo y sale como «solo informativa». Ojo al leerla: `prepma`
+   saldrá casi siempre con valor (el escritorio guarda el PMP, R21), así que caerá en «revisar
+   §Reseteo» de forma esperada; lo que decide su valor es `M14_prepma`.
 6. **Tipos de columna comprobados** contra `azure-apps/sigrid_tablas.md`: `med` binario ilimitado,
    `tex`/`texcom` texto ilimitado (por eso `DATALENGTH`), `cod2`/`pac`/`refent` texto de 24, el
    resto enteros, reales o fechas enteras; `alm.caaproide`/`caaseride`, `obr.almide`/`cenide`,
@@ -118,13 +122,26 @@ segunda tanda un test falló de verdad: el arrastre esperaba ver `almide`, que e
 documento y se ignora a propósito; se corrigió el **dato del test** (se usa `dto`) y se añadió la
 aserción de que `almide` no se señala.
 
+RED del ajuste (lista de reseteo entera): test nuevo escrito primero y lanzado con el script en su
+versión anterior (`git stash -- scripts/medir_f009_t0.py`):
+
+```
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k toda_la_lista
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_m14_sv_valores_cuenta_toda_la_lista_de_reseteo[dncide]
+FAILED ...[dncproide]   FAILED ...[desesp]   FAILED ...[edilin]   FAILED ...[garfec]
+FAILED ...[mesrevpre]   FAILED ...[ejerevpre]   FAILED ...[prepma]
+8 failed, 15 passed, 242 deselected in 0.32s
+```
+
+Con el cambio: `265 passed, 1 warning in 0.97s`.
+
 ## Qué prueba la prueba de humo nueva
 
 - Existen las 20 sentencias nuevas y las que llevan valores van con `?` (sin `{`, sin `MA9999`
   dentro del texto). Las 67 sentencias pasan los tests ya parametrizados sobre `SQL`: solo
   `SELECT`/`WITH` de una sentencia, el `SqlQueryGuard` real de `sql/read` con los topes de `dev`
   (incluido `LAG ... OVER`) y el detector del error 130.
-- `M14_sv_valores` cuenta las 16 columnas de la spec y `fec_igual_albaran`, con la condición de
+- `M14_sv_valores` cuenta las 16 columnas de la spec, `fec_igual_albaran` y TODA `LISTA_DE_RESETEO` (un test por columna: falla si alguna no se cuenta), con la condición de
   cada tipo.
 - `--solo M3 M7 M9 M11 M13 M14 M16 M17 M18` se acepta, y `main` con esa lista escribe las nueve
   mediciones en el fichero sin ningún `ERROR` (cliente falso).
@@ -140,9 +157,9 @@ aserción de que `almide` no se señala.
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-1975 passed, 1 skipped, 1 warning in 71.59s (0:01:11)
+1998 passed, 1 skipped, 1 warning in 56.67s
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 97.7% de 355 líneas cambiadas cubiertas (347/355, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 97.8% de 640 líneas cambiadas cubiertas (626/640, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 249/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
@@ -177,8 +194,8 @@ git switch feature/F-009-alta-albaran-compra
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 242 pasan (antes 163), 1,16 s |
-| Suite completa | 1975 passed, 1 skipped, 71,59 s |
-| Cobertura de líneas cambiadas | 97,7 % (347/355), `PUERTA COBERTURA` de init.sh |
+| Tests de la prueba de humo | 265 pasan (antes 163), 0,97 s |
+| Suite completa | 1998 passed, 1 skipped, 56,67 s |
+| Cobertura de líneas cambiadas | 97,8 % (626/640), `PUERTA COBERTURA` de init.sh |
 | Mutación | No aplica: es un script de mediciones desechable que se retira en T0c (N3, decisión del humano en la v4 sobre el alcance del script de T0 en cobertura y mutación); no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos |

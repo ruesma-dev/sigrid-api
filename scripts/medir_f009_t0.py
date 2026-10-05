@@ -87,6 +87,11 @@ COLUMNAS_SV: tuple[tuple[str, str], ...] = (
     ("tex", "DATALENGTH(d.tex) > 0"),
     ("texcom", "DATALENGTH(d.texcom) > 0"),
     *((col, f"ISNULL(d.{col}, '') <> ''") for col in ("cod2", "pac", "refent")),
+    # El resto de LISTA_DE_RESETEO (ajuste del líder: T0 se ejecuta una sola vez, H28, y M14 debe
+    # poder confirmar la lista entera). `desesp` es texto ilimitado; las demás, enteros o reales.
+    ("desesp", "DATALENGTH(d.desesp) > 0"),
+    *((col, f"ISNULL(d.{col}, 0) <> 0") for col in (
+        "dncide", "dncproide", "edilin", "garfec", "mesrevpre", "ejerevpre", "prepma")),
 )
 UMBRAL_CASI_TODO = 0.95      # «≥ 95 %», «≈» y «dominante» de la spec v5 §T0
 UMBRAL_CASI_NADA = 0.001     # «≤ 0,1 %» de M18 (y «≈ 0» de M14 ampliada)
