@@ -1,10 +1,11 @@
 # scripts/medir_f009_t0.py
 """
-F-009 · T0: mediciones M1-M15 de la spec, SOLO LECTURA.
+F-009 · T0: mediciones M1-M18 de la spec, SOLO LECTURA.
 
 Lanza cada medición como SELECT por `POST /api/sql/read` contra la API
 desplegada y escribe, en español, la conclusión que necesita la spec
-(`specs/F-009-alta-albaran-compra/`, puntos [Mn]). No escribe nada en Sigrid,
+(`specs/F-009-alta-albaran-compra/`, puntos [Mn]; M16-M18 y las ampliaciones de M11
+y M14, de `progress/spec_F-009.md` §T0 v5). No escribe nada en Sigrid,
 no llama a ningún endpoint de dominio (ni en dry-run) y no se conecta por SQL.
 
 Configuración (la de los demás scripts de este repositorio): variables de
@@ -13,8 +14,9 @@ entorno o, si no están, el `.env` de la raíz del repositorio:
 Se cargan en el proceso y NUNCA se imprimen.
 
 Uso:
-    python -m scripts.medir_f009_t0                 # M1-M15
+    python -m scripts.medir_f009_t0                 # M1-M18
     python -m scripts.medir_f009_t0 --solo M5       # una (o varias: --solo M5 M6)
+    python -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14 M16 M17 M18   # repetición T0b
     python -m scripts.medir_f009_t0 --salida C:\\ruta\\fuera\\del\\repo.txt
 
 Resultado: por pantalla y en un fichero de %TEMP% (`f009_t0_<fecha>.txt`), que
@@ -65,6 +67,31 @@ def marcadores(n: int) -> str:
     if n < 1:
         raise ValueError("Una lista IN necesita al menos un valor.")
     return ", ".join("?" for _ in range(n))
+
+
+# Fragmentos fijos (nunca valores de fuera) que se repiten en el SELECT y en el GROUP BY.
+_TIPO_LINEA = "CASE WHEN ISNULL(d.docoritip, 0) = 44 THEN 'vinculada' ELSE 'sin_vincular' END"
+_PARTIDA_DISTINTA = (
+    "CASE WHEN ISNULL(d.docoritip, 0) = 44 AND ISNULL(d.paride, 0) <> ISNULL(t.paride, 0) THEN 1 ELSE 0 END"
+)
+_TIPO_PARTIDA = "CASE WHEN ISNULL(d.paride, 0) > 0 THEN 'con_partida' ELSE 'almacen' END"
+_CABECERA = "CASE WHEN ISNULL(a.ctride, 0) > 0 THEN 'con_contrato' ELSE 'sin_contrato' END"
+_VENTANA_LOG = "(SELECT MAX(ide) - 1000000 FROM dbo.log)"   # la de M13: log tiene millones de filas
+
+# M14 ampliada (spec v5 §T0, H11): columna de dcapro y condición de «tiene valor», en el orden de la
+# spec. `med` es binario y `tex`/`texcom` texto ilimitado (DATALENGTH); `cod2`/`pac`/`refent`, texto.
+COLUMNAS_SV: tuple[tuple[str, str], ...] = (
+    ("med", "DATALENGTH(d.med) > 0"),
+    *((col, f"ISNULL(d.{col}, 0) <> 0") for col in (
+        "canmed", "parcandes", "anades", "serdes", "fecimp", "item", "anexo", "taride", "fec", "pla")),
+    ("tex", "DATALENGTH(d.tex) > 0"),
+    ("texcom", "DATALENGTH(d.texcom) > 0"),
+    *((col, f"ISNULL(d.{col}, '') <> ''") for col in ("cod2", "pac", "refent")),
+)
+UMBRAL_CASI_TODO = 0.95      # «≥ 95 %», «≈» y «dominante» de la spec v5 §T0
+UMBRAL_CASI_NADA = 0.001     # «≤ 0,1 %» de M18 (y «≈ 0» de M14 ampliada)
+UMBRAL_BORRA = 0.05          # M17: «con_existe ≈ 0»
+EMPRESA_ARRASTRE = 1         # M14 ampliada: el MA9999 de la empresa 1
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +286,30 @@ SQL: dict[str, str] = {
         "LEFT JOIN dbo.con k ON k.ide = d.ivaide WHERE a.tip = 14 AND a.fec >= 20260101 "
         "GROUP BY d.ivaide, k.cod, i.iva ORDER BY lineas DESC"
     ),
+    # T0a (spec v5, H15): IVA de cada MA9999 por proveedor. El recuento por proveedor va en una
+    # tabla derivada (regla del error 130).
+    "M11_iva_por_proveedor": (
+        "SELECT COUNT(*) AS proveedores, SUM(CASE WHEN x.n_iva > 1 THEN 1 ELSE 0 END) AS con_varios_iva "
+        "FROM (SELECT a.entide, COUNT(DISTINCT d.ivaide) AS n_iva FROM dbo.dcapro d JOIN dbo.dca a "
+        "ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 "
+        "AND d.proide = ? GROUP BY a.entide) x"
+    ),
+    "M11_iva_y_isp": (
+        "SELECT a.tipisp, d.ivaide, COUNT(DISTINCT a.entide) AS proveedores, COUNT(*) AS lineas "
+        "FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide JOIN dbo.con c ON c.ide = d.docide "
+        "WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ? GROUP BY a.tipisp, d.ivaide "
+        "ORDER BY lineas DESC"
+    ),
+    # ¿Acierta más el IVA de la línea anterior del MISMO proveedor que el de la anterior de
+    # cualquiera? `LAG ... OVER` en una tabla derivada; si la API la rechaza, m11 lo anota y sigue.
+    "M11_acierto": (
+        "SELECT COUNT(*) AS lineas, SUM(CASE WHEN x.iva_prev_prv IS NULL THEN 1 ELSE 0 END) AS sin_previa_del_prv, "
+        "SUM(CASE WHEN x.ivaide = x.iva_prev_prv THEN 1 ELSE 0 END) AS acierta_mismo_prv, "
+        "SUM(CASE WHEN x.ivaide = x.iva_prev THEN 1 ELSE 0 END) AS acierta_cualquiera "
+        "FROM (SELECT d.ivaide, LAG(d.ivaide) OVER (PARTITION BY a.entide ORDER BY d.ide) AS iva_prev_prv, "
+        "LAG(d.ivaide) OVER (ORDER BY d.ide) AS iva_prev FROM dbo.dcapro d JOIN dbo.dca a ON a.ide = d.docide "
+        "JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 AND d.proide = ?) x"
+    ),
     "M12_mezcla": (
         "SELECT COUNT(DISTINCT d.ide) AS con_lineas_sin_vincular, (SELECT COUNT(*) FROM dbo.dca d2 "
         "JOIN dbo.con c2 ON c2.ide = d2.ide WHERE c2.tip = 14 AND c2.fec >= 20250101 AND d2.ctride > 0) "
@@ -301,9 +352,111 @@ SQL: dict[str, str] = {
     "M14_con": "SELECT * FROM dbo.con WHERE ide IN ({in})",
     "M14_dca": "SELECT * FROM dbo.dca WHERE ide IN ({in})",
     "M14_dcapro": "SELECT * FROM dbo.dcapro WHERE docide IN ({in}) ORDER BY docide, pos",
+    # T0a (spec v5, H11): columnas de la lista de reseteo en las líneas sin vincular de 2026.
+    "M14_sv_valores": (
+        "SELECT COUNT(*) AS n, "
+        + ", ".join(f"SUM(CASE WHEN {cond} THEN 1 ELSE 0 END) AS {col}" for col, cond in COLUMNAS_SV)
+        + ", SUM(CASE WHEN d.fec = c.fec THEN 1 ELSE 0 END) AS fec_igual_albaran "
+        "FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20260101 "
+        "AND ISNULL(d.docoritip, 0) <> 44"
+    ),
+    # Arrastre: las 3 últimas sin vincular del MA9999 de la empresa 1, cada una frente a su plantilla.
+    "M14_sv_ma9999": "SELECT c.ide FROM dbo.con c JOIN dbo.pro p ON p.ide = c.ide WHERE c.cod = ? AND c.emp = ?",
+    "M14_sv_ultimas": (
+        "SELECT TOP 3 d.ide, d.proide FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide "
+        "WHERE c.tip = 14 AND c.fec >= 20260901 AND ISNULL(d.docoritip, 0) <> 44 AND d.proide = ? "
+        "ORDER BY d.ide DESC"
+    ),
+    "M14_sv_linea": "SELECT * FROM dbo.dcapro WHERE ide = ?",
+    "M14_sv_plantilla": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? AND ide < ? ORDER BY ide DESC",
     "M15_stock_negativo": (
         "SELECT COUNT(*) AS n, COUNT(DISTINCT almide) AS almacenes FROM dbo.mov "
         "WHERE almcan < 0 AND fec >= 20250101"
+    ),
+    # --- T0a (spec v5): M16 analítica, almacén y centro (H10, H13) ---
+    "M16_caa_con_partida": (
+        f"SELECT {_TIPO_LINEA} AS tipo, {_PARTIDA_DISTINTA} AS partida_distinta, COUNT(*) AS n, "
+        "SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(p.caaide, 0) THEN 1 ELSE 0 END) AS caa_de_la_partida, "
+        "SUM(CASE WHEN ISNULL(p.caaide, 0) = 0 THEN 1 ELSE 0 END) AS partida_sin_caa, "
+        "SUM(CASE WHEN t.ide IS NOT NULL AND ISNULL(d.caaide, 0) = ISNULL(t.caaide, 0) THEN 1 ELSE 0 END) "
+        "AS caa_del_ctrpro FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide "
+        "JOIN dbo.obrparpar p ON p.ide = d.paride LEFT JOIN dbo.ctrpro t ON t.ide = d.linoriide "
+        "AND d.docoritip = 44 WHERE c.tip = 14 AND c.fec >= 20250101 AND d.paride > 0 "
+        f"GROUP BY {_TIPO_LINEA}, {_PARTIDA_DISTINTA}"
+    ),
+    "M16_caa_almacen": (
+        f"SELECT {_TIPO_LINEA} AS tipo, COUNT(*) AS n, "
+        "SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(a.caaproide, 0) THEN 1 ELSE 0 END) AS caa_pro_del_alm, "
+        "SUM(CASE WHEN ISNULL(d.caaide, 0) = ISNULL(a.caaseride, 0) THEN 1 ELSE 0 END) AS caa_ser_del_alm, "
+        "SUM(CASE WHEN ISNULL(a.caaproide, 0) = 0 THEN 1 ELSE 0 END) AS alm_sin_caa "
+        "FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide LEFT JOIN dbo.alm a ON a.ide = d.almide "
+        f"WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.paride, 0) = 0 GROUP BY {_TIPO_LINEA}"
+    ),
+    "M16_almacen_sin_vincular": (
+        f"SELECT {_TIPO_PARTIDA} AS tipo, {_CABECERA} AS cabecera, COUNT(*) AS n, "
+        "SUM(CASE WHEN d.almide = t.almide THEN 1 ELSE 0 END) AS alm_del_contrato, "
+        "SUM(CASE WHEN d.almide = o.almide THEN 1 ELSE 0 END) AS alm_de_la_ficha, "
+        "SUM(CASE WHEN d.cenide = t.cenide THEN 1 ELSE 0 END) AS cen_del_contrato, "
+        "SUM(CASE WHEN d.cenide = o.cenide THEN 1 ELSE 0 END) AS cen_de_la_ficha "
+        "FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide JOIN dbo.dca a ON a.ide = d.docide "
+        "LEFT JOIN dbo.obr o ON o.ide = d.obride LEFT JOIN dbo.ctr t ON t.ide = a.ctride "
+        "WHERE c.tip = 14 AND c.fec >= 20250101 AND ISNULL(d.docoritip, 0) <> 44 "
+        f"GROUP BY {_TIPO_PARTIDA}, {_CABECERA}"
+    ),
+    "M16_ficha_obra": (
+        "SELECT COUNT(*) AS obras, SUM(CASE WHEN ISNULL(o.almide, 0) > 0 THEN 1 ELSE 0 END) AS con_almide, "
+        "SUM(CASE WHEN a.obride = o.ide THEN 1 ELSE 0 END) AS almide_de_su_obra, "
+        "SUM(CASE WHEN ISNULL(o.cenide, 0) > 0 THEN 1 ELSE 0 END) AS con_cenide "
+        "FROM dbo.obr o LEFT JOIN dbo.alm a ON a.ide = o.almide WHERE o.ide IN (SELECT d.obride "
+        "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = 14 AND c.fec >= 20250101)"
+    ),
+    # --- T0a (spec v5): M17 anulación de albaranes (H9). Ventana de log acotada por ide, como M13 ---
+    "M17_ope": (
+        "SELECT ope, COUNT(*) AS n, MIN(fec) AS desde, MAX(fec) AS hasta FROM dbo.log "
+        f"WHERE ide > {_VENTANA_LOG} AND tab = 'con' AND tip = 14 GROUP BY ope ORDER BY ope"
+    ),
+    # Lo resuelve el propio script: si `log.emp` sale 0 o nulo, m17 repite el JOIN sin `emp`.
+    "M17_emp_log": (
+        "SELECT ISNULL(emp, -1) AS emp, COUNT(*) AS n FROM dbo.log "
+        f"WHERE ide > {_VENTANA_LOG} AND tab = 'con' AND tip = 14 AND ope <> 1 "
+        "GROUP BY ISNULL(emp, -1) ORDER BY n DESC"
+    ),
+    "M17_existe": (
+        "SELECT l.ope, COUNT(*) AS n, SUM(CASE WHEN c.ide IS NULL THEN 0 ELSE 1 END) AS con_existe, "
+        "SUM(CASE WHEN ISNULL(c.fecbaj, 0) > 0 THEN 1 ELSE 0 END) AS con_fecbaj FROM dbo.log l "
+        "LEFT JOIN dbo.con c ON c.emp = l.emp AND c.tip = l.tip AND c.cod = l.cod "
+        f"WHERE l.ide > {_VENTANA_LOG} AND l.tab = 'con' AND l.tip = 14 AND l.ope <> 1 "
+        "GROUP BY l.ope ORDER BY l.ope"
+    ),
+    "M17_existe_sin_emp": (
+        "SELECT l.ope, COUNT(*) AS n, SUM(CASE WHEN c.ide IS NULL THEN 0 ELSE 1 END) AS con_existe, "
+        "SUM(CASE WHEN ISNULL(c.fecbaj, 0) > 0 THEN 1 ELSE 0 END) AS con_fecbaj FROM dbo.log l "
+        "LEFT JOIN dbo.con c ON c.tip = l.tip AND c.cod = l.cod "
+        f"WHERE l.ide > {_VENTANA_LOG} AND l.tab = 'con' AND l.tip = 14 AND l.ope <> 1 "
+        "GROUP BY l.ope ORDER BY l.ope"
+    ),
+    "M17_marcas": (
+        "SELECT est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END AS con_fecbaj, COUNT(*) AS n "
+        "FROM dbo.con WHERE tip = 14 AND fec >= 20250101 "
+        "GROUP BY est, CASE WHEN ISNULL(fecbaj, 0) > 0 THEN 1 ELSE 0 END ORDER BY n DESC"
+    ),
+    # --- T0a (spec v5): M18 uso de dcapro.refent (H18) ---
+    "M18_refent": (
+        f"SELECT {_TIPO_LINEA} AS tipo, COUNT(*) AS n, "
+        "SUM(CASE WHEN ISNULL(d.refent, '') <> '' THEN 1 ELSE 0 END) AS con_refent "
+        "FROM dbo.dcapro d JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 "
+        f"GROUP BY {_TIPO_LINEA}"
+    ),
+    "M18_valores": (
+        "SELECT TOP 20 LEFT(d.refent, 8) AS prefijo, COUNT(*) AS n FROM dbo.dcapro d "
+        "JOIN dbo.con c ON c.ide = d.docide WHERE c.tip = 14 AND c.fec >= 20250101 "
+        "AND ISNULL(d.refent, '') <> '' GROUP BY LEFT(d.refent, 8) ORDER BY n DESC"
+    ),
+    "M18_propagacion": (
+        "SELECT COUNT(*) AS n, SUM(CASE WHEN ISNULL(f.refent, '') <> '' THEN 1 ELSE 0 END) AS con_refent, "
+        "SUM(CASE WHEN ISNULL(d.refent, '') <> '' AND f.refent = d.refent THEN 1 ELSE 0 END) AS copiada "
+        "FROM dbo.dcfpro f JOIN dbo.dcapro d ON d.ide = f.linoriide WHERE f.docoritip = 14 "
+        "AND f.docide IN (SELECT ide FROM dbo.con WHERE fec >= 20250101)"
     ),
 }
 
@@ -707,12 +860,54 @@ def m11(c: ClienteLectura) -> Informe:
                          f"ivaide={top.get('ivaide')} natide={top.get('natide')} unimed={top.get('unimed')} en "
                          f"{_pct(_num(top.get('n')), total)}; maestro: comide={ma.get('comide')} "
                          f"ivacomide={ma.get('ivacomide')} natide={ma.get('natide')}.")
-    iv = c.leer(SQL["M11_iva_usado"], max_rows=200, timeout_s=TIMEOUT_PESADO_S)
+        _m11_iva_por_proveedor(c, inf, ma)
+    iv =c.leer(SQL["M11_iva_usado"], max_rows=200, timeout_s=TIMEOUT_PESADO_S)
     inf.tabla("IVA usados en líneas de albarán de 2026", iv, limite=30)
     total = sum(_num(x.get("lineas")) for x in iv.filas)
     distintos = sum(_num(x.get("ivacuo_distinto")) for x in iv.filas)
     inf.concluir(f"ivacuo ≠ round(tot·iva, 2): {_pct(distintos, total)} líneas de 2026 (dbo.iva.iva es una fracción).")
     return inf
+
+
+def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -> str:
+    """Spec v5 §T0, M11 ampliada: ¿justifica la medición L8b (plantilla del mismo proveedor)?"""
+    isp1 = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) == 1}
+    resto = {f.get("ivaide") for f in iva_isp if _num(f.get("tipisp")) != 1}
+    motivos = []
+    if acierto and _num(acierto.get("acierta_mismo_prv")) > _num(acierto.get("acierta_cualquiera")):
+        motivos.append("acierta más la línea previa del mismo proveedor")
+    if isp1 and isp1 != resto:
+        motivos.append("IVA distinto con tipisp 1")
+    if motivos:
+        return f"L8b JUSTIFICADA ({'; '.join(motivos)})."
+    if acierto:
+        return "L8b inocua (aciertan igual o menos): se queda."
+    return "Sin M11_acierto ni IVA distinto con tipisp 1: L8b ni justificada ni descartada por la medición."
+
+
+def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) -> None:
+    """T0a (spec v5, H15): IVA de un MA9999 por proveedor, ISP y acierto de la línea previa."""
+    ide, emp = ma.get("ide"), ma.get("emp")
+    r = c.leer(SQL["M11_iva_por_proveedor"], [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA desde 2025", r)
+    f = r.filas[0] if r.filas else {}
+    inf.concluir(f"MA9999 emp {emp}: proveedores con más de un IVA {_pct(_num(f.get('con_varios_iva')), _num(f.get('proveedores')))}.")
+    isp = c.leer(SQL["M11_iva_y_isp"], [ide], max_rows=100, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla(f"MA9999 emp {emp}: IVA por tipisp", isp, limite=20)
+    acierto: dict[str, Any] | None = None
+    try:
+        a = c.leer(SQL["M11_acierto"], [ide], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    except ErrorDeLectura as exc:
+        inf.concluir(f"MA9999 emp {emp}: M11_acierto (LAG ... OVER) no se pudo leer ({exc}); "
+                     "según la spec se queda con las dos primeras.")
+    else:
+        inf.tabla(f"MA9999 emp {emp}: acierto del IVA de la línea previa", a)
+        acierto = a.filas[0] if a.filas else {}
+        n = _num(acierto.get("lineas"))
+        inf.concluir(f"MA9999 emp {emp}: acierta el IVA previo del mismo proveedor {_pct(_num(acierto.get('acierta_mismo_prv')), n)}; "
+                     f"el previo de cualquiera {_pct(_num(acierto.get('acierta_cualquiera')), n)}; "
+                     f"sin previa del proveedor {_num(acierto.get('sin_previa_del_prv')):.0f}.")
+    inf.concluir(f"MA9999 emp {emp}: {lectura_l8b(acierto, isp.filas)}")
 
 
 def m12(c: ClienteLectura) -> Informe:
@@ -742,12 +937,19 @@ def m13(c: ClienteLectura) -> Informe:
 
 
 def m14(c: ClienteLectura) -> Informe:
-    inf = Informe("M14", "diff de columnas: albaranes de contrato del MISMO proveedor frente a AC26/15951 (API)")
+    inf = Informe("M14", "diff de columnas frente a AC26/15951 (API) y columnas de la dcapro sin vincular")
+    _m14_frente_a_la_api(c, inf)
+    _m14_sin_vincular(c, inf)
+    return inf
+
+
+def _m14_frente_a_la_api(c: ClienteLectura, inf: Informe) -> None:
+    """Albaranes de contrato del MISMO proveedor frente a AC26/15951 (API), columna a columna."""
     a = c.leer(SQL["M14_api"], [COD_ALBARAN_API], max_rows=1)
     inf.tabla("albarán de la API", a)
     if not a.filas:
         inf.concluir("No está el albarán de la API: no se puede comparar.")
-        return inf
+        return
     ide_api = a.filas[0].get("ide")
     e = c.leer(SQL["M14_escritorio"], [ide_api, ide_api], max_rows=3)
     inf.tabla("albaranes del escritorio del mismo proveedor", e)
@@ -764,7 +966,7 @@ def m14(c: ClienteLectura) -> Informe:
                  f"= mov.prepma en {_pct(_num(fq.get('igual_prepma_del_mov')), _num(fq.get('n')))} líneas desde 2026-09.")
     if not ides_esc:
         inf.concluir("No hay albaranes del escritorio del mismo proveedor: no se compara columna a columna.")
-        return inf
+        return
     ides = [*ides_esc, ide_api]
     for tabla, clave_doc in (("con", "ide"), ("dca", "ide"), ("dcapro", "docide")):
         sql = SQL[f"M14_{tabla}"].format(**{"in": marcadores(len(ides))})
@@ -783,7 +985,60 @@ def m14(c: ClienteLectura) -> Informe:
         if tabla == "dcapro":
             no_vistas = [col for col in LISTA_DE_RESETEO if col not in dif]
             inf.concluir("Columnas de la lista de reseteo SIN diferencia en esta muestra: " + (", ".join(no_vistas) or "ninguna") + ".")
-    return inf
+
+
+def lectura_sv_valores(fila: dict[str, Any]) -> list[str]:
+    """Spec v5 §T0, M14 ampliada: qué columnas de la lista de reseteo vienen vacías y si `fec` es la
+    del albarán. Devuelve las conclusiones."""
+    n = _num(fila.get("n"))
+    if not n:
+        return ["No hay líneas sin vincular desde 2026: sin medición de columnas."]
+    vacias = [col for col, _ in COLUMNAS_SV if _num(fila.get(col)) / n <= UMBRAL_CASI_NADA]
+    llenas = [f"{col} {_pct(_num(fila.get(col)), n)}" for col, _ in COLUMNAS_SV if col not in vacias]
+    fuera = sorted(col for col, _ in COLUMNAS_SV if col not in LISTA_DE_RESETEO)
+    salida = [
+        f"Sin vincular de 2026 ({n:.0f} líneas), vacías (≤ 0,1 %) ⇒ reseteo confirmado: " + (", ".join(vacias) or "ninguna") + ".",
+        "Con valores ⇒ revisar §Reseteo (v6): " + (", ".join(llenas) or "ninguna") + ".",
+        f"Fuera de la lista de reseteo (solo informativas): {', '.join(fuera)}.",
+    ]
+    igual = _num(fila.get("fec_igual_albaran"))
+    if igual / n >= UMBRAL_CASI_TODO:
+        salida.append(f"dcapro.fec = fecha del albarán en {_pct(igual, n)} ⇒ §Reseteo debe escribir fec = con.fec (v6).")
+    else:
+        salida.append(f"dcapro.fec = fecha del albarán en {_pct(igual, n)} (no es la regla general).")
+    return salida
+
+
+def _m14_sin_vincular(c: ClienteLectura, inf: Informe) -> None:
+    """T0a (spec v5, H11): columnas de la dcapro sin vincular y arrastre desde su plantilla."""
+    r = c.leer(SQL["M14_sv_valores"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("sin vincular de 2026: líneas con valor en cada columna", r)
+    for texto in lectura_sv_valores(r.filas[0] if r.filas else {}):
+        inf.concluir(texto)
+    p = c.leer(SQL["M14_sv_ma9999"], ["MA9999", EMPRESA_ARRASTRE], max_rows=5)
+    inf.tabla(f"MA9999 de la empresa {EMPRESA_ARRASTRE}", p)
+    if not p.filas:
+        inf.concluir(f"No está el MA9999 de la empresa {EMPRESA_ARRASTRE}: sin comprobación de arrastre.")
+        return
+    u = c.leer(SQL["M14_sv_ultimas"], [p.filas[0].get("ide")], max_rows=3, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("últimas sin vincular del MA9999 desde 2026-09", u)
+    fuera: Counter[str] = Counter()
+    for ult in u.filas:
+        linea = c.leer(SQL["M14_sv_linea"], [ult.get("ide")], max_rows=1).filas
+        plantilla = c.leer(SQL["M14_sv_plantilla"], [ult.get("proide"), ult.get("ide")], max_rows=1).filas
+        if not linea or not plantilla:
+            inf.lineas.append(f"    línea {ult.get('ide')}: sin plantilla anterior del producto")
+            continue
+        inf.lineas.append(f"  [arrastre] línea {ult.get('ide')} frente a su plantilla {plantilla[0].get('ide')}")
+        dif = columnas_distintas(plantilla, linea, PROPIAS_DEL_DOCUMENTO - set(LISTA_DE_RESETEO))
+        for col, (v_pla, v_lin) in sorted(dif.items()):
+            marca = "lista de reseteo" if col in LISTA_DE_RESETEO else "FUERA de la lista"
+            inf.lineas.append(f"    dcapro.{col} ({marca}): plantilla={v_pla} línea={v_lin}")
+            if col not in LISTA_DE_RESETEO:
+                fuera[col] += 1
+    inf.concluir("Columnas FUERA de la lista de reseteo que el escritorio no copia de la plantilla "
+                 f"(candidatas a añadir, en cuántas de {len(u.filas)} líneas): "
+                 + (", ".join(f"{col} ({k})" for col, k in sorted(fuera.items())) or "ninguna") + ".")
 
 
 def m15(c: ClienteLectura) -> Informe:
@@ -795,9 +1050,148 @@ def m15(c: ClienteLectura) -> Informe:
     return inf
 
 
+# ---------------------------------------------------------------------------
+# T0a (spec v5, §T0 v5): M16, M17 y M18
+# ---------------------------------------------------------------------------
+def _suma(filas: list[dict[str, Any]], campo: str, **filtro: Any) -> float:
+    """Σ `campo` en las filas cuyo valor coincide (como texto) con cada clave del filtro."""
+    return sum(_num(f.get(campo)) for f in filas if all(str(f.get(k)) == str(v) for k, v in filtro.items()))
+
+
+def _cumple(parte: float, total: float, umbral: float = UMBRAL_CASI_TODO) -> bool:
+    return total > 0 and parte / total >= umbral
+
+
+def _si(ok: bool) -> str:
+    return "sí" if ok else "NO"
+
+
+def lectura_m16(caa_partida: list[dict[str, Any]], caa_alm: list[dict[str, Any]],
+                alm_sv: list[dict[str, Any]], ficha: dict[str, Any]) -> list[str]:
+    """Spec v5 §T0, M16 «debe salir / decide»: hipótesis de design §Analítica y orden de R15."""
+    salida: list[str] = []
+    n_sv, caa_sv = _suma(caa_partida, "n", tipo="sin_vincular"), _suma(caa_partida, "caa_de_la_partida", tipo="sin_vincular")
+    n_vd = _suma(caa_partida, "n", tipo="vinculada", partida_distinta=1)
+    caa_vd = _suma(caa_partida, "caa_de_la_partida", tipo="vinculada", partida_distinta=1)
+    n_alm, caa_alm_pro = _suma(caa_alm, "n"), _suma(caa_alm, "caa_pro_del_alm")
+    analitica = {
+        "caa de la partida en sin vincular con partida": (caa_sv, n_sv),
+        "caa de la partida en vinculadas con partida distinta": (caa_vd, n_vd),
+        "caa de productos del almacén en líneas sin partida": (caa_alm_pro, n_alm),
+    }
+    for texto, (parte, total) in analitica.items():
+        salida.append(f"{texto}: {_pct(parte, total)} (≥ 95 %: {_si(_cumple(parte, total))}).")
+    ok_analitica = all(_cumple(p, t) for p, t in analitica.values())
+    salida.append("Hipótesis de design §Analítica: " + ("CONFIRMADA." if ok_analitica else "NO confirmada ⇒ PARADA y v6."))
+
+    def dominante(cabecera: str, campo: str, otro: str) -> bool:
+        n, a, b = (_suma(alm_sv, k, cabecera=cabecera) for k in ("n", campo, otro))
+        salida.append(f"{cabecera}: {campo} {_pct(a, n)}, {otro} {_pct(b, n)}.")
+        return n > 0 and a >= b and a / n >= 0.5
+
+    ok_ctr = dominante("con_contrato", "alm_del_contrato", "alm_de_la_ficha")
+    ok_ficha = dominante("sin_contrato", "alm_de_la_ficha", "alm_del_contrato")
+    obras, con_almide, de_su_obra = (_num(ficha.get(k)) for k in ("obras", "con_almide", "almide_de_su_obra"))
+    salida.append(f"Ficha de obra: con almide {_pct(con_almide, obras)}, de su obra {_pct(de_su_obra, con_almide)}, "
+                  f"con cenide {_pct(_num(ficha.get('con_cenide')), obras)}.")
+    ok_r15 = ok_ctr and ok_ficha and _cumple(con_almide, obras) and _cumple(de_su_obra, con_almide)
+    salida.append("Orden de R15 (contrato → ficha de obra → único alm): "
+                  + ("CONFIRMADO." if ok_r15 else
+                     f"NO confirmado (contrato dominante: {_si(ok_ctr)}, ficha dominante: {_si(ok_ficha)}) ⇒ PARADA y v6."))
+    return salida
+
+
+def m16(c: ClienteLectura) -> Informe:
+    inf = Informe("M16", "analítica, almacén y centro de las líneas (H10, H13)")
+    r1 = c.leer(SQL["M16_caa_con_partida"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("caaide de las líneas con partida desde 2025", r1)
+    r2 = c.leer(SQL["M16_caa_almacen"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("caaide de las líneas sin partida frente al almacén", r2)
+    r3 = c.leer(SQL["M16_almacen_sin_vincular"], max_rows=10, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("almacén y centro de las sin vincular", r3)
+    r4 = c.leer(SQL["M16_ficha_obra"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("ficha de las obras con albaranes desde 2025", r4)
+    for texto in lectura_m16(r1.filas, r2.filas, r3.filas, r4.filas[0] if r4.filas else {}):
+        inf.concluir(texto)
+    return inf
+
+
+def lectura_m17(existe: list[dict[str, Any]], marcas: list[dict[str, Any]], estados: set[str]) -> str:
+    """Spec v5 §T0, M17 «debe salir / decide»: ¿anular borra, marca o no se sabe?"""
+    borran = [str(f.get("ope")) for f in existe if _num(f.get("n")) > 0
+              and _num(f.get("con_existe")) / _num(f.get("n")) <= UMBRAL_BORRA]
+    if borran:
+        return f"Lectura automática: ope {', '.join(borran)} con con_existe ≈ 0 ⇒ anular BORRA: R30 sin cambios."
+    todas = bool(existe) and all(_cumple(_num(f.get("con_existe")), _num(f.get("n"))) for f in existe)
+    con_fecbaj = _suma(marcas, "n", con_fecbaj=1)
+    fuera = sorted({str(f.get("est")) for f in marcas if str(f.get("est")) not in estados})
+    if todas and (con_fecbaj > 0 or fuera):
+        return ("Lectura automática: con_existe ≈ n y hay marca (fecbaj > 0 en "
+                f"{con_fecbaj:.0f} albaranes; est fuera de conest: {', '.join(fuera) or 'ninguno'}) ⇒ anular MARCA: "
+                "L11 añade AND <no marcado> y F-053 usa ALB-{id}-{n}.")
+    return "Lectura automática: sin ope de baja clara ⇒ se decide con T23 (anulación del albarán de prueba)."
+
+
+def m17(c: ClienteLectura) -> Informe:
+    inf = Informe("M17", "anulación de albaranes: ¿borra o marca? (H9)")
+    r = c.leer(SQL["M17_ope"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("operaciones de log sobre albaranes (últimos 1.000.000 ide)", r)
+    for f in r.filas:
+        inf.concluir(f"log.ope={f.get('ope')}: {_num(f.get('n')):.0f} filas, de {f.get('desde')} a {f.get('hasta')}.")
+    e = c.leer(SQL["M17_emp_log"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("log.emp de las operaciones que no son alta", e)
+    sin_emp = sum(_num(f.get("n")) for f in e.filas if f.get("emp") in (0, -1, None))
+    x = c.leer(SQL["M17_existe"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("¿sigue existiendo el albarán? (JOIN por emp, tip, cod)", x)
+    existe = x.filas
+    if sin_emp > 0:
+        inf.concluir(f"log.emp sale 0 o nulo en {sin_emp:.0f} filas: se repite el JOIN solo por tip y cod (spec) "
+                     "y la lectura usa esa repetición (un cod repetido entre empresas cuenta de más).")
+        y = c.leer(SQL["M17_existe_sin_emp"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
+        inf.tabla("¿sigue existiendo el albarán? (JOIN solo por tip, cod)", y)
+        existe = y.filas
+    for f in existe:
+        inf.concluir(f"ope={f.get('ope')}: existe {_pct(_num(f.get('con_existe')), _num(f.get('n')))}; "
+                     f"con fecbaj {_num(f.get('con_fecbaj')):.0f}.")
+    m = c.leer(SQL["M17_marcas"], max_rows=50, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("albaranes desde 2025 por est y fecbaj", m)
+    k = c.leer(SQL["M2_conest"], max_rows=50)
+    inf.tabla("estados de conest (tip 14)", k)
+    inf.concluir(lectura_m17(existe, m.filas, {str(f.get("est")) for f in k.filas}))
+    return inf
+
+
+def lectura_m18(refent: list[dict[str, Any]], propagacion: dict[str, Any]) -> list[str]:
+    """Spec v5 §T0, M18 «debe salir / decide»: ¿está libre `dcapro.refent`?"""
+    n, con = _suma(refent, "n"), _suma(refent, "con_refent")
+    libre = n > 0 and con / n <= UMBRAL_CASI_NADA
+    salida = [f"dcapro.refent informado en {_pct(con, n)} líneas desde 2025 ⇒ "
+              + ("LIBRE: se escribe referencia_linea (1-24) y se devuelve en idempotente."
+                 if libre else "NO libre (> 0,1 %): no se escribe referencia_linea.")]
+    copiada = _num(propagacion.get("copiada"))
+    salida.append(f"Líneas de factura de albarán con refent copiado del albarán: {copiada:.0f} de "
+                  f"{_num(propagacion.get('n')):.0f}" + (" ⇒ la referencia llegaría a la factura (N9)." if copiada > 0 else "."))
+    return salida
+
+
+def m18(c: ClienteLectura) -> Informe:
+    inf = Informe("M18", "uso de dcapro.refent (H18)")
+    r = c.leer(SQL["M18_refent"], max_rows=5, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("refent por tipo de línea desde 2025", r)
+    for f in r.filas:
+        inf.concluir(f"{f.get('tipo')}: refent informado {_pct(_num(f.get('con_refent')), _num(f.get('n')))}.")
+    inf.tabla("prefijos de refent más frecuentes", c.leer(SQL["M18_valores"], max_rows=20, timeout_s=TIMEOUT_PESADO_S))
+    p = c.leer(SQL["M18_propagacion"], max_rows=1, timeout_s=TIMEOUT_PESADO_S)
+    inf.tabla("¿pasa refent del albarán a la factura?", p)
+    for texto in lectura_m18(r.filas, p.filas[0] if p.filas else {}):
+        inf.concluir(texto)
+    return inf
+
+
 MEDICIONES: dict[str, Callable[[ClienteLectura], Informe]] = {
     "M1": m1, "M2": m2, "M3": m3, "M4": m4, "M5": m5, "M6": m6, "M7": m7, "M8": m8,
     "M9": m9, "M10": m10, "M11": m11, "M12": m12, "M13": m13, "M14": m14, "M15": m15,
+    "M16": m16, "M17": m17, "M18": m18,
 }
 
 
@@ -843,7 +1237,7 @@ def ruta_de_salida(pedida: str | None, ahora: datetime | None = None) -> Path:
 
 
 def analizar_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="F-009 T0: mediciones M1-M15 de solo lectura por sql/read.")
+    p = argparse.ArgumentParser(description="F-009 T0: mediciones M1-M18 de solo lectura por sql/read.")
     p.add_argument("--solo", nargs="+", metavar="Mn", help="Lanza solo estas mediciones (p. ej. --solo M5 M6).")
     p.add_argument("--salida", help="Fichero de resultados (por defecto en %%TEMP%%; nunca dentro del repo).")
     args = p.parse_args(argv)

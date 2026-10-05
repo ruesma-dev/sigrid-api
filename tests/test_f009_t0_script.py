@@ -41,7 +41,49 @@ def _sql_completa(sql: str) -> str:
 
 
 def test_f009_t0_hay_una_medicion_por_cada_m_de_la_spec() -> None:
-    assert list(t0.MEDICIONES) == [f"M{i}" for i in range(1, 16)]
+    assert list(t0.MEDICIONES) == [f"M{i}" for i in range(1, 19)]
+
+
+# Las sentencias que añade T0a (spec v5, §T0 v5): M16, M17, M18 y las ampliaciones de M11 y M14.
+_NUEVAS_T0A = (
+    "M16_caa_con_partida", "M16_caa_almacen", "M16_almacen_sin_vincular", "M16_ficha_obra",
+    "M17_ope", "M17_emp_log", "M17_existe", "M17_existe_sin_emp", "M17_marcas",
+    "M18_refent", "M18_valores", "M18_propagacion",
+    "M11_iva_por_proveedor", "M11_iva_y_isp", "M11_acierto",
+    "M14_sv_valores", "M14_sv_ma9999", "M14_sv_ultimas", "M14_sv_linea", "M14_sv_plantilla",
+)
+# Las que reciben valores de fuera: van con marcador `?`, nunca con el valor dentro del texto.
+_CON_PARAMETROS = (
+    "M11_iva_por_proveedor", "M11_iva_y_isp", "M11_acierto",
+    "M14_sv_ma9999", "M14_sv_ultimas", "M14_sv_linea", "M14_sv_plantilla",
+)
+
+
+def test_f009_t0a_existen_las_sentencias_nuevas_de_la_spec_v5() -> None:
+    faltan = [k for k in _NUEVAS_T0A if k not in t0.SQL]
+    assert faltan == []
+
+
+@pytest.mark.parametrize("nombre", _CON_PARAMETROS)
+def test_f009_t0a_las_sentencias_nuevas_con_valores_van_parametrizadas(nombre: str) -> None:
+    sql = t0.SQL[nombre]
+    assert "?" in sql and "{" not in sql, nombre
+    assert "MA9999" not in sql, nombre
+
+
+def test_f009_t0a_m14_sv_valores_cuenta_las_columnas_de_la_spec() -> None:
+    sql = t0.SQL["M14_sv_valores"]
+    for col in ("med", "canmed", "parcandes", "anades", "serdes", "fecimp", "item", "anexo", "taride",
+                "fec", "pla", "tex", "texcom", "cod2", "pac", "refent", "fec_igual_albaran"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    assert "DATALENGTH(d.med) > 0" in sql and "ISNULL(d.refent, '') <> ''" in sql
+    assert "ISNULL(d.canmed, 0) <> 0" in sql and "d.fec = c.fec" in sql
+
+
+def test_f009_t0a_solo_acepta_la_repeticion_unica_de_t0b() -> None:
+    lista = ["M3", "M7", "M9", "M11", "M13", "M14", "M16", "M17", "M18"]
+    assert t0.analizar_argumentos(["--solo", *lista]).solo == lista
+    assert t0.analizar_argumentos(["--solo", "m16", "m17", "m18"]).solo == ["M16", "M17", "M18"]
 
 
 @pytest.mark.parametrize("nombre", sorted(t0.SQL))
@@ -259,6 +301,45 @@ _DATOS: dict[str, list[dict[str, Any]]] = {
     "M14_dca": [{"ide": 1, "pagide": 23}, {"ide": 99, "pagide": 36}],
     "M14_dcapro": [{"docide": 1, "prepma": 1.5}, {"docide": 99, "prepma": 69.5}],
     "M15_stock_negativo": [{"n": 7, "almacenes": 2}],
+    # T0a (spec v5)
+    "M11_iva_por_proveedor": [{"proveedores": 10, "con_varios_iva": 2}],
+    "M11_iva_y_isp": [{"tipisp": 0, "ivaide": 8, "proveedores": 9, "lineas": 80},
+                      {"tipisp": 1, "ivaide": 9, "proveedores": 1, "lineas": 10}],
+    "M11_acierto": [{"lineas": 90, "sin_previa_del_prv": 10, "acierta_mismo_prv": 75, "acierta_cualquiera": 60}],
+    "M14_sv_valores": [{"n": 1000, "med": 0, "canmed": 0, "parcandes": 0, "anades": 0, "serdes": 0, "fecimp": 0,
+                        "item": 0, "anexo": 0, "taride": 0, "fec": 1000, "pla": 0, "tex": 300, "texcom": 0,
+                        "cod2": 0, "pac": 0, "refent": 1, "fec_igual_albaran": 990}],
+    "M14_sv_ma9999": [{"ide": 1}],
+    "M14_sv_ultimas": [{"ide": 50, "proide": 1}],
+    "M14_sv_linea": [{"ide": 50, "docide": 9, "proide": 1, "anades": 0, "almide": 7, "dto": 5}],
+    "M14_sv_plantilla": [{"ide": 40, "docide": 8, "proide": 1, "anades": 1, "almide": 6, "dto": 0}],
+    "M16_caa_con_partida": [
+        {"tipo": "sin_vincular", "partida_distinta": 0, "n": 100, "caa_de_la_partida": 99, "partida_sin_caa": 0,
+         "caa_del_ctrpro": 0},
+        {"tipo": "vinculada", "partida_distinta": 1, "n": 20, "caa_de_la_partida": 20, "partida_sin_caa": 0,
+         "caa_del_ctrpro": 1},
+        {"tipo": "vinculada", "partida_distinta": 0, "n": 50, "caa_de_la_partida": 50, "partida_sin_caa": 0,
+         "caa_del_ctrpro": 50},
+    ],
+    "M16_caa_almacen": [{"tipo": "sin_vincular", "n": 100, "caa_pro_del_alm": 97, "caa_ser_del_alm": 1,
+                         "alm_sin_caa": 0}],
+    "M16_almacen_sin_vincular": [
+        {"tipo": "almacen", "cabecera": "con_contrato", "n": 60, "alm_del_contrato": 58, "alm_de_la_ficha": 50,
+         "cen_del_contrato": 58, "cen_de_la_ficha": 50},
+        {"tipo": "almacen", "cabecera": "sin_contrato", "n": 40, "alm_del_contrato": 0, "alm_de_la_ficha": 39,
+         "cen_del_contrato": 0, "cen_de_la_ficha": 39},
+    ],
+    "M16_ficha_obra": [{"obras": 100, "con_almide": 98, "almide_de_su_obra": 98, "con_cenide": 97}],
+    "M17_ope": [{"ope": 1, "n": 500, "desde": 20250101, "hasta": 20261004},
+                {"ope": 2, "n": 300, "desde": 20250101, "hasta": 20261004},
+                {"ope": 3, "n": 4, "desde": 20250301, "hasta": 20260901}],
+    "M17_emp_log": [{"emp": 1, "n": 304}],
+    "M17_existe": [{"ope": 2, "n": 300, "con_existe": 299, "con_fecbaj": 0},
+                   {"ope": 3, "n": 4, "con_existe": 0, "con_fecbaj": 0}],
+    "M17_marcas": [{"est": 10, "con_fecbaj": 0, "n": 900}, {"est": 1, "con_fecbaj": 0, "n": 50}],
+    "M2_conest": [{"tip": 14, "est": 1}, {"tip": 14, "est": 2}, {"tip": 14, "est": 3}, {"tip": 14, "est": 10}],
+    "M18_refent": [{"tipo": "vinculada", "n": 600, "con_refent": 0}, {"tipo": "sin_vincular", "n": 400, "con_refent": 0}],
+    "M18_propagacion": [{"n": 800, "con_refent": 0, "copiada": 0}],
 }
 
 
@@ -321,3 +402,90 @@ def test_f009_t0_marcadores_y_dotenv(tmp_path: Path) -> None:
     env.write_text("# comentario\n\nSIN_IGUAL\nSIGRID_API_BASE_URL='https://a.invalid'\n", encoding="utf-8")
     assert t0.leer_dotenv(env) == {"SIGRID_API_BASE_URL": "https://a.invalid"}
     assert t0.leer_dotenv(tmp_path / "no-existe") == {}
+
+
+# --- T0a (spec v5): M16, M17, M18 y las ampliaciones de M11 y M14 ---------------------------
+
+
+def test_f009_t0a_las_mediciones_nuevas_sacan_su_conclusion() -> None:
+    textos = {k: t0.MEDICIONES[k](_ClienteFalso(_DATOS)).texto() for k in ("M11", "M14", "M16", "M17", "M18")}  # type: ignore[arg-type]
+    assert "Hipótesis de design §Analítica: CONFIRMADA." in textos["M16"]
+    assert "Orden de R15 (contrato → ficha de obra → único alm): CONFIRMADO." in textos["M16"]
+    assert "ope 3 con con_existe ≈ 0 ⇒ anular BORRA" in textos["M17"]
+    assert "LIBRE: se escribe referencia_linea" in textos["M18"]
+    assert "L8b JUSTIFICADA (acierta más la línea previa del mismo proveedor; IVA distinto con tipisp 1)" in textos["M11"]
+    assert "fec = con.fec (v6)" in textos["M14"] and "fec 1000 de 1000" in textos["M14"]
+    assert "dcapro.anades (lista de reseteo)" in textos["M14"]
+    assert "dcapro.dto (FUERA de la lista)" in textos["M14"] and "dto (1)" in textos["M14"]
+    assert "dcapro.almide" not in textos["M14"]  # propia del documento: no se señala
+
+
+def test_f009_t0a_m11_ampliada_va_por_cada_ma9999_con_su_ide_como_parametro() -> None:
+    productos = [{"ide": 31, "cod": "MA9999", "emp": 31}, {"ide": 1, "cod": "MA9999", "emp": 1}]
+    cliente = _ClienteFalso({**_DATOS, "M11_productos": productos})
+    t0.m11(cliente)  # type: ignore[arg-type]
+    for clave in ("M11_iva_por_proveedor", "M11_iva_y_isp", "M11_acierto"):
+        assert [p for k, p in cliente.llamadas if k == clave] == [[31], [1]], clave
+
+
+def test_f009_t0a_m11_sigue_si_la_api_rechaza_over() -> None:
+    class _SinOver(_ClienteFalso):
+        def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+            if sql == t0.SQL["M11_acierto"]:
+                raise t0.ErrorDeLectura("HTTP 400: OVER")
+            return super().leer(sql, parametros, **kw)
+
+    texto = t0.m11(_SinOver(_DATOS)).texto()  # type: ignore[arg-type]
+    assert "M11_acierto (LAG ... OVER) no se pudo leer (HTTP 400: OVER)" in texto
+    assert "L8b JUSTIFICADA (IVA distinto con tipisp 1)" in texto
+    assert "ivacuo ≠ round(tot·iva, 2)" in texto
+
+
+def test_f009_t0a_m17_repite_el_join_sin_emp_si_log_emp_sale_0_o_nulo() -> None:
+    con_emp = _ClienteFalso(_DATOS)
+    t0.m17(con_emp)  # type: ignore[arg-type]
+    assert "M17_existe_sin_emp" not in [k for k, _ in con_emp.llamadas]
+    datos = {**_DATOS, "M17_emp_log": [{"emp": -1, "n": 304}],
+             "M17_existe": [{"ope": 3, "n": 4, "con_existe": 0}],
+             "M17_existe_sin_emp": [{"ope": 3, "n": 4, "con_existe": 4, "con_fecbaj": 4}]}
+    sin_emp = _ClienteFalso(datos)
+    texto = t0.m17(sin_emp).texto()  # type: ignore[arg-type]
+    assert "M17_existe_sin_emp" in [k for k, _ in sin_emp.llamadas]
+    assert "log.emp sale 0 o nulo en 304 filas" in texto and "BORRA" not in texto
+
+
+def test_f009_t0a_lectura_m17_borra_marca_o_t23() -> None:
+    estados = {"1", "2", "3", "10"}
+    assert "BORRA" in t0.lectura_m17([{"ope": 3, "n": 10, "con_existe": 0}], [], estados)
+    marca = t0.lectura_m17([{"ope": 3, "n": 10, "con_existe": 10}], [{"est": 99, "con_fecbaj": 0, "n": 5}], estados)
+    assert "MARCA" in marca and "est fuera de conest: 99" in marca
+    assert "MARCA" in t0.lectura_m17([{"ope": 3, "n": 10, "con_existe": 10}], [{"est": 1, "con_fecbaj": 1, "n": 2}], estados)
+    assert "T23" in t0.lectura_m17([{"ope": 3, "n": 10, "con_existe": 10}], [{"est": 1, "con_fecbaj": 0, "n": 2}], estados)
+    assert "T23" in t0.lectura_m17([], [], estados)
+
+
+def test_f009_t0a_lectura_m16_para_si_no_se_cumple() -> None:
+    caa = [{"tipo": "sin_vincular", "partida_distinta": 0, "n": 100, "caa_de_la_partida": 80}]
+    alm = [{"cabecera": "con_contrato", "n": 10, "alm_del_contrato": 2, "alm_de_la_ficha": 8}]
+    texto = " ".join(t0.lectura_m16(caa, [], alm, {}))
+    assert "§Analítica: NO confirmada ⇒ PARADA y v6." in texto
+    assert "NO confirmado (contrato dominante: NO, ficha dominante: NO) ⇒ PARADA y v6." in texto
+
+
+def test_f009_t0a_lectura_m18_y_sv_valores_en_los_limites() -> None:
+    assert "LIBRE" in t0.lectura_m18([{"n": 1000, "con_refent": 1}], {})[0]
+    assert "NO libre" in t0.lectura_m18([{"n": 1000, "con_refent": 2}], {})[0]
+    assert "llegaría a la factura (N9)" in t0.lectura_m18([], {"n": 5, "copiada": 1})[1]
+    assert t0.lectura_sv_valores({}) == ["No hay líneas sin vincular desde 2026: sin medición de columnas."]
+    sv = t0.lectura_sv_valores({"n": 1000, "fec": 2, "fec_igual_albaran": 10})
+    assert "fec 2 de 1000" in sv[1] and "no es la regla general" in sv[3]
+
+
+def test_f009_t0a_main_con_la_lista_de_t0b(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ClienteFalso(_DATOS))
+    salida = tmp_path / "t0b.txt"
+    lista = ["M3", "M7", "M9", "M11", "M13", "M14", "M16", "M17", "M18"]
+    assert t0.main(["--solo", *lista, "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert all(f"=== {k} ·" in texto for k in lista) and "ERROR" not in texto
