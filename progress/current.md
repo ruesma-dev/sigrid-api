@@ -1,24 +1,23 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v5 (2026-10-05), `spec_ready` — espera N4-N12 y la repetición única de T0
+## F-009 spec v5.1 (2026-10-05), `spec_ready` — espera la repetición única de T0
 
 PRE-1 de albaranes F-053: **modo extendido de `sigrid/albaran`** (el clásico, idéntico y fijado
 por un test de caracterización previo). **v5** incorpora los huecos de F-009 del contrato con
 albaranes ([`contrato_albaranes.md`](../specs/F-009-alta-albaran-compra/contrato_albaranes.md) §5,
 con tabla de estado H1-H33) y las decisiones del humano del 2026-10-05 (H4, H8, H9, H17, H20, H28,
-H31). Rama `feature/F-009-alta-albaran-compra`; cambios, mediciones nuevas (M16, M17, M18; M11 y
-M14 ampliadas) y preguntas en [`spec_F-009.md`](spec_F-009.md) §v5. Topes: requirements 150/150,
-design 249/250.
+H31). **v5.1** aplica las respuestas a N4-N12: aprobadas con la recomendación salvo N10, sustituida;
+**sin campo `almacen`** (la línea sin partida, `partida` ausente o `null`, es el «almacén» de
+Ruesma: `paride` 0 nunca heredado, `almide`/`cenide` en toda línea, aviso
+`sin_partida_en_linea_con_partida`) y **sin `fecha_no_valida`** (las fechas futuras las controla la
+app). Detalle en [`spec_F-009.md`](spec_F-009.md) §v5.1. Topes: requirements 150/150, design 249/250.
 
-**Decisiones abiertas para el humano:** N4 (¿F-053 manda `cod_contrato` sin vinculadas?), N5
-(defecto cerrado de `SIGRID_ALBARAN_EMPRESAS_OBRA`), N6 (obras de baja), N7 (`precio_negativo`
-sustituye al `ge=0` de Pydantic), N8 (aviso `iva_de_otro_proveedor`), N9 (`referencia_linea` en
-`dcapro.refent` si M18 lo permite), N10 (solo fechas futuras), N11 (CIF: solo mayúsculas y
-espacios), N12 (mapeo de códigos nuevos en F-053). **Antes de `in_progress`:** el implementer
-amplía el script (T0a), el humano lanza **una** repetición `--solo M3 M7 M9 M11 M13 M14 M16 M17
-M18` (T0b), se vuelca (v6 si cambia alguna regla condicional) y se retira el script (N3). Puerta
-dura H20: sin M9 cerrada no hay modo real. El fichero de resultados de T0 vive en `%TEMP%`.
+**Decisiones abiertas para el humano:** ninguna nueva; validar la v5.1. **Antes de `in_progress`:**
+el implementer amplía el script (T0a, en curso por otro agente), el humano lanza **una** repetición
+`--solo M3 M7 M9 M11 M13 M14 M16 M17 M18` (T0b), se vuelca (v6 si cambia alguna regla condicional) y
+se retira el script (N3). Puerta dura H20: sin M9 cerrada no hay modo real. El fichero de
+resultados de T0 vive en `%TEMP%`. F-053 debe dejar de mandar `almacen` (daría 400 sin código).
 
 **Sin trackear:** `progress/para_albaranes_F-009.md` (no lo creó el spec-author de la v5; no se
 ha commiteado).

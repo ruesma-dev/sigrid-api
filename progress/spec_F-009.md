@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v5
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v5.1
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,74 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v5.1 (2026-10-05): respuestas del humano a la v5
+
+Spec-author. Solo spec; sin llamar a la API, Azure ni el SQL Server. Topes tras la v5.1:
+`requirements.md` 150/150 y `design.md` 249/250 (`python -m harness.tamano --feature F-009`).
+
+### Respuestas a N4-N12
+
+| N | Respuesta | Efecto en F-009 |
+|---|---|---|
+| N4 | Aprobada: F-053 manda `cod_contrato` siempre que la valoración tenga contrato | Ninguno (F-053 R12); contrato §5 H31 |
+| N5 | Aprobada: `SIGRID_ALBARAN_EMPRESAS_OBRA` defecto `[]`, despliegue `[1]` | Ninguno |
+| N6 | Aprobada: no se rechazan obras de baja | design §Riesgos; contrato §5 H2 |
+| N7 | Aprobada: `precio_negativo` (fallo de línea) sustituye al `ge=0` de Pydantic | Ninguno |
+| N8 | Aprobada: `iva_de_otro_proveedor`, informativo en F-053 | contrato §3.2 |
+| N9 | Aprobada: `referencia_linea` en `dcapro.refent` si M18 lo deja libre | Ninguno (R30b) |
+| N10 | **Sustituida** por el cambio 2 | — |
+| N11 | Aprobada: F-009 solo normaliza mayúsculas y espacios del CIF | Ninguno |
+| N12 | Aprobada: mapeo de §3.3 del contrato en F-053, ya sin `fecha_no_valida` | contrato §3.3 |
+
+### Cambio 1: la línea sin partida es el «almacén» de Ruesma
+
+Textual: «almacén en Ruesma es simplemente dejar la línea del albarán sin partida. Si miras en Sigrid
+verás que hay bastantes. No usamos un concepto almacén como tal, sino albarán sin partida en una o
+varias líneas, que luego se puede pasar a partida cuando se desacopia.»
+
+- **Sin campo `almacen`** en la línea; `partida` opcional: ausente o `null` ⇒ línea sin partida,
+  `dcapro.paride` 0, **nunca** heredada del `ctrpro` ni de otra línea. R6 ya no exige «uno de
+  `partida`/`almacen:true`» (R6, R14; design §Modelo). Con `extra="forbid"`, mandar `almacen` da 400
+  sin código: F-053 debe dejar de mandarlo (contrato §0, §2.2, §3.4 y H5).
+- `almide`/`cenide` (almacén físico: stock y `mov`) siguen en **toda** línea según R15, como el
+  escritorio (M8). «Almacén» queda solo para eso; spec y contrato hablan de «sin partida».
+- Aviso renombrado: `almacen_en_linea_con_partida` → **`sin_partida_en_linea_con_partida`**
+  (vinculada sin partida cuyo `ctrpro.paride` ≠ 0), informativo (R16, design §Códigos, H12).
+- Respuesta por línea sin `almacen`: basta `paride` 0 y `partida` nula (design §Respuesta, contrato
+  §3.1; la comparación de la previa en sv9 pasa a ser por `partida`, incluida la nula).
+- Pasar la línea a partida al desacopiar se hace en Sigrid: «fuera de alcance» y contrato §2.3/§4.3.
+- M16 no cambia: `M16_caa_almacen` sigue midiendo el `caaide` de las líneas con `paride` 0 (el
+  nombre de la consulta no se toca; el script lo amplía otro agente en paralelo).
+- Contrato: §0, §1.2, §2.2 (fila `almacen` retirada), §2.3 (filas renombradas y una nueva para
+  «pasar a partida»), §2.4, §3.1, §3.2, §3.3, §3.4, §4.1, §4.3, §5 (H5, H12) y ejemplos 6.a-6.e.
+  Los textos históricos de §5 que citan `almacen` quedan, con una nota al principio de §5.
+
+### Cambio 2: la API no rechaza fechas futuras
+
+Textual: «la conexión no debe rechazar fechas futuras per se; eso se hará desde la app.»
+
+- Fuera `fecha_no_valida` de R11, design (§Modelo, §Flujo, §Códigos), tasks (T3, T7) y contrato
+  (§2.1, §3.3, §4.1, §4.3; H19 pasa entero a albaranes). Queda solo la validación de formato y
+  rango que ya había (`fecha_albaran` 19000101-29991231, Pydantic); R6 lo dice y T3 lo prueba.
+- Fase RED: no había una propia de la fecha. R34 conserva la de R11 por la resolución de la obra en
+  las empresas admitidas (H2), que sigue.
+
+### Otros
+
+- `harness/features.json` (description y acceptance; estado `spec_ready`) y `BACKLOG.md` regenerado.
+- §Manuales: el cuerpo de T21 deja `almacen` y gana `usu` (obligatorio desde la v3; sin él, 400).
+- **No tocados**: `scripts/medir_f009_t0.py` y `tests/test_f009_t0_script.py` (otro agente),
+  `progress/para_albaranes_F-009.md` (sin trackear; si cita `almacen: true` o `fecha_no_valida`,
+  lo debe alinear quien lo lleve) y el fichero sin trackear de la raíz.
+- `bash harness/init.sh` en este árbol: **rojo solo por el trabajo a medias del otro agente** (T0a):
+  `test_f009_t0_hay_una_medicion_por_cada_m_de_la_spec` ya espera M16-M18 y el script aún no las
+  tiene, y la puerta de cobertura cuenta esas líneas. Con solo los ficheros de la v5.1 sobre `ca4c2b5`,
+  en un worktree temporal (ya retirado): 1897 passed, 1 skipped; todo en verde salvo «Falta `.env`»
+  (el worktree no lo tiene y no se copió). Ningún fichero de la v5.1 es código.
+
+**Decisiones abiertas para el humano:** ninguna nueva; validar la v5.1. Siguen T0b (repetición única
+de T0) y T0c (volcado y retirada del script) como precondición de `in_progress`.
 
 ## v5 (2026-10-05): huecos del contrato con albaranes y decisiones del humano
 
@@ -282,9 +350,9 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
 
 ```json
 { "database": "ruesma", "cod_obra": "0404", "cif_proveedor": "<CIF>", "cod_contrato": "CTSU16/0206",
-  "referencia_externa": "ALB-prueba-F009-1", "su_referencia": "prueba-F009", "commit": false,
+  "referencia_externa": "ALB-prueba-F009-1", "su_referencia": "prueba-F009", "usu": "<usuario>", "commit": false,
   "lineas": [
-    { "referencia_linea": "1", "ctrpro_ide": <ide>, "cantidad": 1, "precio": 100.0, "almacen": true },
+    { "referencia_linea": "1", "ctrpro_ide": <ide>, "cantidad": 1, "precio": 100.0 },
     { "referencia_linea": "2", "producto": "MA9999", "descripcion": "Prueba F-009", "unidad": "UD", "cantidad": 1, "precio": 1.0, "partida": "<cod>" },
     { "referencia_linea": "3", "ctrpro_ide": <ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" } ] }
 ```
@@ -303,7 +371,9 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
 > **Contrato completo con albaranes (2026-10-05):**
 > `specs/F-009-alta-albaran-compra/contrato_albaranes.md` — petición y respuesta campo a campo, casos
 > de línea (almacén, devoluciones, compuestas repartidas), códigos → estados de F-053 y **33 huecos**
-> entre F-009 v4, F-053 v5, F-051 v3 y F-049 v4 (9 bloqueantes). Lo de abajo es el resumen de la v3.
+> entre F-009 v4, F-053 v5, F-051 v3 y F-049 v4 (9 bloqueantes). Lo de abajo es el resumen de la v3:
+> desde la v5.1 no hay campo `almacen` (línea sin partida = `partida` ausente) ni `fecha_no_valida`;
+> manda el contrato.
 
 Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
 

@@ -1,8 +1,8 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v5)
+# F-009 · Diseño (v5.1)
 
 Detalle campo a campo, casos de línea, mapa de códigos a estados de F-053 y ejemplos:
-[`contrato_albaranes.md`](contrato_albaranes.md) (refleja esta v5; si discrepa, manda esta spec).
+[`contrato_albaranes.md`](contrato_albaranes.md) (refleja esta v5.1; si discrepa, manda esta spec).
 
 ## La decisión de fondo
 
@@ -76,9 +76,8 @@ class LineaAlbaranIn(BaseModel):                  # extra="forbid" en los dos; f
     unidad: str | None = Field(default=None, max_length=8)                   # dcapro.unimed
     cantidad: float                                       # != 0; < 0 = devolución (los dos tipos)
     precio: float                                         # < 0 → fallo de línea precio_negativo
-    partida: str | None = Field(default=None, min_length=1, max_length=24)   # obrparpar.cod
+    partida: str | None = Field(default=None, min_length=1, max_length=24)   # None ⇒ sin partida, paride 0
     paride: int | None = Field(default=None, ge=1)        # SOLO si M3 (R14b); exige partida
-    almacen: bool = False                                                    # paride 0
 
 class AlbaranCompraRequest(BaseModel):
     database: str; cod_obra: str (≤24); usu: str (1-24)                      # log.usu
@@ -89,15 +88,15 @@ class AlbaranCompraRequest(BaseModel):
     lineas: list[LineaAlbaranIn] = Field(..., min_length=1); commit: bool = False
 ```
 
-Una lista con discriminador por línea conserva el orden (`pos`). Precio negativo, tope de líneas y fecha
-futura los comprueba el caso de uso, con código (no Pydantic).
+Una lista con discriminador por línea conserva el orden (`pos`). Precio negativo y tope de líneas, en el
+caso de uso con código. v5.1: sin campo `almacen` y sin rechazo de fechas futuras (solo el rango de arriba).
 
 ## Respuesta (R7, R30)
 
 - **Cabecera**: todos los campos de `AddPurchaseAlbaranResponse` + `estado`, `referencia_externa`,
   `avisos[]` y `filas` (`con`, `dca`, `dcapro[]`, `ctrprodes[]`, `mov[]`, `log`). **Línea**: todos los de
   `AlbaranLinePreview` (`ctrpro_ide`/`linoriide` 0 en sin vincular) + `indice` (0..N-1), `referencia_linea`,
-  `tipo` (`vinculada`|`sin_vincular`), `producto`, `paride`, `partida`, `almacen`, `cenide`, `avisos[]`.
+  `tipo` (`vinculada`|`sin_vincular`), `producto`, `paride`/`partida` (0/`null` sin partida), `cenide`, `avisos[]`.
 - **Avisos** (H27): `AvisoAlbaran{codigo, mensaje}` en cabecera y línea; `warnings` = los `mensaje` de
   todos los avisos, en orden, y nada más (el texto de dry-run va en `cod_provisional`).
 - **Columnas bancarias** (H16): `COLUMNAS_BANCARIAS` = `banide`, `banban`, `bansuc`, `bandig`, `bancue`,
@@ -131,7 +130,7 @@ futura los comprueba el caso de uso, con código (no Pydantic).
 salvo R30b). Lista cerrada: si M14 ampliada muestra que el escritorio rellena alguna, se corrige la spec.
 
 **Analítica (`caaide`; H10) [M16]**. Hipótesis: línea con partida → `obrparpar.caaide` de la partida
-resuelta (L6) si ≠ 0; en almacén → `alm.caaproide` de su almacén (L10); vinculada con la misma partida
+resuelta (L6) si ≠ 0; sin partida → `alm.caaproide` de su almacén (L10); vinculada con la misma partida
 del `ctrpro` → `ctrpro.caaide`, como hoy (R33); si no, el de la plantilla. Si M16 la contradice, PARADA.
 
 **Importes (R17; H14, H33)**: `redondear_euros(x)` = `Decimal(repr(x)).quantize(Decimal("0.01"),
@@ -192,7 +191,7 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
 ## Flujo del modo extendido
 
 1. Tope de líneas y prefijo (R24, R29). Con `commit`: llaves, credenciales y base (R24).
-2. `ahora` (Madrid) una vez; `fecha_no_valida` (R11); L1-L5, L11 (R30 sale ya si aparece), L13.
+2. `ahora` (Madrid) una vez; L1-L5, L11 (R30 sale ya si aparece), L13.
 3. Por línea, en orden: L6-L10 (con caché) y validación (R12-R17); se acumulan **todos** los fallos →
    `lineas_no_validas` con `details.lineas`.
 4. Construcción pura de filas con balances de L12 → si dry-run, `previsto` con L14.
@@ -217,14 +216,14 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
 ## Códigos (R1, R8, R9)
 
 Cabecera: `peticion_mixta`, `escritura_albaranes_deshabilitada`, `base_de_datos_no_permitida`,
-`demasiadas_lineas`, `referencia_no_permitida`, `referencia_en_conflicto`, `fecha_no_valida`,
-`obra_no_encontrada`, `obra_de_empresa_no_permitida`, `obra_ambigua`, `contrato_no_encontrado`,
-`contrato_ambiguo`, `usuario_no_valido`, `proveedor_sin_albaran_previo`, `estado_inicial_no_encontrado`,
+`demasiadas_lineas`, `referencia_no_permitida`, `referencia_en_conflicto`, `obra_no_encontrada`,
+`obra_de_empresa_no_permitida`, `obra_ambigua`, `contrato_no_encontrado`, `contrato_ambiguo`,
+`usuario_no_valido`, `proveedor_sin_albaran_previo`, `estado_inicial_no_encontrado`,
 `almacen_de_obra_no_resuelto`, `colision_de_clave`, `filas_afectadas_inesperadas`, `lineas_no_validas`.
 Línea: `linea_no_es_del_contrato`, `producto_no_permitido`, `producto_no_encontrado`,
 `partida_no_encontrada`, `partida_ambigua`, `partida_no_imputable`, `precio_negativo`, `paride_no_valido`
 (solo R14b). Avisos: `producto_sin_historico`, `supera_pendiente`, `partida_distinta_del_contrato`,
-`almacen_en_linea_con_partida`, `precio_distinto_del_contrato`, `iva_de_otro_proveedor`,
+`sin_partida_en_linea_con_partida`, `precio_distinto_del_contrato`, `iva_de_otro_proveedor`,
 `servido_negativo`, `stock_negativo`, `cod_provisional`.
 
 ## Equivalencia con el modo clásico (R33)
@@ -241,9 +240,10 @@ columna. Diferencias **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (
 - **Retrocompatibilidad**: dorado de T1; lo único observable es R8 y `peticion_mixta`. **Doble alta**:
   `synckey` dentro bajo `SIGRID_REFEXT_14`. **Colisión**: índice único + reintento. **Bloqueos**: ms.
 - **Empresa** (H2, H3): obra y plantilla en la empresa de la lista; `SIGRID_ALBARAN_EMPRESAS_OBRA` vacía
-  cierra el modo. No se descartan obras de baja (opcional en H2; pregunta N6).
+  cierra el modo. No se descartan obras de baja (H2; N6, aprobada).
 - **Precio negativo** (H8): segunda barrera tras sv9; el `ge=0` de Pydantic (400 sin código) pasa a fallo
   de línea `precio_negativo` para que F-053 lo mapee. **Stock negativo** (M15): solo aviso.
 - **Descartado**: ruta nueva; modo por valores; meter el modo en `CreatePurchaseAlbaranUseCase`;
   reutilizar `albaran-directo`; plantilla de otro proveedor o empresa; `dcapropar` sin M7; `paride` en la
-  petición sin M3 (N2); recibir almacén, centro o analítica del llamante.
+  petición sin M3 (N2); recibir almacén, centro o analítica del llamante; campo `almacen` en la línea y
+  `fecha_no_valida` (v5.1: la línea sin partida es el «almacén» de Ruesma; las fechas, la app).

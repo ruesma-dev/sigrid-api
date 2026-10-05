@@ -1,11 +1,10 @@
 <!-- specs/F-009-alta-albaran-compra/requirements.md -->
-# F-009 · Requisitos (v5)
+# F-009 · Requisitos (v5.1)
 
 **`POST /api/sigrid/albaran` gana un modo extendido (alta idempotente de UN albarán de compra con líneas
-vinculadas y sin vincular, partida o almacén por línea y devoluciones); el clásico sigue idéntico.**
-«PRE-1» de albaranes F-053. v5: huecos **Hn** de [`contrato_albaranes.md`](contrato_albaranes.md) §5 y
-decisiones del humano del 2026-10-05; **[Mn]** = medición de T0 abierta. Campo a campo, casos de línea y
-ejemplos viven en ese documento; si discrepa de esta spec, manda la spec.
+vinculadas y sin vincular, con o sin partida por línea y devoluciones); el clásico sigue idéntico.**
+«PRE-1» de albaranes F-053. v5/v5.1: huecos **Hn** de [`contrato_albaranes.md`](contrato_albaranes.md) §5
+(detalle y ejemplos; si discrepa, manda la spec) y decisiones del humano del 2026-10-05; **[Mn]** = T0 abierta.
 
 ## Modos y retrocompatibilidad
 - **R1.** CUANDO llegue `POST /api/sigrid/albaran`, el sistema debe decidir el modo por las **claves
@@ -23,10 +22,11 @@ en commit, y debe seguir pasando sin cambios.
 - **R5.** En modo extendido, el sistema debe validar con Pydantic (`extra="forbid"`, textos recortados)
 los campos, longitudes y dominios de design §Modelo y normalizar `cif_proveedor` a mayúsculas sin espacios
 (H21); si no, 400 `Solicitud invalida.` sin `codigo`.
-- **R6.** El sistema debe rechazar así también la línea con a la vez o ninguno de `ctrpro_ide`/`producto`,
-o de `partida`/`almacen:true`; con `cantidad == 0`; sin vincular sin `descripcion`; con `referencia_linea`
-repetida; o vinculada sin `cod_contrato`. Las cantidades **negativas** valen en los dos tipos;
-`cod_contrato` **sin** vinculadas es válido (H31).
+- **R6.** El sistema debe rechazar así también la línea con a la vez o ninguno de `ctrpro_ide`/`producto`;
+con `cantidad == 0`; sin vincular sin `descripcion`; con `referencia_linea` repetida; o vinculada sin
+`cod_contrato`. Valen: cantidades **negativas** en los dos tipos; `cod_contrato` **sin** vinculadas (H31);
+`partida` ausente o `null` (línea **sin partida**; no hay campo `almacen`, v5.1); y `fecha_albaran` futura
+(solo formato y rango; la rechaza la app, H19, v5.1).
 - **R7.** El sistema debe responder en modo extendido con un **superconjunto** de la respuesta clásica más
 los campos de design §Respuesta: `indice` **desde 0** (H26); avisos `{codigo, mensaje}` en cabecera y en
 línea, y cada texto de `warnings` con su aviso (H27); `cabecera`/`filas.dca` sin columnas bancarias (se
@@ -49,8 +49,7 @@ paréntesis): `SIGRID_ALBARAN_WRITE_ENABLED=false`, `SIGRID_ALBARAN_PREFIJOS_REF
 `obra_de_empresa_no_permitida`; >1 → `obra_ambigua`); el contrato con el localizador actual y de esa obra
 (`contrato_no_encontrado`, `contrato_ambiguo`); `usu` en `dbo.usu` (`usuario_no_valido`); y la plantilla
 de cabecera, el último albarán **del mismo proveedor en la empresa de la obra** (H3; ninguno →
-`proveedor_sin_albaran_previo`). `con.emp` = empresa de la obra. SI `fecha_albaran` es posterior a hoy
-(Madrid), ENTONCES `fecha_no_valida`, también en dry-run (H19).
+`proveedor_sin_albaran_previo`). `con.emp` = empresa de la obra.
 - **R12.** Por vinculada, el sistema debe exigir que el `ctrpro` sea del contrato
 (`linea_no_es_del_contrato`) y tomar de él producto, cuenta, IVA, centro, almacén y, si no vienen,
 `descripcion` y `unidad`. Varias al mismo `ctrpro`: una `dcapro`, `ctrprodes` y `mov` cada una (**no** se
@@ -62,17 +61,17 @@ producto **del mismo proveedor** o, si no hay, de la última del producto con av
 (H15) [M11]; las columnas de design §Reseteo, vacías (H11) [M14]. Sin `docori*`, `ctrprodes` ni `canser`.
 - **R14.** El sistema debe resolver `partida` entre las **imputables** de la obra (`tip 1`, `tipdes 0`,
 `tipvis` 0/1; **no** exige hoja, H4): ninguna → `partida_no_encontrada` (o `partida_no_imputable`), >1 →
-`partida_ambigua` (N2). `paride`: la resuelta o 0, **nunca** heredada.
+`partida_ambigua` (N2). `paride`: la resuelta o 0 (sin partida); **nunca** del `ctrpro` ni de otra línea.
 - **R14b.** DONDE la repetición de M3 dé códigos repetidos entre imputables, la línea con `partida` debe
 admitir un `paride` opcional que el sistema exija de la obra, imputable y con ese código
 (`paride_no_valido`) y use en vez de `partida_ambigua` (H17) [M3]. Con 0 repetidos, no hay campo.
-- **R15.** El sistema debe escribir `paride` 0 en la línea con `almacen:true`, y en toda línea su almacén
-y centro: vinculada, del `ctrpro` o del contrato; **sin vincular, con o sin partida** (H10), del contrato
-o, sin él, `obr.almide`/`obr.cenide` y, si faltan, del único `alm` de la obra (H13); si no sale uno →
-`almacen_de_obra_no_resuelto`. `caaide`, según design §Analítica [M16].
+- **R15.** El sistema debe escribir `paride` 0 en la línea sin partida, y en toda línea su almacén físico
+(el del stock y el `mov`) y centro: vinculada, del `ctrpro` o del contrato; **toda sin vincular** (H10),
+del contrato o, sin él, `obr.almide`/`obr.cenide` y, si faltan, del único `alm` de la obra (H13); si no
+sale uno → `almacen_de_obra_no_resuelto`. `caaide`, según design §Analítica [M16].
 - **R16.** CUANDO una vinculada traiga partida distinta de la del `ctrpro`, el sistema debe escribir la
-pedida, no tocar el `ctrpro` y avisar `partida_distinta_del_contrato`; CUANDO traiga `almacen:true` con
-`ctrpro.paride` ≠ 0, avisar `almacen_en_linea_con_partida` (H12).
+pedida, no tocar el `ctrpro` y avisar `partida_distinta_del_contrato`; CUANDO venga sin partida con
+`ctrpro.paride` ≠ 0, avisar `sin_partida_en_linea_con_partida` (H12), informativo.
 - **R17.** El sistema debe escribir `pre` = `precio`, `tot` = `cantidad·precio` e `ivacuo` = `tot·iva`
 (`dbo.iva`), a 2 decimales con `Decimal` y `ROUND_HALF_UP` (H33). Vinculada con |`precio` − `ctrpro.pre`|
 ≤ 0,0001: `pre`, `tar` y `dto` del `ctrpro` (H14); si difiere más, `tar` = `precio`, `dto` = `''` y aviso
@@ -145,6 +144,7 @@ abre sin M9 cerrada; si MA9999 mueve stock, PARADA.
 `docs/ARCHITECTURE.md` y `local.settings.sample.json`.
 
 ## Fuera de alcance
-`dcapropar` (salvo M7), almacén/centro/analítica en la petición, el PDF, modificar o anular, producto por
-familia, descuentos comerciales y de cabecera (a mano, H8), varios albaranes por petición, cambiar el
-clásico o `albaran-directo` salvo R8, y recalcular `mov` posteriores (N1).
+`dcapropar` (salvo M7), almacén/centro/analítica en la petición, pasar a partida una línea sin partida (al
+desacopiar, en Sigrid), rechazar fechas futuras (la app), el PDF, modificar o anular, producto por familia,
+descuentos comerciales y de cabecera (a mano, H8), varios albaranes por petición, cambiar el clásico o
+`albaran-directo` salvo R8, y recalcular `mov` posteriores (N1).
