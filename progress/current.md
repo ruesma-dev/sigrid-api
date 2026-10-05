@@ -13,14 +13,16 @@ Ruesma: `paride` 0 nunca heredado, `almide`/`cenide` en toda línea, aviso
 `sin_partida_en_linea_con_partida`) y **sin `fecha_no_valida`** (las fechas futuras las controla la
 app). Detalle en [`spec_F-009.md`](spec_F-009.md) §v5.1. Topes: requirements 150/150, design 249/250.
 
-**Decisiones abiertas para el humano:** ninguna nueva; validar la v5.1. **Antes de `in_progress`:**
-el implementer amplía el script (T0a, en curso por otro agente), el humano lanza **una** repetición
-`--solo M3 M7 M9 M11 M13 M14 M16 M17 M18` (T0b), se vuelca (v6 si cambia alguna regla condicional) y
-se retira el script (N3). Puerta dura H20: sin M9 cerrada no hay modo real. El fichero de
+**v5.1 aprobada por el humano** (2026-10-05, «lo demás ok»). **T0a hecha** (script ampliado,
+`7592dc7`, `988e7c1`, `2f68c41`; APPROVED en la segunda pasada: [`review_F-009_T0a.md`](review_F-009_T0a.md)).
+**Siguiente, del humano (T0b):** lanzar **una** repetición
+`--solo M3 M7 M9 M11 M13 M14 M16 M17 M18` (comando al final de [`impl_F-009_T0a.md`](impl_F-009_T0a.md))
+y pegar el fichero de `%TEMP%`. Después T0c: el spec-author lo vuelca (v6 si cambia alguna regla
+condicional) y se retira el script (N3). Puerta dura H20: sin M9 cerrada no hay modo real. El fichero de
 resultados de T0 vive en `%TEMP%`. F-053 debe dejar de mandar `almacen` (daría 400 sin código).
 
-**Sin trackear:** `progress/para_albaranes_F-009.md` (no lo creó el spec-author de la v5; no se
-ha commiteado).
+**Para el agente de albaranes:** [`para_albaranes_F-009.md`](para_albaranes_F-009.md) (decisiones
+del humano y huecos de F-053/F-049/F-051; F-053 debe realinearse con la v5.1).
 
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
 
