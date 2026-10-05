@@ -10,7 +10,7 @@ lanza el humano. Origen: la ejecución del 2026-10-05 (`%TEMP%\f009_t0_20261005_
 | Fichero | Cambio |
 |---|---|
 | `scripts/medir_f009_t0.py` | M9 y M11 reescritas por ventanas cortas y cada sentencia protegida; M14b, M16b y M17b nuevas; reintento ante el 1205 en el cliente; M16, M17 y la parte «API» de M14 ya no pierden el bloque por una sentencia |
-| `tests/test_f009_t0_script.py` | 78 tests más (276 → 354), sin red ni BBDD; dos tests antiguos de M11 adaptados (ver Desviaciones 2) |
+| `tests/test_f009_t0_script.py` | 79 tests más (276 → 355), sin red ni BBDD; dos tests antiguos de M11 adaptados (ver Desviaciones 2) |
 
 No se han tocado la spec, `progress/spec_F-009.md`, `progress/current.md`, `harness/features.json`,
 `BACKLOG.md`, `.env` ni el fichero sin trackear de la raíz. Sentencias: 67 → 75. Todas `SELECT` de
@@ -95,6 +95,14 @@ cualquier otro (incluido un `ReadTimeout`) sale a la primera, para no gastar 230
 todas las sentencias; la comparación de M14 con el albarán de la API se repite así. Además,
 `M14_prv` y `M14_prepma` (la del interbloqueo) ya no se llevan la comparación columna a columna.
 
+### 6. QA9999 junto a MA9999 (spec v6, lista blanca; aviso del líder durante la tarea)
+
+M9 ya concluía por separado por código y empresa («MA9999 emp 1: …», «QA9999 emp 1: …»). M11
+recorría solo los MA9999: ahora recorre `LISTA_BLANCA_GENERICOS` = (`MA9999`, `QA9999`) de cada
+empresa, con las mismas seis sentencias por producto, y todas sus conclusiones (líneas, combinación,
+IVA por proveedor, ISP, acierto y L8b) llevan el código delante («QA9999 emp 1: L8b …»). Cuesta seis
+sentencias más por cada QA9999 (hay tres: empresas 1, 31 y 34), todas por la ventana de M11.
+
 ## Desviaciones y por qué
 
 1. **El reintento está en el cliente**, no solo en M14: el 1205 es transitorio en cualquier sentencia
@@ -145,27 +153,33 @@ es `m11_un_fallo…[M11_acierto]`, que ya estaba protegido desde el ciclo 1 de T
 Tras el código: `2 failed, 352 passed` — los dos tests antiguos de M11 que esperaban `[ide]` como
 único parámetro (Desviación 2); adaptados: `354 passed, 1 warning in 4.08s`.
 
+RED del ajuste QA9999 (test escrito antes del cambio):
+
+```
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "qa9999"
+E           AssertionError: M11_total_producto
+E           assert [1] == [1, 5]
+E             Right contains one more item: 5
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_bis_m11_mide_y_concluye_qa9999_aparte_de_ma9999
+1 failed, 354 deselected in 0.39s
+```
+
+Con el cambio: `355 passed, 1 warning in 3.82s`.
+
 ## Qué prueba la prueba de humo nueva
 
-- Existen las 8 sentencias nuevas; las de valores con `?` y sin códigos de producto en el texto.
-- M9: ventana `c.fec >= ? AND c.fec <= ?`, sin `IN (SELECT`, `mov` por `docide`/`linide`; M11: las
-  seis por ventana; `m9`/`m11` pasan la ventana, el `ide` de cada MA9999 y los genéricos.
-- Un fallo de cualquier sentencia de M9, M11, M16, M17 o de `M14_prv`/`M14_prepma`/`M14b` se anota y
-  el bloque sigue (incluida la comparación columna a columna de M14).
-- Lecturas: `lectura_m9` (decide / no explica; SÍ / NO / a veces / sin líneas), `lectura_m16b`
-  (domina, ninguna, desempate, vacío), `lectura_muestra_m16b`, `lectura_m17b` (borra, marca, no
-  concluyente), `lectura_ope`, `lectura_m14b` (anterior, maestro, empate, vacío).
-- Cliente: reintenta el 1205 con espera; se rinde tras `REINTENTOS_INTERBLOQUEO`; no reintenta otros.
-- `main --solo M9 M11 M14 M16 M17` escribe los cinco bloques sin `ERROR` y con las conclusiones.
+Lo que listan los tests de la fase RED: sentencias nuevas con `?`; M9/M11 por ventana y sin `IN (SELECT`;
+un fallo de cualquier sentencia no tumba su bloque; cada lectura en sus casos y límites; reintento 1205;
+`main --solo M9 M11 M14 M16 M17` sin `ERROR`; M11 concluye QA9999 aparte de MA9999.
 
 ## Salida real de `bash harness/init.sh`
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2087 passed, 1 skipped, 1 warning in 93.40s (0:01:33)
+2088 passed, 1 skipped, 1 warning in 101.37s (0:01:41)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 97.7% de 572 líneas cambiadas cubiertas (559/572, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.4% de 817 líneas cambiadas cubiertas (804/817, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 250/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
@@ -199,8 +213,8 @@ git switch feature/F-009-alta-albaran-compra
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 354 pasan (antes 276), 4,08 s |
-| Suite completa | 2087 passed, 1 skipped, 93,40 s |
-| Cobertura de líneas cambiadas | 97,7 % (559/572), `PUERTA COBERTURA` de init.sh |
+| Tests de la prueba de humo | 355 pasan (antes 276), 3,82 s |
+| Suite completa | 2088 passed, 1 skipped, 101,37 s |
+| Cobertura de líneas cambiadas | 98,4 % (804/817), `PUERTA COBERTURA` de init.sh (tras el ajuste QA9999) |
 | Mutación | No aplica: script de mediciones desechable que se retira en T0c (N3, decisión del humano); no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |

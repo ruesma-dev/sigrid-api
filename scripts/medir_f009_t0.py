@@ -48,6 +48,7 @@ MUESTRA_DEVOLUCIONES = 20
 MUESTRA_FECHA_ATRASADA = 3
 COD_ALBARAN_API = "AC26/15951"  # creado por la API en junio (desde contrato)
 PRODUCTOS_GENERICOS = ("MA9999", "SM9999", "SB9999", "QA9999")
+LISTA_BLANCA_GENERICOS = ("MA9999", "QA9999")   # spec v6: M11 mide y concluye cada uno por separado
 LISTA_DE_RESETEO = (
     "fec", "pla", "refent", "cod2", "dncide", "dncproide", "anades", "serdes",
     "parcandes", "med", "canmed", "item", "pac", "desesp", "edilin", "texcom",
@@ -1070,20 +1071,21 @@ def m11(c: ClienteLectura) -> Informe:
     for f in productos:
         inf.concluir(f"{f.get('cod')}: ide={f.get('ide')} tip={f.get('tip')} emp={f.get('emp')} fecbaj={f.get('fecbaj')} "
                      f"comide={f.get('comide')} ivacomide={f.get('ivacomide')} natide={f.get('natide')}.")
-    # Hay un MA9999 por empresa (1, 31, 34): se mira cada uno, no el primero que llegue.
-    for ma in (f for f in productos if str(f.get("cod", "")).strip().upper() == "MA9999"):
+    # Hay un MA9999 (y un QA9999) por empresa (1, 31, 34): se mira cada uno, no el primero que llegue.
+    for ma in (f for f in productos if str(f.get("cod", "")).strip().upper() in LISTA_BLANCA_GENERICOS):
         emp, por_producto = ma.get("emp"), [*VENTANA_M11, ma.get("ide")]
-        t = _leer_tabla(c, inf, "M11_total_producto", f"MA9999 emp {emp} (ide {ma.get('ide')}): total de líneas",
+        cod = str(ma.get("cod")).strip().upper()
+        t = _leer_tabla(c, inf, "M11_total_producto", f"{cod} emp {emp} (ide {ma.get('ide')}): total de líneas",
                         por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
         if t:
-            inf.concluir(f"MA9999 emp {emp}: {_num(t[0].get('lineas')):.0f} líneas de albarán en la ventana, "
+            inf.concluir(f"{cod} emp {emp}: {_num(t[0].get('lineas')):.0f} líneas de albarán en la ventana, "
                          f"de {t[0].get('desde')} a {t[0].get('hasta')}.")
-        lp = _leer_tabla(c, inf, "M11_lineas_producto", f"MA9999 emp {emp}: combinaciones", por_producto,
+        lp = _leer_tabla(c, inf, "M11_lineas_producto", f"{cod} emp {emp}: combinaciones", por_producto,
                          limite=10, max_rows=30, timeout_s=TIMEOUT_PESADO_S)
         if lp:
             top = lp[0]
             total = sum(_num(x.get("n")) for x in lp)
-            inf.concluir(f"MA9999 emp {emp}, combinación más frecuente: cueide={top.get('cueide')} "
+            inf.concluir(f"{cod} emp {emp}, combinación más frecuente: cueide={top.get('cueide')} "
                          f"ivaide={top.get('ivaide')} natide={top.get('natide')} unimed={top.get('unimed')} en "
                          f"{_pct(_num(top.get('n')), total)}; maestro: comide={ma.get('comide')} "
                          f"ivacomide={ma.get('ivacomide')} natide={ma.get('natide')}.")
@@ -1146,33 +1148,34 @@ def lectura_l8b(acierto: dict[str, Any] | None, iva_isp: list[dict[str, Any]]) -
 
 
 def _m11_iva_por_proveedor(c: ClienteLectura, inf: Informe, ma: dict[str, Any]) -> None:
-    """T0a (spec v5, H15): IVA de un MA9999 por proveedor, ISP y acierto de la línea previa."""
-    ide, emp = ma.get("ide"), ma.get("emp")
+    """T0a (spec v5, H15; v6 también QA9999): IVA de un genérico de la lista blanca por proveedor,
+    ISP y acierto de la línea previa."""
+    ide, emp, cod = ma.get("ide"), ma.get("emp"), str(ma.get("cod", "MA9999")).strip().upper()
     por_producto = [*VENTANA_M11, ide]
     r = _leer_o_anotar(c, inf, "M11_iva_por_proveedor", por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     if r is not None:
-        inf.tabla(f"MA9999 emp {emp}: proveedores con más de un IVA en la ventana", r)
+        inf.tabla(f"{cod} emp {emp}: proveedores con más de un IVA en la ventana", r)
         f = r.filas[0] if r.filas else {}
-        inf.concluir(f"MA9999 emp {emp}: proveedores con más de un IVA "
+        inf.concluir(f"{cod} emp {emp}: proveedores con más de un IVA "
                      f"{_pct(_num(f.get('con_varios_iva')), _num(f.get('proveedores')))}.")
     isp = _leer_o_anotar(c, inf, "M11_iva_y_isp", por_producto, max_rows=100, timeout_s=TIMEOUT_PESADO_S)
     if isp is not None:
-        inf.tabla(f"MA9999 emp {emp}: IVA por tipisp", isp, limite=20)
+        inf.tabla(f"{cod} emp {emp}: IVA por tipisp", isp, limite=20)
     acierto: dict[str, Any] | None = None
     try:
         a = c.leer(SQL["M11_acierto"], por_producto, max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     except ErrorDeLectura as exc:
-        inf.concluir(f"MA9999 emp {emp}: M11_acierto (LAG ... OVER) no se pudo leer ({exc}); "
+        inf.concluir(f"{cod} emp {emp}: M11_acierto (LAG ... OVER) no se pudo leer ({exc}); "
                      "según la spec se queda con las dos primeras.")
     else:
-        inf.tabla(f"MA9999 emp {emp}: acierto del IVA de la línea previa", a)
+        inf.tabla(f"{cod} emp {emp}: acierto del IVA de la línea previa", a)
         acierto = a.filas[0] if a.filas else {}
         n, sin_previa = _num(acierto.get("lineas")), _num(acierto.get("sin_previa_del_prv"))
-        inf.concluir(f"MA9999 emp {emp}: acierta el IVA previo del mismo proveedor "
+        inf.concluir(f"{cod} emp {emp}: acierta el IVA previo del mismo proveedor "
                      f"{_pct(_num(acierto.get('acierta_mismo_prv')), n - sin_previa)} (sobre las líneas con previa "
                      f"del proveedor); el previo de cualquiera {_pct(_num(acierto.get('acierta_cualquiera')), n)}; "
                      f"sin previa del proveedor {sin_previa:.0f}.")
-    inf.concluir(f"MA9999 emp {emp}: {lectura_l8b(acierto, isp.filas if isp else [])}")
+    inf.concluir(f"{cod} emp {emp}: {lectura_l8b(acierto, isp.filas if isp else [])}")
 
 
 def m12(c: ClienteLectura) -> Informe:

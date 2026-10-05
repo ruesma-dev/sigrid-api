@@ -839,3 +839,15 @@ def test_f009_t0a_bis_main_con_la_lista_de_la_segunda_pasada(tmp_path: Path, mon
     for esperado in ("pro.tipmov DECIDE", "MA9999 emp 1: SÍ genera mov", "domina «", "anular BORRA",
                      "acierta más el ALBARÁN ANTERIOR", "ope 5: parece «modificación»"):
         assert esperado in texto, esperado
+
+
+def test_f009_t0a_bis_m11_mide_y_concluye_qa9999_aparte_de_ma9999() -> None:
+    """Spec v6: QA9999 entra en la lista blanca con MA9999; M11 los mide y concluye por separado."""
+    productos = [{"ide": 1, "cod": "MA9999", "emp": 1}, {"ide": 5, "cod": "QA9999", "emp": 1},
+                 {"ide": 7, "cod": "SB9999", "emp": 1}]
+    cliente = _ClienteFalso({**_DATOS, "M11_productos": productos})
+    texto = t0.m11(cliente).texto()  # type: ignore[arg-type]
+    for clave in _M11_POR_PRODUCTO:
+        assert [p[-1] for k, p in cliente.llamadas if k == clave] == [1, 5], clave
+    assert "MA9999 emp 1: L8b" in texto and "QA9999 emp 1: L8b" in texto
+    assert "QA9999 emp 1 (ide 5): total de líneas" in texto and "SB9999 emp 1: L8b" not in texto
