@@ -1,7 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v5.1 (2026-10-05), `spec_ready` — espera la repetición única de T0
+## F-009 spec v6 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-bis
+
+**v6 (spec-author):** T0b volcada en la spec ([`spec_F-009.md`](spec_F-009.md) §v6, tabla M →
+resultado → decisión). Cerradas: M3 (`paride` opcional, R14b), M7 (sin `dcapropar`), M13 (`est` 1,
+`ori` 0), M14 (reseteo), M16 (almacén; `caaide` de las vinculadas del `ctrpro`) y M18
+(`referencia_linea` en `dcapro.refent`, R30c). Decisiones del humano aplicadas: lista blanca
+`["MA9999", "QA9999"]` con producto por línea (H20 para los dos) y analítica de las sin vincular
+condicional a M16b, sin regla provisional. Abiertas a **T0b-bis** (`--solo M9 M11 M14 M16 M17`, tras
+ampliar el script con M14b, M16b y M17b; M9 y M11 deben cubrir también QA9999): M9, M11, M14b, M16b,
+M17b. **Para el humano:** validar la v6; `cod2` (consulta a negocio, no bloquea); confirmar `tex`
+vacío en las sin vincular. Topes: requirements 150/150, design 250/250.
+
+*(Lo que sigue es el estado de la v5.1, ya superado por T0b.)*
 
 PRE-1 de albaranes F-053: **modo extendido de `sigrid/albaran`** (el clásico, idéntico y fijado
 por un test de caracterización previo). **v5** incorpora los huecos de F-009 del contrato con

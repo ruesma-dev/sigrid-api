@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v5.1
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v6
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,75 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v6: resultados de T0 (repetición del 2026-10-05) y decisiones del humano
+
+Spec-author. Solo spec; sin llamar a la API, Azure ni el SQL Server. Fuente: el fichero de
+resultados del humano (`%TEMP%`, 2026-10-05 13:24; **no** se versiona: lleva datos de negocio) y el
+maestro de genéricos de la primera pasada (`%TEMP%`, 2026-10-02). Aquí solo cifras agregadas y
+conclusiones. Definiciones de cada medición y su «debe salir / decide»: §T0 v5 (abajo).
+
+### Resultados de T0 (repetición del 2026-10-05) y v6
+
+| M | Resultado agregado | Decisión en la v6 |
+|---|---|---|
+| M3 | Partidas usadas desde 2025: 100 % `tip 1`, `tipdes 0` (`tipvis` 0 el 99,6 %, 1 el 0,4 %). 5.207 pares (obra, código) repetidos; **4.312 entre imputables** (11.402 filas) | **Cerrada**: R14b activa, `paride` opcional con `partida` (`paride_no_valido`). F-049 debe conservar el `ide` de cada partida (contrato H17) |
+| M7 | 0 de 272.235 líneas con partida desde 2025 tienen fila en `dcapropar`; `parcandes` ≠ 0 en 0 | **Cerrada**: no se escribe `dcapropar` (R25, fuera de alcance) |
+| M9 | `ReadTimeout` en `sql/read` | **Abierta** → T0b-bis. Debe cubrir MA9999 **y QA9999** (puerta H20 para los dos) |
+| M11 | `ReadTimeout` en `sql/read` | **Abierta** → T0b-bis (IVA por proveedor de los productos de la lista) |
+| M13 | 4.027 filas de alta de albarán en `log` desde 2026-09: `est` 1 y `ori` 0 en el 100 %. 1.368 de 1.371 albaranes AC desde 2026-09-15 (99,8 %) con fila de alta | **Cerrada**: `con.est` 1 `PDT` y fila de alta con `est` 1, `ori` 0 (R22, design §Filas) |
+| M14 (cabecera) | Forma de pago y efecto de 2.608 albaranes desde 2026-09: los del maestro del proveedor aciertan el 82,9 % (`pagide`) y el 88,8 % (`efeide`). La comparación con el albarán de la API falló por interbloqueo (1205) en la lectura; ya estaba decidida en la primera pasada | **Abierta como M14b**: comparar con la regla actual (último albarán del mismo proveedor, L5); si acierta menos, `pagide`/`efeide` del maestro |
+| M14 (sin vincular) | 94.369 líneas sin vincular de 2026. Vacías (≤ 0,1 %): `parcandes`, `anades`, `serdes`, `fecimp`, `item`, `taride`, `fec`, `pla`, `texcom`, `pac`, `refent`, `desesp`, `edilin`, `garfec`, `mesrevpre`, `ejerevpre`. Con valor: `cod2` 20,8 %, `dncide`/`dncproide` 5,8 %, `med`/`canmed` 1,8 %, `anexo` 0,3 %, `tex` 11,0 %, `prepma` 77,0 %. `dcapro.fec` = fecha del albarán en 0 %. Arrastre (3 líneas seguidas del MA9999 de la empresa 1 frente a su plantilla): ninguna columna se copia; las que tienen valor difieren de la plantilla | **Cerrada**: ninguna se arrastra; las que el escritorio rellena cambian línea a línea con otra fuente ⇒ se vacían. §Reseteo ampliada (`dncide`, `dncproide`, `desesp`, `edilin`, `garfec`, `mesrevpre`, `ejerevpre`), todas a 0/`''`; `fec` 0; `prepma` según R21. `cod2`: vacío por defecto, pendiente de una consulta del humano a negocio (no bloquea) |
+| M16 (analítica) | Vinculadas con la misma partida que el `ctrpro` (92.771): `caaide` del `ctrpro` 100 %, de la partida 0,9 %. Con partida distinta (3.646): del `ctrpro` 99,9 %, de la partida 0,3 %. Sin vincular con partida (175.820): de la partida 2,7 %. Sin partida (15.022): `alm.caaproide` coincide en 7 (0,0 %) y ningún almacén tiene analítica | **Cerrada para las vinculadas**: `caaide` del `ctrpro` siempre. **Hipótesis de la v5 refutada** (partida / `alm.caaproide`): se retira. Sin vincular: **M16b**, sin regla provisional (decisión del humano) |
+| M16 (almacén) | Sin vincular con contrato (129.874): almacén del contrato 100,0 %, de la ficha 100,0 %. Sin contrato (59.118): de la ficha 98,3 %. Ficha de las 89 obras con albaranes desde 2025: con `almide` 100 %, de su obra 98,9 %, con `cenide` 100 % | **Cerrada**: orden de R15 (contrato → ficha de obra → único `alm`) confirmado |
+| M17 | `log.ope` sobre albaranes (último millón de `ide`, 2025-08-20 a 2026-10-05): 1 (46.204), 2 (822), 3 (11.443), 5 (90.658), 30 (2.287); `log.emp` 1 en el 99,96 %. El albarán sigue existiendo (mismo `emp`, `tip`, `cod`) tras `ope` 2 en el 37,5 %, tras 3 en el 99,0 %, tras 5 en el 99,5 % y tras 30 en el 95,8 %. Ningún albarán con `fecbaj` > 0; `est` desde 2025 solo 10, 3, 1, 2 (y 0 en 6) | **No concluyente**: la `ope` 2 parece la baja, pero el 37,5 % que «existe» podría ser un `cod` reutilizado. **M17b** lo decide; si no, T23. R30b sigue condicional |
+| M18 | `refent` informado en 0 de 287.259 líneas desde 2025 (188.992 sin vincular, 98.267 vinculadas); 0 de 184.455 líneas de factura con `refent` copiado del albarán | **Cerrada**: `referencia_linea` (1-24) en `dcapro.refent`, devuelta en `idempotente` (R30c; N9 aprobada) |
+
+Maestro de genéricos (primera pasada): `QA9999` («alquiler de maquinaria») existe en las empresas 1,
+31 y 34 con `natide` propio; `pro.gaside` = 0 en los cuatro genéricos (MA, QA, SB, SM).
+
+### Decisiones del humano (2026-10-05) aplicadas
+
+- **Toda línea es vinculada (`ctrpro`) o lleva un producto de la lista blanca**; nada más. «De
+  momento, en general siempre materiales o maquinaria» ⇒ despliegue de
+  `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO` = `["MA9999", "QA9999"]` (R10, T19). Albaranes elige el
+  producto por línea (contrato §2.2 y §2.4, para F-053). La puerta dura H20 cubre los dos (R35, T22).
+- **La cuenta analítica sale del vínculo**: vinculada ⇒ la del `ctrpro` (M16); sin vincular ⇒ la del
+  producto, **condicional a M16b** y sin regla provisional. Hipótesis en estudio: la naturaleza del
+  producto (`auxpronat.caagascod` con partida, `caaexicod` sin partida), quizá compuesta con la obra.
+  Retirada la hipótesis de la v5 (design §Analítica; R15; contrato H10).
+
+### Qué cambió en la spec
+
+| Cambio | Dónde |
+|---|---|
+| `paride` opcional con `partida` (sin `partida`, 400 sin código); `partida_ambigua` solo sin `paride`; L6 sin `caaide` y el `paride` se busca entre las partidas leídas por código | R6, R14, R14b; design §Modelo, L6, §Códigos; contrato §2.2, §3.3, H17 |
+| `referencia_linea` 1-24 en `dcapro.refent` (todas las líneas), leída en L11 y devuelta en `idempotente`; diferencia declarada en R33 | R30c (antes la mitad de R30b), R21; design §Modelo, §Respuesta, §Filas, L11, §Equivalencia; contrato §2.2, §3.1, 6.d, H18 |
+| `con.est` 1 y `log` con `est` 1, `ori` 0; sin `dcapropar` | R22, R25, fuera de alcance; design §Filas |
+| §Reseteo ampliada y cerrada; `prepma` (M14) | R13, R21; design §Reseteo; contrato H11 |
+| Analítica: vinculada del `ctrpro`; sin vincular [M16b]; L10 sin `caaproide`; L15 la fija M16b | R12, R15; design §Analítica, L10, §Condicionales, §Riesgos; contrato §2.3, H10 |
+| Lista blanca `["MA9999", "QA9999"]`, producto por línea; H20 para los dos | R10, R13, R35; tasks T19, T21, T22; contrato §1.3, §2.2-§2.4, §4.3, H20 |
+| Forma de pago y efecto de la cabecera [M14b] | R21; design §Filas, §Condicionales |
+| T0b hecha; **T0b-bis** `--solo M9 M11 M14 M16 M17` tras ampliar el script con M14b, M16b y M17b; T0c sin cambios | tasks; R35; contrato H28 |
+
+Topes tras la v6 (`python -m harness.tamano --feature F-009`): `requirements.md` 150/150 y
+`design.md` 250/250. Para caber: §Condicionales lista las cerradas en una frase y tabula solo las
+abiertas; las cifras de M14 y M16 viven en esta sección.
+
+### Notas para el líder y el implementer
+
+- **T0b-bis** necesita, además de M14b, M16b y M17b, que **M9 y M11 midan también QA9999** (ahora
+  está en la lista blanca): la puerta H20 y la plantilla L8b valen para los dos productos. Si el
+  script ya recorre `PRODUCTOS_GENERICOS`, basta comprobar que la conclusión los separa.
+- M16b debe medir el `caaide` de las sin vincular frente a `auxpronat.caagascod`/`caaexicod` de su
+  naturaleza (con y sin partida) y, si no llega a ≥ 95 %, frente a la combinación con la obra.
+- M9 y M11 se cortaron por `ReadTimeout`: conviene acotar su ventana para no repetir el corte.
+- T0c no cambia: tras T0b-bis, el volcado será la v7 (o una PARADA si M16b no da regla).
+
+**Decisiones abiertas para el humano:** (1) `cod2`: consulta a negocio pendiente (no bloquea; vacío
+por defecto). (2) `tex`: se mantiene vacío en las sin vincular, como en la v5 (el escritorio lo
+rellena en el 11 %, texto propio de la línea, nunca de la plantilla); confirmar. (3) Las reglas que
+fijen M9, M11, M14b, M16b y M17b (o T23) tras T0b-bis.
 
 ## v5.1 (2026-10-05): respuestas del humano a la v5
 
@@ -81,6 +150,11 @@ de T0) y T0c (volcado y retirada del script) como precondición de `in_progress`
 
 ## v5 (2026-10-05): huecos del contrato con albaranes y decisiones del humano
 
+> **v6: en parte sustituida.** Las filas H10 (`caaide` por hipótesis de M16), H11 (lista de
+> reseteo), H17 y H18 (condicionales a M3 y M18), H20 (solo MA9999) y H28 (una sola repetición) se
+> leen con §v6: la hipótesis de analítica queda refutada, R14b y R30c activas, lista blanca de dos
+> productos y T0b-bis. Se conserva como evidencia.
+
 Fuente: `specs/F-009-alta-albaran-compra/contrato_albaranes.md` §5 (H1-H33, escrito el mismo día
 por el agente de albaranes contra la v4) y las decisiones del humano del 2026-10-05 sobre H4, H8,
 H9, H17, H20, H28 y H31. Estado de cada hueco: tabla al principio de §5 de ese documento. Topes:
@@ -120,6 +194,10 @@ hueco contradice el código ni las mediciones de la primera pasada. Matiz en H13
 de su obra en el 99,4 %) y la ficha de obra pasa a ser el segundo recurso, antes que `alm`.
 
 ### T0 v5: mediciones nuevas y ampliadas (solo lectura, `sql/read`)
+
+> **v6**: resultados y decisiones en §v6. Las definiciones siguen valiendo; el «debe salir / decide»
+> de M16 sobre la analítica (partida / `alm.caaproide`) queda **sustituido** (M16 lo refuta; M16b) y
+> el de M18 y M3, **cumplido** (R30c, R14b). «Una sola repetición» queda sustituida por T0b + T0b-bis.
 
 Una sola repetición (H28): `& .\.venv\Scripts\python.exe -m scripts.medir_f009_t0 --solo M3 M7 M9
 M11 M13 M14 M16 M17 M18`, después de que el implementer amplíe el script (tasks T0a). Las sentencias
@@ -205,6 +283,8 @@ en tablas derivadas. M3, M7, M9 y M13 quedan como están en el script.
 Fuente: el fichero de resultados del humano (en `%TEMP%`, **no** se versiona: lleva datos de
 negocio). Aquí solo cifras agregadas y conclusiones. M7 y M9 fallaron (error 130 de SQL
 Server, corregido en `28afc96`) y M11 tenía un fallo del script (abajo).
+
+> **v6**: M3, M7 y M13 se cerraron en la repetición del 2026-10-05 (§v6); M9 y M11 siguen abiertas.
 
 | M | Resultado | Decisión en la spec v3 |
 |---|---|---|
@@ -354,7 +434,8 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
   "lineas": [
     { "referencia_linea": "1", "ctrpro_ide": <ide>, "cantidad": 1, "precio": 100.0 },
     { "referencia_linea": "2", "producto": "MA9999", "descripcion": "Prueba F-009", "unidad": "UD", "cantidad": 1, "precio": 1.0, "partida": "<cod>" },
-    { "referencia_linea": "3", "ctrpro_ide": <ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" } ] }
+    { "referencia_linea": "3", "ctrpro_ide": <ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" },
+    { "referencia_linea": "4", "producto": "QA9999", "descripcion": "Prueba F-009 maquinaria", "unidad": "H", "cantidad": 1, "precio": 1.0 } ] }
 ```
 
 **Primera devolución real (T24)**, solo lectura, con la `referencia_externa` de ese albarán:
@@ -373,7 +454,8 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
 > de línea (almacén, devoluciones, compuestas repartidas), códigos → estados de F-053 y **33 huecos**
 > entre F-009 v4, F-053 v5, F-051 v3 y F-049 v4 (9 bloqueantes). Lo de abajo es el resumen de la v3:
 > desde la v5.1 no hay campo `almacen` (línea sin partida = `partida` ausente) ni `fecha_no_valida`;
-> manda el contrato.
+> desde la v6, `paride` opcional, `referencia_linea` de 1-24 (va a `dcapro.refent`) y lista blanca
+> `MA9999`/`QA9999` con el producto elegido por línea; manda el contrato.
 
 Ruta `POST /api/sigrid/albaran` (la de siempre), modo extendido. Petición:
 
@@ -437,6 +519,7 @@ F-053) es del líder de albaranes; para F-053, N1 no cambia el contrato.
 Ninguna escritura hasta T22, con autorización expresa, y T22 no se hace sin M9 cerrada (puerta
 H20). Al desplegar con la llave en `false`, el `commit` del modo clásico y de `albaran-directo`
 queda cerrado (decidido; nadie los usa en vivo). Devoluciones con la regla A medida en el
-escritorio; T24 vigila la primera real del pipeline. Hasta la repetición única de T0 (`--solo M3
-M7 M9 M11 M13 M14 M16 M17 M18`), su volcado en la spec (v6 si alguna regla condicional cambia), la
-retirada del script (N3) y las respuestas a N4-N12, F-009 no pasa a `in_progress`.
+escritorio; T24 vigila la primera real del pipeline. *(v6)* T0b hecha y volcada; hasta T0b-bis
+(`--solo M9 M11 M14 M16 M17`, con M14b, M16b y M17b), su volcado (v7, o PARADA si M16b no da regla
+para la analítica de las sin vincular) y la retirada del script (N3), F-009 no pasa a `in_progress`.
+La puerta H20 cubre MA9999 y QA9999.

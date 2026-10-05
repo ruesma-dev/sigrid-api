@@ -1,8 +1,7 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v5.1)
+# F-009 · Diseño (v6)
 
-Detalle campo a campo, casos de línea, mapa de códigos a estados de F-053 y ejemplos:
-[`contrato_albaranes.md`](contrato_albaranes.md) (refleja esta v5.1; si discrepa, manda esta spec).
+Detalle campo a campo, casos de línea, códigos → estados de F-053 y ejemplos: [`contrato_albaranes.md`](contrato_albaranes.md).
 
 ## La decisión de fondo
 
@@ -35,7 +34,7 @@ def elegir_modo_albaran(cuerpo: object) -> Literal["clasico", "extendido"]:
 | Fichero | Capa | Qué contiene |
 |---|---|---|
 | `domain/models/albaran_compra_models.py` | domain | `elegir_modo_albaran`, `LineaAlbaranIn`, `AlbaranCompraRequest` (validadores de R5-R6), `AvisoAlbaran`, `LineaResultado(AlbaranLinePreview)`, `FalloLinea`, `AlbaranCompraResponse(AddPurchaseAlbaranResponse)`, `AlbaranCompraError(ValueError)` con `codigo` cerrado y `lineas` opcional, `COLUMNAS_BANCARIAS`. **Importa** los modelos clásicos; no los edita |
-| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L14 y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `estados_contrato`, `importe_linea`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
+| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L15 (L15 según M16b) y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `estados_contrato`, `importe_linea`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
 | `application/use_cases/create_albaran_compra_use_case.py` | application | `CreateAlbaranCompraUseCase(repository, settings, ahora_utc=..., reloj=...)` |
 | `tests/test_f009_caracterizacion.py` + `tests/fixtures/f009_caracterizacion.json` | — | §Caracterización |
 | `tests/test_f009_settings.py`, `_models.py`, `_statements.py`, `_use_case.py`, `_route.py`, `_equivalencia.py` | — | Ver `tasks.md` |
@@ -69,7 +68,7 @@ el doble). **El dorado no se regenera**: `git log -- tests/fixtures/f009_caracte
 
 ```python
 class LineaAlbaranIn(BaseModel):                  # extra="forbid" en los dos; floats finitos
-    referencia_linea: str = Field(..., min_length=1, max_length=64)          # 24 si M18 (R30b)
+    referencia_linea: str = Field(..., min_length=1, max_length=24)          # → dcapro.refent (R30c)
     ctrpro_ide: int | None = Field(default=None, ge=1)                       # vinculada
     producto: str | None = Field(default=None, min_length=1, max_length=24)  # sin vincular
     descripcion: str | None = Field(default=None, max_length=128)            # dcapro.res
@@ -77,7 +76,7 @@ class LineaAlbaranIn(BaseModel):                  # extra="forbid" en los dos; f
     cantidad: float                                       # != 0; < 0 = devolución (los dos tipos)
     precio: float                                         # < 0 → fallo de línea precio_negativo
     partida: str | None = Field(default=None, min_length=1, max_length=24)   # None ⇒ sin partida, paride 0
-    paride: int | None = Field(default=None, ge=1)        # SOLO si M3 (R14b); exige partida
+    paride: int | None = Field(default=None, ge=1)        # R14b (M3); exige partida (R6)
 
 class AlbaranCompraRequest(BaseModel):
     database: str; cod_obra: str (≤24); usu: str (1-24)                      # log.usu
@@ -89,7 +88,7 @@ class AlbaranCompraRequest(BaseModel):
 ```
 
 Una lista con discriminador por línea conserva el orden (`pos`). Precio negativo y tope de líneas, en el
-caso de uso con código. v5.1: sin campo `almacen` y sin rechazo de fechas futuras (solo el rango de arriba).
+caso de uso con código. Sin campo `almacen` ni rechazo de fechas futuras (v5.1).
 
 ## Respuesta (R7, R30)
 
@@ -104,34 +103,37 @@ caso de uso con código. v5.1: sin campo `almacen` y sin rechazo de fechas futur
   (diccionario, `dca`). Se quitan de `cabecera`, `filas.dca` y trazas; la fila escrita las lleva.
 - **`idempotente`** (H18): `committed` `false`, `dry_run` = `not commit`, `con_ide`, `cod`, `fec`, totales
   de L11 y `lineas` leídas por `pos` (`indice` 0.., `pos`, `proide`, `cantidad`, `precio`, `total`,
-  `paride`, `almide`, y `referencia_linea` si R30b/M18); el resto de campos, vacíos (`{}`/`[]`).
+  `paride`, `almide` y `referencia_linea` de `refent`, R30c); el resto de campos, vacíos (`{}`/`[]`).
 
 ## Filas que se escriben (T0 en `progress/spec_F-009.md` §Resultados)
 
 - **`con`**: clon de la plantilla (L5: mismo proveedor y empresa, H3) con `tip 14`, `emp` de la obra,
-  `cod` ← E2, `res` ← `"<entres>. (<su_referencia>)"` recortado, `fec`, `est` 1 `PDT` en `conest` [M13].
-- **`dca`**: clon de esa plantilla (M14: forma de pago, efecto y dirección del proveedor) con los
+  `cod` ← E2, `res` ← `"<entres>. (<su_referencia>)"` recortado, `fec`, `est` 1 `PDT` en `conest` (M13).
+- **`dca`**: clon de esa plantilla (forma de pago y efecto: [M14b]; dirección del proveedor) con los
   *overrides* de hoy (`fecdoc`, `hor`, `entref`, `eioide`, `ent*`, `obride`, `almide`, `cenide`, `empide`,
   totales, descuentos a 0, `estser/estfac` 0) más `ctride` (0 sin contrato) y `synckey`.
 - **`dcapro` vinculada**: como hoy (plantilla = última `dcapro` del producto; `proide`, `ivaide`,
   `unimed`, `almide`, `cenide`, `caaide` y `docori*` del `ctrpro`, nunca `NULL` según M4; `canoriori`,
-  `imporiori`) más `paride`, `pre`/`tar`/`dto` (R17), `res`/`unimed` y `caaide` de §Analítica.
+  `imporiori`) más `paride`, `pre`/`tar`/`dto` (R17), `res`/`unimed` y `refent` = `referencia_linea`.
 - **`dcapro` sin vincular**: plantilla = L8b (última del producto **del mismo proveedor**) o, sin ella,
   L8 con aviso `iva_de_otro_proveedor` (H15): de ella `cueide`, `ivaide`; `natide` del maestro; `res`,
-  `unimed`, `pre`, `tar` = `precio`, `dto` `''`, `paride`, `almide`/`cenide` (R15), `caaide`, `obride`;
-  `docori*`, `can*`, `impori*` a 0/`''`; y §Reseteo.
-- **`prepma`** (las dos): PMP resultante de su `mov` [M14]. **`ctrprodes`** (vinculadas): una por línea,
+  `unimed`, `pre`, `tar` = `precio`, `dto` `''`, `paride`, `almide`/`cenide` (R15), `caaide` (§Analítica),
+  `obride`, `refent` = `referencia_linea`; `docori*`, `can*`, `impori*` a 0/`''`; y §Reseteo.
+- **`prepma`** (las dos): PMP resultante de su `mov` (M14). **`ctrprodes`** (vinculadas): una por línea,
   `can` con signo (M6). **`mov`**: como hoy, `emp` = `con.emp`, solo si el producto hace movimientos [M9].
-- **`log`** (alta): la de F-006 (`tab 'con'`, `tip 14`, `ope 1`, `ori` [M13]), `cod`/`res`/`est` del
-  `con`, `fec`/`hor` del alta y `usu`.
+- **`log`** (alta): la de F-006 (`tab 'con'`, `tip 14`, `ope 1`, `ori` 0, `est` 1; M13: 100 % de 4.027),
+  `cod`/`res` del `con`, `fec`/`hor` del alta y `usu`. **`dcapropar`**: nunca (M7: 0 de 272.235).
 
-**Reseteo (sin vincular; H11) [M14]**: `med` NULL; `canmed`, `parcandes`, `anades`, `serdes`, `fecimp`,
-`item`, `anexo`, `taride`, `fec`, `pla` a 0; `tex`, `texcom`, `cod2`, `pac`, `refent` a `''` (`refent`,
-salvo R30b). Lista cerrada: si M14 ampliada muestra que el escritorio rellena alguna, se corrige la spec.
+**Reseteo (sin vincular; H11, M14)**: `med` NULL; `canmed`, `parcandes`, `anades`, `serdes`, `fecimp`,
+`item`, `anexo`, `taride`, `fec`, `pla`, `dncide`, `dncproide`, `edilin`, `garfec`, `mesrevpre`,
+`ejerevpre` a 0; `tex`, `texcom`, `desesp`, `cod2`, `pac` a `''`. M14: ninguna se arrastra de la plantilla y
+las que el escritorio rellena cambian línea a línea con otra fuente (cifras en `progress/spec_F-009.md` §v6).
+`cod2`: vacío por defecto, pendiente de una consulta del humano a negocio (no bloquea).
 
-**Analítica (`caaide`; H10) [M16]**. Hipótesis: línea con partida → `obrparpar.caaide` de la partida
-resuelta (L6) si ≠ 0; sin partida → `alm.caaproide` de su almacén (L10); vinculada con la misma partida
-del `ctrpro` → `ctrpro.caaide`, como hoy (R33); si no, el de la plantilla. Si M16 la contradice, PARADA.
+**Analítica (`caaide`; H10)**. **Vinculada**: `ctrpro.caaide` siempre, aunque cambie la partida (M16: 100 %
+y 99,9 %), como hoy (R33). **Sin vincular**: la del producto, **sin regla provisional** [M16b]; hipótesis en
+estudio: naturaleza del producto (`auxpronat.caagascod` con partida, `caaexicod` sin ella), quizá compuesta
+con la obra (`pro.gaside` = 0 en los genéricos). M16 refuta la de la v5 (partida 2,7 %, `alm.caaproide` 0 %).
 
 **Importes (R17; H14, H33)**: `redondear_euros(x)` = `Decimal(repr(x)).quantize(Decimal("0.01"),
 ROUND_HALF_UP)`; `tot` = `redondear_euros(cantidad·pre)` e `ivacuo` = `redondear_euros(tot·iva)`; test con
@@ -155,20 +157,20 @@ Lecturas con credenciales de lectura; toda lectura con `truncado` → `ValueErro
 - **L5** plantilla de cabecera: `SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE
   c.tip = ? AND c.emp = ? AND d.entide = ? ORDER BY c.ide DESC` (`emp` de la obra; `entide` del contrato
   o, sin él, `d.entcif = ?`); sin *fallback* a otro proveedor ni a otra empresa (H3).
-- **L6** partidas: `SELECT ide, cod, tip, tipdes, tipvis, caaide FROM dbo.obrparpar WHERE obride = ? AND
-  cod IN (?, …)`; imputable = `tip 1`, `tipdes 0`, `tipvis` 0/1 (M3) [M3].
+- **L6** partidas: `SELECT ide, cod, tip, tipdes, tipvis FROM dbo.obrparpar WHERE obride = ? AND cod IN
+  (?, …)`; imputable = `tip 1`, `tipdes 0`, `tipvis` 0/1 (M3); el `paride` de R14b se busca entre ellas.
 - **L7** productos: `SELECT c.ide, c.cod, c.fecbaj, p.natide, p.tipmov FROM dbo.con c JOIN dbo.pro p ON
   p.ide = c.ide WHERE c.emp = ? AND c.tip = ? AND c.cod IN (?, …)` (`tip 3`) [M9].
 - **L8** plantilla de línea: `SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC`. **L8b**
   (sin vincular): `SELECT TOP 1 p.* FROM dbo.dcapro p JOIN dbo.dca d ON d.ide = p.docide WHERE p.proide =
   ? AND d.entide = ? ORDER BY p.ide DESC` (`entide` de la plantilla de cabecera; H15) [M11].
 - **L9** tasas: `SELECT ide, iva FROM dbo.iva WHERE ide IN (?, …)` (fracción) [M11].
-- **L10** almacén: `SELECT almide, cenide FROM dbo.obr WHERE ide = ?` (H13) y `SELECT ide, obride, cenide,
-  caaproide FROM dbo.alm WHERE obride = ? OR ide IN (?, …)` (los de la obra y los ya resueltos; M8).
+- **L10** almacén: `SELECT almide, cenide FROM dbo.obr WHERE ide = ?` (H13) y `SELECT ide, obride, cenide
+  FROM dbo.alm WHERE obride = ? OR ide IN (?, …)` (los de la obra y los resueltos; M8). **L15** la fija M16b.
 - **L11** idempotencia: `SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc FROM dbo.dca d
   JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?` (M1) [+ filtro de anulados si M17];
-  si hay uno, `SELECT pos, proide, can, pre, tot, paride, almide FROM dbo.dcapro WHERE docide = ? ORDER
-  BY pos` [+ `refent` si M18].
+  si hay uno, `SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro WHERE docide = ?
+  ORDER BY pos` (R30c).
 - **L12** balance: `SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY
   fechor DESC, ide DESC` (N1).
 - **L13** `SELECT est FROM dbo.conest WHERE tip = ? AND est = ?`; `SELECT TOP (1) cod FROM dbo.usu WHERE
@@ -199,19 +201,18 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
    intento con `cod`, `ide` y balances de E2-E7 (fechas fijas); reintentos agotados → `colision_de_clave`.
 6. Traza (R32) y respuesta.
 
-## Condicionales: qué decide cada medición de T0 (definiciones en `progress/spec_F-009.md` §T0 v5)
+## Condicionales: qué decide cada medición de T0 (resultados en `progress/spec_F-009.md` §v6)
+
+**Cerradas en T0b (2026-10-05)**: M3 (R14b activa), M7 (sin `dcapropar`), M13 (`est` 1, `ori` 0), M14
+(§Reseteo, `prepma`), M16 (orden de R15; analítica de las vinculadas) y M18 (R30c). Abiertas, a T0b-bis:
 
 | M | Regla que fija | Si sale… | …entonces |
 |---|---|---|---|
-| M3 | R14b (H17) | 0 repetidos entre imputables | sin campo `paride`; si >0, `paride` opcional (R14b) |
-| M7 | fuera de alcance | el escritorio escribe `dcapropar` al imputar | PARADA (hoy no se escribe) |
-| M9 | R19, puerta H20 | `pro.tipmov` explica la falta de `mov` | `mov` solo si `tipmov`; si MA9999 mueve stock, PARADA antes del modo real |
-| M11 | R13 (H15) | el IVA de MA9999 varía entre proveedores | L8b se queda (si no varía, es inocua) |
-| M13 | R22, `log` | `est`/`ori` de la fila de alta | se fijan esos valores |
-| M14 | R21, §Reseteo (H11) | columnas de la sin vincular del escritorio | `prepma` y lista de reseteo confirmadas o corregidas |
-| M16 | §Analítica, R15 (H10, H13) | `caaide` = partida / `alm.caaproide`; `obr.almide` relleno | hipótesis confirmada; si no, PARADA |
-| M17 | R30b (H9) | anular **borra** el `con` | nada; si **marca** (`fecbaj`, `est`…), L11 excluye esa marca |
-| M18 | R30b (H18) | `refent` vacío en ≥ 99,9 % de líneas | se escribe `referencia_linea` (≤24); si no, no se escribe |
+| M9 | R19, puerta H20 | `pro.tipmov` explica la falta de `mov` | `mov` solo si `tipmov`; si MA9999 o QA9999 mueven stock, PARADA antes del modo real |
+| M11 | R13 (H15) | el IVA de los genéricos varía entre proveedores | L8b se queda (si no varía, es inocua) |
+| M14b | R21, `dca` | el último albarán del proveedor acierta forma de pago y efecto más que su maestro (82,9 % / 88,8 %) | se queda la plantilla (L5); si no, `pagide`/`efeide` del maestro del proveedor |
+| M16b | §Analítica, R15 | una regla del producto (y quizá la obra) explica ≥ 95 % del `caaide` sin vincular | se fija con su L15; si no, PARADA |
+| M17b | R30b (H9) | anular **borra** el `con` (¿se reutiliza el `cod`?) | nada; si **marca**, L11 excluye esa marca; sin conclusión, T23 |
 
 ## Códigos (R1, R8, R9)
 
@@ -222,7 +223,7 @@ Cabecera: `peticion_mixta`, `escritura_albaranes_deshabilitada`, `base_de_datos_
 `almacen_de_obra_no_resuelto`, `colision_de_clave`, `filas_afectadas_inesperadas`, `lineas_no_validas`.
 Línea: `linea_no_es_del_contrato`, `producto_no_permitido`, `producto_no_encontrado`,
 `partida_no_encontrada`, `partida_ambigua`, `partida_no_imputable`, `precio_negativo`, `paride_no_valido`
-(solo R14b). Avisos: `producto_sin_historico`, `supera_pendiente`, `partida_distinta_del_contrato`,
+(R14b). Avisos: `producto_sin_historico`, `supera_pendiente`, `partida_distinta_del_contrato`,
 `sin_partida_en_linea_con_partida`, `precio_distinto_del_contrato`, `iva_de_otro_proveedor`,
 `servido_negativo`, `stock_negativo`, `cod_provisional`.
 
@@ -233,7 +234,7 @@ Mismo doble; el mismo albarán (solo vinculadas, positivas, sin `ctrpro` repetid
 (no la respuesta, que omite las bancarias) de `con`, `dca`, `dcapro`, `ctrprodes` y `mov` columna a
 columna. Diferencias **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (Madrid frente a UTC; y
 `mov.fec`/`fechor` del alta, N1), `est`, `prepma`, `ivacuo` (`dbo.iva` frente al cociente del `ctrpro`),
-`tot`/`ivacuo` en empates de redondeo (H33; el dato fijo evita empates) y la fila de `log`.
+`tot`/`ivacuo` en empates de redondeo (H33; el dato fijo los evita), `dcapro.refent` (R30c) y el `log`.
 
 ## Riesgos y decisiones
 
@@ -244,6 +245,6 @@ columna. Diferencias **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (
 - **Precio negativo** (H8): segunda barrera tras sv9; el `ge=0` de Pydantic (400 sin código) pasa a fallo
   de línea `precio_negativo` para que F-053 lo mapee. **Stock negativo** (M15): solo aviso.
 - **Descartado**: ruta nueva; modo por valores; meter el modo en `CreatePurchaseAlbaranUseCase`;
-  reutilizar `albaran-directo`; plantilla de otro proveedor o empresa; `dcapropar` sin M7; `paride` en la
-  petición sin M3 (N2); recibir almacén, centro o analítica del llamante; campo `almacen` en la línea y
-  `fecha_no_valida` (v5.1: la línea sin partida es el «almacén» de Ruesma; las fechas, la app).
+  reutilizar `albaran-directo`; plantilla de otro proveedor o empresa; `dcapropar` (M7); recibir almacén,
+  centro o analítica del llamante; campo `almacen` y `fecha_no_valida` (v5.1); `caaide` de la partida o
+  de `alm.caaproide` (M16 lo refuta); una regla provisional para el `caaide` sin vincular (humano, v6).
