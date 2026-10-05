@@ -41,7 +41,7 @@ def _sql_completa(sql: str) -> str:
 
 
 def test_f009_t0_hay_una_medicion_por_cada_m_de_la_spec() -> None:
-    assert list(t0.MEDICIONES) == [f"M{i}" for i in range(1, 19)]
+    assert list(t0.MEDICIONES) == [f"M{i}" for i in range(1, 20)]  # T0a-quater: M19 (planificación y cod2)
 
 
 # Las sentencias que añade T0a (spec v5, §T0 v5): M16, M17, M18 y las ampliaciones de M11 y M14.
@@ -1167,7 +1167,7 @@ def test_f009_t0a_ter_lectura_del_control_con_las_vinculadas() -> None:
 
 @pytest.mark.parametrize("rota", _NUEVAS_T0A_TER)
 def test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio(rota: str) -> None:
-    texto = t0.m16(_rompe(rota, _datos_ampliacion())).texto()  # type: ignore[arg-type]  (con M16c_numemp)
+    texto = t0.m16(_rompe(rota, _datos_quater())).texto()  # type: ignore[arg-type]  (con M16c_numemp y M16d)
     assert f"{rota} no se pudo leer (ReadTimeout" in texto and f"{rota} SIN MEDICIÓN" in texto
     assert texto.count("no se pudo leer") == 1 and "cero filas" not in texto
     assert "Orden de R15" in texto and "dcaproana" in texto  # lo de después sigue
@@ -1317,4 +1317,407 @@ def test_f009_t0a_ter_amp_main_con_la_lista_de_t0b_ter(tmp_path: Path, monkeypat
     assert "SIN MEDICIÓN" not in texto and "no se pudo leer" not in texto and "ERROR" not in texto
     for esperado in ("(hipótesis a)", "la línea sin mov lleva prepma 0", "M16c numemp de las naturalezas",
                      "XA9999 emp 1: sin líneas en la ventana"):
+        assert esperado in texto, esperado
+
+
+# --- T0a-quater (ejecución del 2026-10-06 00:56): M14d, M16d y M19 ----------------------------------------
+# Dudas: qué es mov.prepma (del producto, no del almacén), la cuenta de XA9999 y de las excepciones de MA9999,
+# MA99 frente a MA1501, cod2 y planificación de compras (dnc/dncpro) y si hay altas de genéricos fuera del escritorio.
+
+_NUEVAS_T0A_QUATER = (
+    "M14d_prepma_producto", "M14d_muestra", "M16d_maestro", "M16d_excepciones", "M16d_sufijos", "M16d_candidatas",
+    "M16d_por_obra", "M16d_por_proveedor", "M16d_por_usuario", "M19_dnc", "M19_cod2_origen", "M19_cod2_valores",
+    "M19_vinculadas", "M19_altas_usuario", "M19_sin_alta", "M19_api",
+)
+_SIN_PARAMETROS_QUATER = ("M19_cod2_origen", "M19_cod2_valores", "M19_vinculadas")
+
+_DATOS_QUATER: dict[str, list[dict[str, Any]]] = {
+    "M14d_prepma_producto": [
+        {"siguiente": "otro_documento", "n": 600, "sin_anterior": 5, "igual_anterior_producto": 50,
+         "igual_siguiente_producto": 590, "igual_pre": 100, "igual_prc": 90, "igual_dcapro_pre": 100,
+         "entre_anterior_y_pre": 580, "anterior_igual_pre": 20, "anterior_igual_siguiente": 40, "anterior_es_albaran": 300},
+        {"siguiente": "albaran_compra", "n": 380, "sin_anterior": 0, "igual_anterior_producto": 30,
+         "igual_siguiente_producto": 30, "igual_pre": 60, "igual_prc": 50, "igual_dcapro_pre": 60,
+         "entre_anterior_y_pre": 370, "anterior_igual_pre": 10, "anterior_igual_siguiente": 5, "anterior_es_albaran": 200},
+        {"siguiente": "sin_siguiente", "n": 20, "sin_anterior": 0, "igual_anterior_producto": 0,
+         "igual_siguiente_producto": 0, "igual_pre": 0, "igual_prc": 0, "igual_dcapro_pre": 0,
+         "entre_anterior_y_pre": 20, "anterior_igual_pre": 0, "anterior_igual_siguiente": 0, "anterior_es_albaran": 10},
+    ],
+    "M14d_muestra": [{"ide": 1, "proide": 2, "prepma": 1.5, "prepma_anterior": 1.4, "prepma_siguiente": 1.5}],
+    "M16d_maestro": [{"ide": 9, "cod": "XA9999", "res": "Varios", "emp": 1, "nat_cod": "XA99", "nat_res": "Otros gastos",
+                      "caagascod": "CDXA99", "cuacomcod": "6290000000", "caaexicod": ""}],
+    "M16d_excepciones": [
+        {"caa_cod": "0686.CDXA99", "nat_cod": "XA99", "caagascod_linea": "CDXA99", "obra": "0686",
+         "partida": "con_partida", "lineas": 80},
+        {"caa_cod": "0700.OTRA", "nat_cod": "XA99", "caagascod_linea": "CDXA99", "obra": "0700",
+         "partida": "sin_partida", "lineas": 20},
+    ],
+    "M16d_sufijos": [
+        {"sufijo": "CDXA99", "nat_cod": "XA99", "caagascod_linea": "CDXA99", "partida": "con_partida", "lineas": 80,
+         "obras": 5, "empieza_por_obra": 80},
+        {"sufijo": "CDSB37", "nat_cod": "MA1501", "caagascod_linea": "MOD.CDMA15", "partida": "con_partida",
+         "lineas": 20, "obras": 2, "empieza_por_obra": 20},
+    ],
+    "M16d_candidatas": [
+        {"grupo": "XA9999", "partida": "con_partida", "n": 100, "regla_actual": 0, "caagascod_entero": 97,
+         "obra_natcod": 0, "regla_ampliada": 97, "sin_anterior_obra_nat": 10, "anterior_obra_nat": 85,
+         "sin_anterior_obra_pro": 10, "anterior_obra_pro": 85, "caa_informada": 100},
+        {"grupo": "MA9999", "partida": "con_partida", "n": 1000, "regla_actual": 920, "caagascod_entero": 0,
+         "obra_natcod": 0, "regla_ampliada": 920, "sin_anterior_obra_nat": 20, "anterior_obra_nat": 960,
+         "sin_anterior_obra_pro": 30, "anterior_obra_pro": 700, "caa_informada": 1000},
+    ],
+    "M16d_por_obra": [
+        {"clave": "0686", "lineas": 100, "nat_producto": 98, "otra_nat": 2, "naturalezas": 2, "cumple_regla": 90},
+        {"clave": "0700", "lineas": 100, "nat_producto": 1, "otra_nat": 99, "naturalezas": 2, "cumple_regla": 99},
+    ],
+    "M16d_por_proveedor": [
+        {"clave": 501, "lineas": 120, "nat_producto": 60, "otra_nat": 60, "naturalezas": 2, "cumple_regla": 100},
+        {"clave": 502, "lineas": 80, "nat_producto": 40, "otra_nat": 40, "naturalezas": 2, "cumple_regla": 70},
+    ],
+    "M16d_por_usuario": [
+        {"clave": "U01", "lineas": 150, "nat_producto": 100, "otra_nat": 50, "naturalezas": 2, "cumple_regla": 140},
+        {"clave": "", "lineas": 50, "nat_producto": 0, "otra_nat": 50, "naturalezas": 1, "cumple_regla": 50},
+    ],
+    "M19_dnc": [{"grupo": "MA9999", "n": 100, "dncpro_existe": 100, "cod2_linea": 90, "cod2_dncpro": 90,
+                 "cod2_igual": 90, "cod2_ambos_vacios": 10, "caa_dncpro": 100, "caa_igual": 99, "pro_igual": 100,
+                 "nat_dncpro": 100, "nat_igual": 97, "nat_igual_pro_dncpro": 50, "paride_igual": 80,
+                 "dncide_igual": 100, "obra_igual": 100, "cen_igual": 100}],
+    "M19_cod2_origen": [
+        {"origen_dnc": "sin_dnc", "n": 200, "ctr_mismo_producto": 20, "ctr_cualquier_linea": 30,
+         "dnc_misma_obra_producto": 150, "dnc_misma_obra": 196, "sin_anterior_prv": 10, "anterior_prv": 100,
+         "sin_anterior_obra_pro": 40, "anterior_obra_pro": 120, "es_cod_partida": 5, "es_cod_producto": 0,
+         "repetido_en_albaran": 60, "con_contrato": 50},
+        {"origen_dnc": "con_dnc", "n": 100, "ctr_mismo_producto": 0, "ctr_cualquier_linea": 0,
+         "dnc_misma_obra_producto": 100, "dnc_misma_obra": 100, "sin_anterior_prv": 0, "anterior_prv": 50,
+         "sin_anterior_obra_pro": 0, "anterior_obra_pro": 60, "es_cod_partida": 0, "es_cod_producto": 0,
+         "repetido_en_albaran": 10, "con_contrato": 0},
+    ],
+    "M19_cod2_valores": [{"cod2": "P-01", "lineas": 50, "obras": 3, "productos": 10, "proveedores": 4, "con_dnc": 5}],
+    "M19_vinculadas": [{"n": 1000, "cod2_linea": 300, "cod2_ctrpro": 300, "cod2_igual": 298, "cod2_ambos_vacios": 700,
+                        "ctr_desde_dnc": 250, "cod2_igual_dncpro_del_ctr": 240, "linea_con_dnc": 10}],
+    "M19_altas_usuario": [
+        {"usu": "U01", "producto": "MA9999", "lineas": 600, "albaranes": 100, "sin_vincular": 590, "en_usu": 1,
+         "desactivado": 0},
+        {"usu": "U01", "producto": "QA9999", "lineas": 100, "albaranes": 30, "sin_vincular": 100, "en_usu": 1,
+         "desactivado": 0},
+        {"usu": "U02", "producto": "MA9999", "lineas": 250, "albaranes": 50, "sin_vincular": 250, "en_usu": 1,
+         "desactivado": 0},
+        {"usu": "", "producto": "MA9999", "lineas": 40, "albaranes": 4, "sin_vincular": 40, "en_usu": 0,
+         "desactivado": 0},
+        {"usu": "SIGRIDAPI", "producto": "XA9999", "lineas": 10, "albaranes": 1, "sin_vincular": 10, "en_usu": 0,
+         "desactivado": 0},
+    ],
+    "M19_sin_alta": [{"cod": "AC26/15951", "fec": 20260601, "est": 1, "lineas": 10, "sin_vincular": 0}],
+    "M19_api": [{"producto": "MA9999", "emp": 1, "lineas": 3, "vinculadas": 3},
+                {"producto": "SM0101", "emp": 1, "lineas": 7, "vinculadas": 7}],
+}
+
+
+def _datos_quater() -> dict[str, list[dict[str, Any]]]:
+    return {**_datos_ampliacion(), **_DATOS_QUATER}
+
+
+class _ClienteQueCuentaMarcadores(_ClienteFalso):
+    """Comprueba en cada llamada que hay tantos `?` como parámetros (lo que exigirá pyodbc)."""
+
+    def leer(self, sql: str, parametros: list[Any] | None = None, **kw: Any) -> t0.Resultado:
+        assert sql.count("?") == len(parametros or []), sql[:80]
+        return super().leer(sql, parametros, **kw)
+
+
+def test_f009_t0a_quater_existen_las_sentencias_nuevas() -> None:
+    assert [k for k in _NUEVAS_T0A_QUATER if k not in t0.SQL] == []
+    assert "M19" in t0.MEDICIONES
+
+
+@pytest.mark.parametrize("nombre", _NUEVAS_T0A_QUATER)
+def test_f009_t0a_quater_sentencias_parametrizadas_sin_literales_ni_isnull_negativo(nombre: str) -> None:
+    import re
+
+    sql = t0.SQL[nombre]
+    assert "{" not in sql, nombre
+    assert ("?" in sql) is (nombre not in _SIN_PARAMETROS_QUATER), nombre
+    for literal in (*t0.PRODUCTOS_GENERICOS, "MA1501", "MA99", t0.COD_ALBARAN_API):
+        assert literal not in sql, (nombre, literal)
+    assert not re.search(r"ISNULL\([^()]*,\s*-1\)", sql), nombre
+
+
+@pytest.mark.parametrize("nombre", sorted(t0.SQL))
+def test_f009_t0a_quater_ninguna_sentencia_lee_contrasenas(nombre: str) -> None:
+    """`usu.cla` (contraseña) y `usuemp.pas` no se leen nunca: M19 solo necesita el código del usuario."""
+    import re
+
+    assert not re.search(r"\b(cla|pas)\b", t0.SQL[nombre], re.IGNORECASE), nombre
+
+
+@pytest.mark.parametrize("medir", ["m14", "m16", "m19"])
+def test_f009_t0a_quater_cada_llamada_lleva_tantos_parametros_como_marcadores(medir: str) -> None:
+    cliente = _ClienteQueCuentaMarcadores(_datos_quater())
+    getattr(t0, medir)(cliente)
+    assert cliente.llamadas
+
+
+def test_f009_t0a_quater_m14d_va_por_el_producto_en_cualquier_almacen() -> None:
+    sql = t0.SQL["M14d_prepma_producto"]
+    assert "c.fec >= ? AND c.fec <= ?" in sql and "m.docide = d.docide AND m.linide = d.ide" in sql
+    assert "m.doctip = 14" in sql
+    # Índice pfhi (producto, fechor): anterior y siguiente del MISMO producto, sin filtrar el almacén.
+    assert ("OUTER APPLY (SELECT TOP 1 p.ide, p.prepma, p.doctip, p.almide FROM dbo.mov p WHERE p.proide = m.proide "
+            "AND p.fechor <= m.fechor AND (p.fechor < m.fechor OR p.ide < m.ide) ORDER BY p.fechor DESC, p.ide DESC) a"
+            ) in sql
+    assert ("OUTER APPLY (SELECT TOP 1 q.ide, q.prepma, q.doctip FROM dbo.mov q WHERE q.proide = m.proide "
+            "AND q.fechor >= m.fechor AND (q.fechor > m.fechor OR q.ide > m.ide) ORDER BY q.fechor, q.ide) s") in sql
+    assert "p.almide = m.almide" not in sql
+    for col in ("siguiente", "sin_anterior", "igual_anterior_producto", "igual_siguiente_producto", "igual_pre",
+                "igual_prc", "igual_dcapro_pre", "entre_anterior_y_pre", "anterior_igual_pre", "anterior_igual_siguiente",
+                "anterior_es_albaran"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    assert "ABS(m.prepma - m.pre)" in sql and "ABS(m.prepma - m.prc)" in sql and "ABS(m.prepma - d.pre)" in sql
+    assert "ORDER BY m.ide DESC" in t0.SQL["M14d_muestra"]
+
+
+def test_f009_t0a_quater_m14_pasa_la_ventana_de_un_mes_a_m14d() -> None:
+    cliente = _ClienteFalso(_datos_quater())
+    t0.m14(cliente)  # type: ignore[arg-type]
+    llamadas = dict(cliente.llamadas)
+    assert llamadas["M14d_prepma_producto"] == list(t0.VENTANA_M9) and llamadas["M14d_muestra"] == list(t0.VENTANA_M9)
+
+
+def test_f009_t0a_quater_lectura_m14d_arrastre_y_candidatas() -> None:
+    texto = " ".join(t0.lectura_m14d(_DATOS_QUATER["M14d_prepma_producto"]))
+    assert "M14d mov.prepma (1000 mov de albarán)" in texto
+    assert "= prepma del mov anterior del producto 80 de 995 (8.0 %) (sin anterior: 5)" in texto
+    assert "= prepma del mov siguiente del producto 620 de 980 (63.3 %) (sin siguiente: 20)" in texto
+    assert "⇒ ninguna candidata llega al 95 %: no concluyente" in texto
+    assert ("mov siguiente que NO es albarán de compra: = mov.prepma 590 de 600 (98.3 %) ⇒ los mov que no son compra "
+            "arrastran el prepma") in texto
+    assert "otro albarán de compra: 30 de 380 (7.9 %)" in texto
+    assert "entre el prepma anterior y mov.pre (compatible con una media ponderada) 970 de 995" in texto
+    assert "no es calculable" in texto
+
+
+@pytest.mark.parametrize(("aciertos", "regla"), [(95, True), (94, False)])
+def test_f009_t0a_quater_lectura_m14d_en_el_limite_del_umbral(aciertos: int, regla: bool) -> None:
+    fila = [{"siguiente": "otro_documento", "n": 100, "sin_anterior": 0, "igual_anterior_producto": aciertos,
+             "igual_siguiente_producto": 10}]
+    texto = " ".join(t0.lectura_m14d(fila))
+    assert ("⇒ mov.prepma = prepma del mov anterior del producto (cualquier almacén)" in texto) is regla
+
+
+def test_f009_t0a_quater_lectura_m14d_sin_medicion_frente_a_cero_filas() -> None:
+    rota = " ".join(t0.lectura_m14d(None))
+    assert "M14d_prepma_producto SIN MEDICIÓN" in rota and "cero filas" not in rota
+    vacia = " ".join(t0.lectura_m14d([]))
+    assert "cero filas" in vacia and "SIN MEDICIÓN" not in vacia and "⇒ mov.prepma =" not in vacia
+
+
+def test_f009_t0a_quater_m16d_sql_de_excepciones_y_candidatas() -> None:
+    exc = t0.SQL["M16d_excepciones"]
+    assert "kp.emp = ? AND kp.cod = ?" in exc and "THEN 1 ELSE 0 END = 0" in exc and "u.cod IS NULL" in exc
+    assert "RTRIM(LTRIM(oc.cod)) + '.' + SUBSTRING(" in exc and "RTRIM(LTRIM(ec.cod)) + '.' + SUBSTRING(" in exc
+    assert "kc.cod AS caa_cod" in exc and "oc.cod AS obra" in exc and "TOP 20" in exc
+    suf = t0.SQL["M16d_sufijos"]
+    assert "'(sin punto)'" in suf and "AS empieza_por_obra" in suf and "COUNT(DISTINCT d.obride) AS obras" in suf
+    cand = t0.SQL["M16d_candidatas"]
+    assert "RTRIM(LTRIM(kc.cod)) = RTRIM(LTRIM(oc.cod)) + '.' + RTRIM(LTRIM(nl.caagascod))" in cand
+    assert "RTRIM(LTRIM(kc.cod)) = RTRIM(LTRIM(oc.cod)) + '.' + RTRIM(LTRIM(nl.cod))" in cand
+    assert "LAG(ISNULL(d.caaide, 0)) OVER (PARTITION BY d.obride, d.natide ORDER BY d.ide)" in cand
+    assert "LAG(ISNULL(d.caaide, 0)) OVER (PARTITION BY d.obride, d.proide ORDER BY d.ide)" in cand
+    assert cand.count("?") == 1 + len(t0.PRODUCTOS_GENERICOS)
+    for col in ("regla_actual", "caagascod_entero", "obra_natcod", "regla_ampliada", "sin_anterior_obra_nat",
+                "anterior_obra_nat", "sin_anterior_obra_pro", "anterior_obra_pro", "caa_informada"):
+        assert f"AS {col}," in cand or f"AS {col} " in cand, col
+    maestro = t0.SQL["M16d_maestro"]
+    assert "c.emp = ? AND c.cod = ?" in maestro and "n.caagascod" in maestro and "n.cuacomcod" in maestro
+
+
+def test_f009_t0a_quater_m16d_eleccion_por_obra_proveedor_y_usuario() -> None:
+    for nombre, clave in (("M16d_por_obra", "oc.cod"), ("M16d_por_proveedor", "a.entide"),
+                          ("M16d_por_usuario", "ISNULL(RTRIM(LTRIM(l.usu)), '')")):
+        sql = t0.SQL[nombre]
+        assert f"SELECT TOP {t0.TOP_ELECCION_M16D} {clave} AS clave," in sql, nombre
+        assert "kp.emp = ? AND kp.cod = ? AND c.fec >= ?" in sql, nombre
+        assert "AS nat_producto," in sql and "AS otra_nat," in sql and "AS cumple_regla" in sql, nombre
+    usu = t0.SQL["M16d_por_usuario"]
+    assert "ope = 1" in usu and "l.ide = al.ult_alta" in usu and "al.emp = c.emp AND al.cod = c.cod" in usu
+
+
+def test_f009_t0a_quater_m16_pasa_xa9999_y_ma9999_a_las_excepciones() -> None:
+    cliente = _ClienteFalso(_datos_quater())
+    t0.m16(cliente)  # type: ignore[arg-type]
+    excepciones = [p for k, p in cliente.llamadas if k == "M16d_excepciones"]
+    assert excepciones == [[t0.EMPRESA_GENERICOS, "XA9999"], [t0.EMPRESA_GENERICOS, "MA9999"]]
+    assert [p for k, p in cliente.llamadas if k == "M16d_sufijos"] == excepciones
+    assert dict(cliente.llamadas)["M16d_maestro"] == [t0.EMPRESA_GENERICOS, "XA9999"]
+    assert dict(cliente.llamadas)["M16d_candidatas"] == [t0.EMPRESA_GENERICOS, *t0.PRODUCTOS_GENERICOS]
+    for nombre in ("M16d_por_obra", "M16d_por_proveedor", "M16d_por_usuario"):
+        assert dict(cliente.llamadas)[nombre] == [t0.EMPRESA_GENERICOS, "MA9999", t0.DESDE_ALTAS_LOG], nombre
+
+
+def test_f009_t0a_quater_lecturas_m16d_maestro_excepciones_y_sufijos() -> None:
+    maestro = t0.lectura_m16d_maestro(_DATOS_QUATER["M16d_maestro"])
+    assert "Maestro de XA9999 (empresa 1, ide 9): «Varios»; naturaleza «XA99» Otros gastos" in maestro
+    assert "caagascod «CDXA99»" in maestro and "sin '.': la regla de M16c no se puede aplicar" in maestro
+    exc = t0.lectura_m16d_excepciones("XA9999", _DATOS_QUATER["M16d_excepciones"])
+    assert "Excepciones de XA9999, TOP 2 (100 líneas que no cumplen M16c)" in exc
+    assert "caa empieza por «<obra>.» 100 de 100 (100.0 %)" in exc
+    assert "= <obra>.<caagascod entero> 80 de 100 (80.0 %)" in exc and "= <obra>.<código de la naturaleza> 0 de 100" in exc
+    suf = t0.lectura_m16d_sufijos("MA9999", _DATOS_QUATER["M16d_sufijos"])
+    assert "Sufijos de la caa en las excepciones de MA9999 (100 líneas en el TOP 2)" in suf
+    assert "«CDXA99» (naturaleza «XA99», CDXA99) 80 de 100 (80.0 %)" in suf
+    assert "sufijo = caagascod entero 80 de 100" in suf and "= caagascod tras el '.' 0 de 100" in suf
+
+
+def test_f009_t0a_quater_lectura_m16d_candidatas() -> None:
+    texto = " ".join(t0.lectura_m16d_candidatas(_DATOS_QUATER["M16d_candidatas"]))
+    assert ("XA9999 / con_partida (100 líneas): caa ⇒ REGLA escribible «M16c ampliada (<obra>.<caagascod entero> si "
+            "no hay '.')» 97 de 100 (97.0 %) (empata con: <obra>.<caagascod entero>)") in texto
+    assert ("MA9999 / con_partida (1000 líneas): caa ⇒ REGLA escribible «la de la sin vincular anterior de la misma "
+            "obra y naturaleza» 960 de 1000 (96.0 %)") in texto
+    assert "con anterior de la misma obra y naturaleza acierta 960 de 980 (98.0 %)" in texto
+    assert "Hipótesis M16d" in texto and "NO confirmada en el total (1017 de 1100 (92.5 %))" in texto
+
+
+@pytest.mark.parametrize(("aciertos", "regla"), [(95, True), (94, False)])
+def test_f009_t0a_quater_lectura_m16d_candidatas_en_el_limite(aciertos: int, regla: bool) -> None:
+    fila = [{"grupo": "XA9999", "partida": "sin_partida", "n": 100, "regla_ampliada": aciertos, "regla_actual": 0}]
+    texto = " ".join(t0.lectura_m16d_candidatas(fila))
+    assert ("Hipótesis M16d" in texto) and (("CONFIRMADA en el total" in texto) is regla)
+
+
+def test_f009_t0a_quater_lectura_m16d_eleccion_por_dimension() -> None:
+    assert t0.UMBRAL_PUREZA_M16D == 0.95
+    datos = {k: _DATOS_QUATER[n] for k, n in (("obra", "M16d_por_obra"), ("proveedor", "M16d_por_proveedor"),
+                                                ("usuario", "M16d_por_usuario"))}
+    texto = " ".join(t0.lectura_m16d_eleccion(datos))
+    assert "Naturaleza en MA9999 por obra (2 ítems, 200 líneas): sigue la mayoritaria de su obra 197 de 200 (98.5 %)" in texto
+    assert "ítems mixtos 2 (200 de 200 (100.0 %) de las líneas)" in texto
+    assert "por proveedor (2 ítems, 200 líneas): sigue la mayoritaria de su proveedor 100 de 200 (50.0 %)" in texto
+    assert "Lectura M16d: la naturaleza de las líneas MA9999 la fija la obra (sigue la mayoritaria 197 de 200" in texto
+    mixta = " ".join(t0.lectura_m16d_eleccion({"obra": _DATOS_QUATER["M16d_por_proveedor"], "proveedor": [],
+                                                "usuario": None}))
+    assert "ninguna dimensión sola fija la naturaleza (la más pura: la obra" in mixta
+    assert "por proveedor: cero filas" in mixta and "M16d_por_usuario SIN MEDICIÓN" in mixta
+
+
+def test_f009_t0a_quater_lecturas_m16d_sin_medicion_frente_a_cero_filas() -> None:
+    assert "M16d_maestro SIN MEDICIÓN" in t0.lectura_m16d_maestro(None)
+    assert "no está (cero filas)" in t0.lectura_m16d_maestro([])
+    assert "M16d_excepciones SIN MEDICIÓN" in t0.lectura_m16d_excepciones("MA9999", None)
+    assert "cero filas" in t0.lectura_m16d_excepciones("MA9999", [])
+    assert "M16d_sufijos SIN MEDICIÓN" in t0.lectura_m16d_sufijos("MA9999", None)
+    assert "cero filas" in t0.lectura_m16d_sufijos("MA9999", [])
+    rota = " ".join(t0.lectura_m16d_candidatas(None))
+    assert "M16d_candidatas SIN MEDICIÓN" in rota and "REGLA" not in rota
+    vacia = " ".join(t0.lectura_m16d_candidatas([]))
+    assert "cero filas" in vacia and "CONFIRMADA" not in vacia
+    sin = " ".join(t0.lectura_m16d_eleccion({"obra": None, "proveedor": None, "usuario": None}))
+    assert "SIN MEDICIÓN" in sin and "la fija" not in sin and "ninguna dimensión" not in sin
+
+
+def test_f009_t0a_quater_m19_sql() -> None:
+    dnc = t0.SQL["M19_dnc"]
+    assert "LEFT JOIN dbo.dncpro p ON p.ide = d.dncproide" in dnc and "ISNULL(d.dncproide, 0) > 0" in dnc
+    assert "LEFT JOIN dbo.dnc n ON n.ide = p.dncide" in dnc and "LEFT JOIN dbo.pro rp ON rp.ide = p.proide" in dnc
+    for col in ("cod2_igual", "cod2_ambos_vacios", "caa_igual", "pro_igual", "nat_igual", "nat_igual_pro_dncpro",
+                "paride_igual", "obra_igual"):
+        assert f"AS {col}," in dnc or f"AS {col} " in dnc, col
+    origen = t0.SQL["M19_cod2_origen"]
+    assert "WHERE x.cod2 <> ''" in origen and "LAG(RTRIM(LTRIM(ISNULL(d.cod2, '')))) OVER (PARTITION BY a.entide" in origen
+    assert "FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '') tc ON tc.docide = a.ctride AND tc.proide = d.proide" in origen
+    assert "FROM dbo.dncpro p JOIN dbo.dnc n ON n.ide = p.dncide" in origen and "pp.ide = d.paride" in origen
+    assert "COUNT(*) OVER (PARTITION BY d.docide" in origen
+    vinc = t0.SQL["M19_vinculadas"]
+    assert "t.ide = d.linoriide" in vinc and "pc.ide = t.dncproide" in vinc and "d.docoritip = 44" in vinc
+    altas = t0.SQL["M19_altas_usuario"]
+    assert "kp.emp = ? AND kp.cod IN (?, ?, ?)" in altas and "WHERE c.tip = 14 AND c.fec >= ?" in altas
+    assert "l.ide = al.ult_alta" in altas and "FROM dbo.usu GROUP BY" in altas
+    assert "al.cod IS NULL" in t0.SQL["M19_sin_alta"] and "c.cod = ?" in t0.SQL["M19_api"]
+
+
+def test_f009_t0a_quater_m19_pasa_los_parametros() -> None:
+    cliente = _ClienteFalso(_datos_quater())
+    t0.m19(cliente)  # type: ignore[arg-type]
+    llamadas = dict(cliente.llamadas)
+    blanca = [t0.EMPRESA_GENERICOS, *t0.LISTA_BLANCA_GENERICOS, t0.DESDE_ALTAS_LOG]
+    assert llamadas["M19_dnc"] == [t0.EMPRESA_GENERICOS, *t0.PRODUCTOS_GENERICOS]
+    assert llamadas["M19_altas_usuario"] == blanca and llamadas["M19_sin_alta"] == blanca
+    assert llamadas["M19_api"] == [t0.COD_ALBARAN_API]
+    assert llamadas["M19_cod2_origen"] == [] and llamadas["M19_vinculadas"] == []
+
+
+def test_f009_t0a_quater_lectura_m19_dnc() -> None:
+    assert t0.UMBRAL_HEREDA_DNC == 0.95
+    texto = " ".join(t0.lectura_m19_dnc(_DATOS_QUATER["M19_dnc"]))
+    assert "MA9999 (100 líneas con dncproide; dncpro existe 100 de 100 (100.0 %))" in texto
+    assert "cod2 = el de dncpro 90 de 90 (100.0 %)" in texto and "coherente (igual o ambos vacíos) 100 de 100" in texto
+    assert ("Lectura M19 (total): se heredan de la línea de planificación (≥ 95 %): cod2, caaide, producto, natide; "
+            "no se heredan: partida.") in texto
+
+
+def test_f009_t0a_quater_lectura_m19_cod2_origen_y_vinculadas() -> None:
+    texto = " ".join(t0.lectura_m19_cod2_origen(_DATOS_QUATER["M19_cod2_origen"]))
+    assert ("cod2 de las sin vincular sin_dnc (200 líneas): ⇒ REGLA escribible «alguna planificación de la misma obra» "
+            "196 de 200 (98.0 %)") in texto
+    assert "línea anterior del mismo proveedor 100 de 200 (50.0 %)" in texto
+    assert "repetido en otra línea del mismo albarán 60 de 200 (30.0 %)" in texto
+    assert "(empata con: alguna planificación de la misma obra)" in texto  # con_dnc: 100 y 100
+    vinc = t0.lectura_m19_vinculadas(_DATOS_QUATER["M19_vinculadas"][0])
+    assert "Vinculadas desde 2025 (1000 líneas): cod2 en la línea 300 de 1000 (30.0 %)" in vinc
+    assert "igual al de ctrpro 298 de 300 (99.3 %)" in vinc and "⇒ el cod2 de la vinculada se copia de ctrpro" in vinc
+
+
+def test_f009_t0a_quater_lectura_m19_usuarios_y_api() -> None:
+    texto = " ".join(t0.lectura_m19_usuarios(_DATOS_QUATER["M19_altas_usuario"]))
+    assert "(1000 líneas, 4 usuarios)" in texto
+    assert "«U01» 700 de 1000 (70.0 %) (MA9999 600, QA9999 100)" in texto
+    assert "Sin fila de alta en log: 40 de 1000 (4.0 %)" in texto
+    assert "Posibles usuarios técnicos por su código: «SIGRIDAPI» 10 de 1000 (1.0 %)" in texto
+    assert "Usuarios del log que no están en usu: «SIGRIDAPI»" in texto
+    assert t0.es_usuario_tecnico("sigrid_api") and t0.es_usuario_tecnico("PRUEBA") and not t0.es_usuario_tecnico("U01")
+    api = " ".join(t0.lectura_m19_api(_DATOS_QUATER["M19_api"], _DATOS_QUATER["M19_sin_alta"]))
+    assert "AC26/15951 (API): 10 líneas; de genéricos de la lista blanca: MA9999 3 (3 vinculadas)" in api
+    assert "sin alta en log: 1 en el TOP 10 (AC26/15951) ⇒ solo el albarán de prueba de la API" in api
+    otros = " ".join(t0.lectura_m19_api([], [{"cod": "AC26/1", "lineas": 2}, {"cod": "AC26/15951", "lineas": 1}]))
+    assert "AC26/15951: no está (cero filas)" in otros and "hay otros además del de prueba" in otros
+    assert "ninguno ⇒ no hay líneas" in " ".join(t0.lectura_m19_api([], []))
+
+
+def test_f009_t0a_quater_lecturas_m19_sin_medicion_frente_a_cero_filas() -> None:
+    for lectura, nombre in ((t0.lectura_m19_dnc, "M19_dnc"), (t0.lectura_m19_cod2_origen, "M19_cod2_origen"),
+                            (t0.lectura_m19_usuarios, "M19_altas_usuario")):
+        rota = " ".join(lectura(None))
+        assert f"{nombre} SIN MEDICIÓN" in rota and "cero filas" not in rota, nombre
+        vacia = " ".join(lectura([]))
+        assert "cero filas" in vacia and "SIN MEDICIÓN" not in vacia, nombre
+    assert "M19_vinculadas SIN MEDICIÓN" in t0.lectura_m19_vinculadas(None)
+    assert "cero filas" in t0.lectura_m19_vinculadas({})
+    rota = " ".join(t0.lectura_m19_api(None, None))
+    assert "M19_api SIN MEDICIÓN" in rota and "M19_sin_alta SIN MEDICIÓN" in rota and "ninguno" not in rota
+
+
+@pytest.mark.parametrize(("medir", "rota"), [
+    ("m14", "M14d_prepma_producto"), ("m14", "M14d_muestra"),
+    *(("m16", n) for n in ("M16d_maestro", "M16d_excepciones", "M16d_sufijos", "M16d_candidatas", "M16d_por_obra",
+                           "M16d_por_proveedor", "M16d_por_usuario")),
+    *(("m19", n) for n in ("M19_dnc", "M19_cod2_origen", "M19_cod2_valores", "M19_vinculadas", "M19_altas_usuario",
+                           "M19_sin_alta", "M19_api")),
+])
+def test_f009_t0a_quater_un_fallo_no_pierde_el_bloque(medir: str, rota: str) -> None:
+    texto = getattr(t0, medir)(_rompe(rota, _datos_quater())).texto()
+    assert f"{rota} no se pudo leer (ReadTimeout" in texto
+    assert texto.count("no se pudo leer") == (2 if rota in ("M16d_excepciones", "M16d_sufijos") else 1), rota
+    assert "CONCLUSIÓN" in texto
+
+
+def test_f009_t0a_quater_main_con_la_lista_de_t0b_quater(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ClienteFalso(_datos_quater()))
+    salida = tmp_path / "t0bquater.txt"
+    assert t0.main(["--solo", "M14", "M16", "M19", "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert all(f"=== {k} ·" in texto for k in ("M14", "M16", "M19"))
+    assert "SIN MEDICIÓN" not in texto and "no se pudo leer" not in texto and "ERROR" not in texto
+    for esperado in ("M14d mov.prepma", "M16d Maestro de XA9999", "Lectura M16d", "Hipótesis M16d",
+                     "Lectura M19 (total)", "Sin fila de alta en log", "AC26/15951 (API)"):
         assert esperado in texto, esperado
