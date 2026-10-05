@@ -6,7 +6,7 @@ Lanza cada medición como SELECT por `POST /api/sql/read` contra la API
 desplegada y escribe, en español, la conclusión que necesita la spec
 (`specs/F-009-alta-albaran-compra/`, puntos [Mn]; M16-M18 y las ampliaciones de M11
 y M14, de `progress/spec_F-009.md` §T0 v5; M9 y M11 por ventanas cortas, M14b, M16b y
-M17b, de la segunda pasada T0a-bis). No escribe nada en Sigrid, no llama a ningún
+M17b, de la segunda pasada T0a-bis; M16c, subbloque de M16, de T0a-ter). No escribe nada en Sigrid, no llama a ningún
 endpoint de dominio (ni en dry-run) y no se conecta por SQL.
 
 Configuración (la de los demás scripts de este repositorio): variables de
@@ -19,6 +19,7 @@ Uso:
     python -m scripts.medir_f009_t0 --solo M5       # una (o varias: --solo M5 M6)
     python -m scripts.medir_f009_t0 --solo M3 M7 M9 M11 M13 M14 M16 M17 M18   # repetición T0b
     python -m scripts.medir_f009_t0 --solo M9 M11 M14 M16 M17                  # segunda pasada (T0a-bis)
+    python -m scripts.medir_f009_t0 --solo M16                                 # M16c (T0a-ter)
     python -m scripts.medir_f009_t0 --salida C:\\ruta\\fuera\\del\\repo.txt
 
 Resultado: por pantalla y en un fichero de %TEMP% (`f009_t0_<fecha>.txt`), que
@@ -126,6 +127,38 @@ def _caa_es(alias: str, campo: str) -> str:
 _CAA_ES_CAAGASCOD = _caa_es("nt", "caagascod")
 _CAA_EMPIEZA_POR_CUENTA = "ISNULL(cf.cod, '') <> '' AND LEFT(kc.cod, LEN(cf.cod)) = cf.cod"
 _CAA_DEL_CENTRO = "k.cenide = d.cenide"
+
+
+# T0a-ter, M16c: la regla que sugiere la muestra de M16b. Códigos de `con`/`auxpronat` recortados (pueden
+# ser CHAR). (cenide, código) repetidos entre las caa: ahí la regla no fija UNA caa y no cuenta como acierto.
+def _recorta(expr: str) -> str:
+    return f"RTRIM(LTRIM({expr}))"
+
+
+_CAA_REPETIDAS = (
+    "(SELECT a2.cenide, RTRIM(LTRIM(c2.cod)) AS cod FROM dbo.caa a2 JOIN dbo.con c2 ON c2.ide = a2.ide "
+    "GROUP BY a2.cenide, RTRIM(LTRIM(c2.cod)) HAVING COUNT(*) > 1)"
+)
+
+
+def _une_caa_repetidas(caa: str, caa_cod: str) -> str:
+    return f"LEFT JOIN {_CAA_REPETIDAS} u ON u.cenide = {caa}.cenide AND u.cod = {_recorta(caa_cod + '.cod')}"
+
+
+def _regla_caa(nat: str, codigo: str, caa: str = "k", caa_cod: str = "kc", centro: str = "d.cenide") -> str:
+    """La caa (`caa`, su con `caa_cod`) es la del centro de la línea y su código es el de `codigo` (obra o
+    centro) + '.' + el `caagascod` de la naturaleza `nat` tras el primer '.'; sin '.' no casa."""
+    gas = _recorta(f"{nat}.caagascod")
+    return (f"{caa}.cenide = {centro} AND CHARINDEX('.', {gas}) > 0 AND {_recorta(caa_cod + '.cod')} = "
+            f"{_recorta(codigo + '.cod')} + '.' + SUBSTRING({gas}, CHARINDEX('.', {gas}) + 1, 24) AND u.cod IS NULL")
+
+
+def _cuenta_es_cuacomcod(nat: str) -> str:
+    return f"ISNULL({nat}.cuacomcod, '') <> '' AND {_recorta('cf.cod')} = {_recorta(nat + '.cuacomcod')}"
+
+
+def _sin_mod(nat: str) -> str:
+    return f"LEFT(LTRIM(ISNULL({nat}.caagascod, '')), 4) <> 'MOD.'"
 # T0a-bis, M17b: altas (ope 1) de albarán en la ventana de log, por (emp, cod), y el caso de cada ope 2.
 _ALTAS_LOG = (
     "(SELECT emp, cod, MIN(ide) AS pri_alta, MAX(ide) AS ult_alta FROM dbo.log "
@@ -166,6 +199,8 @@ VENTANA_M9 = (20260901, 20260930)
 VENTANA_M11 = (20260701, 20260930)
 DESDE_M14B, DESDE_LAG_M14B = 20260901, 20260101   # M14b: albaranes desde 2026-09, el anterior desde 2026
 EMPRESA_GENERICOS = 1        # M16b: los genéricos de la empresa 1, cada uno por separado
+UMBRAL_REGLA_ESCRIBIBLE = 0.95   # M16c: «≥ 95 % ⇒ REGLA escribible» (encargo de T0a-ter)
+GENERICO_NATURALEZAS_M16C = "MA9999"   # M16c: qué naturalezas eligen los usuarios en el MA9999 de la empresa 1
 REINTENTOS_INTERBLOQUEO = 2  # error 1205 de SQL Server (transitorio): se reintenta con espera creciente
 ESPERA_INTERBLOQUEO_S = 5
 
@@ -583,6 +618,62 @@ SQL: dict[str, str] = {
         "LEFT JOIN (SELECT docproide, COUNT(*) AS filas, MIN(ISNULL(caaide, 0)) AS caa_min, "
         "MAX(ISNULL(caaide, 0)) AS caa_max FROM dbo.dcaproana GROUP BY docproide) x ON x.docproide = d.ide "
         f"{_SIN_VINCULAR_DESDE_2025}"
+    ),
+    # --- T0a-ter, M16c: ¿caa = <obra o centro>.<caagascod tras el '.'> de la naturaleza de la línea? ---
+    # Mismo universo y grupos que M16b. Cada regla es una bandera 0/1 por línea en la tabla derivada.
+    "M16c_reglas": (
+        "SELECT x.grupo, x.partida, COUNT(*) AS n, SUM(x.regla_linea_obra) AS regla_linea_obra, "
+        "SUM(x.regla_linea_centro) AS regla_linea_centro, SUM(x.regla_producto_obra) AS regla_producto_obra, "
+        "SUM(x.regla_producto_centro) AS regla_producto_centro, SUM(x.cueide_linea) AS cueide_linea, "
+        "SUM(x.cueide_producto) AS cueide_producto, SUM(x.linea_sin_mod) AS linea_sin_mod, "
+        "SUM(x.linea_sin_punto) AS linea_sin_punto, SUM(x.linea_sin_naturaleza) AS linea_sin_naturaleza, "
+        "SUM(x.producto_sin_mod) AS producto_sin_mod, SUM(x.linea_caaexicod) AS linea_caaexicod, "
+        "SUM(x.producto_caaexicod) AS producto_caaexicod, SUM(x.caa_repetida) AS caa_repetida, "
+        "SUM(x.obra_igual_centro) AS obra_igual_centro "
+        f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, {_CON_SIN_PARTIDA} AS partida, "
+        f"CASE WHEN {_regla_caa('nl', 'oc')} THEN 1 ELSE 0 END AS regla_linea_obra, "
+        f"CASE WHEN {_regla_caa('nl', 'ec')} THEN 1 ELSE 0 END AS regla_linea_centro, "
+        f"CASE WHEN {_regla_caa('nt', 'oc')} THEN 1 ELSE 0 END AS regla_producto_obra, "
+        f"CASE WHEN {_regla_caa('nt', 'ec')} THEN 1 ELSE 0 END AS regla_producto_centro, "
+        f"CASE WHEN {_cuenta_es_cuacomcod('nl')} THEN 1 ELSE 0 END AS cueide_linea, "
+        f"CASE WHEN {_cuenta_es_cuacomcod('nt')} THEN 1 ELSE 0 END AS cueide_producto, "
+        f"CASE WHEN {_sin_mod('nl')} THEN 1 ELSE 0 END AS linea_sin_mod, "
+        "CASE WHEN CHARINDEX('.', ISNULL(nl.caagascod, '')) = 0 THEN 1 ELSE 0 END AS linea_sin_punto, "
+        "CASE WHEN nl.ide IS NULL THEN 1 ELSE 0 END AS linea_sin_naturaleza, "
+        f"CASE WHEN {_sin_mod('nt')} THEN 1 ELSE 0 END AS producto_sin_mod, "
+        "CASE WHEN ISNULL(nl.caaexicod, '') <> '' THEN 1 ELSE 0 END AS linea_caaexicod, "
+        "CASE WHEN ISNULL(nt.caaexicod, '') <> '' THEN 1 ELSE 0 END AS producto_caaexicod, "
+        "CASE WHEN u.cod IS NULL THEN 0 ELSE 1 END AS caa_repetida, "
+        "CASE WHEN RTRIM(LTRIM(oc.cod)) = RTRIM(LTRIM(ec.cod)) THEN 1 ELSE 0 END AS obra_igual_centro "
+        f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_SIN_VINCULAR_DESDE_2025}) x "
+        "GROUP BY x.grupo, x.partida ORDER BY x.grupo, x.partida"
+    ),
+    # Qué naturalezas ponen los usuarios en las líneas del genérico (parámetros: empresa y código).
+    "M16c_naturalezas_ma": (
+        "SELECT TOP 15 nl.cod AS nat_cod, nl.res AS nat_res, nl.caagascod, COUNT(*) AS lineas, "
+        f"SUM(CASE WHEN {_regla_caa('nl', 'oc')} THEN 1 ELSE 0 END) AS regla_linea_obra, "
+        f"SUM(CASE WHEN {_regla_caa('nt', 'oc')} THEN 1 ELSE 0 END) AS regla_producto_obra, "
+        "SUM(CASE WHEN ISNULL(d.natide, 0) = ISNULL(r.natide, 0) THEN 1 ELSE 0 END) AS igual_producto "
+        f"{_M16B_DESDE} {_M16B_CODIGOS} {_une_caa_repetidas('k', 'kc')} {_SIN_VINCULAR_DESDE_2025} "
+        "AND kp.emp = ? AND kp.cod = ? GROUP BY nl.cod, nl.res, nl.caagascod ORDER BY lineas DESC"
+    ),
+    # Control: la misma regla sobre la línea de contrato (ctrpro) de las vinculadas desde 2025, por su clave
+    # primaria (como M16_caa_con_partida). Se cuentan líneas de contrato distintas.
+    "M16c_vinculadas": (
+        "SELECT x.grupo, COUNT(*) AS lineas, COUNT(DISTINCT x.ctrpro) AS ctrpro, "
+        "COUNT(DISTINCT CASE WHEN x.caa_informada = 1 THEN x.ctrpro END) AS caa_informada, "
+        "COUNT(DISTINCT CASE WHEN x.regla_linea_obra = 1 THEN x.ctrpro END) AS regla_linea_obra, "
+        "COUNT(DISTINCT CASE WHEN x.regla_linea_centro = 1 THEN x.ctrpro END) AS regla_linea_centro "
+        f"FROM (SELECT {_GRUPO_GENERICO} AS grupo, t.ide AS ctrpro, "
+        "CASE WHEN ISNULL(t.caaide, 0) <> 0 THEN 1 ELSE 0 END AS caa_informada, "
+        f"CASE WHEN {_regla_caa('tn', 'ot', 'kt', 'ktc', 't.cenide')} THEN 1 ELSE 0 END AS regla_linea_obra, "
+        f"CASE WHEN {_regla_caa('tn', 'et', 'kt', 'ktc', 't.cenide')} THEN 1 ELSE 0 END AS regla_linea_centro "
+        "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.ctrpro t ON t.ide = d.linoriide "
+        "LEFT JOIN dbo.con kp ON kp.ide = d.proide LEFT JOIN dbo.caa kt ON kt.ide = t.caaide "
+        "LEFT JOIN dbo.con ktc ON ktc.ide = t.caaide LEFT JOIN dbo.auxpronat tn ON tn.ide = t.natide "
+        "LEFT JOIN dbo.con ot ON ot.ide = t.obride LEFT JOIN dbo.con et ON et.ide = t.cenide "
+        f"{_une_caa_repetidas('kt', 'ktc')} WHERE c.tip = 14 AND c.fec >= 20250101 AND d.docoritip = 44) x "
+        "GROUP BY x.grupo ORDER BY x.grupo"
     ),
     # --- T0a (spec v5): M17 anulación de albaranes (H9). Ventana de log acotada por ide, como M13 ---
     "M17_ope": (
@@ -1624,8 +1715,130 @@ def lectura_dcaproana(fila: dict[str, Any]) -> str:
                else " ⇒ el escritorio no reparte la analítica de estas líneas en dcaproana."))
 
 
+# T0a-ter, M16c. Candidatas en orden de desempate (a igual proporción gana la de más arriba y se nombran
+# las empatadas): la naturaleza de la LÍNEA antes que la del producto (F-009 escribe dcapro.natide).
+REGLAS_CAA_M16C: tuple[tuple[str, str], ...] = (
+    ("regla_linea_obra", "obra.sufijo de caagascod de la naturaleza de la línea"),
+    ("regla_linea_centro", "centro.sufijo de caagascod de la naturaleza de la línea"),
+    ("regla_producto_obra", "obra.sufijo de caagascod de la naturaleza del producto"),
+    ("regla_producto_centro", "centro.sufijo de caagascod de la naturaleza del producto"),
+)
+REGLAS_CUENTA_M16C: tuple[tuple[str, str], ...] = (
+    ("cueide_linea", "cuacomcod de la naturaleza de la línea"),
+    ("cueide_producto", "cuacomcod de la naturaleza del producto"),
+)
+# Informativas: dónde la regla no puede aplicarse o puede fallar.
+AVISOS_M16C: tuple[tuple[str, str], ...] = (
+    ("linea_sin_mod", "naturaleza de la línea sin «MOD.»"),
+    ("linea_sin_punto", "sin «.» en su caagascod"),
+    ("linea_sin_naturaleza", "sin naturaleza"),
+    ("producto_sin_mod", "naturaleza del producto sin «MOD.»"),
+    ("linea_caaexicod", "caaexicod informado en la de la línea"),
+    ("producto_caaexicod", "en la del producto"),
+    ("caa_repetida", "caa con (centro, código) repetido"),
+    ("obra_igual_centro", "código de obra = código de centro"),
+)
+_UMBRAL_M16C_TXT = f"{UMBRAL_REGLA_ESCRIBIBLE:.0%}".replace("%", " %")
+
+
+def _veredicto_m16c(f: dict[str, Any], candidatas: tuple[tuple[str, str], ...], n: float) -> str:
+    mejor, desc_mejor = 0.0, ""
+    for campo, desc in candidatas:
+        if _num(f.get(campo)) > mejor:
+            mejor, desc_mejor = _num(f.get(campo)), desc
+    empatadas = [desc for campo, desc in candidatas if desc != desc_mejor and mejor > 0 and _num(f.get(campo)) == mejor]
+    empate = f" (empata con: {', '.join(empatadas)})" if empatadas else ""
+    if _cumple(mejor, n, UMBRAL_REGLA_ESCRIBIBLE):
+        return f"⇒ REGLA escribible «{desc_mejor}» {_pct(mejor, n)}{empate}"
+    return f"sin regla escribible (la mejor: «{desc_mejor or '-'}» {_pct(mejor, n)}){empate}"
+
+
+def _lectura_grupo_m16c(nombre: str, f: dict[str, Any]) -> list[str]:
+    n = _num(f.get("n"))
+    caa, cuenta = _veredicto_m16c(f, REGLAS_CAA_M16C, n), _veredicto_m16c(f, REGLAS_CUENTA_M16C, n)
+    salida = [f"{nombre} ({n:.0f} líneas): caa {caa}; cueide {cuenta}."]
+    avisos = [f"{desc} {_pct(_num(f.get(campo)), n)}" for campo, desc in AVISOS_M16C if campo in f]
+    if avisos:
+        salida.append(f"{nombre}: dónde no aplica o puede fallar: {'; '.join(avisos)}.")
+    return salida
+
+
+def lectura_m16c(reglas: Filas | None) -> list[str]:
+    """T0a-ter, M16c: ¿es escribible la regla «caa = <obra o centro>.<caagascod tras el '.'> de la naturaleza
+    de la línea» y la de «cueide = cua de cuacomcod»? Por grupo × partida y en total. None = no se pudo leer
+    (SIN MEDICIÓN); [] = cero filas (no hay líneas sin vincular)."""
+    if reglas is None:
+        return [f"{sin_medicion('M16c_reglas', 'M16')} ⇒ no se concluye la regla de la caa ni la de la cuenta."]
+    if not reglas:
+        return ["M16c_reglas devolvió cero filas (ninguna línea sin vincular desde 2025): la regla no se contrasta."]
+    salida: list[str] = []
+    for f in sorted(reglas, key=lambda f: (str(f.get("grupo")), str(f.get("partida")))):
+        salida.extend(_lectura_grupo_m16c(f"{f.get('grupo')} / {f.get('partida')}", f))
+    campos = ["n", *(c for c, _ in REGLAS_CAA_M16C + REGLAS_CUENTA_M16C + AVISOS_M16C)]
+    total = {campo: _suma(reglas, campo) for campo in campos if any(campo in f for f in reglas)}
+    salida.extend(_lectura_grupo_m16c("TOTAL", total))
+    n = total.get("n", 0.0)
+    linea = max(total.get("regla_linea_obra", 0.0), total.get("regla_linea_centro", 0.0))
+    producto = max(total.get("regla_producto_obra", 0.0), total.get("regla_producto_centro", 0.0))
+    ok = _cumple(linea, n, UMBRAL_REGLA_ESCRIBIBLE) and linea >= producto
+    salida.append(f"Hipótesis M16c (caa = <obra o centro>.<caagascod tras el '.'> de la naturaleza de la LÍNEA): "
+                  f"{'CONFIRMADA' if ok else 'NO confirmada'} en el total (con la de la línea {_pct(linea, n)}; "
+                  f"con la del producto {_pct(producto, n)}).")
+    salida.append(f"(REGLA escribible = ≥ {_UMBRAL_M16C_TXT} de las líneas. La de la caa exige caa.cenide = "
+                  "dcapro.cenide y que (centro, código) no se repita entre las caa.)")
+    return salida
+
+
+def lectura_m16c_naturalezas(filas: Filas | None) -> str:
+    """T0a-ter, M16c: qué naturalezas eligen los usuarios en el genérico y dónde falla la regla de la línea."""
+    cab = f"Naturalezas de la línea en {GENERICO_NATURALEZAS_M16C} (empresa {EMPRESA_GENERICOS})"
+    if filas is None:
+        return f"{cab}: {sin_medicion('M16c_naturalezas_ma', 'M16')}."
+    if not filas:
+        return f"{cab}: ninguna línea sin vincular desde 2025 (cero filas)."
+    total = _suma(filas, "lineas")
+
+    def nombre(f: dict[str, Any]) -> str:
+        return f"«{str(f.get('nat_cod') or '').strip()}»"
+
+    usadas = [f"{nombre(f)} {str(f.get('nat_res') or '').strip()} ({str(f.get('caagascod') or '').strip()}) "
+              f"{_pct(_num(f.get('lineas')), total)}" for f in filas[:3]]
+    fallan = [f"{nombre(f)} {_pct(_num(f.get('regla_linea_obra')), _num(f.get('lineas')))}" for f in filas
+              if not _cumple(_num(f.get("regla_linea_obra")), _num(f.get("lineas")), UMBRAL_REGLA_ESCRIBIBLE)]
+    return (f"{cab}, TOP {len(filas)} ({total:.0f} líneas): las más usadas {', '.join(usadas)}; la regla de la "
+            f"línea no llega al {_UMBRAL_M16C_TXT} en: {', '.join(fallan) or 'ninguna'}.")
+
+
+def lectura_m16c_vinculadas(filas: Filas | None) -> str:
+    """T0a-ter, M16c, control: la misma regla sobre ctrpro (naturaleza, obra y centro de la línea de contrato)."""
+    if filas is None:
+        return f"Control con las vinculadas: {sin_medicion('M16c_vinculadas', 'M16')}."
+    if not filas:
+        return "Control con las vinculadas: ninguna línea vinculada desde 2025 (cero filas)."
+    n, obra, centro = (_suma(filas, k) for k in ("ctrpro", "regla_linea_obra", "regla_linea_centro"))
+    ok = _cumple(max(obra, centro), n, UMBRAL_REGLA_ESCRIBIBLE)
+    return (f"Control con las vinculadas ({n:.0f} líneas de contrato): ctrpro.caaide = obra.sufijo de caagascod de "
+            f"la naturaleza de la línea del contrato {_pct(obra, n)}; con el centro {_pct(centro, n)} ⇒ "
+            + ("la regla también explica las del contrato." if ok else
+               "la caa del contrato NO sigue la regla (no sirve de control)."))
+
+
+def _m16c(c: ClienteLectura, inf: Informe, grupos: list[Any]) -> None:
+    kw = {"max_rows": 50, "timeout_s": TIMEOUT_PESADO_S}
+    reglas = _leer_tabla(c, inf, "M16c_reglas", "M16c: regla del código de la caa y de la cuenta (sin vincular)",
+                         grupos, **kw)
+    for texto in lectura_m16c(reglas):
+        inf.concluir("M16c " + texto)
+    nat = _leer_tabla(c, inf, "M16c_naturalezas_ma", f"M16c: naturalezas de la línea en {GENERICO_NATURALEZAS_M16C}",
+                      [EMPRESA_GENERICOS, GENERICO_NATURALEZAS_M16C], **kw)
+    inf.concluir("M16c " + lectura_m16c_naturalezas(nat))
+    vinc = _leer_tabla(c, inf, "M16c_vinculadas", "M16c: control con la línea de contrato (vinculadas)", grupos, **kw)
+    inf.concluir("M16c " + lectura_m16c_vinculadas(vinc))
+
+
 def m16(c: ClienteLectura) -> Informe:
-    inf = Informe("M16", "analítica, almacén y centro de las líneas (H10, H13) y origen de caaide (M16b)")
+    inf = Informe("M16", "analítica, almacén y centro de las líneas (H10, H13), origen de caaide (M16b) "
+                         "y regla del código de la caa (M16c)")
     kw = {"max_rows": 10, "timeout_s": TIMEOUT_PESADO_S}
     r1 = _leer_tabla(c, inf, "M16_caa_con_partida", "caaide de las líneas con partida desde 2025", **kw)
     r2 = _leer_tabla(c, inf, "M16_caa_almacen", "caaide de las líneas sin partida frente al almacén", **kw)
@@ -1643,6 +1856,7 @@ def m16(c: ClienteLectura) -> Informe:
     for texto in lectura_m16b(fuentes, codigos):
         inf.concluir("M16b " + texto)
     inf.concluir("M16b " + lectura_muestra_m16b(muestra))
+    _m16c(c, inf, grupos)   # antes que dcaproana, la más expuesta por volumen
     ana = _leer_tabla(c, inf, "M16b_dcaproana", "M16b: reparto analítico (dcaproana) de las sin vincular",
                       max_rows=1, timeout_s=TIMEOUT_PESADO_S)
     if ana is not None:

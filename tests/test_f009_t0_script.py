@@ -964,3 +964,182 @@ def test_f009_t0a_bis_m11_mide_y_concluye_qa9999_aparte_de_ma9999() -> None:
         assert [p[-1] for k, p in cliente.llamadas if k == clave] == [1, 5], clave
     assert "MA9999 emp 1: L8b" in texto and "QA9999 emp 1: L8b" in texto
     assert "QA9999 emp 1 (ide 5): total de líneas" in texto and "SB9999 emp 1: L8b" not in texto
+
+
+# --- T0a-ter (ejecución del 2026-10-05 16:32): M16c, la regla del código de la caa -------------------
+# Hipótesis de la muestra de M16b: caa = <obra o centro> + '.' + caagascod de la naturaleza de la LÍNEA
+# tras el primer '.', en el centro de la línea; cueide = la cua de cuacomcod de la naturaleza.
+
+_NUEVAS_T0A_TER = ("M16c_reglas", "M16c_naturalezas_ma", "M16c_vinculadas")
+
+_DATOS_TER: dict[str, list[dict[str, Any]]] = {
+    "M16c_reglas": [
+        {"grupo": "MA9999", "partida": "con_partida", "n": 1000, "regla_linea_obra": 990, "regla_linea_centro": 990,
+         "regla_producto_obra": 480, "regla_producto_centro": 480, "cueide_linea": 500, "cueide_producto": 1000,
+         "linea_sin_mod": 10, "linea_sin_punto": 10, "linea_sin_naturaleza": 0, "producto_sin_mod": 0,
+         "linea_caaexicod": 0, "producto_caaexicod": 0, "caa_repetida": 0, "obra_igual_centro": 1000},
+        {"grupo": "resto", "partida": "sin_partida", "n": 200, "regla_linea_obra": 150, "regla_linea_centro": 140,
+         "regla_producto_obra": 150, "regla_producto_centro": 140, "cueide_linea": 140, "cueide_producto": 141,
+         "linea_sin_mod": 50, "linea_sin_punto": 40, "linea_sin_naturaleza": 5, "producto_sin_mod": 50,
+         "linea_caaexicod": 3, "producto_caaexicod": 3, "caa_repetida": 2, "obra_igual_centro": 190},
+    ],
+    "M16c_naturalezas_ma": [
+        {"nat_cod": "CDSB37", "nat_res": "Subcontratas", "caagascod": "MOD.CDSB37", "lineas": 600,
+         "regla_linea_obra": 600, "regla_producto_obra": 100, "igual_producto": 100},
+        {"nat_cod": "CDMA15", "nat_res": "Materiales", "caagascod": "MOD.CDMA15", "lineas": 350,
+         "regla_linea_obra": 345, "regla_producto_obra": 345, "igual_producto": 350},
+        {"nat_cod": "VAR", "nat_res": "Varios", "caagascod": "", "lineas": 50, "regla_linea_obra": 0,
+         "regla_producto_obra": 0, "igual_producto": 50},
+    ],
+    "M16c_vinculadas": [
+        {"grupo": "MA9999", "lineas": 500, "ctrpro": 400, "caa_informada": 400, "regla_linea_obra": 396,
+         "regla_linea_centro": 396},
+        {"grupo": "resto", "lineas": 120, "ctrpro": 100, "caa_informada": 100, "regla_linea_obra": 99,
+         "regla_linea_centro": 98},
+    ],
+}
+
+
+def _datos_ter() -> dict[str, list[dict[str, Any]]]:
+    return {**_datos_bis(), **_DATOS_TER}
+
+
+def test_f009_t0a_ter_existen_las_sentencias_de_m16c() -> None:
+    assert [k for k in _NUEVAS_T0A_TER if k not in t0.SQL] == []
+
+
+@pytest.mark.parametrize("nombre", _NUEVAS_T0A_TER)
+def test_f009_t0a_ter_m16c_va_parametrizada_y_sin_isnull_con_literal_negativo(nombre: str) -> None:
+    sql = t0.SQL[nombre]
+    assert "?" in sql and "{" not in sql, nombre
+    for literal in ("MA9999", "QA9999", "SM9999", "SB9999"):
+        assert literal not in sql, (nombre, literal)
+    assert ", -1)" not in sql, nombre  # nada de ISNULL(..., -1) (columnas Byte, ciclo 1 de T0a-bis)
+
+
+def test_f009_t0a_ter_m16c_construye_el_codigo_con_la_naturaleza_de_la_linea_y_la_del_producto() -> None:
+    sql = t0.SQL["M16c_reglas"]
+    assert "nl.ide = d.natide" in sql and "nt.ide = r.natide" in sql
+    for nat in ("nl", "nt"):
+        gas = f"RTRIM(LTRIM({nat}.caagascod))"
+        assert f"CHARINDEX('.', {gas}) > 0" in sql, nat  # sin '.' no casa
+        assert f"SUBSTRING({gas}, CHARINDEX('.', {gas}) + 1, 24)" in sql, nat
+        assert f"RTRIM(LTRIM(cf.cod)) = RTRIM(LTRIM({nat}.cuacomcod))" in sql, nat
+    for cod in ("oc", "ec"):  # código de la obra y, en la variante, el del centro
+        assert f"RTRIM(LTRIM({cod}.cod)) + '.' + SUBSTRING(" in sql, cod
+    assert "k.cenide = d.cenide" in sql and "RTRIM(LTRIM(kc.cod)) = " in sql
+    for col in ("regla_linea_obra", "regla_linea_centro", "regla_producto_obra", "regla_producto_centro",
+                "cueide_linea", "cueide_producto", "linea_sin_mod", "linea_sin_punto", "linea_sin_naturaleza",
+                "producto_sin_mod", "linea_caaexicod", "producto_caaexicod", "caa_repetida", "obra_igual_centro"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    assert "'MOD.'" in sql and "nl.caaexicod" in sql and "nt.caaexicod" in sql
+
+
+def test_f009_t0a_ter_m16c_la_regla_exige_que_centro_y_codigo_identifiquen_una_sola_caa() -> None:
+    """Una regla escribible busca LA caa por (centro, código): si hay dos, no fija ninguna."""
+    for nombre in _NUEVAS_T0A_TER:
+        sql = t0.SQL[nombre]
+        assert "HAVING COUNT(*) > 1" in sql and "u.cod IS NULL" in sql, nombre
+    assert "u.cenide = k.cenide AND u.cod = RTRIM(LTRIM(kc.cod))" in t0.SQL["M16c_reglas"]
+
+
+def test_f009_t0a_ter_m16c_vinculadas_usa_la_linea_del_contrato() -> None:
+    sql = t0.SQL["M16c_vinculadas"]
+    assert "t.ide = d.linoriide" in sql and "d.docoritip = 44" in sql
+    assert "tn.ide = t.natide" in sql and "kt.cenide = t.cenide" in sql
+    assert "COUNT(DISTINCT x.ctrpro)" in sql
+    assert "RTRIM(LTRIM(ot.cod)) + '.' + SUBSTRING(" in sql and "RTRIM(LTRIM(et.cod)) + '.' + SUBSTRING(" in sql
+
+
+def test_f009_t0a_ter_m16_pasa_los_grupos_y_el_generico_de_las_naturalezas() -> None:
+    cliente = _ClienteFalso(_datos_ter())
+    t0.m16(cliente)  # type: ignore[arg-type]
+    llamadas = dict(cliente.llamadas)
+    grupos = [t0.EMPRESA_GENERICOS, *t0.PRODUCTOS_GENERICOS]
+    assert llamadas["M16c_reglas"] == grupos and llamadas["M16c_vinculadas"] == grupos
+    assert llamadas["M16c_naturalezas_ma"] == [t0.EMPRESA_GENERICOS, "MA9999"]
+
+
+def test_f009_t0a_ter_lectura_m16c_regla_escribible_y_manda_la_linea() -> None:
+    assert t0.UMBRAL_REGLA_ESCRIBIBLE == 0.95
+    texto = " ".join(t0.lectura_m16c(_DATOS_TER["M16c_reglas"]))
+    assert ("MA9999 / con_partida (1000 líneas): caa ⇒ REGLA escribible «obra.sufijo de caagascod de la "
+            "naturaleza de la línea» 990 de 1000 (99.0 %) (empata con: centro.sufijo de caagascod de la "
+            "naturaleza de la línea)") in texto
+    assert "cueide ⇒ REGLA escribible «cuacomcod de la naturaleza del producto» 1000 de 1000" in texto
+    assert ("resto / sin_partida (200 líneas): caa sin regla escribible (la mejor: «obra.sufijo de caagascod de "
+            "la naturaleza de la línea» 150 de 200 (75.0 %)") in texto
+    assert "naturaleza de la línea sin «MOD.» 50 de 200" in texto and "caa con (centro, código) repetido 2 de 200" in texto
+    # Total: 1140 de 1200 = 95,0 %: en el límite cuenta como regla.
+    assert "TOTAL (1200 líneas): caa ⇒ REGLA escribible «obra.sufijo de caagascod de la naturaleza de la línea» " \
+           "1140 de 1200 (95.0 %)" in texto
+    assert "Hipótesis M16c (caa = <obra o centro>.<caagascod tras el '.'> de la naturaleza de la LÍNEA): " \
+           "CONFIRMADA" in texto
+
+
+@pytest.mark.parametrize(("aciertos", "regla"), [(95, True), (94, False)])
+def test_f009_t0a_ter_lectura_m16c_en_el_limite_del_umbral(aciertos: int, regla: bool) -> None:
+    fila = [{"grupo": "QA9999", "partida": "sin_partida", "n": 100, "regla_linea_obra": aciertos,
+             "regla_producto_obra": 10, "cueide_linea": 0, "cueide_producto": 0}]
+    texto = " ".join(t0.lectura_m16c(fila))
+    assert ("caa ⇒ REGLA escribible «obra.sufijo de caagascod de la naturaleza de la línea»" in texto) is regla
+    assert ("Hipótesis M16c (caa = <obra o centro>.<caagascod tras el '.'> de la naturaleza de la LÍNEA): "
+            + ("CONFIRMADA" if regla else "NO confirmada")) in texto
+
+
+def test_f009_t0a_ter_lectura_m16c_manda_el_producto_si_acierta_mas() -> None:
+    fila = [{"grupo": "SB9999", "partida": "con_partida", "n": 100, "regla_linea_obra": 50,
+             "regla_producto_obra": 99}]
+    texto = " ".join(t0.lectura_m16c(fila))
+    assert "caa ⇒ REGLA escribible «obra.sufijo de caagascod de la naturaleza del producto» 99 de 100" in texto
+    assert "NO confirmada" in texto and "con la del producto 99 de 100" in texto
+
+
+def test_f009_t0a_ter_lecturas_m16c_distinguen_sin_medicion_de_cero_filas() -> None:
+    rota = " ".join(t0.lectura_m16c(None))
+    assert "M16c_reglas SIN MEDICIÓN" in rota and "cero filas" not in rota and "REGLA" not in rota
+    vacia = " ".join(t0.lectura_m16c([]))
+    assert "cero filas" in vacia and "SIN MEDICIÓN" not in vacia and "CONFIRMADA" not in vacia
+    assert "M16c_naturalezas_ma SIN MEDICIÓN" in t0.lectura_m16c_naturalezas(None)
+    assert "cero filas" in t0.lectura_m16c_naturalezas([]) and "SIN MEDICIÓN" not in t0.lectura_m16c_naturalezas([])
+    assert "M16c_vinculadas SIN MEDICIÓN" in t0.lectura_m16c_vinculadas(None)
+    assert "cero filas" in t0.lectura_m16c_vinculadas([]) and "SIN MEDICIÓN" not in t0.lectura_m16c_vinculadas([])
+
+
+def test_f009_t0a_ter_lectura_de_las_naturalezas_de_ma9999() -> None:
+    texto = t0.lectura_m16c_naturalezas(_DATOS_TER["M16c_naturalezas_ma"])
+    assert "Naturalezas de la línea en MA9999 (empresa 1), TOP 3 (1000 líneas)" in texto
+    assert "«CDSB37» Subcontratas (MOD.CDSB37) 600 de 1000 (60.0 %)" in texto
+    assert "la regla de la línea no llega al 95 % en: «VAR» 0 de 50 (0.0 %)" in texto
+    assert "«CDMA15»" not in texto.split("no llega")[1]  # 345 de 350 = 98,6 %: sí llega
+
+
+def test_f009_t0a_ter_lectura_del_control_con_las_vinculadas() -> None:
+    texto = t0.lectura_m16c_vinculadas(_DATOS_TER["M16c_vinculadas"])
+    assert "Control con las vinculadas (500 líneas de contrato)" in texto
+    assert "obra.sufijo de caagascod de la naturaleza de la línea del contrato 495 de 500 (99.0 %)" in texto
+    assert "con el centro 494 de 500" in texto and "la regla también explica las del contrato" in texto
+    malo = [{"grupo": "resto", "ctrpro": 100, "regla_linea_obra": 10, "regla_linea_centro": 20}]
+    assert "NO sigue la regla" in t0.lectura_m16c_vinculadas(malo)
+
+
+@pytest.mark.parametrize("rota", _NUEVAS_T0A_TER)
+def test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque_ni_se_lee_como_vacio(rota: str) -> None:
+    texto = t0.m16(_rompe(rota, _datos_ter())).texto()  # type: ignore[arg-type]
+    assert f"{rota} no se pudo leer (ReadTimeout" in texto and f"{rota} SIN MEDICIÓN" in texto
+    assert texto.count("no se pudo leer") == 1 and "cero filas" not in texto
+    assert "Orden de R15" in texto and "dcaproana" in texto  # lo de después sigue
+
+
+def test_f009_t0a_ter_main_solo_m16_con_m16c(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(t0, "cargar_config", lambda: ("https://ejemplo.invalid", "clave-secreta-123"))
+    monkeypatch.setattr(t0, "ClienteLectura", lambda base, clave: _ClienteFalso(_datos_ter()))
+    salida = tmp_path / "t0ter.txt"
+    assert t0.main(["--solo", "M16", "--salida", str(salida)]) == 0
+    texto = salida.read_text(encoding="utf-8")
+    assert "=== M16 ·" in texto and "M16c" in texto.split("\n")[2]  # el título del bloque la nombra
+    assert "SIN MEDICIÓN" not in texto and "no se pudo leer" not in texto
+    for esperado in ("M16c MA9999 / con_partida (1000 líneas): caa ⇒ REGLA escribible",
+                     "M16c Naturalezas de la línea en MA9999", "M16c Control con las vinculadas",
+                     "M16c Hipótesis M16c"):
+        assert esperado in texto, esperado
