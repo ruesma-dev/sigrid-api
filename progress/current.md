@@ -1,6 +1,16 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+**T16 de F-009 hecha (implementer, 2026-10-07):** campaña de mutación `critico` válida sobre `8a85804` (4 workers):
+481 mutantes, 479 muertos, **2 supervivientes equivalentes demostrados** (cantidad 0 imposible por el modelo; serie +
+diferencial de 5.000 peticiones, 0 diferencias, con control negativo). La campaña previa (`92bf606`) dejó 76, todos
+confirmados en serie: 60 muertos con `tests/test_f009_mutacion.py` (`db945d6`), 14 eran relleno que nadie lee o
+`strict` inalcanzables, quitados con canario y control negativo (`8a85804`, RM6 escrito). Base roja del primer intento
+arreglada en `92bf606` (test de la tupla de ocho aislado del entorno). Informes:
+[`impl_F-009_loteE_mutacion.md`](impl_F-009_loteE_mutacion.md) y [`mutacion_F-009.md`](mutacion_F-009.md).
+**Pendiente:** que el humano acepte los 2 equivalentes; revisión del lote E (T16-T18); el fichero vacío ajeno
+`` `0`].{t `` de la raíz (24-09) sigue ahí sin versionar: decide el humano.
+
 **Lote E de F-009, parte documental hecha (implementer, 2026-10-06):** T17 (`docs/ARCHITECTURE.md`, `1da0c5e`) y
 T18 (`azure-apps/sigrid_api.md`, commit `51b29a6` en `azure-apps`, sin push: no tiene remoto). Sin tocar código ni
 tests. Informe en [`impl_F-009_loteE_docs.md`](impl_F-009_loteE_docs.md). **Siguiente:** T16 (campaña de mutación)
