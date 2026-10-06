@@ -14,7 +14,7 @@ Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorizació
 
 **Spec v8.2 (spec-author, 2026-10-06):** opción C del humano para los importes de la vinculada (R17, design §Importes,
 contrato §2.2/§3.1/§3.2/H14, solo redacción), ε = 1e-6 del stock en R19 y dos diferencias más en §Equivalencia (O2).
-Detalle en [`spec_F-009.md`](spec_F-009.md) §v8.2. **Pendiente**: el implementer pasa `importe_linea`/tolerancia de A a C;
+Detalle en [`spec_F-009.md`](spec_F-009.md) §v8.2. El código ya aplica C y el ε (`2a007f6`). **Pendiente**:
 el humano confirma que el cambio de §3.2 del contrato (cuándo salta `precio_distinto_del_contrato`) es solo redacción para F-053.
 
 ### Estado de la spec al aprobarla

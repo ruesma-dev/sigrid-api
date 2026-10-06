@@ -25,8 +25,8 @@ verificación cambia: R17 y R19 siguen cubiertos por T5-T7 y R33 por T12). Orige
    0,0001·|cantidad| que sv9 marcaría `importe_distinto`). Alineados en la misma regla R17, design §Importes y el
    contrato §2.2 y §3.1 (antes discrepaban), más §3.2 (cuándo salta el aviso) y la fila H14 de §5: **solo redacción**,
    sin cambio de forma, campos, códigos ni estados; línea v8.2 en la cabecera del contrato. Coste aceptado: algún aviso
-   más y la pérdida de `tar`/`dto` del contrato en líneas grandes con diferencia mínima. **Para el implementer**: el
-   código del lote B aplica A (`importe_linea` con `precio`, decisión 1 del informe); hay que pasarlo a C.
+   más y la pérdida de `tar`/`dto` del contrato en líneas grandes con diferencia mínima. El código del lote B ya
+   aplica C (`usa_precio_del_contrato`, `2a007f6`, ciclo 1 de la revisión del trozo 2), igual que el ε del punto 2.
 2. **Stock con residuo binario** (review §Decisión 11; cambio requerido 1). R19: con |`stock + can`| < ε = 1e-6 se
    conserva el PMP y se escribe `almcan` 0; `almcan`/`almpma` son «Real» y se comparan con tolerancia. Sin regla nueva:
    un residuo de 1e-17 *es* el 0 de R19. design §`prepma` remite a ese ε (`siguiente_balance`).
