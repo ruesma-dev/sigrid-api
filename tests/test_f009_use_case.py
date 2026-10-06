@@ -1134,3 +1134,92 @@ def test_f009_r28_si_no_cuadran_rollback_con_codigo(relectura: str, valor: int) 
     assert exc.codigo == "filas_afectadas_inesperadas"
     assert repo.sentencias()[-1] == relectura
     assert len(repo.cursores) == 1
+
+
+# =====================================================================================
+# T11 · R18 y R20: devoluciones de punta a punta
+# =====================================================================================
+
+
+def test_f009_r18_devolucion_vinculada_en_commit() -> None:
+    """9001: canser 20; devolver 3 (regla A, M5): entrada con `canent` < 0."""
+    repo = RepositorioDoble(reservas={"sumas_contrato": (111.0, 17.0, 0.0)})
+    respuesta, repo = ejecutar([vinculada(cantidad=-3.0, partida="01.01")], repo=repo, commit=True)
+    fila = dcapro(respuesta)
+    assert (fila["can"], fila["tot"], fila["ivacuo"]) == (-3.0, -31.5, -6.62)
+    assert [f["can"] for f in respuesta.filas["ctrprodes"]] == [-3.0]
+    assert repo.parametros_en_transaccion("servido") == [[-3.0, 9001]]
+    mov = respuesta.filas["mov"][0]
+    assert (mov["tip"], mov["oritip"], mov["destip"], mov["canent"], mov["cansal"]) == (1, 5, 2, -3.0, 0.0)
+    assert (mov["almcan"], mov["almpma"], mov["prepma"]) == (7.0, (10.0 * 9.0 - 3.0 * 10.5) / 7.0, 9.0)
+    assert dcapro(respuesta)["prepma"] == 9.0
+    assert respuesta.totales["totbas"] == -31.5
+    assert respuesta.filas["dca"]["totdoc"] == -38.12
+    assert avisos(respuesta.lineas[0]) == []
+
+
+def test_f009_r18_devolucion_que_deja_el_servido_en_negativo_se_admite_con_aviso() -> None:
+    respuesta, _ = ejecutar([vinculada("A", cantidad=-15.0, partida="01.01"),
+                             vinculada("B", cantidad=-10.0, partida="01.01")])
+    # 9001: canser 20 -> 5 -> -5; stock 10 -> -5 -> -15.
+    assert [avisos(l) for l in respuesta.lineas] == [
+        ["stock_negativo"], ["servido_negativo", "stock_negativo"]]
+
+
+def test_f009_r20_una_devolucion_devuelve_estser_a_0() -> None:
+    from f009_dobles import ctr
+
+    repo = RepositorioDoble(reservas={"sumas_contrato": (111.0, 108.0, 111.0)},
+                            filas={("ctr", CTR): {**ctr(), "estser": 1, "estfac": 1}})
+    respuesta, repo = ejecutar([vinculada(cantidad=-3.0, partida="01.01")], repo=repo, commit=True)
+    assert repo.parametros_en_transaccion("estados_contrato") == [[0, 1, CTR]]
+    estados = respuesta.estados_contrato
+    assert (estados["estser_before"], estados["estser_after"], estados["sum_canser_before"]) == (
+        1, 0, 111.0)
+
+
+def test_f009_r20_en_la_previa_la_devolucion_tambien_recalcula_estser() -> None:
+    from f009_dobles import ctr, ctrpro
+
+    servidas = [{**l, "canser": l["can"]} for l in ctrpro()]
+    repo = RepositorioDoble(ctrpro_filas=servidas,
+                            filas={("ctr", CTR): {**ctr(), "estser": 1}})
+    respuesta, _ = ejecutar([vinculada(cantidad=-1.0, partida="01.01")], repo=repo)
+    estados = respuesta.estados_contrato
+    assert (estados["estser_before"], estados["estser_after"]) == (1, 0)
+    assert (estados["sum_canser_before"], estados["sum_canser_after"]) == (111.0, 110.0)
+
+
+def test_f009_r18_devolucion_sin_vincular_con_stock_negativo() -> None:
+    """MA9999 en el almacén 70: stock 4; devolver 5 deja -1 (se admite, M15)."""
+    respuesta, repo = ejecutar([sin_vincular(cantidad=-5.0)], commit=True)
+    fila = dcapro(respuesta)
+    assert (fila["can"], fila["tot"], fila["ivacuo"]) == (-5.0, -13.38, -2.81)
+    mov = respuesta.filas["mov"][0]
+    assert (mov["canent"], mov["almcan"]) == (-5.0, -1.0)
+    assert avisos(respuesta.lineas[0]) == ["stock_negativo"]
+    assert respuesta.filas["ctrprodes"] == []
+    assert not {"servido", "sumas_contrato", "estados_contrato"} & set(repo.sentencias())
+
+
+def test_f009_r18_el_stock_negativo_se_decide_con_el_balance_de_dentro() -> None:
+    """En la previa (L12: stock 10) no avisa; en el commit, E7 dice 1 y avisa."""
+    previa, _ = ejecutar([vinculada(cantidad=-3.0, partida="01.01")])
+    assert avisos(previa.lineas[0]) == []
+    repo = RepositorioDoble(reservas={"balance_bajo_bloqueo": lambda _i, _p: (1.0, 9.0)})
+    creado, _ = ejecutar([vinculada(cantidad=-3.0, partida="01.01")], repo=repo, commit=True)
+    assert avisos(creado.lineas[0]) == ["stock_negativo"]
+    assert creado.lineas[0].stock_resultante == -2.0
+
+
+def test_f009_r18_devolucion_que_deja_el_stock_a_cero_conserva_el_pmp() -> None:
+    respuesta, _ = ejecutar([vinculada(cantidad=-10.0, partida="01.01")])
+    mov = respuesta.filas["mov"][0]
+    assert (mov["almcan"], mov["almpma"], mov["prepma"]) == (0.0, 9.0, 9.0)
+    assert avisos(respuesta.lineas[0]) == []
+
+
+def test_f009_r18_la_devolucion_no_supera_lo_pendiente() -> None:
+    respuesta, _ = ejecutar([vinculada("A", ctrpro_ide=9002, cantidad=-1.0, precio=3.0)])
+    # Sin `mov` previo del 56 en el 70: stock 0 -> -1. Ni supera ni deja canser < 0.
+    assert avisos(respuesta.lineas[0]) == ["stock_negativo"]
