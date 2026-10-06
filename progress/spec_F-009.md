@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v7
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v8
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7); **v8 del 2026-10-06** (T0b-ter, T0b-quater, contrato v7.1 y decisiones del humano; §v8). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,79 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v8: resultados de T0b-ter y T0b-quater (2026-10-06) y decisiones del humano
+
+Spec-author. Solo spec; sin llamar a la API, Azure ni el SQL Server. Fuentes: los dos ficheros de resultados del
+humano (`%TEMP%`, 2026-10-06 00:56 y 09:58; **no** se versionan: llevan datos de negocio), el contrato v7.1
+(`2631b1a`, H34 y H35) y las decisiones del humano del 2026-10-06. Aquí solo cifras agregadas y conclusiones; ni
+proveedores, ni usuarios, ni filas, ni importes. Definiciones de M14c y M16c: `impl_F-009_T0a_ter.md`; de M14d, M16d
+y M19: `impl_F-009_T0a_quater.md`. Las cifras son de T0b-quater salvo indicación (T0b-ter da lo mismo ±0,1 %).
+
+### Resultados y decisión
+
+| M | Resultado agregado | Decisión en la v8 |
+|---|---|---|
+| M9 (`XA9999`) | Empresa 1, julio-septiembre: `XA9999` con `tipmov` 1, `mov` en 1.049 de 1.065 (98,5 %); MA9999 y QA9999 100 %, SB9999 99,9 %, SM9999 98,9 %. Septiembre: `tipmov` 1 ⇒ 99,8 %; 0 y −1 ⇒ 0 % | **Cerrada**: la regla `mov` ⇔ `pro.tipmov` = 1 vale para los tres productos de la lista blanca (R19) |
+| M14 | Repite T0b-bis: `dcapro.prepma` = `mov.prepma` 100 % (8.538); forma de pago y efecto del albarán anterior 94,1 % / 97,6 % frente al 81,3 % / 87,0 % del maestro; sin vincular de 2026, las mismas proporciones; ninguna columna fuera del reseteo se arrastra | Sin cambios (R21, M14b) |
+| M14c | `prepma` de la línea sin `mov`: 0 en 2.871 de 2.887 (99,4 %); nunca `pro.prepma`. `mov.prepma` (8.507): = PMP del almacén antes de la entrada 10,8 %, = PMP resultante 2,5 %, = `pro.prepma` 0,5 % | **Cerrada sin `mov`** (0; R21). Con `mov`: no es un PMP del almacén ⇒ M14d |
+| M14d | `mov.prepma` («Precio Medio Compra» **del producto**) = el del `mov` anterior del producto en cualquier almacén 29,8 %, = el del siguiente 29,9 %, = `mov.pre` 0,7 %; entre el anterior y el precio 69,7 % (compatible con una media ponderada); el `mov` anterior es de albarán de compra el 100 % | **Abierta → M14e** (T0b-quinquies): media ponderada global `(prepma_ant·stock_global_ant + can·pre)/(stock_global_ant + can)`, stock global = suma del último `almcan` por almacén. Regla escrita **condicional a M14e** (design §`prepma`): ≥ 95 % ⇒ fijada; si no, mejor aproximación con riesgo declarado y verificación en T22 y T24 |
+| M16 / M16b | Repiten T0b-bis (vinculadas, `caaide` del `ctrpro` 100 % y 99,9 %; orden de almacén confirmado; `dcaproana` 0 de 189.532) | Sin cambios |
+| M16c (T0b-ter) | `cueide` = `cua` del `cuacomcod` de la naturaleza de la línea: 97,9 % del total, 100 % en MA9999, QA9999 (99,9 % con partida) y XA9999; ninguna `cua` repetida ni de otra empresa. `numemp` 0 en las 170 naturalezas usadas (99,9 % de las líneas; el resto, sin naturaleza), ninguna de la empresa ni de otra. Analítica con «lo que sigue al primer `.`»: 86,8 % del total; XA9999 0 % (su `caagascod` `CDXA01` no lleva `.`); MA9999 con partida 92,3 % (las `MA1501` fallan) | **P2, P3 y P4 cerradas**: `numemp` ∈ {0, empresa}; `cueide` de la `cua` del `cuacomcod` (en MA9999, la de la línea y la del producto coinciden); la regla de la v7 cambia de sufijo (M16d) |
+| M16d (T0b-quater) | Sufijo = `caagascod` **entero** si no lleva `MOD.`: XA9999 5.429 de 5.430 y 91 de 91. Por grupo con la regla ampliada: QA9999, SB9999, SM9999 y XA9999 98,5-100 % (100 % con partida). MA9999: con `MA99` (`MOD.CDSB37`) 23.216 de 23.217; con `MA1501` (`MOD.CDMA15`) 85,5 %, y el resto de esas líneas ya va a `CDSB37`. Ninguna `caa` repetida por (centro, código). Control: los `ctrpro` cumplen la misma regla el 96,3 %. La naturaleza de MA9999 no la fija ninguna dimensión sola (obra 79 %, proveedor 80 %, usuario 76 %) | **Cerrada** (H10): `caa` del centro de la línea con `<obra>.<caagascod sin el prefijo MOD.>`; ninguna ⇒ `analitica_no_resuelta` (R15, design §Analítica) |
+| M19 (H35) | Vinculadas desde 2025 (98.431): `cod2` = el del `ctrpro` 100 % de las que lo traen (el 10,3 %, ambos vacíos); `dncide` y `dncproide` iguales 98,8 % (el resto, ambos 0). Sin vincular con planificación: `cod2` = el de su `dncpro` 100 %. Sin vincular sin planificación: ninguna regla para el `cod2` (la mejor, la línea anterior de la misma obra y producto, 67,2 %) | **Cerrada**: vinculadas copian `cod2`, `dncide` y `dncproide` del `ctrpro` (R12); sin vincular, vacíos (§Reseteo; decisión del humano) |
+| M19 (altas) | Líneas de MA9999, QA9999 y XA9999 desde 2025-09 (48.788): 19 usuarios de alta, todos personas; ninguno técnico ni la API; todos en `usu`. El albarán de la API de junio no tiene genéricos | Informativa: no hay altas automáticas previas de genéricos con las que compararse |
+
+### Decisiones del humano aplicadas (2026-10-06)
+
+- **H34** («ok»): la naturaleza de las sin vincular sale del mapeo de configuración
+  `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (sexta App Setting, defecto `{}`, despliegue `{"MA9999": "MA99",
+  "QA9999": "QA99", "XA9999": "XA99"}`, solo objeto JSON), **nunca** del maestro (`MA9999` tiene `MA1501`). Sin
+  entrada o naturaleza que no vale ⇒ `naturaleza_no_valida`. **Consecuencia escrita** (design §Analítica, §Riesgos):
+  el escritorio imputa ~42 % de las MA9999 a `CDMA15`; el alta automática las lleva todas a `MA99`/`CDSB37`
+  (criterio de negocio: «códigos genéricos»).
+- **Campo `naturaleza`**: **se retira** (propuesta del humano). El contrato v7.1 lo conservaba «si viene, manda»,
+  pero a confirmar; no tiene sentido mantenerlo: F-053 no lo manda, negocio dice que las naturalezas específicas «a
+  efectos prácticos no se usan» y permitiría a un llamante saltarse el mapeo. Con `extra="forbid"`, mandarlo da 400
+  sin código. Menos superficie (validador de R6, L15a por `ide`, tests y mutantes).
+- **H35** confirmada por medición (M19).
+- **Contrato** (regla nueva del humano): «el contrato solo se toca para actualizar consumos». Escrita en la
+  cabecera de `contrato_albaranes.md`: las reglas, la validación, la escritura y los códigos los cambia sigrid-api en
+  su spec; albaranes (u otro consumidor) solo edita lo que consume (campos que manda, origen y mapeo de respuestas y
+  códigos a sus estados).
+
+### Qué cambió en la spec
+
+| Cambio | Dónde |
+|---|---|
+| Sexta App Setting, `parse_string_dict` (objeto JSON o no arranca), fase RED en R10 | R10, R34; design §Ficheros a modificar; tasks T2, T19 |
+| Naturaleza del mapeo; campo `naturaleza` retirado; `numemp` ∈ {0, empresa}; `cueide` de la `cua` del `cuacomcod`; L7 sin `natide`; L15a por código; L15c completa | R6, R13, R13b; design §Modelo, §Analítica, L7, L15a-c, §Códigos; tasks T3, T6, T7, T21 |
+| Sufijo de la analítica sin `MOD.` (entero si no lo lleva), `sufijo_analitica` | R15; design §Analítica; tasks T5 |
+| `cod2`, `dncide` y `dncproide` del `ctrpro` en las vinculadas; diferencia declarada en R33 | R12; design §Filas, §Reseteo, §Equivalencia; tasks T6, T12, T22 |
+| `prepma`: 0 sin `mov`; `mov.prepma` = media ponderada global [M14e]; L12b-c y E7b (sin `UPDLOCK`), `siguiente_prepma` | R19, R21, R26, R34; design §`prepma`, L12b-c, E7b, §Condicionales, §Riesgos; tasks T4, T5, T6, T10, T22, T24 |
+| T0b-ter y T0b-quater hechas; T0a-quinquies (M14e) y **T0b-quinquies** `--solo M14`; T0c vuelca en la v8.1 y retira el script | tasks; R35 |
+| Contrato: cabecera con la regla del humano y la v8; §1.3, §2.2-§2.4, §3.3, §3.4, §4.3, H10, H11, H20, H28, H34, H35, §6.f y §8 (todo absorbido) | `contrato_albaranes.md` |
+
+Topes tras la v8 (`python -m harness.tamano --feature F-009`): `requirements.md` 150/150 y `design.md` 249/250.
+Para caber: `elegir_modo_albaran` pasa de bloque de código a prosa (misma regla, R1); las cifras de la analítica y de
+`prepma` viven aquí; §Condicionales en prosa; se compactaron §Respuesta, §Devoluciones, §Riesgos y R10, R13b, R15,
+R19 y R21. Ninguna regla se ha quitado.
+
+### Preguntas abiertas y notas
+
+1. **M14e** (T0b-quinquies): el implementer la añade al script (T0a-quinquies); el humano lanza `--solo M14`. Con
+   ella, T0c (v8.1) y la retirada del script.
+2. **Para validar** (decisiones del spec-author): (a) campo `naturaleza` retirado, no conservado; (b) E7b (`prepma`
+   anterior y stock global) se lee **sin** `UPDLOCK` dentro de la transacción, porque bloquear todos los `mov` de un
+   genérico escalaría a tabla; el precio es que un alta simultánea del escritorio puede desviar ese `prepma`;
+   (c) `cuacomcod` sin una única `cua` en la empresa ⇒ `naturaleza_no_valida` (es configuración), no un código nuevo.
+3. **Hallazgo para Administración** (fuera de F-009): el maestro de `MA9999` lleva `MA1501` («cerámico»); corregirlo
+   es un cambio de datos en Sigrid que deciden ellos. El mapeo no deja de hacer falta.
+4. **Nota de M19**: su TOP 10 lista albaranes con genéricos (estado 10) sin fila de alta en `log`, mientras el conteo
+   por usuario da «0 de 48.788 sin alta» (solo cuenta líneas con fila de alta). No cambia la conclusión (las altas de
+   la API no tocan genéricos), pero el «0» no prueba que no haya altas sin `log`.
+5. Heredada, sin cambios: `tex` vacío en las sin vincular (el escritorio lo rellena en el 11 %, texto propio): confirmar.
+6. **F-053** no cambia: no mandaba `naturaleza` y `naturaleza_no_valida` ya iba a `error`.
 
 ## v7: resultados de T0b-bis (2026-10-05) y decisiones del humano
 

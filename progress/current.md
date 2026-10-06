@@ -1,6 +1,23 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-009 spec v8 (2026-10-06), `spec_ready` — espera la validación del humano y T0b-quinquies (M14e)
+
+**v8 (spec-author):** T0b-ter y T0b-quater volcadas ([`spec_F-009.md`](spec_F-009.md) §v8, tabla M → resultado →
+decisión). Cerradas: M9 de `XA9999` (`tipmov` 1), M14c (`prepma` 0 sin `mov`), M16c/M16d (analítica de las sin
+vincular: `caa` del centro de la línea con `<obra>.<caagascod sin MOD.>`), P2 (`numemp` ∈ {0, empresa}), P3 y P4
+(`cueide` de la `cua` del `cuacomcod`) y M19 (H35: las vinculadas copian `cod2`, `dncide` y `dncproide` del
+`ctrpro`). Decisiones del humano aplicadas: **H34** (naturaleza por el mapeo de la sexta App Setting
+`SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`, nunca del maestro; en MA9999 el ~42 % que el escritorio lleva a `CDMA15`
+irá a `CDSB37`) y la regla del contrato («solo se toca para actualizar consumos», escrita en su cabecera). Campo
+opcional `naturaleza` de la v7 **retirado**. Contrato §8 entero absorbido. **Abierto:** el valor de `mov.prepma`
+(media ponderada global del producto), regla escrita condicional a **M14e**. Topes: 150/150 y 249/250.
+**Siguiente:** implementer, T0a-quinquies (M14e en el script; ya en curso en paralelo); humano, **T0b-quinquies**
+`--solo M14`; después T0c (v8.1 y retirada del script). **Para validar por el humano** (§v8, «Preguntas abiertas»):
+campo `naturaleza` retirado; E7b sin `UPDLOCK`; `cua` ausente ⇒ `naturaleza_no_valida`; `tex` vacío (heredada).
+
+*(Lo que sigue es el estado de la v7, ya superado por la v8.)*
+
 ## F-009 spec v7 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-ter
 
 **v7 (spec-author):** T0b-bis volcada ([`spec_F-009.md`](spec_F-009.md) §v7, tabla M → resultado →

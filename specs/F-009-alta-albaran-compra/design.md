@@ -1,39 +1,30 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v7)
+# F-009 · Diseño (v8)
 
 Detalle campo a campo, casos de línea, códigos → estados de F-053 y ejemplos: [`contrato_albaranes.md`](contrato_albaranes.md).
 
 ## La decisión de fondo
 
-**Se amplía `POST /api/sigrid/albaran` con un segundo modo** (humano, 2026-10-01). El modo se decide
-**antes de validar nada** por una función pura sobre el cuerpo ya parseado:
-
-```python
-def elegir_modo_albaran(cuerpo: object) -> Literal["clasico", "extendido"]:
-    if not isinstance(cuerpo, dict):            # lo que hoy rechaza Pydantic, igual que hoy
-        return "clasico"
-    nuevas = {"lineas", "referencia_externa"} & cuerpo.keys()
-    if nuevas and "lineas_recibidas" in cuerpo:
-        raise AlbaranCompraError("...", codigo="peticion_mixta")
-    return "extendido" if nuevas else "clasico"
-```
+**Se amplía `POST /api/sigrid/albaran` con un segundo modo** (humano, 2026-10-01). El modo se decide **antes de
+validar nada** con la función pura `elegir_modo_albaran(cuerpo: object) -> Literal["clasico", "extendido"]`: si no
+es un `dict`, `"clasico"` (Pydantic lo rechaza igual que hoy); si tiene `lineas` o `referencia_externa`, `"extendido"`,
+salvo que también traiga `lineas_recibidas` ⇒ `AlbaranCompraError(codigo="peticion_mixta")`; si no, `"clasico"`.
 
 - **Por claves, no por valores**: `{"lineas": []}` ya es extendido (y Pydantic lo rechaza ahí). El clásico
   **ignora** claves desconocidas: una petición mixta olvidaría `lineas`; rechazarla es su único cambio visible.
 - **Modo clásico**: la ruta llama a `AddPurchaseAlbaranRequest` y `CreatePurchaseAlbaranUseCase` **sin
   modificarlos** (R2, R4), fijados por el test de caracterización (§Caracterización).
-- **Modo extendido**: modelo, constructor de sentencias y caso de uso **nuevos**, con el núcleo probado en
-  junio (`AC26/15950-15952`; R33 lo demuestra). No va dentro de `CreatePurchaseAlbaranUseCase`: obligaría
-  a reabrir 600 líneas sin test y su SQL en línea no se puede comparar.
+- **Modo extendido**: modelo, sentencias y caso de uso **nuevos**, con el núcleo probado en junio (`AC26/15950-15952`;
+  R33). No va en `CreatePurchaseAlbaranUseCase`: reabriría 600 líneas sin test con SQL en línea incomparable.
 - **Límite de microservicio: cabe.** Dar de alta un concepto con sus efectos (stock, medición) es de la
-  pasarela; qué se registra y a qué precio lo decide el llamante (sv9). Ningún hueco H1-H33 lo cambia.
+  pasarela; qué se registra y a qué precio lo decide el llamante (sv9). Ningún hueco H1-H35 lo cambia.
 
 ## Ficheros a crear
 
 | Fichero | Capa | Qué contiene |
 |---|---|---|
 | `domain/models/albaran_compra_models.py` | domain | `elegir_modo_albaran`, `LineaAlbaranIn`, `AlbaranCompraRequest` (validadores de R5-R6), `AvisoAlbaran`, `LineaResultado(AlbaranLinePreview)`, `FalloLinea`, `AlbaranCompraResponse(AddPurchaseAlbaranResponse)`, `AlbaranCompraError(ValueError)` con `codigo` cerrado y `lineas` opcional, `COLUMNAS_BANCARIAS`. **Importa** los modelos clásicos; no los edita |
-| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L15 (con L7b y L15a-c) y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `estados_contrato`, `importe_linea`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
+| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L15 (con L7b, L12b-c y L15a-c) y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `siguiente_prepma`, `estados_contrato`, `importe_linea`, `sufijo_analitica`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
 | `application/use_cases/create_albaran_compra_use_case.py` | application | `CreateAlbaranCompraUseCase(repository, settings, ahora_utc=..., reloj=...)` |
 | `tests/test_f009_caracterizacion.py` + `tests/fixtures/f009_caracterizacion.json` | — | §Caracterización |
 | `tests/test_f009_settings.py`, `_models.py`, `_statements.py`, `_use_case.py`, `_route.py`, `_equivalencia.py` | — | Ver `tasks.md` |
@@ -42,7 +33,7 @@ def elegir_modo_albaran(cuerpo: object) -> Literal["clasico", "extendido"]:
 
 | Fichero | Qué cambia |
 |---|---|
-| `config/settings.py` | Cinco campos de R10; las listas de texto con `parse_string_list`, `SIGRID_ALBARAN_EMPRESAS_OBRA` con `parse_int_list` |
+| `config/settings.py` | Seis campos de R10; las listas de texto con `parse_string_list`, `SIGRID_ALBARAN_EMPRESAS_OBRA` con `parse_int_list`, y `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (`dict[str, str]`) con un validador nuevo `parse_string_dict`: vacío/ausente ⇒ `{}`; objeto JSON de textos no vacíos (recortados) ⇒ ese; cualquier otra cosa (CSV, lista, valores no texto) ⇒ `ValueError` **al arrancar**, como `parse_int_list` |
 | `function_app.py` | `sigrid_albaran`: `elegir_modo_albaran(body)`; clásico → el camino de hoy; extendido → `CreateAlbaranCompraUseCase`. Guarda R8 en `sigrid_albaran` y `sigrid_albaran_directo` **después** de validar el modelo y **antes** de `use_case.run`, solo si `commit`. `AlbaranCompraError` → 400 `details:{type, codigo[, lineas]}`; `IntegrityError` agotado → `colision_de_clave`. Docstring de `sigrid_albaran` corregido (no replica todas las líneas del contrato; H32). Los `except` existentes no cambian |
 | `local.settings.sample.json`, `docs/ARCHITECTURE.md` | Claves nuevas; modos de la ruta, modelo y caso de uso nuevos |
 | `azure-apps/sigrid_api.md` | R36 (commit aparte en `azure-apps`) |
@@ -50,17 +41,16 @@ def elegir_modo_albaran(cuerpo: object) -> Literal["clasico", "extendido"]:
 ## Ficheros que NO se tocan
 
 `create_purchase_albaran_use_case.py`, `create_direct_albaran_use_case.py`, `albaran_domain_models.py`,
-`albaran_directo_models.py` (se **importan**), `infrastructure/security/*`, `sql_server_repository.py`
-(bastan `execute_read_query`, `read_full_row`, `read_rows_by`, `locate_contract`, `peek_next_ide` y
-`run_in_write_transaction`), F-004 y F-006 (se importa `hora_local_de_madrid`), `infra/`, `CLAUDE.md`.
-Sin ficheros `NN_nombre.sql`: SQL constante.
+`albaran_directo_models.py` (se **importan**), `infrastructure/security/*`, `sql_server_repository.py` (bastan
+`execute_read_query`, `read_full_row`, `read_rows_by`, `locate_contract`, `peek_next_ide` y `run_in_write_transaction`),
+F-004 y F-006 (se importa `hora_local_de_madrid`), `infra/`, `CLAUDE.md`. Sin ficheros `NN_nombre.sql`: SQL constante.
 
 ## Caracterización (R2-R4)
 
-En T1, **sobre `dev` y antes de cualquier cambio de producción**, con su dorado. Un doble del repositorio graba
-cada llamada (método, argumentos, SQL y parámetros) y devuelve datos fijos; `datetime` con `monkeypatch`. Casos:
-clásico dry-run; commit con dos `lineas_recibidas` al mismo `ctrpro` (suma) y una que supera lo pendiente; contrato
-inexistente y línea ajena; directo dry-run y commit (llave R8 abierta). **El dorado no se regenera** (solo T1).
+En T1, **sobre `dev` y antes de cualquier cambio de producción**. Un doble del repositorio graba cada llamada (método,
+argumentos, SQL y parámetros) y devuelve datos fijos; `datetime` con `monkeypatch`. Casos: clásico dry-run; commit con
+dos `lineas_recibidas` al mismo `ctrpro` (suma) y una que supera lo pendiente; contrato inexistente y línea ajena;
+directo dry-run y commit (llave R8 abierta). **El dorado no se regenera** (solo T1).
 
 ## Modelo de petición del modo extendido (R5, R6)
 
@@ -75,35 +65,34 @@ class LineaAlbaranIn(BaseModel):                  # extra="forbid" en los dos; f
     precio: float                                         # < 0 → fallo de línea precio_negativo
     partida: str | None = Field(default=None, min_length=1, max_length=24)   # None ⇒ sin partida, paride 0
     paride: int | None = Field(default=None, ge=1)        # R14b (M3); exige partida (R6)
-    naturaleza: str | None = Field(default=None, min_length=1, max_length=16)  # solo sin vincular (R6, R13b)
 
 class AlbaranCompraRequest(BaseModel):
-    database: str; cod_obra: str (≤24); usu: str (1-24)                      # log.usu
-    cif_proveedor: str (≤24; validador: mayúsculas y sin espacios, H21)
+    database: str; cod_obra: str (≤24); usu: str (1-24); cif_proveedor: str (≤24; mayúsculas sin espacios, H21)
     referencia_externa: str = Field(..., min_length=1, max_length=128)       # dca.synckey
     cod_contrato: str | None = None (≤24); su_referencia: str = "" (≤128)   # dca.entref
     fecha_albaran: int | None (19000101-29991231); empide: int | None (≥1)
     lineas: list[LineaAlbaranIn] = Field(..., min_length=1); commit: bool = False
 ```
 
-La lista conserva el orden (`pos`). Precio negativo y tope de líneas, en el caso de uso con código (v5.1).
+La lista conserva el orden (`pos`). Precio negativo y tope de líneas, en el caso de uso con código (v5.1). **Sin
+campo `naturaleza`** (v8, H34): el de la v7 se retira; mandarlo da 400 sin código (`extra="forbid"`).
 
 ## Respuesta (R7, R30)
 
-- **Cabecera**: todos los campos de `AddPurchaseAlbaranResponse` + `estado`, `referencia_externa`,
-  `avisos[]` y `filas` (`con`, `dca`, `dcapro[]`, `ctrprodes[]`, `mov[]`, `log`). **Línea**: todos los de
-  `AlbaranLinePreview` (`ctrpro_ide`/`linoriide` 0 en sin vincular) + `indice` (0..N-1), `referencia_linea`,
-  `tipo` (`vinculada`|`sin_vincular`), `producto`, `paride`/`partida` (0/`null` sin partida), `cenide`, `avisos[]`.
+- **Cabecera**: los campos de `AddPurchaseAlbaranResponse` + `estado`, `referencia_externa`, `avisos[]` y `filas`
+  (`con`, `dca`, `dcapro[]`, `ctrprodes[]`, `mov[]`, `log`). **Línea**: los de `AlbaranLinePreview` (`ctrpro_ide`/
+  `linoriide` 0 en sin vincular) + `indice` (0..N-1), `referencia_linea`, `tipo` (`vinculada`|`sin_vincular`),
+  `producto`, `paride`/`partida` (0/`null` sin partida), `cenide`, `avisos[]`.
 - **Avisos** (H27): `AvisoAlbaran{codigo, mensaje}` en cabecera y línea; `warnings` = los `mensaje` de
   todos los avisos, en orden, y nada más (el texto de dry-run va en `cod_provisional`).
 - **Columnas bancarias** (H16): `COLUMNAS_BANCARIAS` = `banide`, `banban`, `bansuc`, `bandig`, `bancue`,
   `ban`, `bantipide`, `cpapai`, `cpaban`, `cpasuc`, `cpaswi`, `cpatip`, `cpadiv`, `cpacue1`, `cpacue2`
   (diccionario, `dca`). Se quitan de `cabecera`, `filas.dca` y trazas; la fila escrita las lleva.
-- **`idempotente`** (H18): `committed` `false`, `dry_run` = `not commit`, `con_ide`, `cod`, `fec`, totales
-  de L11 y `lineas` leídas por `pos` (`indice` 0.., `pos`, `proide`, `cantidad`, `precio`, `total`,
-  `paride`, `almide` y `referencia_linea` de `refent`, R30c); el resto de campos, vacíos (`{}`/`[]`).
+- **`idempotente`** (H18): `committed` `false`, `dry_run` = `not commit`, `con_ide`, `cod`, `fec`, totales de L11 y
+  `lineas` leídas por `pos` (`indice` 0.., `pos`, `proide`, `cantidad`, `precio`, `total`, `paride`, `almide` y
+  `referencia_linea` de `refent`, R30c); el resto de campos, vacíos (`{}`/`[]`).
 
-## Filas que se escriben (T0 en `progress/spec_F-009.md` §Resultados)
+## Filas que se escriben (cifras de T0: `progress/spec_F-009.md` §v6-§v8)
 
 - **`con`**: clon de la plantilla (L5: mismo proveedor y empresa, H3) con `tip 14`, `emp` de la obra,
   `cod` ← E2, `res` ← `"<entres>. (<su_referencia>)"` recortado, `fec`, `est` 1 `PDT` en `conest` (M13).
@@ -112,31 +101,42 @@ La lista conserva el orden (`pos`). Precio negativo y tope de líneas, en el cas
   totales, descuentos a 0, `estser/estfac` 0) más `ctride` (0 sin contrato) y `synckey`.
 - **`dcapro` vinculada**: como hoy (plantilla = última `dcapro` del producto; `proide`, `ivaide`,
   `unimed`, `almide`, `cenide`, `caaide` y `docori*` del `ctrpro`, nunca `NULL` según M4; `canoriori`,
-  `imporiori`) más `paride`, `pre`/`tar`/`dto` (R17), `res`/`unimed` y `refent` = `referencia_linea`.
+  `imporiori`) más `paride`, `pre`/`tar`/`dto` (R17), `res`/`unimed`, `refent` = `referencia_linea` y **`cod2`,
+  `dncide` y `dncproide` del `ctrpro`** (`''`/0 si no los tiene; H35; M19: `cod2` 100 %, enlace 98,8 % y el resto con ambos a 0).
 - **`dcapro` sin vincular**: plantilla = L8b (última del producto **del mismo proveedor**; M11) o, sin ella,
   L8 con aviso `iva_de_otro_proveedor` (H15): de ella `ivaide`; `natide`, `cueide` y `caaide` de §Analítica;
   `res`, `unimed`, `pre`, `tar` = `precio`, `dto` `''`, `paride`, `almide`/`cenide` (R15), `obride`, `refent` =
   `referencia_linea`; `docori*`, `can*`, `impori*` a 0/`''`; y §Reseteo.
-- **`prepma`** (las dos) = `mov.prepma` de su propio `mov` (M14: 8.328 de 8.328; el PMP resultante, 2,6 %):
-  qué valor es y cuál lleva la línea sin `mov`, [M14c]. **`ctrprodes`** (vinculadas): una por línea, `can`
-  con signo (M6). **`mov`**: como hoy, `emp` = `con.emp`, **si y solo si** `pro.tipmov` = 1 (M9; H20).
-- **`log`** (alta): la de F-006 (`tab 'con'`, `tip 14`, `ope 1`, `ori` 0, `est` 1; M13: 100 % de 4.027),
-  `cod`/`res` del `con`, `fec`/`hor` del alta y `usu`. **`dcapropar`**: nunca (M7: 0 de 272.235).
+- **`prepma`**: `dcapro.prepma` = `mov.prepma` de su `mov` (M14: 100 %) o 0 sin `mov` (M14c: 99,4 %); `mov.prepma`,
+  §`prepma`. **`ctrprodes`** (vinculadas): una por línea, `can` con signo (M6). **`mov`**: como hoy, `emp` =
+  `con.emp`, **si y solo si** `pro.tipmov` = 1 (M9; H20; `XA9999` también, 98,5 %).
+- **`log`** (alta): la de F-006 (`tab 'con'`, `tip 14`, `ope 1`, `ori` 0, `est` 1; M13), `cod`/`res` del `con`,
+  `fec`/`hor` del alta y `usu`. **`dcapropar`**: nunca (M7).
 
-**Reseteo (sin vincular; H11, M14)**: `med` NULL; `canmed`, `parcandes`, `anades`, `serdes`, `fecimp`,
+**Reseteo (sin vincular; H11, H35, M14)**: `med` NULL; `canmed`, `parcandes`, `anades`, `serdes`, `fecimp`,
 `item`, `anexo`, `taride`, `fec`, `pla`, `dncide`, `dncproide`, `edilin`, `garfec`, `mesrevpre`,
 `ejerevpre` a 0; `tex`, `texcom`, `desesp`, `cod2`, `pac` a `''`. M14: ninguna se arrastra de la plantilla y
-las que el escritorio rellena cambian línea a línea con otra fuente (cifras en `progress/spec_F-009.md` §v6).
-`cod2`: vacío por defecto, pendiente de una consulta del humano a negocio (no bloquea).
+las que el escritorio rellena cambian línea a línea con otra fuente. `cod2` vacío, decidido (H35; M19: sin regla).
 
-**Analítica, naturaleza y cuenta (H10; R13b, R15)**. **Vinculada**: `ctrpro.caaide` siempre (M16: 100 % y
-99,9 %), como hoy (R33). **Sin vincular** [M16c]: naturaleza `nat` = la del campo `naturaleza` (L15a por `cod`,
-sin baja y con `numemp` = empresa de la obra; si no, `naturaleza_no_valida`) o, sin él, la del producto (L7).
-`natide` = `nat.ide`; `caaide` = la `caa` del centro de la línea (L15b) con `cod` = `RTRIM(cod de la obra)` + `.` + lo
-que sigue al primer `.` de `nat.caagascod` (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`); ninguna, varias o
-`caagascod` sin `.` ⇒ `analitica_no_resuelta`. `cueide` = la `cua` (L15c) con `cod` = `nat.cuacomcod`. M16b:
-`caa.cenide` = `dcapro.cenide` ~100 %; la naturaleza de la línea ≠ la del producto en el ~51 % en MA9999 (0 % en
-QA, SM y SB). Descartadas: partida (2,7 %), `alm.caaproide` (0 %) y la última del par obra-producto (contrato v6.1).
+**Analítica, naturaleza y cuenta (H10, H34; R13b, R15)**. **Vinculada**: `ctrpro.caaide` siempre (M16), como hoy
+(R33). **Sin vincular**: naturaleza `nat` = la del producto en `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (L15a: una
+sola con ese `cod`, `fecbaj` 0 y `numemp` ∈ {0, empresa de la obra}, P2); sin entrada o sin esa fila ⇒
+`naturaleza_no_valida`. `natide` = `nat.ide`; `cueide` = la `cua` de la empresa del albarán con `cod` =
+`nat.cuacomcod` (L15c; ninguna o varias ⇒ `naturaleza_no_valida`); `caaide` = la `caa` con `cenide` = el de la
+línea (L15b) y `cod` = `RTRIM(cod de la obra)` + `.` + `sufijo_analitica(nat.caagascod)`: el `caagascod` recortado
+sin el prefijo `MOD.` si lo lleva, entero si no (`MOD.CDSB37`, obra `0678` ⇒ `0678.CDSB37`; `CDXA01` ⇒
+`<obra>.CDXA01`); ninguna, varias o `caagascod` vacío ⇒ `analitica_no_resuelta`. **Consecuencia aceptada** (H34,
+negocio: «códigos genéricos»): el escritorio imputa ~42 % de las MA9999 a `CDMA15` (`MA1501` del maestro); el alta
+automática, **todas** a `MA99`/`CDSB37`. Descartadas: §v6-§v7 de `progress/spec_F-009.md`, `pro.natide` y el campo `naturaleza`.
+
+## `prepma` (R19, R21) [M14e]
+
+`mov.prepma` es el «Precio Medio Compra» **del producto** (M14d: no es el del `mov` anterior ni el del siguiente).
+`siguiente_prepma(prepma_ant, stock_ant, can, pre)` = `(prepma_ant·stock_ant + can·pre)/(stock_ant + can)` sin
+redondear; `prepma_ant` del último `mov` del producto (L12b; sin él, 0), `stock_ant` = suma del último `almcan` de
+cada almacén del producto (L12c); con `stock_ant + can` = 0, `prepma_ant`. Varias líneas del mismo producto se
+encadenan en orden. **Condicional a M14e**: ≥ 95 % ⇒ fijada; si no, se escribe igual como **mejor aproximación**,
+con riesgo declarado (§Riesgos) y verificación en T22 y T24.
 
 **Importes (R17; H14, H33)**: `redondear_euros(x)` = `Decimal(repr(x)).quantize(Decimal("0.01"), ROUND_HALF_UP)`;
 `tot` = `redondear_euros(cantidad·pre)`, `ivacuo` = `redondear_euros(tot·iva)`; test con el empate 2,675 → 2,68
@@ -144,14 +144,11 @@ QA, SM y SB). Descartadas: partida (2,7 %), `alm.caaproide` (0 %) y la última d
 
 ## Devoluciones (R18, R20) y fecha atrasada (R19)
 
-**Regla A** (M5): entrada (`tip 1`, `oritip 5`, `destip 2`) con `canent` < 0, `cansal` 0 y PMP de alta;
-`canser` < 0 admitido (M6); T24 vigila la primera devolución real. **N1 (b)**: el escritorio recalcula los `mov`
-posteriores (M10); aquí el `mov` se fecha en el alta y el albarán conserva su fecha; L12/E7 por `fechor DESC,
-ide DESC` (razonamiento: `progress/spec_F-009.md` §Resultados y §v4).
+**Regla A** (M5): entrada (`tip 1`, `oritip 5`, `destip 2`) con `canent` < 0, `cansal` 0 y PMP de alta; `canser` < 0
+admitido (M6); T24 vigila la primera devolución real. **N1 (b)**: el escritorio recalcula los `mov` posteriores (M10);
+aquí el `mov` se fecha en el alta y el albarán conserva su fecha; L12/E7 por `fechor DESC, ide DESC` (§v4).
 
-## Sentencias (constructor puro; todas con `?`)
-
-Lecturas con credenciales de lectura; toda lectura con `truncado` → `ValueError` (400).
+## Sentencias (constructor puro; todas con `?`; lecturas con credenciales de lectura; `truncado` → `ValueError`, 400)
 
 - **L1** obra: `SELECT ide, emp, cod FROM dbo.con WHERE tip = ? AND cod = ?` (`[42, cod]`); se filtra por
   `SIGRID_ALBARAN_EMPRESAS_OBRA` en Python (el índice único `(emp, tip, cod)` da una por empresa; H2).
@@ -161,8 +158,8 @@ Lecturas con credenciales de lectura; toda lectura con `truncado` → `ValueErro
   o, sin él, `d.entcif = ?`); sin *fallback* a otro proveedor ni a otra empresa (H3).
 - **L6** partidas: `SELECT ide, cod, tip, tipdes, tipvis FROM dbo.obrparpar WHERE obride = ? AND cod IN
   (?, …)`; imputable = `tip 1`, `tipdes 0`, `tipvis` 0/1 (M3); el `paride` de R14b se busca entre ellas.
-- **L7** productos: `SELECT c.ide, c.cod, c.fecbaj, p.natide, p.tipmov FROM dbo.con c JOIN dbo.pro p ON
-  p.ide = c.ide WHERE c.emp = ? AND c.tip = ? AND c.cod IN (?, …)` (`tip 3`); **L7b** `SELECT ide, tipmov FROM
+- **L7** productos: `SELECT c.ide, c.cod, c.fecbaj, p.tipmov FROM dbo.con c JOIN dbo.pro p ON p.ide = c.ide
+  WHERE c.emp = ? AND c.tip = ? AND c.cod IN (?, …)` (`tip 3`; sin `natide`, H34); **L7b** `SELECT ide, tipmov FROM
   dbo.pro WHERE ide IN (?, …)` (productos de los `ctrpro`; R19).
 - **L8** plantilla de línea: `SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC`. **L8b**
   (sin vincular): `SELECT TOP 1 p.* FROM dbo.dcapro p JOIN dbo.dca d ON d.ide = p.docide WHERE p.proide =
@@ -175,22 +172,25 @@ Lecturas con credenciales de lectura; toda lectura con `truncado` → `ValueErro
   si hay uno, `SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro WHERE docide = ?
   ORDER BY pos` (R30c).
 - **L12** balance: `SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY
-  fechor DESC, ide DESC` (N1).
+  fechor DESC, ide DESC` (N1). **L12b** `SELECT TOP 1 prepma FROM dbo.mov WHERE proide = ? ORDER BY fechor DESC,
+  ide DESC`; **L12c** `SELECT ISNULL(SUM(x.almcan), 0) FROM (SELECT almcan, ROW_NUMBER() OVER (PARTITION BY almide
+  ORDER BY fechor DESC, ide DESC) AS n FROM dbo.mov WHERE proide = ?) x WHERE x.n = 1` (§`prepma`).
 - **L13** `SELECT est FROM dbo.conest WHERE tip = ? AND est = ?`; `SELECT TOP (1) cod FROM dbo.usu WHERE
   cod = ?`. **L14** (dry-run) `cod` provisional = E2 sin bloqueos y `peek_next_ide` de las 5 tablas.
-- **L15a** `SELECT ide, cod, numemp, fecbaj, caagascod, cuacomcod FROM dbo.auxpronat WHERE ide IN (?, …) OR cod
-  IN (?, …)` (las del producto y las pedidas); **L15b** `SELECT c.ide, c.cod, a.cenide FROM dbo.con c JOIN
-  dbo.caa a ON a.ide = c.ide WHERE c.cod IN (?, …)` (por `cenide` y `cod`); **L15c** `cua` con `c.emp = ?` (P3).
+- **L15a** `SELECT ide, cod, numemp, fecbaj, caagascod, cuacomcod FROM dbo.auxpronat WHERE cod IN (?, …)` (las del
+  mapeo de los productos pedidos); **L15b** `SELECT c.ide, c.cod, a.cenide FROM dbo.con c JOIN dbo.caa a ON a.ide =
+  c.ide WHERE c.cod IN (?, …)` (se casa por `cenide` y `cod`); **L15c** `SELECT c.ide, c.cod FROM dbo.con c JOIN
+  dbo.cua a ON a.ide = c.ide WHERE c.emp = ? AND c.cod IN (?, …)` (P3). Códigos comparados recortados (`RTRIM`).
 
 Dentro de `work(cursor)`, en orden: **E1** = L11 (sale sin escribir si aparece); **E2** `SELECT
 MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) WHERE emp = ? AND tip
 = ? AND cod LIKE ?` (`None` → 1); **E3-E6** `SELECT ISNULL(MAX(ide), 0) + 1 FROM
-dbo.<con|dcapro|ctrprodes|mov> WITH (UPDLOCK, HOLDLOCK)`; **E7** = L12 con `WITH (UPDLOCK, HOLDLOCK)`;
-**E8** `INSERT INTO dbo.<tabla> (<columnas>) VALUES (?, …)`: `con` → `dca` → `dcapro`×N → `ctrprodes`×M →
-`mov`×K; solo con vinculadas, **E9** `UPDATE dbo.ctrpro SET canser = canser + ? WHERE ide = ?`, **E10**
-`SELECT SUM(can), SUM(canser), SUM(canfac) FROM dbo.ctrpro WHERE docide = ?` y **E11** `UPDATE dbo.ctr
-SET estser = ?, estfac = ? WHERE ide = ?` (H31); **E11b** `log`: `MAX(ide)+1 WITH (UPDLOCK, HOLDLOCK)` e
-`INSERT`, al final (F-006); **E12** relecturas de R28 con `COUNT(*)` por clave.
+dbo.<con|dcapro|ctrprodes|mov> WITH (UPDLOCK, HOLDLOCK)`; **E7** = L12 con `WITH (UPDLOCK, HOLDLOCK)` y **E7b** =
+L12b y L12c **sin** bloqueo de rango (§Riesgos); **E8** `INSERT INTO dbo.<tabla> (<columnas>) VALUES (?, …)`: `con` →
+`dca` → `dcapro`×N → `ctrprodes`×M → `mov`×K; solo con vinculadas, **E9** `UPDATE dbo.ctrpro SET canser = canser
++ ? WHERE ide = ?`, **E10** `SELECT SUM(can), SUM(canser), SUM(canfac) FROM dbo.ctrpro WHERE docide = ?` y **E11**
+`UPDATE dbo.ctr SET estser = ?, estfac = ? WHERE ide = ?` (H31); **E11b** `log`: `MAX(ide)+1 WITH (UPDLOCK,
+HOLDLOCK)` e `INSERT`, al final (F-006); **E12** relecturas de R28 con `COUNT(*)` por clave.
 
 **Applocks**, siempre en este orden: `SIGRID_REFEXT_14`, `SIGRID_SERIE_14`, `SIGRID_IDE_con`,
 `SIGRID_IDE_dcapro`, `SIGRID_IDE_ctrprodes`, `SIGRID_IDE_mov`, `SIGRID_IDE_log`. Los cuatro del medio, como
@@ -201,20 +201,16 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
 1. Tope de líneas y prefijo (R24, R29). Con `commit`: llaves, credenciales y base (R24).
 2. `ahora` (Madrid) una vez; L1-L5, L11 (R30 sale ya si aparece), L13.
 3. Por línea, en orden: L6-L10 y L15 (con caché) y validación (R12-R17); **todos** los fallos → `lineas_no_validas`.
-4. Construcción pura de filas con balances de L12 → si dry-run, `previsto` con L14.
+4. Construcción pura de filas con balances de L12-L12c → si dry-run, `previsto` con L14.
 5. Si commit, `run_in_write_transaction(work)`; `work` es **reentrante**: reconstruye las filas en cada
-   intento con `cod`, `ide` y balances de E2-E7 (fechas fijas); reintentos agotados → `colision_de_clave`.
+   intento con `cod`, `ide` y balances de E2-E7b (fechas fijas); reintentos agotados → `colision_de_clave`.
 6. Traza (R32) y respuesta.
 
-## Condicionales (resultados de T0 en `progress/spec_F-009.md` §v6 y §v7)
+## Condicionales
 
-**Cerradas**: en T0b, M3, M7, M13, M14 (§Reseteo), M16 (vinculadas, almacén) y M18; en T0b-bis, M9 (`mov` si y
-solo si `tipmov` = 1; H20), M11 (L8b), M14b (L5), M17b (anular borra; H9) y `dcaproana` (M16b). Abiertas:
-
-| M | Regla que fija | Si sale… | …entonces |
-|---|---|---|---|
-| M16c (T0b-ter) | §Analítica, R13b, R15 | `caa.cod` = obra + `.` + sufijo del `caagascod` de la naturaleza de la línea ≥ 95 % por producto (con y sin partida; compara también centro y naturaleza del producto); `cueide` = `cuacomcod` de esa naturaleza | se fija tal cual; si gana otra variante, o la cuenta sigue a la naturaleza del producto, PARADA (`numemp` y `cua`: P2, P3) |
-| M14c (P1) | R21 (`prepma`) | `mov.prepma` = un PMP que sigue L12/E7 (p. ej. el del almacén antes del `mov`); `dcapro.prepma` sin `mov` | se fija; si sale de `pro.prepma` (habría que escribir `pro`), PARADA |
+**Cerradas** (cifras en `progress/spec_F-009.md` §v6-§v8): M3, M7, M9 (con `XA9999`), M11, M13, M14, M14b, M14c,
+M16, M16b-d, M17b, M18, M19 y P2-P4. **Abierta: M14e** (T0b-quinquies; §`prepma`, R19): ≥ 95 % ⇒ se fija tal cual;
+si no, se escribe igual como mejor aproximación, con riesgo declarado y verificación en T22/T24.
 
 ## Códigos (R1, R8, R9)
 
@@ -224,27 +220,30 @@ Cabecera: `peticion_mixta`, `escritura_albaranes_deshabilitada`, `base_de_datos_
 `estado_inicial_no_encontrado`, `almacen_de_obra_no_resuelto`, `colision_de_clave`, `filas_afectadas_inesperadas`,
 `lineas_no_validas`. Línea: `linea_no_es_del_contrato`, `producto_no_permitido`, `producto_no_encontrado`,
 `partida_no_encontrada`, `partida_ambigua`, `partida_no_imputable`, `precio_negativo`, `paride_no_valido` (R14b),
-`naturaleza_no_valida` (R13b), `analitica_no_resuelta` (R15). Avisos: `producto_sin_historico`, `supera_pendiente`,
-`partida_distinta_del_contrato`, `sin_partida_en_linea_con_partida`, `precio_distinto_del_contrato`,
+`naturaleza_no_valida` (R13b: configuración, H34), `analitica_no_resuelta` (R15). Avisos: `producto_sin_historico`,
+`supera_pendiente`, `partida_distinta_del_contrato`, `sin_partida_en_linea_con_partida`, `precio_distinto_del_contrato`,
 `iva_de_otro_proveedor`, `servido_negativo`, `stock_negativo`, `cod_provisional`.
 
 ## Equivalencia con el modo clásico (R33)
 
-Mismo doble; el mismo albarán (solo vinculadas, positivas, sin `ctrpro` repetido, partida y precio del `ctrpro`,
-plantilla de la misma empresa, productos con `tipmov` 1) en dry-run por los dos modos; se comparan las filas
-**construidas** (no la respuesta, que omite las bancarias) de `con`, `dca`, `dcapro`, `ctrprodes` y `mov` columna
-a columna. Diferencias **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (Madrid frente a UTC; y
-`mov.fec`/`fechor` del alta, N1), `est`, `prepma`, `ivacuo` (`dbo.iva` frente al cociente del `ctrpro`), `tot`/
-`ivacuo` en empates (H33; el dato fijo los evita), `dcapro.refent` (R30c), el `log` y el `mov` con `tipmov` 0 (R19).
+Mismo doble; el mismo albarán (solo vinculadas, positivas, sin `ctrpro` repetido, partida y precio del `ctrpro`, plantilla
+de la misma empresa, `tipmov` 1) en dry-run por los dos modos; filas **construidas** columna a columna. Diferencias
+**declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (Madrid frente a UTC; y `mov.fec`/`fechor` del alta, N1),
+`est`, `prepma` (`dcapro` y `mov`), `ivacuo` (`dbo.iva` frente al cociente del `ctrpro`), `tot`/`ivacuo` en empates
+(H33; el dato fijo los evita), `dcapro.refent` (R30c), `cod2`/`dncide`/`dncproide` (del `ctrpro` frente a la
+plantilla; H35), el `log` y el `mov` con `tipmov` 0 (R19).
 
 ## Riesgos y decisiones
 
-- **Retrocompatibilidad**: dorado de T1; lo único observable es R8 y `peticion_mixta`. **Doble alta**:
-  `synckey` dentro bajo `SIGRID_REFEXT_14`. **Colisión**: índice único + reintento. **Bloqueos**: ms.
-- **Empresa** (H2, H3): obra y plantilla en la empresa de la lista; `SIGRID_ALBARAN_EMPRESAS_OBRA` vacía
-  cierra el modo. No se descartan obras de baja (H2; N6, aprobada).
-- **Precio negativo** (H8): segunda barrera tras sv9; el `ge=0` de Pydantic (400 sin código) pasa a fallo
-  de línea `precio_negativo` para que F-053 lo mapee. **Stock negativo** (M15): solo aviso.
+- **Retrocompatibilidad**: dorado de T1; lo único observable es R8 y `peticion_mixta`. **Doble alta**: `synckey`
+  dentro bajo `SIGRID_REFEXT_14`. **Colisión**: índice único + reintento. **Bloqueos**: ms. **Empresa** (H2, H3):
+  obra y plantilla en la de la lista; vacía cierra el modo; no se descartan obras de baja (N6).
+- **Naturaleza por configuración** (H34): el mapeo vacío cierra las sin vincular (`naturaleza_no_valida`); lista
+  blanca y mapeo deben cubrir los mismos productos (T19). Corregir el maestro de `MA9999` es de Administración.
+- **`prepma`** [M14e]: si no llega al 95 %, puede diferir del que pondría el escritorio (PMP de compra del producto;
+  no toca stock, importes ni medición). E7b va **sin** `UPDLOCK`: el stock global abarca miles de `mov` por producto
+  genérico y bloquearlo escalaría a tabla; un alta simultánea del escritorio puede desviarlo. Coste de L12c: M14e.
+- **Precio negativo** (H8): segunda barrera tras sv9, fallo de línea con código (no `ge=0`). **Stock negativo**: aviso.
 - **Descartado**: ruta nueva; modo por valores; meter el modo en `CreatePurchaseAlbaranUseCase`;
   reutilizar `albaran-directo`; plantilla de otro proveedor o empresa; `dcapropar` (M7); recibir almacén,
-  centro o analítica del llamante; campo `almacen` y `fecha_no_valida` (v5.1); las analíticas de §Analítica.
+  centro, analítica o naturaleza del llamante; campo `almacen` y `fecha_no_valida` (v5.1); las de §Analítica.
