@@ -1,9 +1,12 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-**Lote D de F-009 en curso (implementer, 2026-10-06):** T13 (`function_app.py`: selector de modo, camino
-extendido, guarda R8 en las dos rutas, docstring H32, cableado en `build_dependencies`), T14 (R2-R4), T15
-(trazas R32 con `reloj`) y las observaciones O1/O2 del lote C, trozo 1. Informe: `progress/impl_F-009_loteD.md`.
+**Lote D de F-009 hecho (implementer, 2026-10-06):** T13 (`function_app.py`: selector de modo, camino
+extendido, guarda R8 en las dos rutas, docstring H32, cableado en `build_dependencies` con ocho posiciones), T14
+(R2-R4 comprobados), T15 (traza R32 con `reloj`) y las observaciones O1/O2 del lote C, trozo 1. Commits `6ed3c7a`,
+`8ac52cb`, `fd1674c`, `11d13c0`, `8ab15de`. Dorado sin cambios (solo el arnés: tupla de ocho). Seis decisiones de
+T13 (tipo de R8 en clásico y directo, orden R8 frente a las guardas, sin `except IntegrityError`…) en
+[`impl_F-009_loteD.md`](impl_F-009_loteD.md). **Siguiente:** revisión del lote D; después el lote E (T16-T18).
 
 ## F-009 `in_progress` (2026-10-06) — implementación por lotes
 
