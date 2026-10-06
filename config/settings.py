@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class _ParesJson(list):
+    """Los pares `(clave, valor)` de un objeto JSON, en orden y con repeticiones,
+    tal como los entrega `json.loads(..., object_pairs_hook=...)`."""
 
 
 class Settings(BaseSettings):
@@ -100,6 +105,32 @@ class Settings(BaseSettings):
         150, alias="SIGRID_RECLAMACION_PRESUPUESTO_SEGUNDOS"
     )
 
+    # --- Alta de albaranes de compra, modo extendido (F-009, R10) ---
+    # Los seis defectos son CERRADOS: sin interruptor no hay commit (tampoco en
+    # el clasico ni en albaran-directo, R8); con los prefijos vacios toda
+    # referencia se rechaza; sin productos ni naturalezas no hay lineas sin
+    # vincular; sin empresas no se encuentra ninguna obra. Todo tambien en
+    # dry-run. Despliegue (T19), SOLO en JSON: ["ALB-"], ["MA9999", "QA9999",
+    # "XA9999"], [1] y {"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}.
+    sigrid_albaran_write_enabled: bool = Field(False, alias="SIGRID_ALBARAN_WRITE_ENABLED")
+    sigrid_albaran_prefijos_referencia: list[str] = Field(
+        default_factory=list, alias="SIGRID_ALBARAN_PREFIJOS_REFERENCIA"
+    )
+    sigrid_albaran_productos_sin_contrato: list[str] = Field(
+        default_factory=list, alias="SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO"
+    )
+    sigrid_albaran_empresas_obra: list[int] = Field(
+        default_factory=list, alias="SIGRID_ALBARAN_EMPRESAS_OBRA"
+    )
+    sigrid_albaran_max_lineas: int = Field(100, alias="SIGRID_ALBARAN_MAX_LINEAS")
+    # Naturaleza (auxpronat.cod) de las lineas sin vincular, por producto (H34).
+    # `NoDecode`: el texto del entorno llega TAL CUAL a `parse_string_dict`; si
+    # lo decodificara pydantic-settings, un `{"A": "x", "A": "y"}` perderia la
+    # clave repetida antes de que nadie pudiera rechazarlo.
+    sigrid_albaran_naturaleza_por_producto: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict, alias="SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO"
+    )
+
     model_config = SettingsConfigDict(
         extra="ignore",
         case_sensitive=False,
@@ -112,6 +143,8 @@ class Settings(BaseSettings):
         "allowed_write_prefixes",
         "sigrid_document_allowed_magic",
         "sigrid_reclamacion_prefijos_referencia",
+        "sigrid_albaran_prefijos_referencia",
+        "sigrid_albaran_productos_sin_contrato",
         mode="before",
     )
     @classmethod
@@ -142,6 +175,7 @@ class Settings(BaseSettings):
     @field_validator(
         "sigrid_document_allowed_contip",
         "sigrid_document_allowed_gratipide",
+        "sigrid_albaran_empresas_obra",
         mode="before",
     )
     @classmethod
@@ -192,6 +226,62 @@ class Settings(BaseSettings):
                     f"'{crudo}' no es un entero: revisa la lista blanca."
                 ) from None
         return enteros
+
+    @field_validator("sigrid_albaran_naturaleza_por_producto", mode="before")
+    @classmethod
+    def parse_string_dict(cls, value: Any) -> dict[str, str]:
+        """
+        Mapeo de textos en JSON (`{"MA9999": "MA99"}`), con claves y valores
+        recortados y no vacios. Vacio o ausente => `{}`.
+
+        Como `parse_int_list`, ante lo que no entiende NO degrada a `{}`: falla
+        al arrancar. CSV, lista, texto suelto, valores que no son texto, vacios
+        o claves repetidas (tambien tras recortar) son un error de
+        configuracion, y un mapeo a medias abriria a medias las lineas sin
+        vincular sin que nadie se enterase.
+        """
+        if value is None:
+            return {}
+
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return {}
+            try:
+                pares = json.loads(raw, object_pairs_hook=_ParesJson)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    f"Formato no soportado para el mapeo (debe ser un objeto JSON): {value!r}"
+                ) from None
+            if not isinstance(pares, _ParesJson):
+                # Solo un objeto JSON sale como `_ParesJson` (con sus pares en
+                # orden y sin perder las claves repetidas): `[]`, una lista o
+                # un texto suelto no son un mapeo.
+                raise ValueError(  # noqa: TRY004 (ValueError a proposito, ver abajo)
+                    f"Formato no soportado para el mapeo (debe ser un objeto JSON): {value!r}"
+                )
+        elif isinstance(value, dict):
+            pares = list(value.items())
+        else:
+            # ValueError y no TypeError: pydantic lo convierte en un
+            # ValidationError legible (ver `parse_int_list`).
+            raise ValueError(  # noqa: TRY004
+                f"Formato no soportado para el mapeo (debe ser un objeto JSON): {value!r}"
+            )
+
+        mapeo: dict[str, str] = {}
+        for clave, valor in pares:
+            if not isinstance(clave, str) or not isinstance(valor, str):
+                raise ValueError(  # noqa: TRY004 (ValueError a proposito, ver abajo)
+                    f"El mapeo solo admite textos: {clave!r}: {valor!r}."
+                )
+            clave_limpia, valor_limpio = clave.strip(), valor.strip()
+            if not clave_limpia or not valor_limpio:
+                raise ValueError(f"El mapeo no admite textos vacios: {clave!r}: {valor!r}.")
+            if clave_limpia in mapeo:
+                raise ValueError(f"Clave repetida en el mapeo: {clave_limpia!r}.")
+            mapeo[clave_limpia] = valor_limpio
+        return mapeo
 
     @property
     def write_enabled(self) -> bool:
