@@ -1,0 +1,1733 @@
+{
+ "clasico_dry_run": {
+  "ruta": "albaran",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_contrato": " CT00/0001 ",
+   "cod_obra": "9999",
+   "cif_proveedor": "B00000000",
+   "su_referencia": " ALB-PRUEBA-1 ",
+   "lineas_recibidas": [
+    {
+     "ctrpro_ide": 5102,
+     "cantidad": 2
+    },
+    {
+     "ctrpro_ide": 5101,
+     "cantidad": 3
+    }
+   ]
+  },
+  "status": 200,
+  "cuerpo": {
+   "ok": true,
+   "database": "ruesma_prueba",
+   "committed": false,
+   "dry_run": true,
+   "con_ide": 12001,
+   "cod": "AC26/41",
+   "contrato": {
+    "ctride": 5001,
+    "obride": 4001,
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "entide": 3001,
+    "almide": 6001,
+    "template_ide": 1200
+   },
+   "cabecera": {
+    "ide": 12001,
+    "entide": 3001,
+    "entcod": "P0001",
+    "entres": "PROVEEDOR PRUEBA SL",
+    "entcif": "B00000000",
+    "fecdoc": 20260315,
+    "hor": 93005,
+    "entref": "ALB-PRUEBA-1",
+    "eioide": 1,
+    "ctride": 5001,
+    "obride": 4001,
+    "almide": 6001,
+    "cenide": 6101,
+    "empide": 7777,
+    "forpagide": 11,
+    "impbru": 44.17,
+    "impnet": 44.17,
+    "totbas": 44.17,
+    "totiva": 9.28,
+    "totdoc": 53.45,
+    "tot": 53.45,
+    "totpag": 53.45,
+    "impdes": 0,
+    "imprec": 0,
+    "estser": 0,
+    "estfac": 0,
+    "synckey": "",
+    "totbasdiv": 44.17,
+    "totivadiv": 9.28,
+    "totdocdiv": 53.45,
+    "impdesdiv": 0,
+    "imprecdiv": 0
+   },
+   "lineas": [
+    {
+     "ctrpro_ide": 5101,
+     "linoriide": 5101,
+     "proide": 9001,
+     "res": "CEMENTO PRUEBA",
+     "unimed": "SAC",
+     "cantidad": 3.0,
+     "precio": 12.5,
+     "total": 37.5,
+     "iva_cuota": 7.88,
+     "almide": 6001,
+     "stock_anterior": 100.0,
+     "stock_resultante": 103.0,
+     "pmp_anterior": 10.0,
+     "pmp_resultante": 10.072815533980583
+    },
+    {
+     "ctrpro_ide": 5102,
+     "linoriide": 5102,
+     "proide": 9002,
+     "res": "ARENA PRUEBA",
+     "unimed": "UD",
+     "cantidad": 2.0,
+     "precio": 3.333,
+     "total": 6.67,
+     "iva_cuota": 1.4,
+     "almide": 6002,
+     "stock_anterior": 0.0,
+     "stock_resultante": 2.0,
+     "pmp_anterior": 0.0,
+     "pmp_resultante": 3.333
+    }
+   ],
+   "movimientos": [
+    {
+     "ide": 42001,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22001,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6001,
+     "proide": 9001,
+     "doctip": 14,
+     "fec": 20260315,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 3.0,
+     "cansal": 0.0,
+     "pre": 12.5,
+     "prc": 12.5,
+     "prepma": 10.072815533980583,
+     "nueusa": 0,
+     "almide": 6001,
+     "almcan": 103.0,
+     "almpma": 10.072815533980583,
+     "fecblo": 0,
+     "fechor": 20260315.093005
+    },
+    {
+     "ide": 42002,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22002,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6002,
+     "proide": 9002,
+     "doctip": 14,
+     "fec": 20260315,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 2.0,
+     "cansal": 0.0,
+     "pre": 3.333,
+     "prc": 3.333,
+     "prepma": 3.333,
+     "nueusa": 0,
+     "almide": 6002,
+     "almcan": 2.0,
+     "almpma": 3.333,
+     "fecblo": 0,
+     "fechor": 20260315.093005
+    }
+   ],
+   "estados_contrato": {
+    "estser_before": 0,
+    "estfac_before": 0,
+    "estser_after": 0,
+    "estfac_after": 0,
+    "sum_can": 17.0,
+    "sum_canser_before": 6.0,
+    "sum_canser_after": 11.0,
+    "sum_canfac": 2.0
+   },
+   "totales": {
+    "impbru": 44.17,
+    "impnet": 44.17,
+    "totbas": 44.17,
+    "totiva": 9.28,
+    "totdoc": 53.45,
+    "tot": 53.45,
+    "totpag": 53.45,
+    "n_lineas": 2,
+    "n_recibidas": 2,
+    "n_lineas_contrato": 3
+   },
+   "warnings": [
+    "DRY-RUN: no se ha escrito nada. Revisa cabecera, lineas, movimientos de stock y estados antes de poner commit=true. Los ide son provisionales (MAX+1 actual)."
+   ]
+  },
+  "llamadas": [
+   {
+    "metodo": "locate_contract",
+    "database": "ruesma_prueba",
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "contract_tip": 44
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "ctr",
+    "ide": 5001
+   },
+   {
+    "metodo": "read_rows_by",
+    "database": "ruesma_prueba",
+    "table": "ctrpro",
+    "where_column": "docide",
+    "where_value": 5001,
+    "order_by": "pos"
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT ISNULL(MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))), 0) + 1 FROM dbo.con WHERE tip = ? AND cod LIKE ?",
+    "parameters": [
+     6,
+     14,
+     "AC26/%"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND d.entide = ? ORDER BY c.ide DESC",
+    "parameters": [
+     14,
+     3001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "con",
+    "ide": 1200
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "dca",
+    "ide": 1200
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001,
+     6001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE docide = ? ORDER BY ide ASC",
+    "parameters": [
+     1200
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002,
+     6002
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "con"
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "dcapro"
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "ctrprodes"
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "mov"
+   }
+  ]
+ },
+ "clasico_commit": {
+  "ruta": "albaran",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_contrato": " CT00/0001 ",
+   "cod_obra": "9999",
+   "cif_proveedor": "B00000000",
+   "su_referencia": " ALB-PRUEBA-1 ",
+   "fecha_albaran": 20251231,
+   "empide": 4242,
+   "commit": true,
+   "lineas_recibidas": [
+    {
+     "ctrpro_ide": 5101,
+     "cantidad": 2
+    },
+    {
+     "ctrpro_ide": 5102,
+     "cantidad": 0
+    },
+    {
+     "ctrpro_ide": 5101,
+     "cantidad": 5
+    }
+   ]
+  },
+  "status": 200,
+  "cuerpo": {
+   "ok": true,
+   "database": "ruesma_prueba",
+   "committed": true,
+   "dry_run": false,
+   "con_ide": 12001,
+   "cod": "AC25/41",
+   "contrato": {
+    "ctride": 5001,
+    "obride": 4001,
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "entide": 3001,
+    "almide": 6001,
+    "template_ide": 1300
+   },
+   "cabecera": {
+    "ide": 12001,
+    "entide": 3001,
+    "entcod": "P0001",
+    "entres": "PROVEEDOR PRUEBA SL",
+    "entcif": "B00000000",
+    "fecdoc": 20251231,
+    "hor": 93005,
+    "entref": "ALB-PRUEBA-1",
+    "eioide": 1,
+    "ctride": 5001,
+    "obride": 4001,
+    "almide": 6001,
+    "cenide": 6101,
+    "empide": 4242,
+    "forpagide": 11,
+    "impbru": 87.5,
+    "impnet": 87.5,
+    "totbas": 87.5,
+    "totiva": 18.38,
+    "totdoc": 105.88,
+    "tot": 105.88,
+    "totpag": 105.88,
+    "impdes": 0,
+    "imprec": 0,
+    "estser": 0,
+    "estfac": 0,
+    "synckey": ""
+   },
+   "lineas": [
+    {
+     "ctrpro_ide": 5101,
+     "linoriide": 5101,
+     "proide": 9001,
+     "res": "CEMENTO PRUEBA",
+     "unimed": "SAC",
+     "cantidad": 7.0,
+     "precio": 12.5,
+     "total": 87.5,
+     "iva_cuota": 18.38,
+     "almide": 6001,
+     "stock_anterior": 0.0,
+     "stock_resultante": 7.0,
+     "pmp_anterior": 0.0,
+     "pmp_resultante": 12.5
+    },
+    {
+     "ctrpro_ide": 5102,
+     "linoriide": 5102,
+     "proide": 9002,
+     "res": "ARENA PRUEBA",
+     "unimed": "UD",
+     "cantidad": 0.0,
+     "precio": 3.333,
+     "total": 0.0,
+     "iva_cuota": 0.0,
+     "almide": 6002,
+     "stock_anterior": 4.0,
+     "stock_resultante": 4.0,
+     "pmp_anterior": 3.0,
+     "pmp_resultante": 3.0
+    }
+   ],
+   "movimientos": [
+    {
+     "ide": 42001,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22001,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6001,
+     "proide": 9001,
+     "doctip": 14,
+     "fec": 20251231,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 7.0,
+     "cansal": 0.0,
+     "pre": 12.5,
+     "prc": 12.5,
+     "prepma": 12.5,
+     "nueusa": 0,
+     "almide": 6001,
+     "almcan": 7.0,
+     "almpma": 12.5,
+     "fecblo": 0,
+     "fechor": 20251231.093005
+    },
+    {
+     "ide": 42002,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22002,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6002,
+     "proide": 9002,
+     "doctip": 14,
+     "fec": 20251231,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 0.0,
+     "cansal": 0.0,
+     "pre": 3.333,
+     "prc": 3.333,
+     "prepma": 3.0,
+     "nueusa": 0,
+     "almide": 6002,
+     "almcan": 4.0,
+     "almpma": 3.0,
+     "fecblo": 0,
+     "fechor": 20251231.093005
+    }
+   ],
+   "estados_contrato": {
+    "estser_before": 0,
+    "estfac_before": 0,
+    "estser_after": 0,
+    "estfac_after": 0,
+    "sum_can": 17.0,
+    "sum_canser_before": 6.0,
+    "sum_canser_after": 13.0,
+    "sum_canfac": 2.0
+   },
+   "totales": {
+    "impbru": 87.5,
+    "impnet": 87.5,
+    "totbas": 87.5,
+    "totiva": 18.38,
+    "totdoc": 105.88,
+    "tot": 105.88,
+    "totpag": 105.88,
+    "n_lineas": 2,
+    "n_recibidas": 1,
+    "n_lineas_contrato": 3
+   },
+   "warnings": [
+    "Linea 5101: cantidad recibida (7.0) supera lo pendiente de servir (6.0).",
+    "La plantilla de cabecera no es del mismo proveedor; revisa formas de pago/cuentas en el dry-run.",
+    "Producto 9001 sin historico de dcapro: cueide/prepma/natide quedan a 0.",
+    "Albaran creado. Verifica abriendolo en Sigrid (stock, totales y enlace al contrato)."
+   ]
+  },
+  "llamadas": [
+   {
+    "metodo": "locate_contract",
+    "database": "ruesma_prueba",
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "contract_tip": 44
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "ctr",
+    "ide": 5001
+   },
+   {
+    "metodo": "read_rows_by",
+    "database": "ruesma_prueba",
+    "table": "ctrpro",
+    "where_column": "docide",
+    "where_value": 5001,
+    "order_by": "pos"
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT ISNULL(MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))), 0) + 1 FROM dbo.con WHERE tip = ? AND cod LIKE ?",
+    "parameters": [
+     6,
+     14,
+     "AC25/%"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND d.entide = ? ORDER BY c.ide DESC",
+    "parameters": [
+     14,
+     3001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 ide FROM dbo.con WHERE tip = ? AND cod LIKE ? ORDER BY ide DESC",
+    "parameters": [
+     14,
+     "AC25/%"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "con",
+    "ide": 1300
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "dca",
+    "ide": 1300
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE docide = ? ORDER BY ide ASC",
+    "parameters": [
+     1300
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001,
+     6001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002,
+     6002
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "run_in_write_transaction",
+    "database": "ruesma_prueba",
+    "timeout_seconds": 30,
+    "applock_resources": [
+     "SIGRID_IDE_con",
+     "SIGRID_IDE_dcapro",
+     "SIGRID_IDE_ctrprodes",
+     "SIGRID_IDE_mov"
+    ],
+    "applock_timeout_ms": 10000,
+    "max_retries": 3,
+    "sentencias": [
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.[con]",
+      "parametros": []
+     },
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) FROM dbo.[dcapro]",
+      "parametros": []
+     },
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) FROM dbo.[ctrprodes]",
+      "parametros": []
+     },
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) FROM dbo.[mov]",
+      "parametros": []
+     },
+     {
+      "sql": "INSERT INTO dbo.[con] ([ide], [emp], [tip], [cod], [res], [fec], [est], [usu]) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       12001,
+       1,
+       14,
+       "AC25/41",
+       "PROVEEDOR PRUEBA SL. (ALB-PRUEBA-1)",
+       20251231,
+       1,
+       "PRUEBA"
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dca] ([ide], [entide], [entcod], [entres], [entcif], [fecdoc], [hor], [entref], [eioide], [ctride], [obride], [almide], [cenide], [empide], [forpagide], [impbru], [impnet], [totbas], [totiva], [totdoc], [tot], [totpag], [impdes], [imprec], [estser], [estfac], [synckey]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       12001,
+       3001,
+       "P0001",
+       "PROVEEDOR PRUEBA SL",
+       "B00000000",
+       20251231,
+       93005,
+       "ALB-PRUEBA-1",
+       1,
+       5001,
+       4001,
+       6001,
+       6101,
+       4242,
+       11,
+       87.5,
+       87.5,
+       87.5,
+       18.38,
+       105.88,
+       105.88,
+       105.88,
+       0,
+       0,
+       0,
+       0,
+       ""
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dcapro] ([cueide], [prepma], [natide], [envide], [reqcuo], [lintip], [taride], [cuoman], [docide], [pos], [proide], [pre], [can], [tar], [dto], [tot], [res], [tex], [ivaide], [ivacuo], [unimed], [almide], [obride], [cenide], [caaide], [paride], [docoritip], [docoricod], [docoriide], [linoriide], [canoriori], [imporiori], [ide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       12001,
+       64,
+       9001,
+       12.5,
+       7.0,
+       12.5,
+       "",
+       87.5,
+       "CEMENTO PRUEBA",
+       "",
+       3,
+       18.38,
+       "SAC",
+       6001,
+       4001,
+       6101,
+       7001,
+       8001,
+       44,
+       "CT00/0001",
+       5001,
+       5101,
+       10.0,
+       125.0,
+       22001
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dcapro] ([ide], [docide], [pos], [proide], [pre], [can], [tar], [dto], [tot], [res], [tex], [ivaide], [ivacuo], [unimed], [almide], [obride], [cenide], [caaide], [paride], [docoritip], [docoricod], [docoriide], [linoriide], [canoriori], [imporiori], [canser], [canfac], [cancan], [canped], [canorilin], [canoriant], [imporiant], [imporiantdiv], [imporioridiv], [cueide], [prepma], [natide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       22002,
+       12001,
+       128,
+       9002,
+       3.333,
+       0.0,
+       3.333,
+       "",
+       0.0,
+       "ARENA PRUEBA",
+       "texto de linea",
+       3,
+       0.0,
+       "UD",
+       6002,
+       4001,
+       6101,
+       7000,
+       0,
+       44,
+       "CT00/0001",
+       5001,
+       5102,
+       5.0,
+       16.67,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       501,
+       8.5,
+       601
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[ctrprodes] ([ide], [docproide], [can], [docdestip], [docdescod], [docdeside], [lindeside], [ctrproactide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       32001,
+       5101,
+       7.0,
+       14,
+       "AC25/41",
+       12001,
+       22001,
+       0
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[ctrprodes] ([ide], [docproide], [can], [docdestip], [docdescod], [docdeside], [lindeside], [ctrproactide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       32002,
+       5102,
+       0.0,
+       14,
+       "AC25/41",
+       12001,
+       22002,
+       0
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[mov] ([ide], [emp], [docide], [linide], [tip], [oritip], [oriide], [destip], [deside], [proide], [doctip], [fec], [hor], [fecdoc], [canent], [cansal], [pre], [prc], [prepma], [nueusa], [almide], [almcan], [almpma], [fecblo], [fechor]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       42001,
+       1,
+       12001,
+       22001,
+       1,
+       5,
+       3001,
+       2,
+       6001,
+       9001,
+       14,
+       20251231,
+       93005,
+       0,
+       7.0,
+       0.0,
+       12.5,
+       12.5,
+       12.5,
+       0,
+       6001,
+       7.0,
+       12.5,
+       0,
+       20251231.093005
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[mov] ([ide], [emp], [docide], [linide], [tip], [oritip], [oriide], [destip], [deside], [proide], [doctip], [fec], [hor], [fecdoc], [canent], [cansal], [pre], [prc], [prepma], [nueusa], [almide], [almcan], [almpma], [fecblo], [fechor]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       42002,
+       1,
+       12001,
+       22002,
+       1,
+       5,
+       3001,
+       2,
+       6002,
+       9002,
+       14,
+       20251231,
+       93005,
+       0,
+       0.0,
+       0.0,
+       3.333,
+       3.333,
+       3.0,
+       0,
+       6002,
+       4.0,
+       3.0,
+       0,
+       20251231.093005
+      ]
+     },
+     {
+      "sql": "UPDATE dbo.[ctrpro] SET canser = canser + ? WHERE ide = ?",
+      "parametros": [
+       7.0,
+       5101
+      ]
+     },
+     {
+      "sql": "UPDATE dbo.[ctr] SET estser = ?, estfac = ? WHERE ide = ?",
+      "parametros": [
+       0,
+       0,
+       5001
+      ]
+     }
+    ],
+    "resultado": {
+     "con_ide": 12001
+    }
+   }
+  ]
+ },
+ "clasico_contrato_inexistente": {
+  "ruta": "albaran",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_contrato": " CT00/0001 ",
+   "cod_obra": "9999",
+   "cif_proveedor": "B00000000",
+   "su_referencia": " ALB-PRUEBA-1 ",
+   "lineas_recibidas": [
+    {
+     "ctrpro_ide": 5101,
+     "cantidad": 1
+    }
+   ]
+  },
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "No se encontro un contrato (tip=44) con cod='CT00/0001', obra='9999' y CIF='B00000000'.",
+   "details": {
+    "type": "ValueError"
+   }
+  },
+  "llamadas": [
+   {
+    "metodo": "locate_contract",
+    "database": "ruesma_prueba",
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "contract_tip": 44
+   }
+  ]
+ },
+ "clasico_linea_ajena": {
+  "ruta": "albaran",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_contrato": " CT00/0001 ",
+   "cod_obra": "9999",
+   "cif_proveedor": "B00000000",
+   "su_referencia": " ALB-PRUEBA-1 ",
+   "lineas_recibidas": [
+    {
+     "ctrpro_ide": 5999,
+     "cantidad": 1
+    }
+   ]
+  },
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "La linea ctrpro_ide=5999 no pertenece al contrato CT00/0001.",
+   "details": {
+    "type": "ValueError"
+   }
+  },
+  "llamadas": [
+   {
+    "metodo": "locate_contract",
+    "database": "ruesma_prueba",
+    "cod_contrato": "CT00/0001",
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "contract_tip": 44
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "ctr",
+    "ide": 5001
+   },
+   {
+    "metodo": "read_rows_by",
+    "database": "ruesma_prueba",
+    "table": "ctrpro",
+    "where_column": "docide",
+    "where_value": 5001,
+    "order_by": "pos"
+   }
+  ]
+ },
+ "directo_dry_run": {
+  "ruta": "albaran-directo",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cif_proveedor": " B00000000 ",
+   "cod_obra": "9999",
+   "su_referencia": "ALB-PRUEBA-2",
+   "lineas": [
+    {
+     "proide": 9001,
+     "can": 4,
+     "pre": 11.0,
+     "res": " PIEZA PRUEBA ",
+     "unimed": "UD",
+     "paride": 8001
+    },
+    {
+     "proide": 9002,
+     "can": 1.5,
+     "pre": 2.0
+    }
+   ]
+  },
+  "status": 200,
+  "cuerpo": {
+   "ok": true,
+   "database": "ruesma_prueba",
+   "committed": false,
+   "dry_run": true,
+   "con_ide": 12001,
+   "cod": "AC26/7",
+   "contrato": {
+    "sin_contrato": true,
+    "obride": 4001,
+    "entide": 3001,
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "almide": 6001,
+    "template_ide": 1200
+   },
+   "cabecera": {
+    "ide": 12001,
+    "entide": 3001,
+    "entcod": "P0001",
+    "entres": "PROVEEDOR PRUEBA SL",
+    "entcif": "B00000000",
+    "fecdoc": 20260315,
+    "hor": 93005,
+    "entref": "ALB-PRUEBA-2",
+    "eioide": 1,
+    "ctride": 0,
+    "obride": 4001,
+    "almide": 6001,
+    "cenide": 6101,
+    "empide": 7777,
+    "forpagide": 11,
+    "impbru": 47.0,
+    "impnet": 47.0,
+    "totbas": 47.0,
+    "totiva": 9.87,
+    "totdoc": 56.87,
+    "tot": 56.87,
+    "totpag": 56.87,
+    "impdes": 0,
+    "imprec": 0,
+    "estser": 0,
+    "estfac": 0,
+    "synckey": "",
+    "totbasdiv": 47.0,
+    "totivadiv": 9.87,
+    "totdocdiv": 56.87,
+    "impdesdiv": 0,
+    "imprecdiv": 0
+   },
+   "lineas": [
+    {
+     "ctrpro_ide": 0,
+     "linoriide": 0,
+     "proide": 9001,
+     "res": "PIEZA PRUEBA",
+     "unimed": "UD",
+     "cantidad": 4.0,
+     "precio": 11.0,
+     "total": 44.0,
+     "iva_cuota": 9.24,
+     "almide": 6001,
+     "stock_anterior": 100.0,
+     "stock_resultante": 104.0,
+     "pmp_anterior": 10.0,
+     "pmp_resultante": 10.038461538461538
+    },
+    {
+     "ctrpro_ide": 0,
+     "linoriide": 0,
+     "proide": 9002,
+     "res": "DESCRIPCION VIEJA",
+     "unimed": "UD",
+     "cantidad": 1.5,
+     "precio": 2.0,
+     "total": 3.0,
+     "iva_cuota": 0.63,
+     "almide": 6003,
+     "stock_anterior": 0.0,
+     "stock_resultante": 1.5,
+     "pmp_anterior": 0.0,
+     "pmp_resultante": 2.0
+    }
+   ],
+   "movimientos": [
+    {
+     "ide": 42001,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22001,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6001,
+     "proide": 9001,
+     "doctip": 14,
+     "fec": 20260315,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 4.0,
+     "cansal": 0.0,
+     "pre": 11.0,
+     "prc": 11.0,
+     "prepma": 10.038461538461538,
+     "nueusa": 0,
+     "almide": 6001,
+     "almcan": 104.0,
+     "almpma": 10.038461538461538,
+     "fecblo": 0,
+     "fechor": 20260315.093005
+    },
+    {
+     "ide": 42002,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22002,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6003,
+     "proide": 9002,
+     "doctip": 14,
+     "fec": 20260315,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 1.5,
+     "cansal": 0.0,
+     "pre": 2.0,
+     "prc": 2.0,
+     "prepma": 2.0,
+     "nueusa": 0,
+     "almide": 6003,
+     "almcan": 1.5,
+     "almpma": 2.0,
+     "fecblo": 0,
+     "fechor": 20260315.093005
+    }
+   ],
+   "estados_contrato": {},
+   "totales": {
+    "impbru": 47.0,
+    "impnet": 47.0,
+    "totbas": 47.0,
+    "totiva": 9.87,
+    "totdoc": 56.87,
+    "tot": 56.87,
+    "totpag": 56.87,
+    "n_lineas": 2,
+    "n_recibidas": 2
+   },
+   "warnings": [
+    "DRY-RUN (albaran directo, SIN contrato): no se ha escrito nada. Revisa cabecera, lineas y movimientos de stock antes de poner commit=true. Los ide son provisionales."
+   ]
+  },
+  "llamadas": [
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 ide FROM dbo.con WHERE tip = ? AND cod = ? ORDER BY ide DESC",
+    "parameters": [
+     42,
+     "9999"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 d.ide, d.entide, d.entcod, d.entres, d.entcif FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND d.entcif = ? ORDER BY c.ide DESC",
+    "parameters": [
+     14,
+     "B00000000"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "con",
+    "ide": 1200
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "dca",
+    "ide": 1200
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT ISNULL(MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))), 0) + 1 FROM dbo.con WHERE tip = ? AND cod LIKE ?",
+    "parameters": [
+     6,
+     14,
+     "AC26/%"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001,
+     6001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE docide = ? ORDER BY ide ASC",
+    "parameters": [
+     1200
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9002,
+     6003
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "con"
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "dcapro"
+   },
+   {
+    "metodo": "peek_next_ide",
+    "database": "ruesma_prueba",
+    "table": "mov"
+   }
+  ]
+ },
+ "directo_commit": {
+  "ruta": "albaran-directo",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cif_proveedor": "B00000000",
+   "cod_obra": "9999",
+   "almide": 6001,
+   "cenide": 6101,
+   "fecha_albaran": 20251231,
+   "commit": true,
+   "lineas": [
+    {
+     "proide": 9001,
+     "can": 4,
+     "pre": 11.0,
+     "ivaide": 5
+    },
+    {
+     "proide": 9004,
+     "can": 0,
+     "pre": 2.5
+    }
+   ]
+  },
+  "status": 200,
+  "cuerpo": {
+   "ok": true,
+   "database": "ruesma_prueba",
+   "committed": true,
+   "dry_run": false,
+   "con_ide": 12001,
+   "cod": "AC25/7",
+   "contrato": {
+    "sin_contrato": true,
+    "obride": 4001,
+    "entide": 3001,
+    "cod_obra": "9999",
+    "cif_proveedor": "B00000000",
+    "almide": 6001,
+    "template_ide": 1200
+   },
+   "cabecera": {
+    "ide": 12001,
+    "entide": 3001,
+    "entcod": "P0001",
+    "entres": "PROVEEDOR PRUEBA SL",
+    "entcif": "B00000000",
+    "fecdoc": 20251231,
+    "hor": 93005,
+    "entref": "",
+    "eioide": 1,
+    "ctride": 0,
+    "obride": 4001,
+    "almide": 6001,
+    "cenide": 6101,
+    "empide": 7777,
+    "forpagide": 11,
+    "impbru": 44.0,
+    "impnet": 44.0,
+    "totbas": 44.0,
+    "totiva": 9.24,
+    "totdoc": 53.24,
+    "tot": 53.24,
+    "totpag": 53.24,
+    "impdes": 0,
+    "imprec": 0,
+    "estser": 0,
+    "estfac": 0,
+    "synckey": "",
+    "totbasdiv": 44.0,
+    "totivadiv": 9.24,
+    "totdocdiv": 53.24,
+    "impdesdiv": 0,
+    "imprecdiv": 0
+   },
+   "lineas": [
+    {
+     "ctrpro_ide": 0,
+     "linoriide": 0,
+     "proide": 9001,
+     "res": "DESCRIPCION VIEJA",
+     "unimed": "UD",
+     "cantidad": 4.0,
+     "precio": 11.0,
+     "total": 44.0,
+     "iva_cuota": 9.24,
+     "almide": 6001,
+     "stock_anterior": 100.0,
+     "stock_resultante": 104.0,
+     "pmp_anterior": 10.0,
+     "pmp_resultante": 10.038461538461538
+    },
+    {
+     "ctrpro_ide": 0,
+     "linoriide": 0,
+     "proide": 9004,
+     "res": "",
+     "unimed": null,
+     "cantidad": 0.0,
+     "precio": 2.5,
+     "total": 0.0,
+     "iva_cuota": 0.0,
+     "almide": 6001,
+     "stock_anterior": 0.0,
+     "stock_resultante": 0.0,
+     "pmp_anterior": 0.0,
+     "pmp_resultante": 0.0
+    }
+   ],
+   "movimientos": [
+    {
+     "ide": 42001,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22001,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6001,
+     "proide": 9001,
+     "doctip": 14,
+     "fec": 20251231,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 4.0,
+     "cansal": 0.0,
+     "pre": 11.0,
+     "prc": 11.0,
+     "prepma": 10.038461538461538,
+     "nueusa": 0,
+     "almide": 6001,
+     "almcan": 104.0,
+     "almpma": 10.038461538461538,
+     "fecblo": 0,
+     "fechor": 20251231.093005
+    },
+    {
+     "ide": 42002,
+     "emp": 1,
+     "docide": 12001,
+     "linide": 22002,
+     "tip": 1,
+     "oritip": 5,
+     "oriide": 3001,
+     "destip": 2,
+     "deside": 6001,
+     "proide": 9004,
+     "doctip": 14,
+     "fec": 20251231,
+     "hor": 93005,
+     "fecdoc": 0,
+     "canent": 0.0,
+     "cansal": 0.0,
+     "pre": 2.5,
+     "prc": 2.5,
+     "prepma": 0.0,
+     "nueusa": 0,
+     "almide": 6001,
+     "almcan": 0.0,
+     "almpma": 0.0,
+     "fecblo": 0,
+     "fechor": 20251231.093005
+    }
+   ],
+   "estados_contrato": {},
+   "totales": {
+    "impbru": 44.0,
+    "impnet": 44.0,
+    "totbas": 44.0,
+    "totiva": 9.24,
+    "totdoc": 53.24,
+    "tot": 53.24,
+    "totpag": 53.24,
+    "n_lineas": 2,
+    "n_recibidas": 1
+   },
+   "warnings": [
+    "Producto 9004 sin historico de dcapro: cueide/ivaide/prepma/natide a 0; revisa la linea en el dry-run.",
+    "Albaran directo creado (sin contrato). Verifica abriendolo en Sigrid (stock y totales)."
+   ]
+  },
+  "llamadas": [
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 ide FROM dbo.con WHERE tip = ? AND cod = ? ORDER BY ide DESC",
+    "parameters": [
+     42,
+     "9999"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 d.ide, d.entide, d.entcod, d.entres, d.entcif FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND d.entcif = ? ORDER BY c.ide DESC",
+    "parameters": [
+     14,
+     "B00000000"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "con",
+    "ide": 1200
+   },
+   {
+    "metodo": "read_full_row",
+    "database": "ruesma_prueba",
+    "table": "dca",
+    "ide": 1200
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT ISNULL(MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))), 0) + 1 FROM dbo.con WHERE tip = ? AND cod LIKE ?",
+    "parameters": [
+     6,
+     14,
+     "AC25/%"
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9001,
+     6001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE proide = ? ORDER BY ide DESC",
+    "parameters": [
+     9004
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 * FROM dbo.dcapro WHERE docide = ? ORDER BY ide ASC",
+    "parameters": [
+     1200
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "execute_read_query",
+    "database": "ruesma_prueba",
+    "sql": "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY ide DESC",
+    "parameters": [
+     9004,
+     6001
+    ],
+    "max_rows": 1
+   },
+   {
+    "metodo": "run_in_write_transaction",
+    "database": "ruesma_prueba",
+    "timeout_seconds": 30,
+    "applock_resources": [
+     "SIGRID_IDE_con",
+     "SIGRID_IDE_dcapro",
+     "SIGRID_IDE_mov"
+    ],
+    "applock_timeout_ms": 10000,
+    "max_retries": 3,
+    "sentencias": [
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.[con]",
+      "parametros": []
+     },
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) FROM dbo.[dcapro]",
+      "parametros": []
+     },
+     {
+      "sql": "SELECT ISNULL(MAX(ide), 0) FROM dbo.[mov]",
+      "parametros": []
+     },
+     {
+      "sql": "INSERT INTO dbo.[con] ([ide], [emp], [tip], [cod], [res], [fec], [est], [usu]) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       12001,
+       1,
+       14,
+       "AC25/7",
+       "PROVEEDOR PRUEBA SL. ()",
+       20251231,
+       1,
+       "PRUEBA"
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dca] ([ide], [entide], [entcod], [entres], [entcif], [fecdoc], [hor], [entref], [eioide], [ctride], [obride], [almide], [cenide], [empide], [forpagide], [impbru], [impnet], [totbas], [totiva], [totdoc], [tot], [totpag], [impdes], [imprec], [estser], [estfac], [synckey], [totbasdiv], [totivadiv], [totdocdiv], [impdesdiv], [imprecdiv]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       12001,
+       3001,
+       "P0001",
+       "PROVEEDOR PRUEBA SL",
+       "B00000000",
+       20251231,
+       93005,
+       "",
+       1,
+       0,
+       4001,
+       6001,
+       6101,
+       7777,
+       11,
+       44.0,
+       44.0,
+       44.0,
+       9.24,
+       53.24,
+       53.24,
+       53.24,
+       0,
+       0,
+       0,
+       0,
+       "",
+       44.0,
+       9.24,
+       53.24,
+       0,
+       0
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dcapro] ([ide], [docide], [pos], [proide], [pre], [can], [tar], [dto], [tot], [res], [tex], [ivaide], [ivacuo], [unimed], [almide], [obride], [cenide], [caaide], [paride], [docoritip], [docoricod], [docoriide], [linoriide], [canoriori], [imporiori], [canser], [canfac], [cancan], [canped], [canorilin], [canoriant], [imporiant], [imporiantdiv], [imporioridiv], [cueide], [prepma], [natide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       22001,
+       12001,
+       64,
+       9001,
+       11.0,
+       4.0,
+       11.0,
+       "",
+       44.0,
+       "DESCRIPCION VIEJA",
+       "",
+       5,
+       9.24,
+       "UD",
+       6001,
+       4001,
+       6101,
+       7000,
+       0,
+       0,
+       "",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       501,
+       8.5,
+       601
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[dcapro] ([cueide], [prepma], [natide], [envide], [reqcuo], [lintip], [taride], [cuoman], [docide], [pos], [proide], [pre], [can], [tar], [dto], [tot], [res], [ivacuo], [almide], [obride], [ide]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       12001,
+       128,
+       9004,
+       2.5,
+       0.0,
+       2.5,
+       "",
+       0.0,
+       "",
+       0.0,
+       6001,
+       4001,
+       22002
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[mov] ([ide], [emp], [docide], [linide], [tip], [oritip], [oriide], [destip], [deside], [proide], [doctip], [fec], [hor], [fecdoc], [canent], [cansal], [pre], [prc], [prepma], [nueusa], [almide], [almcan], [almpma], [fecblo], [fechor]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       42001,
+       1,
+       12001,
+       22001,
+       1,
+       5,
+       3001,
+       2,
+       6001,
+       9001,
+       14,
+       20251231,
+       93005,
+       0,
+       4.0,
+       0.0,
+       11.0,
+       11.0,
+       10.038461538461538,
+       0,
+       6001,
+       104.0,
+       10.038461538461538,
+       0,
+       20251231.093005
+      ]
+     },
+     {
+      "sql": "INSERT INTO dbo.[mov] ([ide], [emp], [docide], [linide], [tip], [oritip], [oriide], [destip], [deside], [proide], [doctip], [fec], [hor], [fecdoc], [canent], [cansal], [pre], [prc], [prepma], [nueusa], [almide], [almcan], [almpma], [fecblo], [fechor]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "parametros": [
+       42002,
+       1,
+       12001,
+       22002,
+       1,
+       5,
+       3001,
+       2,
+       6001,
+       9004,
+       14,
+       20251231,
+       93005,
+       0,
+       0.0,
+       0.0,
+       2.5,
+       2.5,
+       0.0,
+       0,
+       6001,
+       0.0,
+       0.0,
+       0,
+       20251231.093005
+      ]
+     }
+    ],
+    "resultado": {
+     "con_ide": 12001
+    }
+   }
+  ]
+ }
+}
