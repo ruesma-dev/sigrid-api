@@ -3,7 +3,7 @@
 
 Fecha: 2026-10-06. Rama `feature/F-009-alta-albaran-compra`. F-009 sigue en `spec_ready`; T0a-quinquies autorizada
 por el humano. **No se ha llamado a la API, ni a Azure, ni al SQL Server**: el script lo lanza el humano.
-Commit: `5e9975f` (código y tests). No se han tocado la spec, el contrato, `progress/spec_F-009.md`,
+Commits: `5e9975f` (código y tests), `fb04d9a` (ciclo 1 de revisión). No se han tocado la spec, el contrato, `progress/spec_F-009.md`,
 `progress/current.md`, `harness/features.json`, `BACKLOG.md`, `.env` ni el fichero sin trackear de la raíz.
 
 ## Qué cambió
@@ -50,13 +50,14 @@ el `prepma` del `mov` anterior del **producto** (cualquier almacén, `fechor DES
 | `precio_prc` (c) | `prc` en vez de `pre` |
 | `solo_almacen` | solo el stock anterior del almacén del `mov` (control frente a la versión por almacén) |
 
-- Acierto: `_casi_rel(prepma, variante)` con **`TOL_RELATIVA_M14E = 1e-6`** (`|a - b| ≤ tol · max(1, |a|, |b|)`).
-  Informativa: la principal con **`TOL_HOLGADA_M14E = 1e-3`** (por si Sigrid redondea el prepma).
+- Acierto (desde el ciclo 1): `acierta_m14e`, diferencia ≤ max(**`TOL_RELATIVA_M14E` = 1e-6** relativo,
+  **`TOL_ABSOLUTA_M14E` = `float(_TOL_PRECIO)` = 0,0001** absoluto, la tolerancia de precio de M14c y M14d).
+  Informativa: «la principal exacta» (solo 1e-6 relativo).
 - Base: los `mov` con `mov` anterior del producto. `prepma_ponderado` devuelve `None` sin anterior o con
   denominador 0 (cuenta como fallo y se informa aparte), y se cuenta el stock global anterior < 0 (M15: hay stock
   negativo).
 - Veredicto por tipo con `_veredicto_m16c` (≥ **`UMBRAL_REGLA_ESCRIBIBLE` = 95 %** ⇒ «REGLA escribible «…»», empates
-  nombrados; si no, «sin regla escribible (la mejor: …)»), más todas las variantes, la holgada y «prepma = el del
+  nombrados; si no, «sin regla escribible (la mejor: …)»), más todas las variantes, la exacta, las que no discriminan y «prepma = el del
   `mov` anterior (sin cambio)».
 - Comprobaciones: almacén del `mov` en `proalm`, coherencia de `almcan`, nº de otros almacenes y con `mov` anterior.
 - «Hipótesis M14e (… en las entradas): CONFIRMADA / NO confirmada»; sin entradas, «ninguna entrada en la muestra ⇒ no
@@ -116,24 +117,57 @@ compone antes del bloque de constantes): la constante se movió junto a `MUESTRA
 | Un fallo no pierde M14; la parte sale en `m14` | `un_fallo_no_pierde_el_bloque_y_main` |
 | Solo SELECT, guardia real, sin `cla`/`pas`, sin `ISNULL(…, -1)` | los parametrizados previos sobre todo `SQL` (incluyen `M14e_muestra`) |
 
-## Salida real de `bash harness/init.sh` (tras el commit `5e9975f`)
+## Ciclo 1 de revisión (`progress/review_F-009_T0a_quinquies.md`, CHANGES_REQUESTED) · `fb04d9a`
+
+| Punto | Cambio |
+|---|---|
+| 1 Tolerancia | El acierto usa `acierta_m14e`: max(1e-6 relativo, `TOL_ABSOLUTA_M14E` = `float(_TOL_PRECIO)` = 0,0001). Un prepma guardado con 4 decimales (hasta 5e-5) ya no refuta la hipótesis. 1e-6 queda como «la principal exacta», informativa; se quita `TOL_HOLGADA_M14E` (1e-3 era demasiado ancha para decidir entre variantes) |
+| 2 Base 0 | Un tipo sin ningún `mov` con anterior del producto dice «ningún mov con anterior del producto ⇒ no se contrasta» (sin veredicto ni «0 de 0»); la hipótesis, «ninguna entrada con mov anterior del producto ⇒ no se concluye» |
+| 3 `init.sh` | No es de esta tarea: ver «Salida real de `bash harness/init.sh`» |
+| obs. a | Se cuentan las filas que **no discriminan** (principal = (a) = (b) dentro de la tolerancia) |
+| obs. b | `docide` en la muestra; las comprobaciones dicen en cuántos albaranes y productos están los 50 `mov` |
+
+Obs. c (sonda de `proalm`) y d (ampliar la muestra si sale REGLA) quedan como límites declarados.
+
+Tests nuevos (`test_f009_t0a_quinquies_c1_*`): prepma redondeado a 4 decimales (exacto 12,04545…, guardado 12,0455:
+3,8e-6 relativo) ⇒ CONFIRMADA y «exacta 0 de 20», y con la fórmula desviada 0,01 ⇒ NO confirmada; base 0 ⇒ «no se
+contrasta» y «no se concluye», sin «0 de 0»; filas que no discriminan y albaranes/productos de la muestra.
+**RED** (tests antes que el código, contra el script de `5262a74`):
+
+```
+$ .venv/Scripts/python.exe -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider -k "t0a_quinquies_c1"
+E       AttributeError: module 'scripts.medir_f009_t0' has no attribute 'TOL_ABSOLUTA_M14E'. Did you mean: 'TOL_HOLGADA_M14E'?
+E       AssertionError: assert 'ningún mov con anterior del producto ⇒ no se contrasta' in 'M14e entrada (3 mov; con mov anterior del producto 0; denominador 0: 0; stock global anterior < 0: 0): sin regla escr...con el stock anterior, en las entradas): NO confirmada (0 de 0; REGLA escribible = ≥ 95 %, tolerancia relativa 1e-06).'
+E       AssertionError: assert ('s.docide,' in 'SELECT s.ide, s.proide, s.almide, s.canent, ...')
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_quinquies_c1_prepma_redondeado_a_4_decimales_confirma
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_quinquies_c1_base_cero_no_se_contrasta_ni_concluye
+FAILED tests/test_f009_t0_script.py::test_f009_t0a_quinquies_c1_filas_que_no_discriminan_y_representatividad
+3 failed, 650 deselected in 1.26s
+```
+
+Con el código: `653 passed, 1 warning in 4.37s`; ruff limpio en los dos ficheros (por defecto y
+`--preview --select E2,W,E7,F`).
+
+## Salida real de `bash harness/init.sh` (tras el commit `fb04d9a` del ciclo 1)
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2383 passed, 1 skipped, 1 warning in 108.07s (0:01:48)
+2386 passed, 1 skipped, 1 warning in 110.53s (0:01:50)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 98.9% de 1409 líneas cambiadas cubiertas (1394/1409, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.9% de 1417 líneas cambiadas cubiertas (1402/1417, umbral 80%, nivel critico)
 [KO] PUERTA TAMAÑO: F-009 se pasa de los topes:
-    specs/F-009-alta-albaran-compra/requirements.md: 151 líneas > tope 150
+    specs/F-009-alta-albaran-compra/design.md: 252 líneas > tope 250
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 1 comprobaciones fallidas. NO empieces a trabajar.
 ```
 
-**La única comprobación en rojo no es de esta tarea**: `requirements.md` está modificado y sin commit en el árbol
-(`git status`: ` M specs/F-009-alta-albaran-compra/requirements.md`), es la edición en paralelo del spec-author y el
-encargo me prohíbe tocarlo. Todo lo de T0a-quinquies está en verde: compileall, la suite completa (2383 passed) y la
-cobertura. Ver la sección «Re-ejecución» al final.
+**init.sh sale en rojo SOLO por la puerta de tamaño de la spec**: `design.md` (y `requirements.md`) están
+modificados y sin commit (`git status`: ` M specs/F-009-alta-albaran-compra/design.md`, ` M …/requirements.md`): es
+la edición en curso de la spec v8 por el spec-author, que el encargo me prohíbe tocar. Lo mío, verificado: compileall
+[OK], la suite completa dentro de init.sh `2386 passed, 1 skipped`, la prueba de humo `653 passed` y `PUERTA
+COBERTURA` [OK]. En la primera entrega el rojo era el mismo (entonces `requirements.md` 151 > 150 y luego
+`design.md` 278 > 250).
 
 ## Comando para el humano (PowerShell 5.1) · T0b-quinquies
 
@@ -155,22 +189,15 @@ git switch feature/F-009-alta-albaran-compra
 - Fuera: ejecutar el script (humano); volcar el resultado en la spec (spec-author); retirar script y test antes de
   T1 (N3).
 - MANUAL pendiente: T0b-quinquies (`--solo M14`).
-- Pendiente ajeno: que el spec-author deje `requirements.md` dentro del tope (150 líneas) para que `init.sh` vuelva a
-  verde.
+- Pendiente ajeno: que el spec-author deje la spec v8 (`design.md`, `requirements.md`) dentro de los topes para que
+  `init.sh` vuelva a verde.
 
 ## Evidencias
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 650 pasan (antes 636), 5,62 s |
-| Suite completa | 2383 passed, 1 skipped, 108,07 s |
-| Cobertura de líneas cambiadas | 98,9 % (1394/1409), `PUERTA COBERTURA` de init.sh |
+| Tests de la prueba de humo | 653 pasan tras el ciclo 1 (650 en la entrega; antes 636), 4,37 s |
+| Suite completa | 2386 passed, 1 skipped, 110,53 s |
+| Cobertura de líneas cambiadas | 98,9 % (1402/1417), `PUERTA COBERTURA` de init.sh |
 | Mutación | No aplica: script de mediciones desechable que se retira antes de T1 (N3, decisión del humano), como en T0a-ter y T0a-quater; no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |
-
-## Re-ejecución de `bash harness/init.sh` (antes del commit de este informe)
-
-`2383 passed, 1 skipped`; `PUERTA COBERTURA` [OK] 98,9 % (1394/1409); `PUERTA TAMAÑO` [KO], ahora por
-`specs/F-009-alta-albaran-compra/design.md: 278 líneas > tope 250` (y `requirements.md` sigue modificado sin
-commit). Son ficheros del spec-author, en edición en paralelo y fuera de mi encargo: **el portero volverá a verde
-cuando el spec-author deje la spec dentro de los topes**; nada de T0a-quinquies lo pone en rojo.
