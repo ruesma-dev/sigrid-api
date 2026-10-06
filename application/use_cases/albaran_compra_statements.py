@@ -20,9 +20,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from application.use_cases.concepto_grafico_statements import hora_local_de_madrid
 from application.use_cases.parte_reclamacion_statements import LOG_COLUMNAS
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 from infrastructure.security.identifier_guard import IdentifierGuard
@@ -310,6 +312,453 @@ def estados_contrato(
     """
     can = _r2(suma_can)
     return (1 if _r2(suma_canser) >= can else 0, 1 if _r2(suma_canfac) >= can else 0)
+
+
+# =====================================================================================
+# Filas (T6). Todas nacen sin `ide`, `cod` ni enlaces: los pone `numerar` en cada
+# intento de la transaccion (reentrante, R27). Ninguna toca su plantilla.
+# =====================================================================================
+
+#: `mov` de entrada por compra: tipo 1, origen proveedor (5), destino almacen (2).
+MOV_TIP = 1
+MOV_ORITIP = 5
+MOV_DESTIP = 2
+
+#: Fila de alta de `dbo.log` (F-006, M13): operacion 1 sobre la tabla `con`,
+#: origen 0, estado 1.
+LOG_OPE_ALTA = 1
+LOG_TAB = "con"
+LOG_ORI = 0
+
+#: `dcapro.pos` en multiplos de 64, en el orden de la peticion.
+POS_PASO = 64
+
+#: `con.res` (y `log.res`): 128 caracteres.
+_LARGO_RES = 128
+
+#: Lo minimo de una `dcapro` sin plantilla (producto sin historico), como el
+#: clasico: el caso de uso avisa `producto_sin_historico`.
+_DCAPRO_SIN_PLANTILLA = ("cueide", "prepma", "natide", "envide", "reqcuo", "lintip", "taride", "cuoman")
+
+#: Seguimiento del propio albaran, recien creado: nada servido ni facturado. Se
+#: ponen a 0 SOLO si la plantilla las trae, como el clasico.
+_SEGUIMIENTO_A_CERO = (
+    "canser", "canfac", "cancan", "canped", "canorilin", "canoriant",
+    "imporiant", "imporiantdiv", "imporioridiv",
+)
+
+#: §Reseteo de las sin vincular (H11, H35, M14): ninguna se arrastra de la
+#: plantilla. `cod2`, `dncide` y `dncproide` vacios: decision del humano (M19).
+_RESETEO_SIN_VINCULAR: dict[str, Any] = {
+    "med": None,
+    **dict.fromkeys(
+        (
+            "canmed", "parcandes", "anades", "serdes", "fecimp", "item", "anexo", "taride",
+            "fec", "pla", "dncide", "dncproide", "edilin", "garfec", "mesrevpre", "ejerevpre",
+        ),
+        0,
+    ),
+    **dict.fromkeys(("tex", "texcom", "desesp", "cod2", "pac"), ""),
+}
+
+#: Totales de la cabecera que se pisan si la plantilla los trae: columna -> cual
+#: de `sumar_importes`. En compra nacional la divisa coincide con la base.
+_TOTALES_DCA = {
+    "impbru": "totbas", "impnet": "totbas", "totbas": "totbas", "totiva": "totiva",
+    "totdoc": "totdoc", "tot": "totdoc", "totpag": "totdoc",
+    "totbasdiv": "totbas", "totivadiv": "totiva", "totdocdiv": "totdoc",
+}
+
+
+@dataclass(frozen=True)
+class SellosAlbaran:
+    """Los sellos de tiempo de UNA peticion, calculados una vez y fuera de la
+    transaccion (R22): los reintentos no cambian de dia ni de hora."""
+
+    fec: int        # AAAAMMDD del albaran (o hoy en Madrid): con.fec, dca.fecdoc
+    hor: int        # HHMMSS del alta en Madrid: dca.hor, mov.hor, log.hor
+    fec_alta: int   # AAAAMMDD del alta en Madrid: mov.fec (N1), log.fec
+    fechor: float   # fec_alta.hor del alta: mov.fechor (N1)
+    prefijo: str    # AC<aa>/ del anio de `fec`
+
+
+def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> SellosAlbaran:
+    local = hora_local_de_madrid(instante_utc)
+    fec_alta = int(f"{local:%Y%m%d}")
+    hor = int(f"{local:%H%M%S}")
+    fec = fecha_albaran or fec_alta
+    return SellosAlbaran(
+        fec=fec,
+        hor=hor,
+        fec_alta=fec_alta,
+        fechor=float(f"{fec_alta}.{hor:06d}"),
+        prefijo=prefijo_de_serie(fec),
+    )
+
+
+def construir_con(
+    plantilla: Mapping[str, Any], *, emp: int, fec: int, entres: str | None, su_referencia: str
+) -> dict[str, Any]:
+    """`con` del albaran: clon de la plantilla de cabecera (L5) con `tip` 14,
+    `emp` de la obra, `res` = "<entres>. (<su_referencia>)" recortado, `fec` y
+    `est` 1 (R11, R22)."""
+    return {
+        **plantilla,
+        "ide": None,
+        "emp": emp,
+        "tip": TIP_ALBARAN,
+        "cod": None,
+        "res": f"{entres or ''}. ({su_referencia})".strip()[:_LARGO_RES],
+        "fec": fec,
+        "est": EST_INICIAL,
+    }
+
+
+def construir_dca(
+    plantilla: Mapping[str, Any],
+    *,
+    fec: int,
+    hor: int,
+    su_referencia: str,
+    entidad: Mapping[str, Any],
+    ctride: int,
+    obride: int,
+    almide: int,
+    cenide: int,
+    empide: int,
+    totales: Mapping[str, float],
+    referencia_externa: str,
+) -> dict[str, Any]:
+    """
+    `dca` del albaran: clon de la plantilla (forma de pago, efecto y direccion
+    del proveedor, M14b) con los overrides del clasico, que solo pisan columnas
+    que la plantilla trae, mas `ctride` (0 sin contrato) y `synckey` (R21).
+    `entidad` lleva `entide` y, si no son `None`, `entcod`/`entres`/`entcif`.
+    Las columnas bancarias se escriben tal cual (H16).
+    """
+    dca = dict(plantilla)
+    dca["ide"] = None
+    propios = {
+        "fecdoc": fec,
+        "hor": hor,
+        "entref": su_referencia,
+        "eioide": 1,
+        "entide": entidad["entide"],
+        "obride": obride,
+        "almide": almide,
+        "cenide": cenide,
+        "empide": empide,
+        **{columna: entidad[columna] for columna in ("entcod", "entres", "entcif")
+           if entidad.get(columna) is not None},
+        **{columna: totales[origen] for columna, origen in _TOTALES_DCA.items()},
+        **dict.fromkeys(("impdes", "imprec", "impdesdiv", "imprecdiv", "estser", "estfac"), 0),
+    }
+    for columna, valor in propios.items():
+        if columna in dca:
+            dca[columna] = valor
+    dca["ctride"] = ctride
+    dca["synckey"] = referencia_externa
+    return dca
+
+
+def _base_de_linea(plantilla: Mapping[str, Any] | None, indice: int) -> dict[str, Any]:
+    fila = dict(plantilla) if plantilla is not None else dict.fromkeys(_DCAPRO_SIN_PLANTILLA, 0)
+    fila.update({"ide": None, "docide": None, "pos": (indice + 1) * POS_PASO})
+    for columna in _SEGUIMIENTO_A_CERO:
+        if columna in fila:
+            fila[columna] = 0
+    return fila
+
+
+def construir_dcapro_vinculada(
+    plantilla: Mapping[str, Any] | None,
+    *,
+    indice: int,
+    ctrpro: Mapping[str, Any],
+    referencia_linea: str,
+    cantidad: float,
+    precio: float,
+    descripcion: str | None,
+    unidad: str | None,
+    cod_contrato: str,
+    ctride: int,
+    obride: int,
+    almide: int,
+    cenide: int,
+    paride: int,
+    iva: float,
+    prepma: float,
+) -> dict[str, Any]:
+    """
+    `dcapro` de una linea vinculada (R12): plantilla = ultima `dcapro` del
+    producto (L8), como el clasico, con producto, IVA, unidad, analitica,
+    `docori*` y textos del `ctrpro`, y ademas:
+    - `cod2`, `dncide` y `dncproide` del `ctrpro` (`''`/0 si no los tiene;
+      nunca de la plantilla; H35);
+    - `pre`, `tar` y `dto` del `ctrpro` si el precio coincide (H14) o
+      `tar` = `precio` y `dto` `''` si no (R17); `tot` = cantidad·precio;
+    - `paride` el resuelto o 0, nunca el del `ctrpro` (R14, R16);
+    - `almide`/`cenide` los resueltos (R15), `refent` (R30c) y `prepma` (R21).
+    """
+    fila = _base_de_linea(plantilla, indice)
+    if precio_coincide(precio, ctrpro.get("pre") or 0):
+        pre = float(ctrpro.get("pre") or 0)
+        tar = float(ctrpro.get("tar") or pre)
+        dto = ctrpro.get("dto") if ctrpro.get("dto") is not None else ""
+    else:
+        pre, tar, dto = precio, precio, ""
+    tot, ivacuo = importe_linea(cantidad, precio, iva)
+    fila.update(
+        {
+            "proide": ctrpro.get("proide"),
+            "can": cantidad,
+            "pre": pre,
+            "tar": tar,
+            "dto": dto,
+            "tot": float(tot),
+            "ivaide": ctrpro.get("ivaide"),
+            "ivacuo": float(ivacuo),
+            "res": descripcion or ctrpro.get("res") or "",
+            "tex": ctrpro.get("tex") if ctrpro.get("tex") is not None else "",
+            "almide": almide,
+            "obride": obride,
+            "cenide": cenide,
+            "caaide": ctrpro.get("caaide") or 0,
+            "paride": paride,
+            "docoritip": TIP_CONTRATO,
+            "docoricod": cod_contrato,
+            "docoriide": ctride,
+            "linoriide": ctrpro.get("ide"),
+            "canoriori": _r2(ctrpro.get("can")),
+            "imporiori": _r2(ctrpro.get("tot")),
+            "refent": referencia_linea,
+            "cod2": ctrpro.get("cod2") or "",
+            "dncide": ctrpro.get("dncide") or 0,
+            "dncproide": ctrpro.get("dncproide") or 0,
+            "prepma": prepma,
+        }
+    )
+    unimed = unidad or ctrpro.get("unimed")
+    if unimed is not None:
+        fila["unimed"] = unimed
+    return fila
+
+
+def construir_dcapro_sin_vincular(
+    plantilla: Mapping[str, Any] | None,
+    *,
+    indice: int,
+    proide: int,
+    referencia_linea: str,
+    cantidad: float,
+    precio: float,
+    descripcion: str,
+    unidad: str | None,
+    natide: int,
+    cueide: int,
+    caaide: int,
+    obride: int,
+    almide: int,
+    cenide: int,
+    paride: int,
+    iva: float,
+    prepma: float,
+) -> dict[str, Any]:
+    """
+    `dcapro` de una linea sin vincular (R13): plantilla = L8b (mismo
+    proveedor) o L8 (con aviso `iva_de_otro_proveedor`), de la que solo vale
+    el `ivaide`. `natide`, `cueide` y `caaide` de la naturaleza del mapeo y de
+    la obra (R13b, R15); `pre` = `tar` = `precio` y `dto` `''`; sin `docori*`
+    ni cantidades o importes de origen; y §Reseteo (H11, H35).
+    """
+    fila = _base_de_linea(plantilla, indice)
+    tot, ivacuo = importe_linea(cantidad, precio, iva)
+    for columna in ("canoriori", "imporiori"):
+        if columna in fila:
+            fila[columna] = 0
+    fila.update(_RESETEO_SIN_VINCULAR)
+    fila.update(
+        {
+            "proide": proide,
+            "can": cantidad,
+            "pre": precio,
+            "tar": precio,
+            "dto": "",
+            "tot": float(tot),
+            "ivaide": (plantilla or {}).get("ivaide") or 0,
+            "ivacuo": float(ivacuo),
+            "res": descripcion,
+            "unimed": unidad or "",
+            "natide": natide,
+            "cueide": cueide,
+            "caaide": caaide,
+            "obride": obride,
+            "almide": almide,
+            "cenide": cenide,
+            "paride": paride,
+            "docoritip": 0,
+            "docoricod": "",
+            "docoriide": 0,
+            "linoriide": 0,
+            "refent": referencia_linea,
+            "prepma": prepma,
+        }
+    )
+    return fila
+
+
+def construir_ctrprodes(*, ctrpro_ide: int, cantidad: float) -> dict[str, Any]:
+    """Enlace contrato -> albaran de UNA vinculada, `can` con signo (M6)."""
+    return {
+        "ide": None,
+        "docproide": ctrpro_ide,
+        "can": cantidad,
+        "docdestip": TIP_ALBARAN,
+        "docdescod": None,
+        "docdeside": None,
+        "lindeside": None,
+        "ctrproactide": 0,
+    }
+
+
+def construir_mov(
+    *,
+    emp: int,
+    entide: int,
+    almide: int,
+    proide: int,
+    cantidad: float,
+    pre: float,
+    balance: Balance,
+    sellos: SellosAlbaran,
+) -> dict[str, Any]:
+    """`mov` de UNA linea con `pro.tipmov` = 1 (R19), como el clasico salvo
+    `emp` = `con.emp` (R22), fecha y hora del ALTA (N1) y `prepma` = PMP de
+    partida (design §`prepma`). Las devoluciones, entrada con `canent` < 0
+    (regla A, R18)."""
+    return {
+        "ide": None,
+        "emp": emp,
+        "docide": None,
+        "linide": None,
+        "tip": MOV_TIP,
+        "oritip": MOV_ORITIP,
+        "oriide": entide,
+        "destip": MOV_DESTIP,
+        "deside": almide,
+        "proide": proide,
+        "doctip": TIP_ALBARAN,
+        "fec": sellos.fec_alta,
+        "hor": sellos.hor,
+        "fecdoc": 0,
+        "canent": cantidad,
+        "cansal": 0.0,
+        "pre": pre,
+        "prc": pre,
+        "prepma": balance.prepma,
+        "nueusa": 0,
+        "almide": almide,
+        "almcan": balance.almcan,
+        "almpma": balance.almpma,
+        "fecblo": 0,
+        "fechor": sellos.fechor,
+    }
+
+
+def construir_log(*, emp: int, usu: str, res: str, sellos: SellosAlbaran) -> dict[str, Any]:
+    """Fila de alta de `log` (la de F-006; M13): `est` 1, `ori` 0, `ope` 1."""
+    return {
+        "ide": None,
+        "emp": emp,
+        "ori": LOG_ORI,
+        "ope": LOG_OPE_ALTA,
+        "fec": sellos.fec_alta,
+        "hor": sellos.hor,
+        "usu": usu,
+        "tab": LOG_TAB,
+        "tip": TIP_ALBARAN,
+        "cod": None,
+        "res": res,
+        "tex": None,
+        "est": EST_INICIAL,
+        "err": None,
+    }
+
+
+@dataclass(frozen=True)
+class FilasAlbaran:
+    """
+    Las filas de UN albaran. `ctrprodes` y `mov` van como `(i, fila)`, con `i`
+    el indice de su `dcapro` en `dcapro`: de ahi salen `lindeside` y `linide`
+    al numerar (no todas las lineas tienen `ctrprodes` ni `mov`).
+    """
+
+    con: dict[str, Any]
+    dca: dict[str, Any]
+    dcapro: list[dict[str, Any]]
+    ctrprodes: list[tuple[int, dict[str, Any]]]
+    mov: list[tuple[int, dict[str, Any]]]
+    log: dict[str, Any]
+
+    def como_dict(self) -> dict[str, Any]:
+        """`filas` de la respuesta (R23)."""
+        return {
+            "con": self.con,
+            "dca": self.dca,
+            "dcapro": self.dcapro,
+            "ctrprodes": [fila for _, fila in self.ctrprodes],
+            "mov": [fila for _, fila in self.mov],
+            "log": self.log,
+        }
+
+
+def numerar(
+    filas: FilasAlbaran,
+    *,
+    cod: str,
+    ide_con: int,
+    ide_dcapro: int,
+    ide_ctrprodes: int | None,
+    ide_mov: int | None,
+    ide_log: int,
+) -> FilasAlbaran:
+    """
+    Copia de `filas` con `cod`, los `ide` reservados y los enlaces puestos. No
+    toca `filas`: cada reintento numera sobre las filas limpias (R27). Los
+    `ide` de cada tabla son consecutivos desde el reservado; sin `ctrprodes` o
+    sin `mov` no hace falta reservar (`None`).
+    """
+    if filas.ctrprodes and ide_ctrprodes is None:
+        raise ValueError("Hay ctrprodes y no se ha reservado ide_ctrprodes.")
+    if filas.mov and ide_mov is None:
+        raise ValueError("Hay mov y no se ha reservado ide_mov.")
+    ides_dcapro = [ide_dcapro + i for i in range(len(filas.dcapro))]
+    return FilasAlbaran(
+        con={**filas.con, "ide": ide_con, "cod": cod},
+        dca={**filas.dca, "ide": ide_con},
+        dcapro=[
+            {**fila, "ide": ide, "docide": ide_con}
+            for ide, fila in zip(ides_dcapro, filas.dcapro, strict=True)
+        ],
+        ctrprodes=[
+            (
+                i,
+                {
+                    **fila,
+                    "ide": ide_ctrprodes + j,
+                    "docdescod": cod,
+                    "docdeside": ide_con,
+                    "lindeside": ides_dcapro[i],
+                },
+            )
+            for j, (i, fila) in enumerate(filas.ctrprodes)
+        ],
+        mov=[
+            (i, {**fila, "ide": ide_mov + k, "docide": ide_con, "linide": ides_dcapro[i]})
+            for k, (i, fila) in enumerate(filas.mov)
+        ],
+        log={**filas.log, "ide": ide_log, "cod": cod},
+    )
 
 
 class AlbaranCompraStatements:
