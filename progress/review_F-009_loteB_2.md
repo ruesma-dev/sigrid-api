@@ -1,30 +1,63 @@
 <!-- progress/review_F-009_loteB_2.md -->
-Revisión completa (pasada 1) del trozo 2 del lote B: T5 (`f0130ed`) y T6 (`d936ced`), sobre HEAD `53489b3`. `43eae24` solo
-añade tests de T3 (CIF) y T4 (`insertar_clonada`): es del otro reviewer y aquí solo se comprueba que no afecta a T5-T6.
+Revisión incremental desde `53489b3` (pasada 2): solo `2a007f6`. La pasada 1 (completa, T5 `f0130ed` y T6 `d936ced`)
+queda resumida abajo; su texto íntegro está en `git show 45a3cb0:progress/review_F-009_loteB_2.md`.
 
 # F-009 · Revisión del lote B, trozo 2 (T5-T6: funciones puras y filas)
 
-**Veredicto: CHANGES_REQUESTED.** Hay un solo cambio requerido: el PMP se calcula mal cuando el stock vuelve a 0 con
-residuo binario, y ese valor se escribiría en producción. Lo demás cumple la spec v8.1.
+**Veredicto: APPROVED** (pasada 2). La pasada 1 fue CHANGES_REQUESTED, con un cambio; está resuelto y verificado.
 
 **Nivel de rigor:** `critico` (declarado): RED, cobertura ≥ 80 % y mutación con cero supervivientes. La mutación es T16
 (lote E) por el plan de lotes aprobado en la PARADA 1 (`progress/current.md`): N/A en este trozo, exigible al cierre.
 
-## Verificación ejecutada (salidas reales)
+## Segunda pasada (`2a007f6`)
 
-- `bash harness/init.sh`: `2110 passed, 1 skipped`, `PUERTA COBERTURA 100.0% (517/517)`, `ENTORNO LISTO`. Verificaciones
-  de `tasks.md`: T5 `72 passed`, T6 `69 passed`. `ruff` limpio; sin `print` ni secretos; tests puros, sin red ni BBDD.
-- **RED de T5 reproducida** en el scratchpad (`git archive e2d52fb` + tests de `f0130ed`): `65 failed, 4 passed,
-  49 deselected`, idéntico al informe, con `AttributeError` (incluido el test de la regla A de R18).
-- `git diff dev` vacío en clásico, `albaran-directo`, `infrastructure/security/`, `function_app.py` y `.env`; `tests/fixtures/`
-  sin cambios desde `055a7e1`.
+**Alcance.** El commit toca `albaran_compra_statements.py`, `tests/test_f009_statements.py`, `impl_F-009_loteB.md` y
+`current.md`. No revisado: los ficheros de `specs/` y `spec_F-009.md` sin commitear (v8.2 del spec-author, en edición).
 
-## Regla a regla (contra la spec y las mediciones)
+**Verificación (salidas reales).**
+- `bash harness/init.sh`, tal cual: `2127 passed, 1 skipped`, `PUERTA COBERTURA 100.0% (525/525)`, `PUERTA TAMAÑO`
+  dentro de los topes (con la spec en edición) y `ENTORNO LISTO`. `ruff` limpio en los dos ficheros.
+- **RED reproducida** en el scratchpad (`git archive 45a3cb0` + tests de `2a007f6`): `-k "residuo or epsilon"` da
+  `4 failed`; `-k opcion_c` da `11 failed, 2 passed`. Coincide con el informe, incluidos los dos que ya pasaban.
 
-| Regla | Código | Veredicto |
+**Cambio requerido 1 (ε de stock): resuelto.**
+- `EPSILON_STOCK = 1e-6`, con nombre propio y justificado en el comentario y en el docstring (`:246-249`, `:278-288`).
+  Con `|stock + can|` por debajo de ε, `almcan` se escribe 0.0 y se conserva el PMP. Con stock real no se toca.
+- Tests: residuo positivo (`0.1 + 0.2` y luego `-0.3`, da `(0.0, 10.0, 10.0)`), residuo negativo, un caso justo por
+  encima de ε que **no** es cero, y `encadenar_balances` con `+0.1`, `+0.2`, `-0.3` del mismo par más una cuarta línea
+  cuyo `prepma` es el PMP conservado. Son los que pedí.
+- Decisión 11 corregida en el informe: el clásico usa `pre` con stock 0; no conserva el PMP.
+
+**Opción C (decisión del humano): bien implementada.**
+- `usa_precio_del_contrato(cantidad, precio, pre_contrato)` (`:229-243`) exige |δ| ≤ 0,0001 (`precio_coincide`) **y**
+  `redondear_euros(can·precio) == redondear_euros(can·pre)`, en `Decimal` con `ROUND_HALF_UP`.
+- `construir_dcapro_vinculada` decide con ella. `tot`/`ivacuo` salen de `importe_linea(cantidad, pre, iva)` con el
+  `pre` escrito. Así la fila siempre es coherente, y `tot` siempre es igual a `round(cantidad·precio, 2)`: por la
+  condición si se usa el precio del contrato, y por `pre = precio` si no.
+- Casos límite del test: δ justo en 0,0001; δ dentro de tolerancia que mueve el céntimo (25.000 uds y 100 uds); δ
+  diminuto con céntimo igual; devoluciones con signo; δ fuera de tolerancia con el céntimo igual (sale `False`);
+  empate `ROUND_HALF_UP` con 1 ud.
+- **El ejemplo del encargo (100 uds, 1,0495 frente a 1,0494) estaba mal y la regla es la de C, no la del ejemplo.**
+  Lo he recalculado: 104,95 ≠ 104,94, así que C manda esa línea por `precio_distinto`. El test lo fija así y usa
+  1,049402 para el par «100 uds ⇒ precio del contrato / 25.000 uds ⇒ precio distinto». Es correcto.
+- Fila de 25.000 uds: `pre` = `tar` = 1,0495, `dto` `''`, `tot` 26.237,50 (el importe aprobado). Fila de 100 uds:
+  `pre` 1,0494, `tar`/`dto` del `ctrpro`, `tot` 104,94 e `ivacuo` 22,04.
+
+**Condiciones para el reviewer del lote C** (no bloquean este trozo):
+- (a) El aviso `precio_distinto_del_contrato` debe usar `usa_precio_del_contrato` y no `precio_coincide`, que sigue
+  siendo pública. El informe se compromete a ello.
+- (b) `mov.pre` y el balance se calculan con el `pre` **escrito** en la fila.
+- (c) Siguen pendientes O3 (`tipmov` y `dcapro.prepma` = `mov.prepma`) y O2 (diferencias en §Equivalencia, que la v8.2
+  ya recoge según `current.md`).
+
+## Pasada 1 (resumen)
+
+**Verificación:** `init.sh` en verde (`2110 passed`, cobertura 517/517). RED de T5 reproducida (`65 failed, 4 passed`).
+`git diff dev` vacío en el clásico, `albaran-directo`, `infrastructure/security/`, `function_app.py` y `.env`. Dorado intacto.
+| Regla | Código (líneas de la pasada 1, salvo `siguiente_balance`) | Veredicto |
 |---|---|---|
 | `siguiente_cod`, `prefijo_de_serie` (R22, R26) | `albaran_compra_statements.py:186-194` | OK. Sin ceros a la izquierda, como `AC26/15950` |
-| `siguiente_balance` (R19): `almcan`, `almpma` sin redondear, `prepma` = PMP de partida, `(0, 0)` sin `mov` | `:229-258` | OK con exactitud aritmética. **Falla con residuo binario** (cambio 1) |
+| `siguiente_balance` (R19): `almcan`, `almpma` sin redondear, `prepma` = PMP de partida, `(0, 0)` sin `mov` | `:269-288` | OK. Con residuo binario fallaba en la pasada 1; **resuelto en la pasada 2** (ε) |
 | `encadenar_balances` por (producto, almacén); regla A (R18, M5) con stock final negativo | `:261-278`, `:654` | OK. 5 líneas con 3 pares, `prepma(n) = almpma(n-1)` |
 | `sufijo_analitica` / `codigo_analitica` (R15, M16d) | `:284-297` | OK. Quita un solo `MOD.`; `CD.SB37` queda entero; vacío ⇒ `None`; `RTRIM` de la obra |
 | `estados_contrato` (R20), también con `Σcanser` < 0 y sumas `NULL` | `:304-314` | OK. A 2 decimales, como el clásico (`9,999` cuenta como servido) |
@@ -36,49 +69,14 @@ residuo binario, y ese valor se escribiría en producción. Lo demás cumple la 
 | `ctrprodes` (M6, `can` con signo); `mov` (R19, N1: `emp` = `con.emp`, fecha del alta, `prepma` de partida); `log` (M13: `est` 1, `ori` 0) | `:610-685` | OK. `log` igual que F-006 |
 | `numerar` (R25, R27): reentrante; `lindeside`/`linide` apuntan a su `dcapro` aunque haya sin vincular intercaladas | `:715-761` | OK. Corrige el 1:1 implícito del clásico |
 
-## Decisión 11: sí hay riesgo real con floats
+**Decisión 11 (cambio 1, ya resuelto).** `almcan`/`almpma` son «Real» en Sigrid. Con `0.1 + 0.2` y luego `-0.3` a otro
+precio, la comparación exacta `== 0` daba `almpma = -2.7e15`, que se encadenaba como `prepma` de la línea siguiente.
 
-`almcan` y `almpma` son «Real» en Sigrid (`azure-apps/sigrid_tablas.md`, tabla `mov`). Por eso el stock que lee
-L12/E7 arrastra el residuo de sumas binarias. Lo he ejecutado con la función real:
+**Decisión 1 (resuelta por el humano: opción C).** Las fuentes discrepaban: R17 y el contrato §2.2 decían
+`cantidad·precio`; design y el contrato §3.1, `cantidad·pre`. La diferencia llega a |cantidad|·0,0001 (2,50 € con
+25.000 kg). Recomendé C: el precio del contrato solo si el importe coincide al céntimo.
 
-- Stock `0.1 + 0.2` a PMP 10, se devuelve todo (`-0.3`) a 10,5: `almcan = 5.55e-17`, `almpma = -2.7e15`. Si después
-  entra otra línea del mismo par, su `prepma` (`mov` y `dcapro`) vale `-3.7e15`; según §`prepma`, el escritorio lo
-  copiaría como `prepma` del siguiente `mov`. Con `pre = pma` el residuo no se nota.
-
-Se da cuando una devolución vacía el almacén (o una entrada salda un stock negativo) con un precio distinto del PMP.
-También dentro del propio albarán: `+0.1`, `+0.2`, `-0.3`. El valor `almcan · almpma` sigue siendo correcto, pero el
-PMP publicado es absurdo, queda escrito y no se corrige solo. Además, un residuo negativo dispararía un
-`stock_negativo` espurio en el lote C.
-
-El informe dice «como el clásico», pero el clásico usa `pre` con `stock_new` 0 (`create_purchase_albaran_use_case.py:360`);
-el código sigue R19 (conservar). Lo que está mal es la afirmación del informe.
-
-## Decisión 1 (`tot` de la vinculada dentro de la tolerancia): opinión, no cambio requerido
-
-**Las fuentes discrepan.** R17 y el contrato §2.2 dicen `tot = cantidad·precio` (el importe aprobado). Design
-§Importes y el contrato §3.1 (tabla de la respuesta: `tot = round(can·pre, 2)`) dicen `cantidad·pre`. Las dos opciones
-solo difieren cuando 0 < |`precio` − `ctrpro.pre`| ≤ 0,0001. La diferencia máxima es |cantidad|·0,0001: 0,01 € con
-100 uds; 0,05 € con 500 (el umbral `ALTA_SIGRID_TOLERANCIA_EUR` de sv9); 0,10 € con 1.000; **2,50 € con 25.000 kg**
-(medido: `importe_linea(25000, 1.0495)` = 26.237,50 frente a 26.235,00 con 1,0494).
-
-Si sv9 valoró al precio del contrato, δ ≤ 0,005/|cantidad| + 5·10⁻⁷ (~0,02 € con 25.000 uds). El caso que importa:
-albaranes guarda el precio con menos decimales que `ctrpro.pre`.
-
-- **A, `cantidad·precio` (lo implementado).** El total casa con lo aprobado. A cambio, la fila escrita es incoherente:
-  `tot` ≠ `can·pre` de la propia fila, y el `mov` y el PMP valoran a `pre` mientras el albarán suma `tot`. **Nadie lo
-  detecta**: ni sv9, ni los tests, ni la previa. Además, contradice dos de las cuatro fuentes.
-- **B, `cantidad·pre`.** La fila queda coherente, como hacen el escritorio y el clásico. Si la diferencia pasa de
-  0,05 €, sv9 la marca `importe_distinto` **en la previa (dry-run), antes de escribir nada**. El fallo se ve, pero puede
-  dejar ese albarán en `revisar` cada vez que se reintente.
-- **Recomendación: C, la tolerancia también en céntimos.** Se toman `pre`, `tar` y `dto` del `ctrpro` solo si
-  |δ| ≤ 0,0001 **y** `round(cantidad·precio, 2) == round(cantidad·pre, 2)`. Si no, se sigue la vía de
-  `precio_distinto_del_contrato` (`pre` = `tar` = `precio`). La fila es coherente y el total es el aprobado siempre. El
-  coste: algún aviso más y la pérdida del `tar`/`dto` del contrato en líneas grandes con δ minúsculo.
-- Si se descarta C, prefiero **B** a A: un descuadre que sv9 ve antes de escribir es mejor que una incoherencia escrita
-  en el ERP en silencio.
-- Lo decide el humano. Al decidir, hay que alinear R17, design §Importes y contrato §2.2/§3.1 en la misma frase.
-
-## Checkpoints
+## Checkpoints (pasada 2: se mantienen; C4 bis con RED y cobertura del ciclo 1 verificadas)
 
 - **C1** [x] `init.sh` en verde y ficheros del arnés. **C2** [x] una `in_progress`, rama correcta, `current.md` al día,
   `history.md` (sin `done` nueva).
@@ -94,7 +92,8 @@ albaranes guarda el precio con menos decimales que `ctrpro.pre`.
   N/A el resto de `tasks.md` (feature abierta) · N/A sin trackear: el `` `0`].{t `` vacío de la raíz es del 2026-09-24,
   anterior y ajeno al lote (que lo borre el humano) · [x] `features.json` al día.
 
-## Cobertura (requisito → tests de `tests/test_f009_statements.py`)
+## Cobertura (requisito → tests de `tests/test_f009_statements.py`; pasada 2 añade `r19_residuo_*`, `r19_por_encima_*`,
+`r19_encadenado_con_residuo_binario` y `r17_opcion_c_*` ×4)
 
 | Req. | Tests |
 |---|---|
@@ -113,15 +112,7 @@ albaranes guarda el precio con menos decimales que `ctrpro.pre`.
 
 ## Cambios requeridos
 
-1. **`application/use_cases/albaran_compra_statements.py:256-257`**
-   (`almpma = pma if almcan == 0 else ...`). Hay que tratar como cero un `|almcan|` por debajo de un ε declarado,
-   conservar el PMP y escribir `almcan = 0.0`.
-   - **ε.** Propongo 1e-6 (muy por debajo de una cantidad real, muy por encima del residuo), justificado en el
-     docstring y el informe. No cambia la spec: un residuo de 1e-17 *es* el 0 de R19.
-   - **Tests.** `siguiente_balance((0.1 + 0.2, 10.0), -0.3, 10.5)` debe dar `(almcan, almpma) == (0.0, 10.0)`. Otro con
-     residuo negativo. Y uno de `encadenar_balances` con `+0.1`, `+0.2`, `-0.3` del mismo par, comprobando el `prepma`
-     de la línea siguiente.
-   - **Informe.** Corregir la decisión 11 de `progress/impl_F-009_loteB.md`: el clásico no conserva, usa `pre`.
+Ninguno en la pasada 2. El de la pasada 1 (ε en `siguiente_balance`) está resuelto en `2a007f6`.
 
 ## Observaciones (no bloquean; para el líder y el lote C)
 
