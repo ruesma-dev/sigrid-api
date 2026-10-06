@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    APPLOCKS,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
@@ -189,14 +190,40 @@ class CreateAlbaranCompraUseCase:
     # Orquestacion
     # ------------------------------------------------------------------ #
     def run(self, request: AlbaranCompraRequest) -> AlbaranCompraResponse:
-        if request.commit:
-            raise NotImplementedError("El commit del modo extendido llega en T10.")
+        # 1. Guardas sin leer la base.
+        self._comprobar_prefijo(request)
         sentencias = AlbaranCompraStatements(database=request.database)
         # R22: un instante por peticion, fuera de cualquier transaccion.
         sellos = sellos_del_alta(self._ahora_utc(), request.fecha_albaran)
+
+        # 2. Cabecera; R30 sale ya si la referencia existe.
         cabecera = self._leer_cabecera(request, sentencias)
+        _c, existentes = self._leer(request, sentencias.buscar_referencia(request.referencia_externa))
+        existente = self._resolver_referencia(existentes, cabecera)
+        if existente is not None:
+            _c, lineas_existentes = self._leer(
+                request, sentencias.leer_lineas_de_albaran(int(existente[0])), muchas=True
+            )
+            return self._respuesta_idempotente(request, existente, lineas_existentes)
+        self._comprobar_estado_y_usuario(request, sentencias)
+
+        # 3-5. Lineas, construccion y previa o commit.
         lineas = self._resolver_lineas(request, sentencias, cabecera)
+        if request.commit:
+            return self._escribir(request, sentencias, cabecera, lineas, sellos)
         return self._previa(request, sentencias, cabecera, lineas, sellos)
+
+    # ------------------------------------------------------------------ #
+    # Guardas sin leer la base (R29)
+    # ------------------------------------------------------------------ #
+    def _comprobar_prefijo(self, request: AlbaranCompraRequest) -> None:
+        prefijos = self._settings.sigrid_albaran_prefijos_referencia
+        if not any(request.referencia_externa.startswith(prefijo) for prefijo in prefijos):
+            raise AlbaranCompraError(
+                "La referencia externa no empieza por ningun prefijo admitido "
+                f"({', '.join(prefijos) or 'ninguno configurado'}).",
+                codigo="referencia_no_permitida",
+            )
 
     # ------------------------------------------------------------------ #
     # Lecturas (credenciales de lectura)
@@ -270,15 +297,6 @@ class CreateAlbaranCompraUseCase:
             entidad = {"entide": entide, "entcod": None, "entres": None, "entcif": None}
             entres = dca_plantilla.get("entres")
 
-        if not self._leer(request, sentencias.leer_estado_inicial())[1]:
-            raise AlbaranCompraError(
-                "El estado inicial (tip 14, est 1) no existe en dbo.conest.",
-                codigo="estado_inicial_no_encontrado",
-            )
-        if not self._leer(request, sentencias.leer_usuario(request.usu))[1]:
-            raise AlbaranCompraError(
-                f"El usuario '{request.usu}' no existe en dbo.usu.", codigo="usuario_no_valido"
-            )
         return _Cabecera(
             obra=obra,
             contrato=contrato,
@@ -289,6 +307,19 @@ class CreateAlbaranCompraUseCase:
             con_plantilla=con_plantilla,
             dca_plantilla=dca_plantilla,
         )
+
+    def _comprobar_estado_y_usuario(
+        self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
+    ) -> None:
+        if not self._leer(request, sentencias.leer_estado_inicial())[1]:
+            raise AlbaranCompraError(
+                "El estado inicial (tip 14, est 1) no existe en dbo.conest.",
+                codigo="estado_inicial_no_encontrado",
+            )
+        if not self._leer(request, sentencias.leer_usuario(request.usu))[1]:
+            raise AlbaranCompraError(
+                f"El usuario '{request.usu}' no existe en dbo.usu.", codigo="usuario_no_valido"
+            )
 
     def _resolver_obra(
         self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
@@ -347,6 +378,103 @@ class CreateAlbaranCompraUseCase:
         )
         lineas = [dict(zip(columnas, fila)) for fila in filas]
         return _Contrato(ide=ctride, fila=ctr, lineas={int(l["ide"]): l for l in lineas})
+
+    # ------------------------------------------------------------------ #
+    # Idempotencia (R30, R30c)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _resolver_referencia(
+        filas: Sequence[tuple[Any, ...]], cabecera: _Cabecera
+    ) -> tuple[Any, ...] | None:
+        """El albaran `tip 14` con ese `synckey` del MISMO proveedor y obra es
+        este albaran; cualquier otra coincidencia es un conflicto. Anular borra
+        el `con` (M17b): uno anulado no aparece."""
+        if not filas:
+            return None
+        if (
+            len(filas) == 1
+            and _entero(filas[0][3]) == cabecera.entide
+            and _entero(filas[0][4]) == cabecera.obra.ide
+        ):
+            return tuple(filas[0])
+        raise AlbaranCompraError(
+            f"La referencia externa ya esta en {len(filas)} albaran(es) de otro proveedor u obra: "
+            f"{', '.join(str(f[1]).strip() for f in filas)}.",
+            codigo="referencia_en_conflicto",
+        )
+
+    @staticmethod
+    def _respuesta_idempotente(
+        request: AlbaranCompraRequest,
+        existente: Sequence[Any],
+        lineas: Sequence[tuple[Any, ...]],
+    ) -> AlbaranCompraResponse:
+        """H18: lo LEIDO de Sigrid; `committed` false, `dry_run` = not commit,
+        lineas por `pos` con `indice` desde 0 y `referencia_linea` de `refent`."""
+        ide, cod, fec, _entide, _obride, totbas, totdoc = existente
+        return AlbaranCompraResponse(
+            database=request.database,
+            committed=False,
+            dry_run=not request.commit,
+            con_ide=int(ide),
+            cod=str(cod).strip(),
+            contrato={},
+            cabecera={"fec": _entero(fec)},
+            lineas=[
+                LineaResultado(
+                    indice=indice,
+                    pos=_entero(pos),
+                    referencia_linea=str(refent or "").strip(),
+                    ctrpro_ide=0,
+                    linoriide=0,
+                    proide=_entero(proide),
+                    cantidad=float(can or 0),
+                    precio=float(pre or 0),
+                    total=float(tot or 0),
+                    iva_cuota=0.0,
+                    paride=_entero(paride),
+                    almide=_entero(almide),
+                )
+                for indice, (pos, proide, can, pre, tot, paride, almide, refent) in enumerate(lineas)
+            ],
+            totales={"totbas": float(totbas or 0), "totdoc": float(totdoc or 0),
+                     "n_lineas": len(lineas)},
+            estado="idempotente",
+            referencia_externa=request.referencia_externa,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Commit: una transaccion reentrante (R25-R28, R30)
+    # ------------------------------------------------------------------ #
+    def _escribir(
+        self,
+        request: AlbaranCompraRequest,
+        sentencias: AlbaranCompraStatements,
+        cabecera: _Cabecera,
+        lineas: list[_Linea],
+        sellos: SellosAlbaran,
+    ) -> AlbaranCompraResponse:
+        timeout = self._settings.default_write_timeout_seconds
+
+        def work(cursor: Any) -> dict[str, Any]:
+            cursor.connection.timeout = timeout
+            # E1: idempotencia bajo el applock de referencias, antes de reservar nada.
+            _ejecutar(cursor, sentencias.buscar_referencia(request.referencia_externa))
+            existente = self._resolver_referencia(list(cursor.fetchall()), cabecera)
+            if existente is not None:
+                _ejecutar(cursor, sentencias.leer_lineas_de_albaran(int(existente[0])))
+                return {"idempotente": (existente, list(cursor.fetchall()))}
+            raise NotImplementedError("Las reservas y los INSERT llegan en T10.")
+
+        resultado = self._repo.run_in_write_transaction(
+            database=request.database,
+            timeout_seconds=timeout,
+            applock_resources=list(APPLOCKS),
+            applock_timeout_ms=self._settings.applock_timeout_ms,
+            max_retries=self._settings.domain_write_max_retries,
+            work=work,
+        )
+        return self._respuesta_idempotente(request, *resultado["idempotente"])
 
     # ------------------------------------------------------------------ #
     # Lineas (R9, R12-R17)
@@ -686,6 +814,10 @@ class CreateAlbaranCompraUseCase:
             avisos=avisos,
             filas=filas.como_dict(),
         )
+
+
+def _ejecutar(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:
+    cursor.execute(sentencia[0], *sentencia[1])
 
 
 def _estados(

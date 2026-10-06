@@ -603,3 +603,133 @@ def test_f009_r9_con_fallos_no_se_leen_plantillas_ni_balances() -> None:
     repo = RepositorioDoble()
     fallos([vinculada(ctrpro_ide=1)], repo=repo)
     assert not {"plantilla_linea", "iva", "balance", "ultimo_cod"} & set(repo.lecturas_hechas())
+
+
+# =====================================================================================
+# T8 · R29: prefijo de la referencia, también en la previa
+# =====================================================================================
+
+
+@pytest.mark.parametrize("commit", [False, True])
+@pytest.mark.parametrize(
+    ("referencia", "prefijos"),
+    [("XYZ-1", ["ALB-"]), ("alb-1", ["ALB-"]), ("ALB-1", [])],
+    ids=["otro_prefijo", "distingue_mayusculas", "sin_prefijos"],
+)
+def test_f009_r29_referencia_no_permitida_sin_leer(
+    referencia: str, prefijos: list[str], commit: bool
+) -> None:
+    repo = RepositorioDoble()
+    settings = SettingsDoble(sigrid_albaran_prefijos_referencia=prefijos)
+    exc = error(repo=repo, settings=settings, referencia_externa=referencia, commit=commit)
+    assert exc.codigo == "referencia_no_permitida"
+    assert repo.llamadas == []
+
+
+def test_f009_r29_vale_cualquiera_de_los_prefijos() -> None:
+    settings = SettingsDoble(sigrid_albaran_prefijos_referencia=["PRU-", "ALB-"])
+    respuesta, _ = ejecutar(settings=settings, referencia_externa="ALB-9")
+    assert respuesta.referencia_externa == "ALB-9"
+
+
+# =====================================================================================
+# T8 · R30 y R30c: idempotencia por dca.synckey
+# =====================================================================================
+
+_EXISTENTE = (2800001, "AC26/15000 ", 20261001, 77, OBRA, 29.03, 35.13)
+_LINEAS_EXISTENTE = [
+    (64, 55, 2.0, 10.5, 21.0, 5, 70, "L1"),
+    (128, 66, 3.0, 2.675, 8.03, 0, 70, "L2    "),
+]
+
+
+def _comprobar_idempotente(respuesta: Any, *, dry_run: bool) -> None:
+    assert respuesta.estado == "idempotente"
+    assert (respuesta.committed, respuesta.dry_run) == (False, dry_run)
+    assert (respuesta.con_ide, respuesta.cod) == (2800001, "AC26/15000")
+    assert respuesta.cabecera == {"fec": 20261001}
+    assert respuesta.totales == {"totbas": 29.03, "totdoc": 35.13, "n_lineas": 2}
+    assert (respuesta.contrato, respuesta.filas, respuesta.movimientos) == ({}, {}, [])
+    assert (respuesta.estados_contrato, respuesta.avisos, respuesta.warnings) == ({}, [], [])
+    assert [
+        (l.indice, l.pos, l.referencia_linea, l.proide, l.cantidad, l.precio, l.total,
+         l.paride, l.almide, l.ctrpro_ide, l.linoriide, l.iva_cuota, l.tipo, l.avisos)
+        for l in respuesta.lineas
+    ] == [
+        (0, 64, "L1", 55, 2.0, 10.5, 21.0, 5, 70, 0, 0, 0.0, None, []),
+        (1, 128, "L2", 66, 3.0, 2.675, 8.03, 0, 70, 0, 0, 0.0, None, []),
+    ]
+
+
+def test_f009_r30_previa_idempotente_sin_seguir_leyendo() -> None:
+    repo = RepositorioDoble({"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE})
+    respuesta, repo = ejecutar(repo=repo)
+    _comprobar_idempotente(respuesta, dry_run=True)
+    assert repo.parametros_de("referencia") == [[14, "ALB-1"]]
+    assert repo.parametros_de("lineas_del_existente") == [[2800001]]
+    assert repo.lecturas_hechas() == [
+        "obra", "plantilla_por_entide", "referencia", "lineas_del_existente",
+    ]
+    assert not any(t in ("peek", "transaccion") for t, _ in repo.llamadas)
+
+
+def test_f009_r30_la_referencia_se_mira_tras_la_plantilla_y_antes_de_conest() -> None:
+    _respuesta, repo = ejecutar()
+    assert repo.lecturas_hechas()[:5] == [
+        "obra", "plantilla_por_entide", "referencia", "conest", "usuario",
+    ]
+
+
+def test_f009_r30_idempotente_aunque_las_lineas_de_ahora_no_valgan() -> None:
+    repo = RepositorioDoble({"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE})
+    respuesta, _ = ejecutar([vinculada(ctrpro_ide=1)], repo=repo)
+    assert respuesta.estado == "idempotente"
+
+
+@pytest.mark.parametrize(
+    "filas",
+    [
+        [_EXISTENTE, (2800002, "AC26/15001", 20261001, 77, OBRA, 1.0, 1.0)],
+        [(2800001, "AC26/15000", 20261001, 78, OBRA, 1.0, 1.0)],
+        [(2800001, "AC26/15000", 20261001, 77, 6000, 1.0, 1.0)],
+    ],
+    ids=["dos", "otro_proveedor", "otra_obra"],
+)
+def test_f009_r30_referencia_en_conflicto(filas: list) -> None:
+    repo = RepositorioDoble({"referencia": filas})
+    assert codigo(repo=repo) == "referencia_en_conflicto"
+    assert "lineas_del_existente" not in repo.lecturas_hechas()
+
+
+def test_f009_r30_sin_contrato_el_proveedor_es_el_de_la_plantilla_por_cif() -> None:
+    repo = RepositorioDoble({"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE,
+                             "analiticas": [(721, "0404.CDSB37", 82)]})
+    respuesta, _ = ejecutar([sin_vincular()], repo=repo, cod_contrato=None)
+    assert respuesta.estado == "idempotente"
+
+
+def test_f009_r30_commit_con_la_referencia_ya_leida_fuera_no_abre_transaccion() -> None:
+    repo = RepositorioDoble({"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE})
+    respuesta, repo = ejecutar(repo=repo, commit=True)
+    _comprobar_idempotente(respuesta, dry_run=False)
+    assert repo.transacciones == []
+
+
+def test_f009_r30_commit_dentro_de_la_transaccion_antes_de_reservar_nada() -> None:
+    repo = RepositorioDoble(
+        filas_en_transaccion={"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE}
+    )
+    respuesta, repo = ejecutar(repo=repo, commit=True)
+    _comprobar_idempotente(respuesta, dry_run=False)
+    assert repo.sentencias() == ["referencia", "lineas_del_existente"]
+    assert repo.parametros_en_transaccion("referencia") == [[14, "ALB-1"]]
+    assert repo.parametros_en_transaccion("lineas_del_existente") == [[2800001]]
+    assert repo.transacciones[0]["applock_resources"][0] == "SIGRID_REFEXT_14"
+
+
+def test_f009_r30_commit_conflicto_dentro_de_la_transaccion() -> None:
+    repo = RepositorioDoble(
+        filas_en_transaccion={"referencia": [(2800001, "AC26/15000", 20261001, 78, OBRA, 1.0, 1.0)]}
+    )
+    assert codigo(repo=repo, commit=True) == "referencia_en_conflicto"
+    assert repo.sentencias() == ["referencia"]
