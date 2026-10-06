@@ -1,10 +1,9 @@
 <!-- specs/F-009-alta-albaran-compra/requirements.md -->
-# F-009 · Requisitos (v8.1)
+# F-009 · Requisitos (v8.2)
 
-**`POST /api/sigrid/albaran` gana un modo extendido (alta idempotente de UN albarán de compra con líneas
-vinculadas y sin vincular, con o sin partida por línea y devoluciones); el clásico sigue idéntico.**
-«PRE-1» de albaranes F-053. Huecos **Hn** de [`contrato_albaranes.md`](contrato_albaranes.md) §5 (detalle y
-ejemplos; si discrepa, manda la spec). v8.1: T0 cerrada (M14e, 2026-10-06) y decisiones del humano.
+**`POST /api/sigrid/albaran` gana un modo extendido (alta idempotente de UN albarán de compra con líneas vinculadas y
+sin vincular, con o sin partida por línea y devoluciones); el clásico sigue idéntico.** «PRE-1» de albaranes F-053. Huecos
+**Hn** de [`contrato_albaranes.md`](contrato_albaranes.md) §5 (si discrepa, manda la spec). v8.2: `spec_F-009.md` §v8.2.
 
 ## Modos y retrocompatibilidad
 - **R1.** CUANDO llegue `POST /api/sigrid/albaran`, el sistema debe decidir el modo por las **claves
@@ -74,17 +73,18 @@ M16d); ninguna, varias o `caagascod` vacío → fallo de línea `analitica_no_re
 - **R16.** CUANDO una vinculada traiga partida distinta de la del `ctrpro`, el sistema debe escribir la
 pedida, no tocar el `ctrpro` y avisar `partida_distinta_del_contrato`; CUANDO venga sin partida con
 `ctrpro.paride` ≠ 0, avisar `sin_partida_en_linea_con_partida` (H12), informativo.
-- **R17.** El sistema debe escribir `pre` = `precio`, `tot` = `cantidad·precio` e `ivacuo` = `tot·iva`
-(`dbo.iva`; M11), a 2 decimales con `Decimal` y `ROUND_HALF_UP` (H33). Vinculada con |`precio` − `ctrpro.pre`|
-≤ 0,0001: `pre`, `tar` y `dto` del `ctrpro` (H14); si difiere más, `tar` = `precio`, `dto` = `''` y aviso
-`precio_distinto_del_contrato`. SI `precio` < 0, ENTONCES fallo de línea `precio_negativo` (H8).
+- **R17.** El sistema debe escribir `pre` = `tar` = `precio`, `dto` = `''`, `tot` = `cantidad·pre` e `ivacuo` = `tot·iva`
+(`dbo.iva`; M11), a 2 decimales con `Decimal` y `ROUND_HALF_UP` (H33). Vinculada con |`precio` − `ctrpro.pre`| ≤ 0,0001
+**y** `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)` (opción C, v8.2): `pre`, `tar` y `dto` del `ctrpro`
+(H14); si no, aviso `precio_distinto_del_contrato`. SI `precio` < 0, ENTONCES fallo de línea `precio_negativo` (H8).
 - **R18.** CUANDO una línea tenga cantidad negativa, el sistema debe escribir `can` y `tot` negativos y su
 `mov` con la **regla A** (M5: entrada con `canent` < 0 y PMP de R19). Vinculada: `ctrprodes.can` =
 cantidad y `canser += cantidad`. SI `canser` queda < 0, ENTONCES se **admite** con aviso
 `servido_negativo`; SI el stock queda < 0, `stock_negativo`.
 - **R19.** El sistema debe escribir un `mov` por línea **si y solo si** su producto tiene `pro.tipmov` = 1 (M9, también
 `XA9999`), como hoy (`tip 1`, `oritip 5`, `destip 2`, `doctip 14`), **fechado en el alta** (N1), con `almpma` `(stock·pma +
-can·pre)/(stock + can)` sin redondear (con `stock + can` = 0 se conserva) y `prepma` = el PMP de partida (design §`prepma`).
+can·pre)/(stock + can)` sin redondear y `prepma` = el PMP de partida (design §`prepma`). Con |`stock + can`| < ε = 1e-6
+(cero con residuo binario: `almcan` y `almpma` son «Real», con tolerancia; v8.2) se conserva el PMP y se escribe `almcan` 0.
 - **R20.** CUANDO haya vinculadas, el sistema debe recalcular `ctr.estser`/`estfac` **dentro** de la
 transacción con las sumas del contrato tras actualizar `canser` (`estser` = 1 si `Σcanser ≥ Σcan`, si no
 0: una devolución puede devolverlo a 0). Sin vinculadas, ningún `UPDATE` (H31).

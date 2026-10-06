@@ -32,7 +32,11 @@ el sufijo sin `MOD.`, H11, H34 y H35) y **retira** el campo opcional `naturaleza
 es de configuración; mandarlo da 400 sin código); `cueide` = la `cua` del `cuacomcod` de la naturaleza (P4 cerrada);
 `XA9999` genera `mov` (`tipmov` 1). **v8.1** (2026-10-06, F-009 v8.1): T0 cerrada; `mov.prepma` = el PMP del almacén
 vigente antes de la línea (M14e refutó la media global del producto), a verificar a mano en la primera alta. No cambia
-este contrato.
+este contrato. **v8.2** (2026-10-06, F-009 v8.2, opción C del humano): solo **redacción** de la regla de `pre`/`tot` de la
+vinculada (§2.2, §3.1, §3.2 y H14): `pre`, `tar` y `dto` del `ctrpro` solo si |`precio` − `ctrpro.pre`| ≤ 0,0001 **y**
+`round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`; si no, `pre` = `tar` = `precio` y aviso
+`precio_distinto_del_contrato`; `tot` = `round(cantidad·pre, 2)`, que es siempre el importe aprobado. Sin cambios de
+forma, campos, códigos de error o aviso ni estados.
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -198,7 +202,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 | `descripcion` | str \| null | sí en sin vincular | ≤128 | Sin vincular: `descripcion_linea` (TEXT) o la de `albaran_lines_merge`, **recortada a 128**; sin ninguna, motivo local `falta_descripcion` (H6 cerrado en F-053 v6). Vinculada: **no se manda** (H7 cerrado) | `dcapro.res` (128) | Vinculada sin ella ⇒ `ctrpro.res` |
 | `unidad` | str \| null | no | ≤8 | Sin vincular: `unidad_albaran` (VARCHAR 32) recortada a 8. Vinculada: **no se manda** (H7 cerrado en F-053 v6) | `dcapro.unimed` (8) | Vinculada sin ella ⇒ `ctrpro.unimed` |
 | `cantidad` | float ≠ 0 | sí | negativa = devolución | Vinculada: `cantidad_convertida` (unidad del contrato); sin vincular: `cantidad_albaran`. **Signo = el de `importe_calculado`** (F-053 R12). **H8** | `dcapro.can`; `mov.canent`; `ctrprodes.can`; `ctrpro.canser += cantidad` | 0 o nula ⇒ F-053 `cantidad_no_valida`; vinculada sin convertida ⇒ `cantidad_sin_convertir` |
-| `precio` | float | **sí, también en vinculadas** | — | `abs(importe_calculado) / abs(cantidad)`: unitario **neto** (el importe ya lleva el descuento), redondeado a 6 decimales (H14, F-053 v6) | `dcapro.pre`; `tar` = `precio` y `dto = ''` si difiere del `ctrpro` (aviso), si no `tar`/`dto` del `ctrpro` | `tot = cantidad·precio` a 2 decimales con `ROUND_HALF_UP` (H33) = importe aprobado; igual al `ctrpro.pre` si difiere ≤ 0,0001 (H14); < 0 ⇒ fallo de línea `precio_negativo` (H8, v5) |
+| `precio` | float | **sí, también en vinculadas** | — | `abs(importe_calculado) / abs(cantidad)`: unitario **neto** (el importe ya lleva el descuento), redondeado a 6 decimales (H14, F-053 v6) | `dcapro.pre`, `tar` y `dto`: los del `ctrpro` si casa con él (Notas); si no, `pre` = `tar` = `precio` y `dto = ''` (aviso) | Casa con el `ctrpro` (H14, opción C de v8.2) si \|`precio` − `ctrpro.pre`\| ≤ 0,0001 **y** `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`. `tot = round(cantidad·pre, 2)` con `Decimal` y `ROUND_HALF_UP` (H33): por esa regla es siempre el importe aprobado; < 0 ⇒ fallo de línea `precio_negativo` (H8, v5) |
 | `partida` | str \| null | no (ausente o `null` ⇒ **sin partida**) | 1-24 | `codigo_partida_final` (VARCHAR 64) si **no está vacío** (ya es el código tal como figura en la lista de la obra, F-049 R20); vacío ⇒ no se manda, tenga o no marca de almacén (**H5 cerrado**: F-051 v4 y F-053 v6; > 24 ⇒ `campo_demasiado_largo` local) | `dcapro.paride` = `obrparpar.ide` de esa obra; sin partida, 0 | Nunca se hereda del `ctrpro` ni de otra línea (F-009 R14). **H4, H6, H17** |
 | `paride` | int ≥1 | no (opcional, v6) | — | `obrparpar.ide` de la partida elegida, que **F-049 debe conservar** (H17). F-053 v6 aún no lo manda (pregunta P4: provisionalmente `partida_ambigua` ⇒ `no_admitido`) | `dcapro.paride` | M3: 4.312 pares (obra, código) repetidos entre imputables ⇒ campo activo (F-009 R14b). Va con `partida` (sin ella, 400 sin código) y debe ser de la obra, imputable y con ese código (`paride_no_valido`); con él no hay `partida_ambigua` |
 | ~~`naturaleza`~~ | — | **no existe** (retirado en F-009 v8) | — | F-053 no la manda (v7.1) | — | El campo opcional de la v7 se retira en F-009 v8: la naturaleza de las sin vincular la fija sigrid-api por producto con `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (**H34**; nunca `pro.natide` ni la plantilla). Con `extra="forbid"`, mandarlo da 400 sin código |
@@ -289,7 +293,7 @@ Cada elemento de `lineas[]`:
 | `ctrpro_ide`, `linoriide` | los del `ctrpro`; 0 en sin vincular |
 | `proide`, `producto` | `ide` y código del producto |
 | `res`, `unimed` | descripción y unidad escritas |
-| `cantidad`, `precio`, `total`, `iva_cuota` | `can`, `pre`, `tot = round(can·pre, 2)`, `ivacuo = round(tot·iva, 2)` con `iva` de `dbo.iva` |
+| `cantidad`, `precio`, `total`, `iva_cuota` | `can`, `pre`, `tot = round(can·pre, 2)`, `ivacuo = round(tot·iva, 2)` con `iva` de `dbo.iva` (`Decimal`, `ROUND_HALF_UP`, H33); con la regla de `pre` de §2.2, `tot` = `round(cantidad·precio, 2)` de la petición |
 | `paride`, `partida` | `obrparpar.ide` y código; `0` y `null` sin partida |
 | `almide`, `cenide` | almacén físico y centro de coste escritos |
 | `stock_anterior`, `stock_resultante`, `pmp_anterior`, `pmp_resultante` | balance del `mov` (si lo hay) |
@@ -311,7 +315,7 @@ código en `ALTA_SIGRID_AVISOS_BLOQUEANTES` ⇒ `aviso_bloqueante`. Cualquiera �
 | `cod_provisional` | cabecera | siempre en `previsto`: `cod`/`con_ide` son `MAX+1` sin reservar | informativo |
 | `supera_pendiente` | línea | vinculada con `cantidad` > `can − canser` del `ctrpro` | informativo |
 | `partida_distinta_del_contrato` | línea | vinculada con partida ≠ la del `ctrpro` (M4: 5,3 % en el escritorio) | informativo |
-| `precio_distinto_del_contrato` | línea | vinculada con `precio` a más de 0,0001 de `ctrpro.pre` (escribe `tar` = `precio`, `dto ''`) | informativo. **H14** (tolerancia, v5) |
+| `precio_distinto_del_contrato` | línea | vinculada que no casa con el `ctrpro` (§2.2): `precio` a más de 0,0001 de `ctrpro.pre` o, dentro, con otro `tot` en céntimos (v8.2; escribe `pre` = `tar` = `precio`, `dto ''`) | informativo. **H14** (tolerancia, v5) |
 | `servido_negativo` | línea | devolución que deja `canser` < 0 (se admite; M6: 750 `ctrpro` así) | informativo |
 | `stock_negativo` | línea | el `mov` deja `almcan` < 0 (se admite; M15) | informativo |
 | `producto_sin_historico` | línea | producto sin `dcapro` previa en la empresa: cuenta/IVA a 0 | **bloqueante** (defecto de F-053) |
@@ -454,7 +458,7 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 | H11 | **Resuelto** (M14, v6): ninguna columna se arrastra de la plantilla; lista de reseteo ampliada, todas a 0/`''`; `cod2` pendiente de una consulta a negocio (vacío por defecto). `prepma` (v7): = `mov.prepma` de su `mov` (100 %); su valor, pregunta P1 de F-009 (M14c). **v7.1**: `cod2` **decidido** (humano): en sin vincular, vacío como `dncide`/`dncproide` (siguen en el reseteo); en vinculadas, los tres del `ctrpro` (H35); `natide` nunca de la plantilla (H34) **v8 · absorbido**: vinculadas con `cod2`, `dncide` y `dncproide` del `ctrpro`; sin vincular, vacíos (H35). `prepma`: 0 sin `mov` (99,4 %); con `mov`, el `mov.prepma`, que **v8.1** fija en el PMP del almacén antes de la línea (M14e refutó la media global; verificación manual en T22/T24) | R13, R21, design §Reseteo |
 | H12 | **Resuelto**: aviso informativo `sin_partida_en_linea_con_partida` (v5.1; en la v5 se llamaba `almacen_en_linea_con_partida`); informativo en F-053 v6 | R16 |
 | H13 | **Resuelto** en F-009 (`obr.almide`/`cenide` antes que `alm`; **confirmado por M16**, v6); `no_admitido` en F-053 v6 | R15, design L10 |
-| H14 | **Resuelto** en F-009 (tolerancia 0,0001 y `pre` del contrato); redondeo a 6 decimales en F-053 v6 | R17 |
+| H14 | **Resuelto** en F-009 (tolerancia 0,0001 y `pre` del contrato; **v8.2**, opción C: solo si además da el mismo `tot` en céntimos); redondeo a 6 decimales en F-053 v6 | R17 |
 | H15 | **Resuelto** en F-009 (plantilla del mismo proveedor, aviso `iva_de_otro_proveedor`); **confirmado por M11** (v7: el IVA de la línea previa del mismo proveedor acierta el 97,7 % frente al 95,0 % en MA9999 y el 99,5 % frente al 95,9 % en QA9999) | R13, design L8b |
 | H16 | **Resuelto** en F-009 (sin bancarias en la respuesta); F-053 v6 guarda solo `estado`, `con_ide`, `cod`, `avisos`, `lineas`, `totales` | R7, design §Respuesta |
 | H17 | **Resuelto** (M3, v6: 4.312 pares repetidos entre imputables): `paride` opcional con `partida` (`paride_no_valido`). **F-049 debe conservar el `ide` de cada partida** y F-053 mandarlo. **Decidido** (humano, 2026-10-06): F-053 no manda `paride` mientras F-049 no lo conserve (`partida_ambigua` ⇒ `no_admitido`); cuando lo conserve, lo manda, sin cambio en F-009 | R14b |

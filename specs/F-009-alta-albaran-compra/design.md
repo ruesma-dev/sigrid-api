@@ -1,5 +1,5 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v8.1)
+# F-009 · Diseño (v8.2)
 
 Detalle campo a campo, casos de línea, códigos → estados de F-053 y ejemplos: [`contrato_albaranes.md`](contrato_albaranes.md).
 
@@ -133,16 +133,16 @@ automática, **todas** a `MA99`/`CDSB37`. Descartadas: §v6-§v7 de `progress/sp
 
 `mov.prepma` = el **PMP de partida** de su línea: el `almpma` del último `mov` del mismo producto y almacén (L12/E7;
 sin él, 0) o, si una línea anterior del albarán lleva ese par, el `almpma` resultante de esa línea (se encadenan como
-el balance). Lo devuelve `siguiente_balance` junto a `almcan`/`almpma`; sin lectura ni función propias. **Hipótesis
-coherente con los datos, no demostrada sobre el histórico**: en el albarán más reciente de M14e, `prepma(n)` =
-`almpma(n-1)` en 4 de 4 `mov` consecutivos, como apuntó la primera pasada de T0 (M14); el histórico da poco (M14c: 9,7 %)
-porque el escritorio recalcula los `mov` posteriores a un albarán con fecha anterior (M10) y reescribe su `almpma`,
-pero el `prepma` queda con el valor del alta. Verificación manual en T22 y T24. Descartada la media ponderada global
-del producto (M14e: 2 de 34 entradas y 4 de 16 devoluciones; `progress/spec_F-009.md` §v8.1).
+el balance). Lo devuelve `siguiente_balance` junto a `almcan`/`almpma` (con el ε de R19); sin lectura ni función propias.
+**Hipótesis coherente con los datos, no demostrada sobre el histórico** (M14e: `prepma(n)` = `almpma(n-1)` en 4 de 4
+`mov`; el histórico da 9,7 % porque el escritorio reescribe el `almpma` de los `mov` posteriores, M10): verificación
+manual en T22 y T24. Descartada la media ponderada global del producto (M14e; `progress/spec_F-009.md` §v8.1).
 
 **Importes (R17; H14, H33)**: `redondear_euros(x)` = `Decimal(repr(x)).quantize(Decimal("0.01"), ROUND_HALF_UP)`;
-`tot` = `redondear_euros(cantidad·pre)`, `ivacuo` = `redondear_euros(tot·iva)`; test con el empate 2,675 → 2,68
-(`round` da 2,67). Vinculada con |`precio` − `ctrpro.pre`| ≤ 0,0001 (M4): `pre`, `tar` y `dto` del `ctrpro`.
+`tot` = `redondear_euros(cantidad·pre)` siempre, `ivacuo` = `redondear_euros(tot·iva)`; test con el empate 2,675 → 2,68
+(`round` da 2,67). **Opción C** (humano, v8.2): la vinculada toma `pre`, `tar` y `dto` del `ctrpro` solo si |`precio` −
+`ctrpro.pre`| ≤ 0,0001 (M4) **y** `redondear_euros(cantidad·precio)` = `redondear_euros(cantidad·ctrpro.pre)`; si no,
+`pre` = `tar` = `precio`, `dto` `''` y aviso `precio_distinto_del_contrato`. Así `tot` = `can·pre` de la fila y = el aprobado.
 
 ## Devoluciones (R18, R20) y fecha atrasada (R19)
 
@@ -207,10 +207,9 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
 
 ## Condicionales
 
-**T0 cerrada**, ninguna medición pendiente (cifras en `progress/spec_F-009.md` §v6-§v8.1): M3, M7, M9 (con `XA9999`),
-M11, M13, M14, M14b-e, M16, M16b-d, M17b, M18, M19 y P2-P4. **Solo verificación manual**: `prepma` (hipótesis de
-§`prepma`) en T22 (frente a un albarán del escritorio del mismo día y almacén) y T24 (primera alta real); la primera
-devolución real (regla A, M5) en T24; y en T22-T23, lo revisable en la UI.
+**T0 cerrada**, ninguna medición pendiente (cifras en `progress/spec_F-009.md` §v6-§v8.1). **Solo verificación manual**:
+`prepma` (hipótesis de §`prepma`) en T22 (frente a un albarán del escritorio del mismo día y almacén) y T24 (primera alta
+real); la primera devolución real (regla A, M5) en T24; y en T22-T23, lo revisable en la UI.
 
 ## Códigos (R1, R8, R9)
 
@@ -231,7 +230,9 @@ de la misma empresa, `tipmov` 1) en dry-run por los dos modos; filas **construid
 **declaradas**, y ninguna más: `synckey`, `hor`/`fechor` (Madrid frente a UTC; y `mov.fec`/`fechor` del alta, N1),
 `est`, `prepma` (`dcapro` y `mov`), `ivacuo` (`dbo.iva` frente al cociente del `ctrpro`), `tot`/`ivacuo` en empates
 (H33; el dato fijo los evita), `dcapro.refent` (R30c), `cod2`/`dncide`/`dncproide` (del `ctrpro` frente a la
-plantilla; H35), el `log` y el `mov` con `tipmov` 0 (R19).
+plantilla; H35), el `log`, el `mov` con `tipmov` 0 (R19), `con.res` (recortado a 128; el clásico, a 200) y `mov.almpma` con
+stock final 0 (aquí se conserva el PMP, R19; el clásico pone `pre`). La opción C de R17 no añade ninguna: con `precio` =
+`ctrpro.pre` escribe `pre`, `tar`, `dto` y `tot` como el clásico (salvo los empates ya declarados).
 
 ## Riesgos y decisiones
 

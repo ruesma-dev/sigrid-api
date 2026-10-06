@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v8.1
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v8.2
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7); **v8 del 2026-10-06** (T0b-ter, T0b-quater, contrato v7.1 y decisiones del humano; §v8); **v8.1 del mismo día** (T0b-quinquies, cierre de T0 y retirada del script; §v8.1). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7); **v8 del 2026-10-06** (T0b-ter, T0b-quater, contrato v7.1 y decisiones del humano; §v8); **v8.1 del mismo día** (T0b-quinquies, cierre de T0 y retirada del script; §v8.1); **v8.2 del mismo día** (ajuste puntual durante el lote B: importes, ε del stock y §Equivalencia; §v8.2). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,34 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v8.2 (2026-10-06): ajuste puntual durante la revisión del lote B
+
+Spec-author, a petición del líder. Solo spec y contrato (redacción); sin código, tests ni `tasks.md` (ninguna
+verificación cambia: R17 y R19 siguen cubiertos por T5-T7 y R33 por T12). Origen: `review_F-009_loteB_2.md`
+(§«Decisión 1», §«Decisión 11», O2) e `impl_F-009_loteB.md` (decisiones 1 y 11).
+
+1. **Importes de la vinculada: opción C** (humano, 2026-10-06; review §Decisión 1). `pre`, `tar` y `dto` del `ctrpro`
+   solo si |`precio` − `ctrpro.pre`| ≤ 0,0001 **y** `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`
+   (`Decimal`, `ROUND_HALF_UP`, H33); si no, vía de `precio_distinto_del_contrato` (`pre` = `tar` = `precio`, `dto`
+   `''`, aviso). `tot` = `round(cantidad·pre, 2)` siempre: la fila es coherente y el total es el aprobado. Descartadas A
+   (`cantidad·precio`: `tot` ≠ `can·pre` escrito en silencio) y B (`cantidad·pre` sin más: descuadre de hasta
+   0,0001·|cantidad| que sv9 marcaría `importe_distinto`). Alineados en la misma regla R17, design §Importes y el
+   contrato §2.2 y §3.1 (antes discrepaban), más §3.2 (cuándo salta el aviso) y la fila H14 de §5: **solo redacción**,
+   sin cambio de forma, campos, códigos ni estados; línea v8.2 en la cabecera del contrato. Coste aceptado: algún aviso
+   más y la pérdida de `tar`/`dto` del contrato en líneas grandes con diferencia mínima. **Para el implementer**: el
+   código del lote B aplica A (`importe_linea` con `precio`, decisión 1 del informe); hay que pasarlo a C.
+2. **Stock con residuo binario** (review §Decisión 11; cambio requerido 1). R19: con |`stock + can`| < ε = 1e-6 se
+   conserva el PMP y se escribe `almcan` 0; `almcan`/`almpma` son «Real» y se comparan con tolerancia. Sin regla nueva:
+   un residuo de 1e-17 *es* el 0 de R19. design §`prepma` remite a ese ε (`siguiente_balance`).
+3. **§Equivalencia (R33, T12; O2)**: se declaran `con.res` (128 aquí, 200 en el clásico) y `mov.almpma` con stock final
+   0 (aquí se conserva el PMP; el clásico pone `pre`, `create_purchase_albaran_use_case.py:360`). La opción C no añade
+   diferencia: en el dominio de R33 (`precio` = `ctrpro.pre`) escribe `pre`, `tar`, `dto` y `tot` como el clásico, salvo
+   los empates de H33 ya declarados.
+
+Topes: `requirements.md` 150/150 (cabecera compactada para el renglón de más de R19) y `design.md` 250/250 (§`prepma` y
+§Condicionales resumidos, con enlace a §v8.1 y §v6-§v8.1). **Abierto para el humano**: nada nuevo; confirmar solo que
+la redacción de §3.2 del contrato (cuándo salta `precio_distinto_del_contrato`) entra en «solo redacción» para F-053.
 
 ## v8.1 (T0c): resultado de T0b-quinquies (M14e, 2026-10-06), cierre de T0 y retirada del script
 
