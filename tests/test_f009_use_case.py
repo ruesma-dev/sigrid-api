@@ -733,3 +733,120 @@ def test_f009_r30_commit_conflicto_dentro_de_la_transaccion() -> None:
     )
     assert codigo(repo=repo, commit=True) == "referencia_en_conflicto"
     assert repo.sentencias() == ["referencia"]
+
+
+# =====================================================================================
+# T9 · R23 y R7: la previa, solo lecturas y con las filas completas
+# =====================================================================================
+
+
+def test_f009_r23_la_previa_no_necesita_ninguna_llave_de_escritura() -> None:
+    settings = SettingsDoble(
+        sigrid_domain_write_enabled=False, sigrid_albaran_write_enabled=False,
+        sql_server_write_username=None, sql_server_write_password=None,
+        allowed_write_databases=[],
+    )
+    respuesta, repo = ejecutar([vinculada(), sin_vincular()], settings=settings)
+    assert (respuesta.estado, respuesta.committed, respuesta.dry_run) == ("previsto", False, True)
+    assert {tipo for tipo, _ in repo.llamadas} == {
+        "leer", "locate_contract", "read_full_row", "read_rows_by", "peek",
+    }
+    assert repo.transacciones == []
+
+
+def test_f009_r23_cod_e_ide_provisionales_con_aviso() -> None:
+    respuesta, repo = ejecutar([vinculada(), sin_vincular()])
+    assert repo.parametros_de("ultimo_cod") == [[6, 1, 14, "AC26/%"]]
+    assert [d for t, d in repo.llamadas if t == "peek"] == ["con", "dcapro", "ctrprodes", "mov", "log"]
+    assert (respuesta.con_ide, respuesta.cod) == (2900001, "AC26/15953")
+    assert [(a.codigo, a.mensaje) for a in respuesta.avisos] == [
+        ("cod_provisional",
+         ("DRY-RUN: no se ha escrito nada. El cod y los ide son provisionales (MAX+1 sin "
+          "reservar); en el commit se reservan bajo bloqueo.")),
+    ]
+
+
+def test_f009_r23_sin_albaranes_en_la_serie_empieza_en_1_y_por_el_anio_del_albaran() -> None:
+    repo = RepositorioDoble({"ultimo_cod": [(None,)]})
+    respuesta, repo = ejecutar(repo=repo, fecha_albaran=20251231)
+    assert repo.parametros_de("ultimo_cod") == [[6, 1, 14, "AC25/%"]]
+    assert respuesta.cod == "AC25/1"
+
+
+def test_f009_r23_las_seis_filas_numeradas_y_enlazadas() -> None:
+    respuesta, _ = ejecutar([vinculada(), sin_vincular()])
+    filas = respuesta.filas
+    assert set(filas) == {"con", "dca", "dcapro", "ctrprodes", "mov", "log"}
+    assert (filas["con"]["ide"], filas["con"]["cod"], filas["con"]["tip"], filas["con"]["est"]) == (
+        2900001, "AC26/15953", 14, 1)
+    assert filas["con"]["res"] == "PROVEEDOR PRUEBA SL. (A-77)"
+    assert (filas["dca"]["ide"], filas["dca"]["synckey"], filas["dca"]["ctride"]) == (
+        2900001, "ALB-1", CTR)
+    assert [(f["ide"], f["docide"], f["pos"], f["refent"]) for f in filas["dcapro"]] == [
+        (8000001, 2900001, 64, "L1"), (8000002, 2900001, 128, "L2")]
+    assert [(f["ide"], f["docdeside"], f["lindeside"], f["docdescod"], f["docproide"])
+            for f in filas["ctrprodes"]] == [(400001, 2900001, 8000001, "AC26/15953", 9001)]
+    assert [(f["ide"], f["docide"], f["linide"], f["proide"], f["almide"])
+            for f in filas["mov"]] == [
+        (9000001, 2900001, 8000001, 55, 70), (9000002, 2900001, 8000002, 66, 70)]
+    assert (filas["log"]["ide"], filas["log"]["cod"], filas["log"]["usu"], filas["log"]["res"]) == (
+        8488889, "AC26/15953", "prueba", "PROVEEDOR PRUEBA SL. (A-77)")
+    assert respuesta.movimientos == filas["mov"]
+
+
+def test_f009_r23_balance_vigente_de_cada_producto_y_almacen() -> None:
+    respuesta, repo = ejecutar([vinculada("A"), sin_vincular("B"), vinculada("C", cantidad=3.0)])
+    assert repo.parametros_de("balance") == [[55, 70], [66, 70]]
+    assert [(l.stock_anterior, l.stock_resultante, l.pmp_anterior) for l in respuesta.lineas] == [
+        (10.0, 12.0, 9.0), (4.0, 7.0, 2.0), (12.0, 15.0, (10.0 * 9.0 + 2.0 * 10.5) / 12.0)]
+
+
+def test_f009_r23_un_producto_sin_mov_anterior_parte_de_cero() -> None:
+    respuesta, _ = ejecutar([sin_vincular(producto="QA9999")])
+    linea = respuesta.lineas[0]
+    assert (linea.stock_anterior, linea.stock_resultante, linea.pmp_anterior, linea.pmp_resultante) == (
+        0.0, 3.0, 0.0, (0.0 * 0.0 + 3.0 * 2.675) / 3.0)  # R19: sin redondear
+
+
+def test_f009_r7_superconjunto_de_la_respuesta_clasica() -> None:
+    from domain.models.albaran_domain_models import (
+        AddPurchaseAlbaranResponse,
+        AlbaranLinePreview,
+    )
+
+    respuesta, _ = ejecutar([vinculada(), sin_vincular()])
+    assert isinstance(respuesta, AddPurchaseAlbaranResponse)
+    assert all(isinstance(l, AlbaranLinePreview) for l in respuesta.lineas)
+    assert [l.indice for l in respuesta.lineas] == [0, 1]
+    assert [l.referencia_linea for l in respuesta.lineas] == ["L1", "L2"]
+    assert respuesta.contrato == {
+        "ctride": CTR, "obride": OBRA, "cod_contrato": "CTSU16/0206", "cod_obra": "0404",
+        "cif_proveedor": "B12345678", "entide": 77, "almide": 70, "template_ide": 15950,
+    }
+    assert respuesta.totales == {"totbas": 29.03, "totiva": 6.1, "totdoc": 35.13, "n_lineas": 2,
+                                 "n_vinculadas": 1, "n_movimientos": 2}
+    assert respuesta.estados_contrato == {
+        "estser_before": 0, "estfac_before": 0, "estser_after": 0, "estfac_after": 0,
+        "sum_can": 111.0, "sum_canser_before": 25.0, "sum_canser_after": 27.0, "sum_canfac": 0.0,
+    }
+
+
+def test_f009_r7_sin_columnas_bancarias_en_la_respuesta() -> None:
+    respuesta, _ = ejecutar([vinculada()])
+    for fila in (respuesta.cabecera, respuesta.filas["dca"]):
+        assert not {"bancue", "cpacue1"} & set(fila)
+        assert fila["pagide"] == 12
+    volcado = respuesta.model_dump_json()
+    assert "ES12" not in volcado and "ES34" not in volcado
+
+
+def test_f009_r7_avisos_con_codigo_y_warnings_en_orden() -> None:
+    respuesta, _ = ejecutar([vinculada(precio=10.6), sin_vincular(producto="QA9999")])
+    assert [avisos(l) for l in respuesta.lineas] == [
+        ["sin_partida_en_linea_con_partida", "precio_distinto_del_contrato"],
+        ["iva_de_otro_proveedor"],
+    ]
+    esperados = [a.mensaje for a in respuesta.avisos] + [
+        a.mensaje for l in respuesta.lineas for a in l.avisos
+    ]
+    assert respuesta.warnings == esperados and len(esperados) == 4
