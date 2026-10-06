@@ -524,6 +524,15 @@ def test_f009_r31_una_columna_que_no_es_un_identificador_se_rechaza(
         sentencias.insertar_dcapro({"ide": 1, columna: 2})
 
 
+@pytest.mark.parametrize("columna", [" ide", "ide ", "	ide"])
+def test_f009_r31_una_columna_con_espacios_no_es_la_de_la_fila(
+    sentencias: AlbaranCompraStatements, columna: str
+) -> None:
+    """El guardia recorta: `' ide'` pasaría como `ide` y el `INSERT` no sería el de la fila."""
+    with pytest.raises(ValueError, match="Columnas no validas"):
+        sentencias.insertar_dcapro({columna: 1})
+
+
 def test_f009_r31_una_fila_clonada_vacia_no_se_inserta(
     sentencias: AlbaranCompraStatements,
 ) -> None:

@@ -140,6 +140,12 @@ def test_f009_r5_cif_en_mayusculas_y_sin_espacios(cif: str, esperado: str) -> No
     assert AlbaranCompraRequest.model_validate(peticion(cif_proveedor=cif)).cif_proveedor == esperado
 
 
+@pytest.mark.parametrize("cif", [12345678, None, ["B12345678"]])
+def test_f009_r5_cif_que_no_es_texto(cif: object) -> None:
+    with pytest.raises(ValidationError):
+        AlbaranCompraRequest.model_validate(peticion(cif_proveedor=cif))
+
+
 def test_f009_r5_textos_recortados() -> None:
     p = AlbaranCompraRequest.model_validate(
         peticion(
