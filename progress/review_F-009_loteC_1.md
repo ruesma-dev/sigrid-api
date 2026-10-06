@@ -80,7 +80,6 @@ que el humano aprobó en la PARADA 1, igual que en el lote B.
    ninguna transacción. Las columnas bancarias las quita el propio modelo (`albaran_compra_models.py:358-365`) de
    `cabecera` y `filas.dca`, y el test las busca en el JSON volcado. El preview viene completo: seis filas numeradas
    y enlazadas, `cod_provisional` con L14 y `peek` de las cinco tablas, y el balance de L12 por producto y almacén.
-6. **Tests y ficheros.** Sin red ni BBDD, comparan SQL y parámetros; nada prohibido tocado; `init.sh` en verde.
 
 ## Checkpoints
 
