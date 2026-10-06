@@ -49,6 +49,7 @@ TIMEOUT_NORMAL_S = 120
 TIMEOUT_PESADO_S = 200          # el balanceador corta a 230 s
 MUESTRA_DEVOLUCIONES = 20
 MUESTRA_FECHA_ATRASADA = 3
+MUESTRA_M14E = 50            # T0a-quinquies, M14e: los 50 mov de albarán más recientes de VENTANA_M9
 COD_ALBARAN_API = "AC26/15951"  # creado por la API en junio (desde contrato)
 PRODUCTOS_GENERICOS = ("MA9999", "SM9999", "SB9999", "QA9999", "XA9999")
 # Spec v6/v7: M11 mide y concluye cada uno por separado; XA9999, P5 de la v7 (lista blanca de despliegue).
@@ -201,6 +202,14 @@ _M14D_DESDE = (
 )
 
 
+# T0a-quinquies, M14e: la muestra (dos `?`: la ventana), en derivada con su TOP.
+_M14E_MUESTRA = (
+    f"(SELECT TOP {MUESTRA_M14E} m.ide, m.proide, m.almide, m.fechor, m.canent, m.cansal, m.pre, m.prc, m.prepma, "
+    "m.almcan, m.almpma FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.mov m ON m.docide = d.docide "
+    f"AND m.linide = d.ide {_M9_VENTANA} AND m.doctip = 14 ORDER BY m.ide DESC)"
+)
+
+
 def _igual(a: str, b: str) -> str:
     return f"CASE WHEN ABS({a} - {b}) < {_TOL_PRECIO} THEN 1 ELSE 0 END"
 
@@ -300,6 +309,9 @@ UMBRAL_HEREDA_DNC = 0.95     # M19: «el campo se hereda de la línea de planifi
 # M19: códigos de usuario que delatan un usuario técnico (heurística por el nombre; `usu` no tiene esa marca).
 MARCAS_USUARIO_TECNICO = ("API", "SIGRID", "SERVIC", "SVC", "SYNC", "AUTOM", "PRUEBA", "TEST", "SISTEMA", "ADMIN",
                           "_RW", "WEB", "ROBOT")
+# T0a-quinquies, M14e: ¿mov.prepma = media ponderada GLOBAL del producto? Muestra pequeña y tolerancias con nombre.
+TOL_RELATIVA_M14E = 1e-6     # |a - b| ≤ tol · max(1, |a|, |b|): valores copiados o recalculados en coma flotante
+TOL_HOLGADA_M14E = 1e-3      # informativa: acierto si Sigrid redondea el prepma a pocos decimales
 REINTENTOS_INTERBLOQUEO = 2  # error 1205 de SQL Server (transitorio): se reintenta con espera creciente
 ESPERA_INTERBLOQUEO_S = 5
 
@@ -609,6 +621,28 @@ SQL: dict[str, str] = {
         "SELECT TOP 15 m.ide, m.proide, m.almide, m.canent, m.cansal, m.pre, m.prc, m.prepma, m.almcan, m.almpma, "
         "d.pre AS dcapro_pre, a.prepma AS prepma_anterior, a.doctip AS doctip_anterior, a.almide AS alm_anterior, "
         f"s.prepma AS prepma_siguiente, s.doctip AS doctip_siguiente {_M14D_DESDE} ORDER BY m.ide DESC"
+    ),
+    # T0a-quinquies, M14e: por cada mov de la muestra (TOP MUESTRA_M14E, en una derivada para que los APPLY solo se
+    # hagan sobre ella), el prepma del mov anterior del PRODUCTO (pfhi), el almcan anterior de su almacén (pafhi) y la
+    # suma del último almcan anterior de cada OTRO almacén del producto (almacenes de proalm, DISTINCT; un TOP 1 por
+    # pafhi en cada uno; la suma en una derivada agrupada, no sobre una subconsulta: error 130). La fórmula, en Python.
+    "M14e_muestra": (
+        "SELECT s.ide, s.proide, s.almide, s.canent, s.cansal, s.pre, s.prc, s.prepma, s.almcan, s.almpma, "
+        "a.prepma AS prepma_ant, b.almcan AS almcan_ant_alm, g.stock_otros, g.almacenes_otros, g.almacenes_con_mov, "
+        "CASE WHEN pp.proide IS NULL THEN 0 ELSE 1 END AS alm_propio_en_proalm "
+        f"FROM {_M14E_MUESTRA} s "
+        "OUTER APPLY (SELECT TOP 1 p.prepma FROM dbo.mov p WHERE p.proide = s.proide AND p.fechor <= s.fechor "
+        "AND (p.fechor < s.fechor OR p.ide < s.ide) ORDER BY p.fechor DESC, p.ide DESC) a "
+        "OUTER APPLY (SELECT TOP 1 q.almcan FROM dbo.mov q WHERE q.proide = s.proide AND q.almide = s.almide "
+        "AND q.fechor <= s.fechor AND (q.fechor < s.fechor OR q.ide < s.ide) ORDER BY q.fechor DESC, q.ide DESC) b "
+        "LEFT JOIN (SELECT t.ide AS movide, SUM(w.almcan) AS stock_otros, COUNT(*) AS almacenes_otros, "
+        f"COUNT(w.almcan) AS almacenes_con_mov FROM {_M14E_MUESTRA} t "
+        "JOIN (SELECT DISTINCT proide, almide FROM dbo.proalm) pa ON pa.proide = t.proide AND pa.almide <> t.almide "
+        "OUTER APPLY (SELECT TOP 1 x.almcan FROM dbo.mov x WHERE x.proide = t.proide AND x.almide = pa.almide "
+        "AND x.fechor <= t.fechor AND (x.fechor < t.fechor OR x.ide < t.ide) ORDER BY x.fechor DESC, x.ide DESC) w "
+        "GROUP BY t.ide) g ON g.movide = s.ide "
+        "LEFT JOIN (SELECT DISTINCT proide, almide FROM dbo.proalm) pp ON pp.proide = s.proide AND pp.almide = s.almide "
+        "ORDER BY s.ide DESC"
     ),
     "M14_api": "SELECT ide, cod FROM dbo.con WHERE tip = 14 AND cod = ?",
     "M14_con": "SELECT * FROM dbo.con WHERE ide IN ({in})",
@@ -1715,11 +1749,12 @@ def m13(c: ClienteLectura) -> Informe:
 
 def m14(c: ClienteLectura) -> Informe:
     inf = Informe("M14", "diff de columnas frente a AC26/15951 (API), columnas de la dcapro sin vincular y "
-                         "valor de prepma (M14c por almacén, M14d por producto)")
+                         "valor de prepma (M14c por almacén, M14d por producto, M14e media global)")
     # T0 se ejecuta una sola vez (H28): si una parte falla, se anota y las demás siguen.
     partes = (("comparación con la API", _m14_frente_a_la_api), ("valores de las sin vincular", _m14_sv_valores),
               ("arrastre desde la plantilla", _m14_arrastre), ("pago del albarán anterior", _m14b_pago),
-              ("prepma del mov (M14c)", _m14c_prepma), ("prepma del producto (M14d)", _m14d_prepma))
+              ("prepma del mov (M14c)", _m14c_prepma), ("prepma del producto (M14d)", _m14d_prepma),
+              ("media ponderada global (M14e)", _m14e_global))
     for nombre, parte in partes:
         try:
             parte(c, inf)
@@ -1997,6 +2032,125 @@ def _m14d_prepma(c: ClienteLectura, inf: Informe) -> None:
     for texto in lectura_m14d(filas):
         inf.concluir(texto)
     _leer_tabla(c, inf, "M14d_muestra", "M14d: muestra de los 15 mov de albarán más recientes", list(VENTANA_M9), **kw)
+
+
+# --- T0a-quinquies, M14e: media ponderada GLOBAL del producto ------------------------------------------------
+# Variantes en orden de desempate (la de más arriba gana y se nombran las empatadas).
+VARIANTES_M14E: tuple[tuple[str, str], ...] = (
+    ("global_anterior", "media ponderada global (stock anterior de todos los almacenes, canent, pre)"),
+    ("global_posterior", "(a) con el stock global posterior"),
+    ("can_neta", "(b) con canent - cansal"),
+    ("precio_prc", "(c) con prc en vez de pre"),
+    ("solo_almacen", "solo el stock anterior del almacén del mov"),
+)
+_UMBRAL_M14E_TXT = f"{UMBRAL_REGLA_ESCRIBIBLE:.0%}".replace("%", " %")
+
+
+def _casi_rel(a: float, b: float, tol: float = TOL_RELATIVA_M14E) -> bool:
+    return abs(a - b) <= tol * max(1.0, abs(a), abs(b))
+
+
+def prepma_ponderado(prepma_ant: float | None, stock: float, can: float, precio: float) -> float | None:
+    """(prepma_ant × stock + can × precio) / (stock + can); None sin prepma anterior o con denominador 0."""
+    denominador = stock + can
+    if prepma_ant is None or abs(denominador) < 1e-12:
+        return None
+    return (prepma_ant * stock + can * precio) / denominador
+
+
+def _anterior(fila: dict[str, Any]) -> float | None:
+    return None if fila.get("prepma_ant") is None else _num(fila.get("prepma_ant"))
+
+
+def variantes_m14e(fila: dict[str, Any]) -> dict[str, float | None]:
+    """El prepma que daría cada variante para un mov de la muestra. Stock del almacén antes de la entrada =
+    almcan - canent + cansal; stock de los demás almacenes = Σ del último almcan anterior (stock_otros)."""
+    canent, cansal, almcan = _num(fila.get("canent")), _num(fila.get("cansal")), _num(fila.get("almcan"))
+    pre, prc, otros = _num(fila.get("pre")), _num(fila.get("prc")), _num(fila.get("stock_otros"))
+    propio = almcan - canent + cansal
+    ant = _anterior(fila)
+    return {
+        "global_anterior": prepma_ponderado(ant, otros + propio, canent, pre),
+        "global_posterior": prepma_ponderado(ant, otros + almcan, canent, pre),
+        "can_neta": prepma_ponderado(ant, otros + propio, canent - cansal, pre),
+        "precio_prc": prepma_ponderado(ant, otros + propio, canent, prc),
+        "solo_almacen": prepma_ponderado(ant, propio, canent, pre),
+    }
+
+
+def clasifica_m14e(fila: dict[str, Any]) -> str:
+    """(d) entrada (canent > 0), devolución (canent < 0, o salida del albarán: regla B de M5) u otro."""
+    canent, cansal = _num(fila.get("canent")), _num(fila.get("cansal"))
+    if canent > 0:
+        return "entrada"
+    if canent < 0 or cansal > 0:
+        return "devolucion"
+    return "otro"
+
+
+def _lectura_tipo_m14e(tipo: str, filas: Filas) -> tuple[str, float, float]:
+    """(texto, aciertos de la principal, base) de un tipo de mov."""
+    n = len(filas)
+    base = sum(1 for f in filas if _anterior(f) is not None)
+    aciertos = {campo: 0.0 for campo, _ in VARIANTES_M14E}
+    holgada = sin_cambio = den_cero = negativo = 0
+    for f in filas:
+        prepma, v = _num(f.get("prepma")), variantes_m14e(f)
+        stock = _num(f.get("stock_otros")) + _num(f.get("almcan")) - _num(f.get("canent")) + _num(f.get("cansal"))
+        den_cero += abs(stock + _num(f.get("canent"))) < 1e-12
+        negativo += stock < 0
+        for campo, valor in v.items():
+            aciertos[campo] += valor is not None and _casi_rel(prepma, valor)
+        principal = v["global_anterior"]
+        holgada += principal is not None and _casi_rel(prepma, principal, TOL_HOLGADA_M14E)
+        sin_cambio += _anterior(f) is not None and _casi_rel(prepma, _num(f.get("prepma_ant")))
+    todas = ", ".join(f"{desc} {_pct(aciertos[campo], base)}" for campo, desc in VARIANTES_M14E)
+    texto = (f"M14e {tipo} ({n} mov; con mov anterior del producto {base}; denominador 0: {den_cero}; stock global "
+             f"anterior < 0: {negativo}): {_veredicto_m16c(aciertos, VARIANTES_M14E, base)}; todas: {todas}; la "
+             f"principal con tolerancia holgada ({TOL_HOLGADA_M14E:g}) {_pct(holgada, base)}; prepma = el del mov "
+             f"anterior (sin cambio) {_pct(sin_cambio, base)}.")
+    return texto, aciertos["global_anterior"], base
+
+
+def lectura_m14e(filas: Filas | None) -> list[str]:
+    """T0a-quinquies, M14e: ¿mov.prepma = (prepma_ant × stock_global_ant + can × pre) / (stock_global_ant + can)?
+    Por tipo de mov (devoluciones aparte). None = SIN MEDICIÓN; [] = cero filas."""
+    if filas is None:
+        return [f"M14e: {sin_medicion('M14e_muestra', 'M14')} ⇒ no se contrasta la media ponderada global."]
+    if not filas:
+        return ["M14e: cero filas (ningún mov de albarán en la ventana) ⇒ no se contrasta."]
+    salida: list[str] = []
+    principal: tuple[float, float] | None = None
+    for tipo in ("entrada", "devolucion", "otro"):
+        del_tipo = [f for f in filas if clasifica_m14e(f) == tipo]
+        if del_tipo:
+            texto, aciertos, base = _lectura_tipo_m14e(tipo, del_tipo)
+            salida.append(texto)
+            if tipo == "entrada":
+                principal = (aciertos, base)
+    n = len(filas)
+    coherente = sum(1 for f in filas if f.get("almcan_ant_alm") is not None and _casi_rel(
+        _num(f.get("almcan_ant_alm")), _num(f.get("almcan")) - _num(f.get("canent")) + _num(f.get("cansal"))))
+    salida.append(f"M14e comprobaciones: almacén del mov en proalm {_pct(_suma(filas, 'alm_propio_en_proalm'), n)} "
+                  f"(si no, proalm podría no listar todos los almacenes del producto); almcan del mov anterior de su "
+                  f"almacén = almcan - canent + cansal {_pct(coherente, n)}; otros almacenes del producto "
+                  f"{_suma(filas, 'almacenes_otros'):.0f}, con mov anterior {_suma(filas, 'almacenes_con_mov'):.0f}.")
+    if principal is None:
+        salida.append("Hipótesis M14e: ninguna entrada en la muestra ⇒ no se concluye.")
+    else:
+        ok = _cumple(principal[0], principal[1], UMBRAL_REGLA_ESCRIBIBLE)
+        salida.append(f"Hipótesis M14e (media ponderada global con el stock anterior, en las entradas): "
+                      f"{'CONFIRMADA' if ok else 'NO confirmada'} ({_pct(*principal)}; REGLA escribible = ≥ "
+                      f"{_UMBRAL_M14E_TXT}, tolerancia relativa {TOL_RELATIVA_M14E:g}).")
+    return salida
+
+
+def _m14e_global(c: ClienteLectura, inf: Informe) -> None:
+    filas = _leer_tabla(c, inf, "M14e_muestra", f"M14e: los {MUESTRA_M14E} mov de albarán más recientes con su stock "
+                        "global anterior", [*VENTANA_M9, *VENTANA_M9], limite=15, max_rows=MUESTRA_M14E,
+                        timeout_s=TIMEOUT_PESADO_S)
+    for texto in lectura_m14e(filas):
+        inf.concluir(texto)
 
 
 def m15(c: ClienteLectura) -> Informe:

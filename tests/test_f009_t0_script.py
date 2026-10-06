@@ -1796,3 +1796,117 @@ def test_f009_t0a_quater_c1_eleccion_avisa_si_un_item_tiene_mas_de_dos_naturalez
     texto = " ".join(t0.lectura_m16d_eleccion({"obra": filas, "proveedor": [], "usuario": []}))
     assert "AVISO: 1 ítems con más de dos naturalezas (100 de 200 (50.0 %) de las líneas)" in texto
     assert "AVISO" not in " ".join(t0.lectura_m16d_eleccion({"obra": _DATOS_QUATER["M16d_por_obra"]}))
+
+
+# --- T0a-quinquies: M14e, ¿es mov.prepma la media ponderada GLOBAL del producto? -----------------------------
+# prepma_nuevo = (prepma_ant × stock_global_ant + can × pre) / (stock_global_ant + can), con prepma_ant el del mov
+# anterior del producto (cualquier almacén) y stock_global_ant la suma del último almcan de cada almacén.
+
+
+def _fila_m14e(**kw: Any) -> dict[str, Any]:
+    """Un mov de entrada: otros almacenes 50, el propio 50 antes de la entrada (60 después)."""
+    fila = {"ide": 1, "proide": 2, "almide": 3, "canent": 10.0, "cansal": 0.0, "pre": 20.0, "prc": 25.0,
+            "prepma_ant": 10.0, "almcan": 60.0, "almcan_ant_alm": 50.0, "stock_otros": 50.0, "almacenes_otros": 2,
+            "almacenes_con_mov": 1, "alm_propio_en_proalm": 1}
+    fila.update(kw)
+    if "prepma" not in kw:
+        fila["prepma"] = t0.prepma_ponderado(10.0, 100.0, 10.0, 20.0)   # la regla principal
+    return fila
+
+
+def test_f009_t0a_quinquies_m14e_sql_muestra_pequena_por_indices() -> None:
+    sql = t0.SQL["M14e_muestra"]
+    assert t0.MUESTRA_M14E == 50 and sql.count(f"SELECT TOP {t0.MUESTRA_M14E} m.ide,") == 2
+    assert sql.count("c.fec >= ? AND c.fec <= ?") == 2 and sql.count("?") == 4
+    assert "m.docide = d.docide AND m.linide = d.ide" in sql and "m.doctip = 14" in sql
+    # prepma del mov anterior del PRODUCTO (pfhi) y almcan anterior de su almacén y de cada otro almacén (pafhi).
+    assert ("OUTER APPLY (SELECT TOP 1 p.prepma FROM dbo.mov p WHERE p.proide = s.proide AND p.fechor <= s.fechor "
+            "AND (p.fechor < s.fechor OR p.ide < s.ide) ORDER BY p.fechor DESC, p.ide DESC) a") in sql
+    assert ("OUTER APPLY (SELECT TOP 1 q.almcan FROM dbo.mov q WHERE q.proide = s.proide AND q.almide = s.almide "
+            "AND q.fechor <= s.fechor AND (q.fechor < s.fechor OR q.ide < s.ide) ORDER BY q.fechor DESC, q.ide DESC) b"
+            ) in sql
+    assert ("JOIN (SELECT DISTINCT proide, almide FROM dbo.proalm) pa ON pa.proide = t.proide AND pa.almide <> t.almide"
+            ) in sql
+    assert "SUM(w.almcan) AS stock_otros" in sql and "GROUP BY t.ide) g ON g.movide = s.ide" in sql
+    for col in ("prepma_ant", "almcan_ant_alm", "stock_otros", "almacenes_otros", "almacenes_con_mov",
+                "alm_propio_en_proalm"):
+        assert f"AS {col}," in sql or f"AS {col} " in sql, col
+    assert not t0.agregado_con_subconsulta(sql)
+
+
+def test_f009_t0a_quinquies_m14_pasa_la_ventana_dos_veces() -> None:
+    cliente = _ClienteFalso({"M14e_muestra": [_fila_m14e()]})
+    t0.m14(cliente)  # type: ignore[arg-type]
+    assert dict(cliente.llamadas)["M14e_muestra"] == [*t0.VENTANA_M9, *t0.VENTANA_M9]
+
+
+def test_f009_t0a_quinquies_formula_y_variantes() -> None:
+    assert t0.prepma_ponderado(10.0, 90.0, 10.0, 20.0) == pytest.approx(11.0)
+    assert t0.prepma_ponderado(10.0, -10.0, 10.0, 20.0) is None   # denominador 0
+    assert t0.prepma_ponderado(None, 90.0, 10.0, 20.0) is None
+    v = t0.variantes_m14e(_fila_m14e())
+    assert v["global_anterior"] == pytest.approx(1200 / 110)
+    assert v["global_posterior"] == pytest.approx((10 * 110 + 200) / 120)
+    assert v["precio_prc"] == pytest.approx((1000 + 250) / 110)
+    assert v["solo_almacen"] == pytest.approx((500 + 200) / 60)
+    assert v["can_neta"] == pytest.approx(1200 / 110)
+    assert t0.clasifica_m14e(_fila_m14e()) == "entrada"
+    assert t0.clasifica_m14e(_fila_m14e(canent=-2.0)) == "devolucion"
+    assert t0.clasifica_m14e(_fila_m14e(canent=0.0, cansal=2.0)) == "devolucion"
+    assert t0.clasifica_m14e(_fila_m14e(canent=0.0, cansal=0.0)) == "otro"
+    assert t0.TOL_RELATIVA_M14E == 1e-6 and t0._casi_rel(1.0, 1.0 + 5e-7) and not t0._casi_rel(1.0, 1.00001)
+
+
+def test_f009_t0a_quinquies_lectura_regla_y_variante_ganadora() -> None:
+    filas = [_fila_m14e(ide=i) for i in range(20)]
+    texto = " ".join(t0.lectura_m14e(filas))
+    assert ("M14e entrada (20 mov; con mov anterior del producto 20; denominador 0: 0; stock global anterior < 0: 0): "
+            "⇒ REGLA escribible «media ponderada global (stock anterior de todos los almacenes, canent, pre)» "
+            "20 de 20 (100.0 %)") in texto
+    assert "Hipótesis M14e (media ponderada global con el stock anterior, en las entradas): CONFIRMADA" in texto
+    posterior = [_fila_m14e(ide=i, prepma=(10 * 110 + 200) / 120) for i in range(20)]
+    texto = " ".join(t0.lectura_m14e(posterior))
+    assert "⇒ REGLA escribible «(a) con el stock global posterior» 20 de 20" in texto and "NO confirmada" in texto
+
+
+def test_f009_t0a_quinquies_devoluciones_aparte_y_coherencia() -> None:
+    filas = [_fila_m14e(ide=1), _fila_m14e(ide=2, canent=-2.0, almcan=48.0, prepma=10.0),
+             _fila_m14e(ide=3, almcan_ant_alm=49.0, alm_propio_en_proalm=0)]
+    texto = " ".join(t0.lectura_m14e(filas))
+    assert "M14e entrada (2 mov;" in texto and "M14e devolucion (1 mov;" in texto
+    assert "almacén del mov en proalm 2 de 3 (66.7 %)" in texto
+    assert "almcan del mov anterior de su almacén = almcan - canent + cansal 2 de 3 (66.7 %)" in texto
+
+
+@pytest.mark.parametrize(("aciertos", "regla"), [(95, True), (94, False)])
+def test_f009_t0a_quinquies_lectura_en_el_limite_del_umbral(aciertos: int, regla: bool) -> None:
+    filas = [_fila_m14e(ide=i, prepma=None if i >= aciertos else t0.prepma_ponderado(10.0, 100.0, 10.0, 20.0))
+             for i in range(100)]
+    for f in filas[aciertos:]:
+        f["prepma"] = 99.0
+    texto = " ".join(t0.lectura_m14e(filas))
+    assert ("CONFIRMADA" in texto and "NO confirmada" not in texto) is regla
+
+
+def test_f009_t0a_quinquies_sin_anterior_y_denominador_cero() -> None:
+    filas = [_fila_m14e(ide=1, prepma_ant=None), _fila_m14e(ide=2, stock_otros=-60.0)]
+    texto = " ".join(t0.lectura_m14e(filas))
+    assert "(2 mov; con mov anterior del producto 1; denominador 0: 1; stock global anterior < 0: 1)" in texto
+
+
+def test_f009_t0a_quinquies_sin_medicion_frente_a_cero_filas() -> None:
+    rota = " ".join(t0.lectura_m14e(None))
+    assert "M14e_muestra SIN MEDICIÓN" in rota and "cero filas" not in rota and "Hipótesis" not in rota
+    vacia = " ".join(t0.lectura_m14e([]))
+    assert "cero filas" in vacia and "SIN MEDICIÓN" not in vacia and "CONFIRMADA" not in vacia
+    sin_entradas = " ".join(t0.lectura_m14e([_fila_m14e(canent=0.0, cansal=0.0)]))
+    assert "ninguna entrada en la muestra" in sin_entradas and "CONFIRMADA" not in sin_entradas
+
+
+def test_f009_t0a_quinquies_un_fallo_no_pierde_el_bloque_y_main() -> None:
+    datos = {**_datos_quater(), "M14e_muestra": [_fila_m14e()]}
+    texto = t0.m14(_rompe("M14e_muestra", datos)).texto()  # type: ignore[arg-type]
+    assert "M14e_muestra no se pudo leer (ReadTimeout" in texto and texto.count("no se pudo leer") == 1
+    assert "M14e_muestra SIN MEDICIÓN" in texto and "M14d mov.prepma" in texto
+    entero = t0.m14(_ClienteFalso(datos)).texto()  # type: ignore[arg-type]
+    assert "M14e entrada (1 mov;" in entero and "Hipótesis M14e" in entero
