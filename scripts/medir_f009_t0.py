@@ -998,8 +998,10 @@ SQL: dict[str, str] = {
         "GROUP BY x.grupo ORDER BY x.grupo"
     ),
     # Sin vincular desde 2025 con cod2: ¿de dónde sale? Candidatas como banderas; las fuentes externas van en tablas
-    # derivadas DISTINCT unidas por LEFT JOIN (no multiplican filas); LAG y COUNT OVER sobre TODAS las sin vincular
-    # (la anterior puede no tener cod2) y el filtro «con cod2» fuera.
+    # derivadas unidas por LEFT JOIN, una fila por clave (no multiplican filas); LAG y COUNT OVER sobre TODAS las sin
+    # vincular (la anterior puede no tener cod2) y el filtro «con cod2» fuera. Ciclo 1 de revisión: las «mismo
+    # producto» solo aciertan si su clave tiene UN único cod2 (`n_cod2 = 1`, si no, `*_ambigua`); las de «cualquier
+    # línea / misma obra» solo dicen que el cod2 existe allí: son propiedades.
     "M19_cod2_origen": (
         "SELECT x.origen_dnc, COUNT(*) AS n, SUM(x.ctr_mismo_producto) AS ctr_mismo_producto, "
         "SUM(x.ctr_cualquier_linea) AS ctr_cualquier_linea, SUM(x.dnc_misma_obra_producto) AS dnc_misma_obra_producto, "
@@ -1008,11 +1010,14 @@ SQL: dict[str, str] = {
         "SUM(CASE WHEN x.ant_obra_pro IS NULL THEN 1 ELSE 0 END) AS sin_anterior_obra_pro, "
         "SUM(CASE WHEN x.ant_obra_pro = x.cod2 THEN 1 ELSE 0 END) AS anterior_obra_pro, "
         "SUM(x.es_cod_partida) AS es_cod_partida, SUM(x.es_cod_producto) AS es_cod_producto, "
-        "SUM(CASE WHEN x.en_albaran > 1 THEN 1 ELSE 0 END) AS repetido_en_albaran, SUM(x.con_contrato) AS con_contrato "
+        "SUM(CASE WHEN x.en_albaran > 1 THEN 1 ELSE 0 END) AS repetido_en_albaran, SUM(x.con_contrato) AS con_contrato, "
+        "SUM(x.ctr_producto_ambiguo) AS ctr_producto_ambiguo, SUM(x.dnc_obra_producto_ambigua) AS dnc_obra_producto_ambigua "
         "FROM (SELECT CASE WHEN ISNULL(d.dncproide, 0) > 0 THEN 'con_dnc' ELSE 'sin_dnc' END AS origen_dnc, "
-        f"{_cod2('d')} AS cod2, CASE WHEN tc.docide IS NULL THEN 0 ELSE 1 END AS ctr_mismo_producto, "
+        f"{_cod2('d')} AS cod2, CASE WHEN tc.n_cod2 = 1 AND tc.cod2 = {_cod2('d')} THEN 1 ELSE 0 END AS ctr_mismo_producto, "
+        "CASE WHEN tc.n_cod2 > 1 THEN 1 ELSE 0 END AS ctr_producto_ambiguo, "
         "CASE WHEN tk.docide IS NULL THEN 0 ELSE 1 END AS ctr_cualquier_linea, "
-        "CASE WHEN dp.obride IS NULL THEN 0 ELSE 1 END AS dnc_misma_obra_producto, "
+        f"CASE WHEN dp.n_cod2 = 1 AND dp.cod2 = {_cod2('d')} THEN 1 ELSE 0 END AS dnc_misma_obra_producto, "
+        "CASE WHEN dp.n_cod2 > 1 THEN 1 ELSE 0 END AS dnc_obra_producto_ambigua, "
         "CASE WHEN dk.obride IS NULL THEN 0 ELSE 1 END AS dnc_misma_obra, "
         f"CASE WHEN RTRIM(LTRIM(ISNULL(pp.cod, ''))) = {_cod2('d')} THEN 1 ELSE 0 END AS es_cod_partida, "
         f"CASE WHEN RTRIM(LTRIM(ISNULL(kp.cod, ''))) = {_cod2('d')} THEN 1 ELSE 0 END AS es_cod_producto, "
@@ -1022,14 +1027,14 @@ SQL: dict[str, str] = {
         f"COUNT(*) OVER (PARTITION BY d.docide, {_cod2('d')}) AS en_albaran "
         "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.dca a ON a.ide = c.ide "
         "LEFT JOIN dbo.con kp ON kp.ide = d.proide LEFT JOIN dbo.obrparpar pp ON pp.ide = d.paride "
-        "LEFT JOIN (SELECT DISTINCT docide, proide, RTRIM(LTRIM(cod2)) AS cod2 "
-        "FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '') tc ON tc.docide = a.ctride AND tc.proide = d.proide "
-        f"AND tc.cod2 = {_cod2('d')} "
+        "LEFT JOIN (SELECT docide, proide, COUNT(DISTINCT RTRIM(LTRIM(cod2))) AS n_cod2, MIN(RTRIM(LTRIM(cod2))) AS cod2 "
+        "FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '' GROUP BY docide, proide) tc "
+        "ON tc.docide = a.ctride AND tc.proide = d.proide "
         "LEFT JOIN (SELECT DISTINCT docide, RTRIM(LTRIM(cod2)) AS cod2 FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '') tk "
         f"ON tk.docide = a.ctride AND tk.cod2 = {_cod2('d')} "
-        "LEFT JOIN (SELECT DISTINCT n.obride, p.proide, RTRIM(LTRIM(p.cod2)) AS cod2 FROM dbo.dncpro p "
-        "JOIN dbo.dnc n ON n.ide = p.dncide WHERE ISNULL(p.cod2, '') <> '') dp ON dp.obride = d.obride "
-        f"AND dp.proide = d.proide AND dp.cod2 = {_cod2('d')} "
+        "LEFT JOIN (SELECT n.obride, p.proide, COUNT(DISTINCT RTRIM(LTRIM(p.cod2))) AS n_cod2, "
+        "MIN(RTRIM(LTRIM(p.cod2))) AS cod2 FROM dbo.dncpro p JOIN dbo.dnc n ON n.ide = p.dncide "
+        "WHERE ISNULL(p.cod2, '') <> '' GROUP BY n.obride, p.proide) dp ON dp.obride = d.obride AND dp.proide = d.proide "
         "LEFT JOIN (SELECT DISTINCT n.obride, RTRIM(LTRIM(p.cod2)) AS cod2 FROM dbo.dncpro p "
         "JOIN dbo.dnc n ON n.ide = p.dncide WHERE ISNULL(p.cod2, '') <> '') dk ON dk.obride = d.obride "
         f"AND dk.cod2 = {_cod2('d')} {_SIN_VINCULAR_DESDE_2025}) x "
@@ -1043,7 +1048,8 @@ SQL: dict[str, str] = {
         f"FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.dca a ON a.ide = c.ide {_SIN_VINCULAR_DESDE_2025} "
         f"AND {_cod2('d')} <> '' GROUP BY {_cod2('d')} ORDER BY lineas DESC"
     ),
-    # Vinculadas desde 2025: cod2 de la línea frente al de su ctrpro (por clave primaria) y al de la dncpro del contrato.
+    # Vinculadas desde 2025: cod2, dncide y dncproide de la línea frente a los de su ctrpro (por clave primaria; H35 del
+    # contrato v7.1: se copian) y cod2 frente al de la dncpro del contrato. «Igual» exige valor; «ambos 0/vacíos», aparte.
     "M19_vinculadas": (
         f"SELECT COUNT(*) AS n, SUM(CASE WHEN {_cod2('d')} <> '' THEN 1 ELSE 0 END) AS cod2_linea, "
         f"SUM(CASE WHEN {_cod2('t')} <> '' THEN 1 ELSE 0 END) AS cod2_ctrpro, "
@@ -1051,7 +1057,12 @@ SQL: dict[str, str] = {
         f"SUM(CASE WHEN {_cod2('d')} = '' AND {_cod2('t')} = '' THEN 1 ELSE 0 END) AS cod2_ambos_vacios, "
         "SUM(CASE WHEN ISNULL(t.dncproide, 0) > 0 THEN 1 ELSE 0 END) AS ctr_desde_dnc, "
         f"SUM(CASE WHEN {_cod2('d')} <> '' AND {_cod2('d')} = {_cod2('pc')} THEN 1 ELSE 0 END) "
-        "AS cod2_igual_dncpro_del_ctr, SUM(CASE WHEN ISNULL(d.dncproide, 0) > 0 THEN 1 ELSE 0 END) AS linea_con_dnc "
+        "AS cod2_igual_dncpro_del_ctr, SUM(CASE WHEN ISNULL(d.dncproide, 0) > 0 THEN 1 ELSE 0 END) AS linea_con_dnc, "
+        "SUM(CASE WHEN ISNULL(d.dncproide, 0) <> 0 AND d.dncproide = t.dncproide THEN 1 ELSE 0 END) AS dncproide_igual, "
+        "SUM(CASE WHEN ISNULL(d.dncproide, 0) = 0 AND ISNULL(t.dncproide, 0) = 0 THEN 1 ELSE 0 END) "
+        "AS dncproide_ambos_cero, "
+        "SUM(CASE WHEN ISNULL(d.dncide, 0) <> 0 AND d.dncide = t.dncide THEN 1 ELSE 0 END) AS dncide_igual, "
+        "SUM(CASE WHEN ISNULL(d.dncide, 0) = 0 AND ISNULL(t.dncide, 0) = 0 THEN 1 ELSE 0 END) AS dncide_ambos_cero "
         "FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.ctrpro t ON t.ide = d.linoriide "
         "LEFT JOIN dbo.dncpro pc ON pc.ide = t.dncproide "
         "WHERE c.tip = 14 AND c.fec >= 20250101 AND d.docoritip = 44"
@@ -1959,10 +1970,14 @@ def lectura_m14d(filas: Filas | None) -> list[str]:
     otro, compra = (_suma(filas, "n", siguiente=k) for k in ("otro_documento", "albaran_compra"))
     igual_otro = _suma(filas, "igual_siguiente_producto", siguiente="otro_documento")
     arrastra = _cumple(igual_otro, otro, UMBRAL_REGLA_PREPMA)
-    salida.append(f"M14d mov siguiente que NO es albarán de compra: = mov.prepma {_pct(igual_otro, otro)} ⇒ "
-                  + ("los mov que no son compra arrastran el prepma: es un precio medio de compra del PRODUCTO que solo "
-                     "cambia con las compras (el resultante tras esta entrada)" if arrastra else
-                     "los mov que no son compra NO arrastran el prepma")
+    if otro <= 0:   # ciclo 1 de revisión: sin base no se concluye nada del arrastre
+        veredicto = "sin mov siguiente de otro documento: no se mide el arrastre"
+    elif arrastra:
+        veredicto = ("los mov que no son compra arrastran el prepma: es un precio medio de compra del PRODUCTO que "
+                     "solo cambia con las compras (el resultante tras esta entrada)")
+    else:
+        veredicto = "los mov que no son compra NO arrastran el prepma"
+    salida.append(f"M14d mov siguiente que NO es albarán de compra: = mov.prepma {_pct(igual_otro, otro)} ⇒ {veredicto}"
                   + f"; si el siguiente es otro albarán de compra: "
                     f"{_pct(_suma(filas, 'igual_siguiente_producto', siguiente='albaran_compra'), compra)}.")
     salida.append(f"M14d propiedades (no fijan el valor): entre el prepma anterior y mov.pre (compatible con una media "
@@ -2466,11 +2481,16 @@ def _eleccion_de(dim: str, filas: Filas) -> tuple[float, float, str]:
     lineas = _suma(filas, "lineas")
     mayor = sum(max(_num(f.get("nat_producto")), _num(f.get("otra_nat"))) for f in filas)
     mixtos = [f for f in filas if _num(f.get("nat_producto")) > 0 and _num(f.get("otra_nat")) > 0]
+    # Ciclo 1, obs. a: «otra_nat» junta todo lo que no es la naturaleza de la ficha; con más de dos, la pureza se
+    # sobrestima en ese ítem.
+    varias = [f for f in filas if _num(f.get("naturalezas")) > 2]
     texto = (f"Naturaleza en {GENERICO_NATURALEZAS_M16C} por {dim} ({len(filas)} ítems, {lineas:.0f} líneas): sigue la "
              f"mayoritaria de su {dim} {_pct(mayor, lineas)}; ítems mixtos {len(mixtos)} "
              f"({_pct(_suma(mixtos, 'lineas'), lineas)} de las líneas); con la naturaleza del producto "
              f"{_pct(_suma(filas, 'nat_producto'), lineas)}; cumplen M16c {_pct(_suma(filas, 'cumple_regla'), lineas)}"
-             + (f" (TOP {TOP_ELECCION_M16D}: hay más ítems)" if len(filas) >= TOP_ELECCION_M16D else "") + ".")
+             + (f" (TOP {TOP_ELECCION_M16D}: hay más ítems)" if len(filas) >= TOP_ELECCION_M16D else "")
+             + (f"; AVISO: {len(varias)} ítems con más de dos naturalezas ({_pct(_suma(varias, 'lineas'), lineas)} de "
+                "las líneas): ahí la pureza está sobrestimada" if varias else "") + ".")
     return mayor, lineas, texto
 
 
@@ -2697,18 +2717,34 @@ HEREDA_M19: tuple[tuple[str, tuple[str, ...], str | None], ...] = (
     ("caaide", ("caa_igual",), "caa_dncpro"),
     ("producto", ("pro_igual",), None),
     ("natide", ("nat_igual",), "nat_dncpro"),
+    ("dncide", ("dncide_igual",), None),   # ciclo 1, obs. d
     ("partida", ("paride_igual",), None),
 )
-# Fuentes candidatas del cod2 de las sin vincular, en orden de desempate (la de más arriba gana).
+# Fuentes candidatas del cod2 de las sin vincular, en orden de desempate (la de más arriba gana). Ciclo 1 de
+# revisión: solo las que fijan UN valor compiten; las «mismo producto» aciertan solo si su clave tiene un único cod2.
 CANDIDATAS_COD2: tuple[tuple[str, str], ...] = (
-    ("dnc_misma_obra_producto", "planificación de la misma obra y producto"),
-    ("ctr_mismo_producto", "línea del contrato de la cabecera con el mismo producto"),
-    ("dnc_misma_obra", "alguna planificación de la misma obra"),
-    ("ctr_cualquier_linea", "alguna línea del contrato de la cabecera"),
+    ("dnc_misma_obra_producto", "planificación de la misma obra y producto (con un único cod2)"),
+    ("ctr_mismo_producto", "línea del contrato de la cabecera con el mismo producto (con un único cod2)"),
     ("anterior_obra_pro", "línea anterior de la misma obra y producto"),
     ("anterior_prv", "línea anterior del mismo proveedor"),
     ("es_cod_partida", "código de la partida"),
     ("es_cod_producto", "código del producto"),
+)
+# Propiedades (no fijan cuál copiar): se informan y no compiten.
+PROPIEDADES_COD2: tuple[tuple[str, str], ...] = (
+    ("dnc_misma_obra", "existe en alguna planificación de la misma obra"),
+    ("ctr_cualquier_linea", "existe en alguna línea del contrato de la cabecera"),
+    ("dnc_obra_producto_ambigua", "planificación de la misma obra y producto con varios cod2"),
+    ("ctr_producto_ambiguo", "contrato con varios cod2 para el producto"),
+    ("repetido_en_albaran", "repetido en otra línea del mismo albarán"),
+    ("con_contrato", "albarán con contrato"),
+)
+# H35 del contrato v7.1: las vinculadas copian de su ctrpro el cod2, el dncide y el dncproide. (nombre, iguales con
+# valor, ambos vacíos o 0).
+COPIA_H35: tuple[tuple[str, str, str], ...] = (
+    ("cod2", "cod2_igual", "cod2_ambos_vacios"),
+    ("dncide", "dncide_igual", "dncide_ambos_cero"),
+    ("dncproide", "dncproide_igual", "dncproide_ambos_cero"),
 )
 
 
@@ -2756,18 +2792,19 @@ def lectura_m19_cod2_origen(filas: Filas | None) -> list[str]:
     for f in sorted(filas, key=lambda f: str(f.get("origen_dnc"))):
         n = _num(f.get("n"))
         todas = ", ".join(f"{desc} {_pct(_num(f.get(campo)), n)}" for campo, desc in CANDIDATAS_COD2)
+        props = "; ".join(f"{desc} {_pct(_num(f.get(campo)), n)}" for campo, desc in PROPIEDADES_COD2)
         salida.append(
             f"cod2 de las sin vincular {f.get('origen_dnc')} ({n:.0f} líneas): {_veredicto_m16c(f, CANDIDATAS_COD2, n)}; "
             f"todas: {todas}; con anterior del mismo proveedor acierta "
-            f"{_pct(_num(f.get('anterior_prv')), n - _num(f.get('sin_anterior_prv')))}; propiedades: repetido en otra "
-            f"línea del mismo albarán {_pct(_num(f.get('repetido_en_albaran')), n)}; albarán con contrato "
-            f"{_pct(_num(f.get('con_contrato')), n)}.")
-    salida.append(f"(REGLA escribible = ≥ {_UMBRAL_M16C_TXT} de las líneas con cod2; con_dnc = con dncproide.)")
+            f"{_pct(_num(f.get('anterior_prv')), n - _num(f.get('sin_anterior_prv')))}; propiedades (no fijan el "
+            f"valor): {props}.")
+    salida.append(f"(REGLA escribible = ≥ {_UMBRAL_M16C_TXT} de las líneas con cod2 y solo entre las que fijan UN "
+                  "valor; con_dnc = con dncproide, cuya fuente directa es su dncpro: ver M19_dnc.)")
     return salida
 
 
 def lectura_m19_vinculadas(fila: dict[str, Any] | None) -> str:
-    """T0a-quater, M19: cod2 de las vinculadas frente a su línea de contrato."""
+    """T0a-quater, M19: cod2, dncide y dncproide de las vinculadas frente a su línea de contrato (H35)."""
     if fila is None:
         return f"Vinculadas: {sin_medicion('M19_vinculadas', 'M19')}."
     n = _num(fila.get("n"))
@@ -2777,15 +2814,22 @@ def lectura_m19_vinculadas(fila: dict[str, Any] | None) -> str:
     def v(campo: str) -> float:
         return _num(fila.get(campo))
 
-    copia = _cumple(v("cod2_igual") + v("cod2_ambos_vacios"), n, UMBRAL_HEREDA_DNC)
+    campos = []
+    copian, no = [], []
+    for nombre, igual, vacios in COPIA_H35:
+        ok = _cumple(v(igual) + v(vacios), n, UMBRAL_HEREDA_DNC)
+        (copian if ok else no).append(nombre)
+        campos.append(f"{nombre} igual con valor {_pct(v(igual), n)}, ambos vacíos o 0 {_pct(v(vacios), n)} ⇒ "
+                      + ("se copia de ctrpro" if ok else "NO se copia siempre de ctrpro"))
+    h35 = ("H35 CONFIRMADA (las vinculadas copian de ctrpro cod2, dncide y dncproide)" if not no else
+           f"H35 NO confirmada en: {', '.join(no)}")
     return (f"Vinculadas desde 2025 ({n:.0f} líneas): cod2 en la línea {_pct(v('cod2_linea'), n)}; en ctrpro "
             f"{_pct(v('cod2_ctrpro'), n)}; igual al de ctrpro {_pct(v('cod2_igual'), v('cod2_ctrpro'))} de las que lo "
             f"traen en ctrpro; ambos vacíos {_pct(v('cod2_ambos_vacios'), n)}; contrato desde planificación "
             f"(ctrpro.dncproide) {_pct(v('ctr_desde_dnc'), n)}; cod2 = el de la dncpro del contrato "
             f"{_pct(v('cod2_igual_dncpro_del_ctr'), v('ctr_desde_dnc'))}; la línea lleva dncproide "
-            f"{_pct(v('linea_con_dnc'), n)} ⇒ "
-            + ("el cod2 de la vinculada se copia de ctrpro." if copia else "el cod2 de la vinculada NO se copia siempre "
-               "de ctrpro."))
+            f"{_pct(v('linea_con_dnc'), n)}. Línea a línea frente a su ctrpro (≥ {_UMBRAL_DNC_TXT}): "
+            f"{'; '.join(campos)} ⇒ {h35}.")
 
 
 def es_usuario_tecnico(cod: str) -> bool:
@@ -2843,7 +2887,8 @@ def lectura_m19_api(api: Filas | None, sin_alta: Filas | None) -> list[str]:
     if sin_alta is None:
         salida.append(f"{cab}: {sin_medicion('M19_sin_alta', 'M19')}.")
     elif not sin_alta:
-        salida.append(f"{cab}: ninguno ⇒ no hay líneas de esos genéricos creadas fuera del escritorio en la ventana.")
+        salida.append(f"{cab}: ninguno ⇒ no hay líneas de esos genéricos sin alta en log en la ventana (que eso descarte "
+                      "la API se apoya en el código de sus endpoints de albarán, que no escriben dbo.log; no se mide aquí).")
     else:
         codigos = [_texto(f, "cod") for f in sin_alta]
         solo_api = all(cod == COD_ALBARAN_API for cod in codigos)
@@ -2860,9 +2905,6 @@ def m19(c: ClienteLectura) -> Informe:
                       [EMPRESA_GENERICOS, *PRODUCTOS_GENERICOS], **kw)
     for texto in lectura_m19_dnc(dnc):
         inf.concluir(texto)
-    origen = _leer_tabla(c, inf, "M19_cod2_origen", "M19: origen del cod2 de las sin vincular", **kw)
-    for texto in lectura_m19_cod2_origen(origen):
-        inf.concluir(texto)
     _leer_tabla(c, inf, "M19_cod2_valores", "M19: cod2 más frecuentes de las sin vincular", **kw)
     vinc = _leer_tabla(c, inf, "M19_vinculadas", "M19: cod2 de las vinculadas frente a su ctrpro", **kw)
     inf.concluir(lectura_m19_vinculadas(None if vinc is None else (vinc[0] if vinc else {})))
@@ -2875,6 +2917,11 @@ def m19(c: ClienteLectura) -> Informe:
     api = _leer_tabla(c, inf, "M19_api", f"M19: productos del albarán de la API {COD_ALBARAN_API}", [COD_ALBARAN_API],
                       max_rows=50)
     for texto in lectura_m19_api(api, sin_alta):
+        inf.concluir(texto)
+    # Ciclo 1 de revisión: la más cara (tres ventanas sobre ~190.000 filas, ctrpro y dncpro dos veces) va la última:
+    # si el balanceador la corta, sigue viva en el servidor y no compite con las anteriores.
+    origen = _leer_tabla(c, inf, "M19_cod2_origen", "M19: origen del cod2 de las sin vincular", **kw)
+    for texto in lectura_m19_cod2_origen(origen):
         inf.concluir(texto)
     return inf
 

@@ -1394,7 +1394,9 @@ _DATOS_QUATER: dict[str, list[dict[str, Any]]] = {
     ],
     "M19_cod2_valores": [{"cod2": "P-01", "lineas": 50, "obras": 3, "productos": 10, "proveedores": 4, "con_dnc": 5}],
     "M19_vinculadas": [{"n": 1000, "cod2_linea": 300, "cod2_ctrpro": 300, "cod2_igual": 298, "cod2_ambos_vacios": 700,
-                        "ctr_desde_dnc": 250, "cod2_igual_dncpro_del_ctr": 240, "linea_con_dnc": 10}],
+                        "ctr_desde_dnc": 250, "cod2_igual_dncpro_del_ctr": 240, "linea_con_dnc": 10,
+                        "dncproide_igual": 240, "dncproide_ambos_cero": 745, "dncide_igual": 240,
+                        "dncide_ambos_cero": 700}],
     "M19_altas_usuario": [
         {"usu": "U01", "producto": "MA9999", "lineas": 600, "albaranes": 100, "sin_vincular": 590, "en_usu": 1,
          "desactivado": 0},
@@ -1624,11 +1626,23 @@ def test_f009_t0a_quater_m19_sql() -> None:
         assert f"AS {col}," in dnc or f"AS {col} " in dnc, col
     origen = t0.SQL["M19_cod2_origen"]
     assert "WHERE x.cod2 <> ''" in origen and "LAG(RTRIM(LTRIM(ISNULL(d.cod2, '')))) OVER (PARTITION BY a.entide" in origen
-    assert "FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '') tc ON tc.docide = a.ctride AND tc.proide = d.proide" in origen
+    # Ciclo 1, cambio 1: una fila por clave con su nº de cod2 distintos; solo acierta si es uno.
+    assert ("SELECT docide, proide, COUNT(DISTINCT RTRIM(LTRIM(cod2))) AS n_cod2, MIN(RTRIM(LTRIM(cod2))) AS cod2 "
+            "FROM dbo.ctrpro WHERE ISNULL(cod2, '') <> '' GROUP BY docide, proide) tc "
+            "ON tc.docide = a.ctride AND tc.proide = d.proide") in origen
+    assert "GROUP BY n.obride, p.proide) dp ON dp.obride = d.obride AND dp.proide = d.proide" in origen
+    assert "tc.n_cod2 = 1 AND tc.cod2 = RTRIM(LTRIM(ISNULL(d.cod2, '')))" in origen
+    assert "dp.n_cod2 = 1 AND dp.cod2 = RTRIM(LTRIM(ISNULL(d.cod2, '')))" in origen
+    assert "AS ctr_producto_ambiguo" in origen and "AS dnc_obra_producto_ambigua" in origen
     assert "FROM dbo.dncpro p JOIN dbo.dnc n ON n.ide = p.dncide" in origen and "pp.ide = d.paride" in origen
     assert "COUNT(*) OVER (PARTITION BY d.docide" in origen
     vinc = t0.SQL["M19_vinculadas"]
     assert "t.ide = d.linoriide" in vinc and "pc.ide = t.dncproide" in vinc and "d.docoritip = 44" in vinc
+    # Ciclo 1, cambio 2 (H35): dncide y dncproide línea a línea, «iguales con valor» aparte de «ambos 0».
+    assert "ISNULL(d.dncproide, 0) <> 0 AND d.dncproide = t.dncproide THEN 1 ELSE 0 END) AS dncproide_igual" in vinc
+    assert "ISNULL(d.dncproide, 0) = 0 AND ISNULL(t.dncproide, 0) = 0 THEN 1 ELSE 0 END) AS dncproide_ambos_cero" in vinc
+    assert "ISNULL(d.dncide, 0) <> 0 AND d.dncide = t.dncide THEN 1 ELSE 0 END) AS dncide_igual" in vinc
+    assert "ISNULL(d.dncide, 0) = 0 AND ISNULL(t.dncide, 0) = 0 THEN 1 ELSE 0 END) AS dncide_ambos_cero" in vinc
     altas = t0.SQL["M19_altas_usuario"]
     assert "kp.emp = ? AND kp.cod IN (?, ?, ?)" in altas and "WHERE c.tip = 14 AND c.fec >= ?" in altas
     assert "l.ide = al.ult_alta" in altas and "FROM dbo.usu GROUP BY" in altas
@@ -1651,20 +1665,29 @@ def test_f009_t0a_quater_lectura_m19_dnc() -> None:
     texto = " ".join(t0.lectura_m19_dnc(_DATOS_QUATER["M19_dnc"]))
     assert "MA9999 (100 líneas con dncproide; dncpro existe 100 de 100 (100.0 %))" in texto
     assert "cod2 = el de dncpro 90 de 90 (100.0 %)" in texto and "coherente (igual o ambos vacíos) 100 de 100" in texto
-    assert ("Lectura M19 (total): se heredan de la línea de planificación (≥ 95 %): cod2, caaide, producto, natide; "
-            "no se heredan: partida.") in texto
+    assert ("Lectura M19 (total): se heredan de la línea de planificación (≥ 95 %): cod2, caaide, producto, natide, "
+            "dncide; no se heredan: partida.") in texto  # ciclo 1, obs. d: dncide en la conclusión
 
 
 def test_f009_t0a_quater_lectura_m19_cod2_origen_y_vinculadas() -> None:
     texto = " ".join(t0.lectura_m19_cod2_origen(_DATOS_QUATER["M19_cod2_origen"]))
-    assert ("cod2 de las sin vincular sin_dnc (200 líneas): ⇒ REGLA escribible «alguna planificación de la misma obra» "
-            "196 de 200 (98.0 %)") in texto
+    # Ciclo 1, cambio 1: «existe en alguna planificación de la misma obra» (196 de 200) es propiedad y no compite.
+    assert ("cod2 de las sin vincular sin_dnc (200 líneas): sin regla escribible (la mejor: «planificación de la misma "
+            "obra y producto (con un único cod2)» 150 de 200 (75.0 %))") in texto
+    assert "existe en alguna planificación de la misma obra 196 de 200 (98.0 %)" in texto
+    assert "REGLA escribible «existe" not in texto and "empata con: existe" not in texto
+    assert ("cod2 de las sin vincular con_dnc (100 líneas): ⇒ REGLA escribible «planificación de la misma obra y "
+            "producto (con un único cod2)» 100 de 100 (100.0 %);") in texto
     assert "línea anterior del mismo proveedor 100 de 200 (50.0 %)" in texto
     assert "repetido en otra línea del mismo albarán 60 de 200 (30.0 %)" in texto
-    assert "(empata con: alguna planificación de la misma obra)" in texto  # con_dnc: 100 y 100
     vinc = t0.lectura_m19_vinculadas(_DATOS_QUATER["M19_vinculadas"][0])
     assert "Vinculadas desde 2025 (1000 líneas): cod2 en la línea 300 de 1000 (30.0 %)" in vinc
-    assert "igual al de ctrpro 298 de 300 (99.3 %)" in vinc and "⇒ el cod2 de la vinculada se copia de ctrpro" in vinc
+    assert "igual al de ctrpro 298 de 300 (99.3 %)" in vinc
+    assert "cod2 igual con valor 298 de 1000 (29.8 %), ambos vacíos o 0 700 de 1000 (70.0 %) ⇒ se copia de ctrpro" in vinc
+    assert ("dncproide igual con valor 240 de 1000 (24.0 %), ambos vacíos o 0 745 de 1000 (74.5 %) ⇒ se copia de "
+            "ctrpro") in vinc
+    assert "dncide igual con valor 240 de 1000 (24.0 %), ambos vacíos o 0 700 de 1000 (70.0 %) ⇒ NO se copia" in vinc
+    assert "⇒ H35 NO confirmada en: dncide." in vinc
 
 
 def test_f009_t0a_quater_lectura_m19_usuarios_y_api() -> None:
@@ -1721,3 +1744,55 @@ def test_f009_t0a_quater_main_con_la_lista_de_t0b_quater(tmp_path: Path, monkeyp
     for esperado in ("M14d mov.prepma", "M16d Maestro de XA9999", "Lectura M16d", "Hipótesis M16d",
                      "Lectura M19 (total)", "Sin fila de alta en log", "AC26/15951 (API)"):
         assert esperado in texto, esperado
+
+
+# --- T0a-quater, ciclo 1 de revisión (progress/review_F-009_T0a_quater.md) ------------------------------------
+
+
+def test_f009_t0a_quater_c1_las_candidatas_de_existencia_no_compiten_por_la_regla() -> None:
+    """Cambio 1: una candidata que solo dice que el cod2 EXISTE en algún sitio no fija cuál copiar."""
+    identificativas, propiedades = dict(t0.CANDIDATAS_COD2), dict(t0.PROPIEDADES_COD2)
+    assert not set(identificativas) & set(propiedades)
+    for existencial in ("dnc_misma_obra", "ctr_cualquier_linea"):
+        assert existencial in propiedades and existencial not in identificativas
+    fila = [{"origen_dnc": "sin_dnc", "n": 100, "dnc_misma_obra": 98, "ctr_cualquier_linea": 98,
+             "dnc_obra_producto_ambigua": 7}]
+    texto = " ".join(t0.lectura_m19_cod2_origen(fila))
+    assert "REGLA escribible «" not in texto and "sin regla escribible" in texto
+    assert "planificación de la misma obra y producto con varios cod2 7 de 100 (7.0 %)" in texto
+
+
+@pytest.mark.parametrize(("vacios", "confirmada"), [(850, True), (849, False)])
+def test_f009_t0a_quater_c1_h35_en_el_limite_del_umbral(vacios: int, confirmada: bool) -> None:
+    """Cambio 2: H35 (cod2, dncide y dncproide se copian de ctrpro) con UMBRAL_HEREDA_DNC, línea a línea."""
+    fila = {"n": 1000, "cod2_igual": 300, "cod2_ambos_vacios": 700, "dncide_igual": 100, "dncide_ambos_cero": vacios,
+            "dncproide_igual": 100, "dncproide_ambos_cero": 900}
+    texto = t0.lectura_m19_vinculadas(fila)
+    assert ("⇒ H35 CONFIRMADA (las vinculadas copian de ctrpro cod2, dncide y dncproide)" in texto) is confirmada
+    assert ("⇒ H35 NO confirmada en: dncide." in texto) is not confirmada
+
+
+def test_f009_t0a_quater_c1_cod2_origen_va_la_ultima_de_m19() -> None:
+    """Cambio 3: la sentencia más cara de M19 se lanza la última."""
+    cliente = _ClienteFalso(_datos_quater())
+    t0.m19(cliente)  # type: ignore[arg-type]
+    claves = [k for k, _ in cliente.llamadas]
+    assert claves[-1] == "M19_cod2_origen" and claves.count("M19_cod2_origen") == 1
+
+
+def test_f009_t0a_quater_c1_m14d_sin_siguiente_de_otro_documento_no_concluye_el_arrastre() -> None:
+    """Cambio 4: con 0 mov siguientes de otro documento, no se afirma «NO arrastran» sobre «0 de 0»."""
+    filas = [{"siguiente": "albaran_compra", "n": 50, "sin_anterior": 0, "igual_siguiente_producto": 5},
+             {"siguiente": "sin_siguiente", "n": 10, "sin_anterior": 0}]
+    texto = " ".join(t0.lectura_m14d(filas))
+    assert "sin mov siguiente de otro documento: no se mide el arrastre" in texto
+    assert "NO arrastran" not in texto and "arrastran el prepma" not in texto
+
+
+def test_f009_t0a_quater_c1_eleccion_avisa_si_un_item_tiene_mas_de_dos_naturalezas() -> None:
+    """Obs. a: otra_nat junta todo lo que no es la naturaleza de la ficha."""
+    filas = [{"clave": "0686", "lineas": 100, "nat_producto": 50, "otra_nat": 50, "naturalezas": 3},
+             {"clave": "0700", "lineas": 100, "nat_producto": 100, "otra_nat": 0, "naturalezas": 1}]
+    texto = " ".join(t0.lectura_m16d_eleccion({"obra": filas, "proveedor": [], "usuario": []}))
+    assert "AVISO: 1 ítems con más de dos naturalezas (100 de 200 (50.0 %) de las líneas)" in texto
+    assert "AVISO" not in " ".join(t0.lectura_m16d_eleccion({"obra": _DATOS_QUATER["M16d_por_obra"]}))
