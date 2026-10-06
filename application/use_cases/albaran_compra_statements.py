@@ -226,6 +226,29 @@ def precio_coincide(precio: float, pre_contrato: float) -> bool:
     return abs(_decimal(precio) - _decimal(pre_contrato)) <= TOLERANCIA_PRECIO
 
 
+def usa_precio_del_contrato(cantidad: float, precio: float, pre_contrato: float) -> bool:
+    """
+    R17 con la decision del humano (opcion C, `progress/review_F-009_loteB_2.md`):
+    una vinculada toma `pre`, `tar` y `dto` del `ctrpro` solo si el precio
+    coincide (H14, <= 0,0001) Y el importe redondeado no cambia:
+    `round(cantidad·precio, 2) == round(cantidad·pre_contrato, 2)` (H33). Si
+    no, va por `precio_distinto_del_contrato` (`pre` = `tar` = `precio`). La
+    misma funcion decide la fila (T6) y el aviso (caso de uso).
+    """
+    if not precio_coincide(precio, pre_contrato):
+        return False
+    cantidad_d = _decimal(cantidad)
+    return redondear_euros(cantidad_d * _decimal(precio)) == redondear_euros(
+        cantidad_d * _decimal(pre_contrato)
+    )
+
+
+#: Por debajo de esto, `stock + can` es 0 (R19). 1e-6 queda muy por debajo de
+#: cualquier cantidad real de Sigrid (se manejan con 2-3 decimales) y muy por
+#: encima del residuo binario de sumar cantidades decimales (~1e-16 a 1e-12).
+EPSILON_STOCK = 1e-6
+
+
 @dataclass(frozen=True)
 class Balance:
     """Balance de UN `mov`: stock y PMP de partida y resultantes (R19)."""
@@ -251,10 +274,16 @@ def siguiente_balance(
     sin redondear, y con `stock + can` = 0 se conserva el PMP. Sin `mov`
     anterior, `(0, 0)`. Las devoluciones (cantidad < 0) usan la MISMA formula:
     regla A, entrada con `canent` < 0 (M5, R18).
+
+    «= 0» es `|stock + can| < EPSILON_STOCK`, y entonces `almcan` se escribe
+    0.0: en binario 0,1 + 0,2 − 0,3 da 5,55e-17, y dividir por eso dispararia
+    el PMP a ~1e17 y lo arrastraria a todas las lineas siguientes del par.
     """
     stock, pma = anterior if anterior is not None else (0.0, 0.0)
     almcan = stock + cantidad
-    almpma = pma if almcan == 0 else (stock * pma + cantidad * pre) / almcan
+    if abs(almcan) < EPSILON_STOCK:
+        return Balance(stock_anterior=stock, pmp_anterior=pma, almcan=0.0, almpma=pma)
+    almpma = (stock * pma + cantidad * pre) / almcan
     return Balance(stock_anterior=stock, pmp_anterior=pma, almcan=almcan, almpma=almpma)
 
 
@@ -495,19 +524,22 @@ def construir_dcapro_vinculada(
     `docori*` y textos del `ctrpro`, y ademas:
     - `cod2`, `dncide` y `dncproide` del `ctrpro` (`''`/0 si no los tiene;
       nunca de la plantilla; H35);
-    - `pre`, `tar` y `dto` del `ctrpro` si el precio coincide (H14) o
-      `tar` = `precio` y `dto` `''` si no (R17); `tot` = cantidad·precio;
+    - `pre`, `tar` y `dto` del `ctrpro` si `usa_precio_del_contrato` (H14 y
+      el mismo importe redondeado, opcion C) o `pre` = `tar` = `precio` y `dto`
+      `''` si no (R17); `tot` = round(cantidad·pre, 2) del `pre` escrito;
     - `paride` el resuelto o 0, nunca el del `ctrpro` (R14, R16);
     - `almide`/`cenide` los resueltos (R15), `refent` (R30c) y `prepma` (R21).
     """
     fila = _base_de_linea(plantilla, indice)
-    if precio_coincide(precio, ctrpro.get("pre") or 0):
+    if usa_precio_del_contrato(cantidad, precio, ctrpro.get("pre") or 0):
         pre = float(ctrpro.get("pre") or 0)
         tar = float(ctrpro.get("tar") or pre)
         dto = ctrpro.get("dto") if ctrpro.get("dto") is not None else ""
     else:
         pre, tar, dto = precio, precio, ""
-    tot, ivacuo = importe_linea(cantidad, precio, iva)
+    # `tot` del `pre` escrito: fila coherente y, por la condicion de
+    # `usa_precio_del_contrato`, igual al importe aprobado (cantidad·precio).
+    tot, ivacuo = importe_linea(cantidad, pre, iva)
     fila.update(
         {
             "proide": ctrpro.get("proide"),

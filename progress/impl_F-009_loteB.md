@@ -48,12 +48,8 @@ carácter a carácter y control negativo en `tests/test_f009_statements.py`.
 
 ## Decisiones de interpretación (para el reviewer y el líder)
 
-1. **`tot` de la vinculada con precio dentro de la tolerancia: `cantidad·precio` pedido.** R17 dice «`tot` =
-   `cantidad·precio`» y el contrato §2.2 «= importe aprobado»; design §Importes escribe `redondear_euros(cantidad·pre)`, y
-   con precio ≤ 0,0001 del `ctrpro` el `pre` escrito es el del `ctrpro`. Solo difieren en ese caso, en ≤ 0,0001·|cantidad|
-   antes de redondear. He seguido R17 y el contrato (manda la spec, y sv9 compara `total` con su importe a 0,05 €); el
-   `pre` escrito, el del `mov` y el balance usan el `pre` del `ctrpro` (H14). **A confirmar**: si debe ser `cantidad·pre`,
-   es una línea en `construir_dcapro_vinculada` y un test.
+1. **`tot` de la vinculada con precio dentro de la tolerancia** (planteada como duda): **resuelta por el humano,
+   opción C**, aplicada en el ciclo 1 (abajo).
 2. **E8 de `con`, `dca` y `dcapro`**: se clonan con `SELECT *` (como el clásico y como exige R33), así que sus columnas
    son las de la plantilla. Interpretación de «SQL constante» para el `<columnas>` de E8: texto fijo, tabla de un conjunto
    cerrado, cada columna validada con `IdentifierGuard` (y rechazada si el guardia tuvo que recortarla), entre corchetes, y
@@ -80,8 +76,8 @@ carácter a carácter y control negativo en `tests/test_f009_statements.py`.
     del `ctrpro` siempre (0 si fuera `NULL`, nunca de la plantilla). `dca`: overrides del clásico solo si la plantilla
     trae la columna; `ctride` y `synckey` siempre. `con.res` a 128 (el clásico, 200).
 11. `estados_contrato` compara a 2 decimales, como el clásico; un `SUM` `NULL` cuenta como 0. `siguiente_balance`
-    conserva el PMP solo con `stock + can` **exactamente** 0, como el clásico y R19 (un residuo binario daría un PMP
-    enorme; no lo he visto en los datos de prueba, lo dejo anotado como riesgo para T11/T22).
+    conserva el PMP con `stock + can` = 0 (R19), entendido como `|stock + can| < EPSILON_STOCK` (1e-6) y escribiendo
+    `almcan` 0.0 (corregido en el ciclo 1: el clásico **no** conserva, con stock 0 usa `pre`; ver abajo).
 12. `ctrprodes.docdescod` lo pone `numerar` (el `cod` se reserva en E2, después de construir las filas).
 
 ## Fase RED (trazas reales, test escrito antes que el código)
@@ -185,4 +181,38 @@ y `albaran_compra_models.py` 100 %; `config/settings.py` 92 %, con las líneas s
 - `work(cursor)` reentrante: E1 → E2 (`siguiente_cod`) → E3-E7 → `numerar` → E8 → E9-E11 (solo con vinculadas, una E9
   **por línea**) → E11b → E12; applocks `APPLOCKS`; `estados_contrato` con E10.
 - `idempotente`: líneas de L11 con `LineaResultado(..., pos=, ctrpro_ide=0, linoriide=0, iva_cuota=0.0)` (decisión 9).
-- Confirmar la decisión 1 (`tot` con `precio` o con `pre`) antes de T12 (equivalencia).
+- El aviso `precio_distinto_del_contrato` se decide con `usa_precio_del_contrato` (la misma función que la fila).
+
+## Ciclo 1 de revisión
+
+Trozo 1 (T2-T4) APROBADO (`review_F-009_loteB_1.md`). Trozo 2 (T5-T6), cambio requerido 1
+(`review_F-009_loteB_2.md`): `siguiente_balance` comparaba `almcan == 0` exacto; un residuo binario (0,1 + 0,2 − 0,3 =
+5,55e-17) dividía por casi cero y disparaba el PMP a ~1e17, que además se encadenaba como `prepma` de las líneas
+siguientes. Ahora `EPSILON_STOCK = 1e-6` con nombre y justificado (muy por debajo de una cantidad real de 2-3 decimales,
+muy por encima del residuo, ~1e-16 a 1e-12): por debajo, `almcan` = 0.0 y se conserva el PMP. La decisión 11 queda
+corregida (afirmaba que el clásico conserva el PMP; con stock 0 usa `pre`).
+
+Tests nuevos (`test_f009_r19_residuo_binario_positivo_es_stock_cero`, `_negativo_`, `_por_encima_del_epsilon_no_es_cero`
+y `test_f009_r19_encadenado_con_residuo_binario`, con `+0,1`, `+0,2`, `−0,3` del mismo par y el `prepma` de la línea
+siguiente). Fase RED, `.venv/Scripts/python.exe -m pytest tests/test_f009_statements.py -q -p no:cacheprovider
+-k "residuo or epsilon"` antes del cambio:
+```
+E       assert (5.5511151231...22288.0, 10.0) == (0.0, 10.0, 10.0)
+E         At index 0 diff: 5.551115123125783e-17 != 0.0
+E       assert (-5.551115123...776422298e+16) == (0.0, 4.0)
+E       AttributeError: module 'application.use_cases.albaran_compra_statements' has no attribute 'EPSILON_STOCK'
+FAILED tests/test_f009_statements.py::test_f009_r19_encadenado_con_residuo_binario
+4 failed, 158 deselected in 1.54s
+```
+**Decisión 1, opción C (humano).** `usa_precio_del_contrato(cantidad, precio, pre_contrato)` (pura): precio del
+`ctrpro` solo si |precio − pre| ≤ 0,0001 **y** `round(can·precio, 2) == round(can·pre, 2)` (`Decimal`, `ROUND_HALF_UP`);
+si no, `pre` = `tar` = `precio` y `dto` `''`. `construir_dcapro_vinculada` la usa y `tot` = `round(cantidad·pre, 2)` del `pre`
+escrito. El aviso lo pondrá el caso de uso (lote C) con **la misma función**. Ojo con el ejemplo del encargo: 100 uds con
+1,0495 frente a 1,0494 **no** da precio del contrato (104,95 ≠ 104,94: δ = 0,0001 ya mueve el céntimo a partir de ~50
+uds); el test lo fija como precio distinto y usa δ = 0,000002 (1,049402) para el par «100 uds ⇒ contrato / 25.000 ⇒
+distinto». RED, `-k opcion_c` antes del cambio: `AttributeError: ... has no attribute 'usa_precio_del_contrato'` (×10) y
+`AssertionError: assert (1.0494, 1.2, '5') == (1.0495, 1.0495, '')` (25.000 uds); `11 failed, 2 passed` (pasaban el
+de 100 uds y el de `tot` con el `pre` escrito, que el código anterior ya cumplía en esos datos). Después: `175 passed`.
+No he tocado `specs/` (lo alinea el spec-author).
+`bash harness/init.sh` (tal cual) tras el ciclo 1: `2127 passed, 1 skipped`; `PUERTA COBERTURA: 100.0% de 507 líneas
+cambiadas cubiertas (507/507)`; `PUERTA TAMAÑO` dentro de los topes; `ENTORNO LISTO`.

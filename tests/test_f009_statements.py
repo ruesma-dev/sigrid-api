@@ -789,6 +789,48 @@ def test_f009_r19_con_denominador_cero_se_conserva_el_pmp() -> None:
     assert (balance.almcan, balance.almpma) == (0.0, 4.0)
 
 
+def test_f009_r19_residuo_binario_positivo_es_stock_cero() -> None:
+    """0,1 + 0,2 − 0,3 = 5,55e-17 en binario: es el 0 de R19, no un stock que
+    dispare el PMP a 1e17 (revisión del lote B, cambio 1)."""
+    assert 0.1 + 0.2 - 0.3 != 0
+    balance = modulo.siguiente_balance((0.1 + 0.2, 10.0), -0.3, 10.5)
+    assert (balance.almcan, balance.almpma, balance.prepma) == (0.0, 10.0, 10.0)
+
+
+def test_f009_r19_residuo_binario_negativo_es_stock_cero() -> None:
+    assert 0.3 - 0.1 - 0.2 < 0
+    balance = modulo.siguiente_balance((0.3, 4.0), -(0.1 + 0.2), 9.0)
+    assert (balance.almcan, balance.almpma) == (0.0, 4.0)
+
+
+def test_f009_r19_por_encima_del_epsilon_no_es_cero() -> None:
+    assert modulo.EPSILON_STOCK == 1e-6
+    balance = modulo.siguiente_balance((1.0, 2.0), -1.0 + 2e-6, 3.0)
+    assert balance.almcan == pytest.approx(2e-6)
+    assert balance.almcan != 0.0
+
+
+def test_f009_r19_encadenado_con_residuo_binario() -> None:
+    """+0,1, +0,2 y −0,3 del mismo par dejan el stock a 0 y el PMP conservado: la
+    línea siguiente parte de ese PMP (`prepma`), no de uno disparado."""
+    balances = modulo.encadenar_balances(
+        [
+            (55, 7, 0.1, 10.0),
+            (55, 7, 0.2, 10.0),
+            (55, 7, -0.3, 10.5),
+            (55, 7, 1.0, 12.0),
+        ],
+        {},
+    )
+    assert (balances[2].almcan, balances[2].almpma) == (0.0, pytest.approx(10.0))
+    assert balances[3].prepma == balances[2].almpma
+    assert (balances[3].stock_anterior, balances[3].almcan, balances[3].almpma) == (
+        0.0,
+        1.0,
+        12.0,
+    )
+
+
 def test_f009_r18_devolucion_regla_a() -> None:
     """M5: entrada con `canent` < 0 y PMP `(stock·pma + can·pre)/(stock + can)`."""
     balance = modulo.siguiente_balance((10.0, 2.0), -4.0, 3.0)
@@ -1448,8 +1490,67 @@ def test_f009_r14_vinculada_sin_partida_es_paride_0_aunque_el_ctrpro_la_tenga() 
 def test_f009_r17_vinculada_con_precio_del_contrato_toma_pre_tar_y_dto() -> None:
     fila = _vinculada(precio=10.50009)
     assert (fila["pre"], fila["tar"], fila["dto"]) == (10.5, 12.0, "10+2,5")
-    # `tot` = cantidad·precio pedido (R17), redondeado: 21,00018 → 21,00.
+    # `tot` = round(cantidad·pre, 2) con el `pre` del contrato (opción C).
     assert fila["tot"] == 21.0
+
+
+@pytest.mark.parametrize(
+    "cantidad, precio, pre_contrato, del_contrato",
+    [
+        (25000.0, 1.0495, 1.0494, False),  # en tolerancia, pero 26.237,50 ≠ 26.235,00
+        (
+            100.0,
+            1.0495,
+            1.0494,
+            False,
+        ),  # 104,95 ≠ 104,94: δ = 0,0001 ya mueve el céntimo
+        (100.0, 1.049402, 1.0494, True),  # 104,94 = 104,94
+        (25000.0, 1.049402, 1.0494, False),  # misma δ, 26.235,05 ≠ 26.235,00
+        (1.0, 1.0495, 1.0494, True),  # 1,05 = 1,05 (ROUND_HALF_UP)
+        (2.0, 10.50009, 10.5, True),
+        (-25000.0, 1.049402, 1.0494, False),  # devolución: igual con signo
+        (-100.0, 1.049402, 1.0494, True),
+        (1.0, 10.0002, 10.0, False),  # fuera de tolerancia aunque el céntimo cuadre
+        (3.0, 10.0, 10.0, True),
+    ],
+)
+def test_f009_r17_opcion_c_precio_del_contrato_si_tolerancia_e_importe_coinciden(
+    cantidad: float, precio: float, pre_contrato: float, del_contrato: bool
+) -> None:
+    """Decisión del humano (opción C, `review_F-009_loteB_2.md`): el precio del
+    `ctrpro` solo si |precio − pre| ≤ 0,0001 Y round(can·precio, 2) ==
+    round(can·pre, 2); si no, vía de `precio_distinto_del_contrato`."""
+    assert (
+        modulo.usa_precio_del_contrato(cantidad, precio, pre_contrato) is del_contrato
+    )
+
+
+def test_f009_r17_opcion_c_vinculada_25000_uds_va_por_precio_distinto() -> None:
+    fila = _vinculada(
+        cantidad=25000.0, precio=1.0495, ctrpro=_ctrpro(pre=1.0494, tar=1.2, dto="5")
+    )
+    assert (fila["pre"], fila["tar"], fila["dto"]) == (1.0495, 1.0495, "")
+    assert fila["tot"] == 26237.5  # el importe aprobado
+
+
+def test_f009_r17_opcion_c_vinculada_100_uds_toma_el_precio_del_contrato() -> None:
+    fila = _vinculada(
+        cantidad=100.0, precio=1.049402, ctrpro=_ctrpro(pre=1.0494, tar=1.2, dto="5")
+    )
+    assert (fila["pre"], fila["tar"], fila["dto"]) == (1.0494, 1.2, "5")
+    # `tot` = round(can·pre, 2) del `pre` escrito: fila coherente, y por la
+    # condición igual al importe aprobado (104,9402 → 104,94).
+    assert (fila["tot"], fila["ivacuo"]) == (104.94, 22.04)
+
+
+def test_f009_r17_opcion_c_tot_siempre_con_el_pre_escrito() -> None:
+    """Con la condición de la opción C, cantidad·pre y cantidad·precio redondean
+    igual: el `tot` de la fila es el de su `pre`."""
+    for cantidad, precio, pre in [(3.0, 10.00004, 10.0), (7.0, 33.333333, 33.3333)]:
+        fila = _vinculada(cantidad=cantidad, precio=precio, ctrpro=_ctrpro(pre=pre))
+        assert fila["tot"] == float(
+            modulo.redondear_euros(Decimal(repr(cantidad)) * Decimal(repr(fila["pre"])))
+        )
 
 
 def test_f009_r17_vinculada_con_otro_precio_tar_es_el_precio_y_sin_dto() -> None:

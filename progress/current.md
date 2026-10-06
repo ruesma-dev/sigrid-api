@@ -10,7 +10,12 @@
 (`function_app.py`, R2-R4, trazas) · **E** T16-T18 (mutación, `ARCHITECTURE.md`, `azure-apps/sigrid_api.md`).
 Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorización expresa). Fuera:
 `infrastructure/security/`, casos de uso y modelos del clásico y de `albaran-directo`, `.env`, Azure y SQL Server.
-**Lote A aprobado** (T1, `783f2d1` + `91b929d`; segunda pasada APPROVED, `055a7e1`). **Lote en curso:** B. **T2-T6 hechas** (implementer, 2026-10-06; `c7c0b95`, `91f80f6`, `e2d52fb`, `f0130ed`, `d936ced`, `43eae24`): settings (R10), modelos (R1, R5-R7, R9), SQL L1-L15/E1-E12 (R31), funciones puras y filas; informe en [`impl_F-009_loteB.md`](impl_F-009_loteB.md). **A confirmar por el líder/humano** (decisión 1 del informe): `tot` de la vinculada con precio dentro de la tolerancia = `cantidad·precio` pedido (R17, contrato §2.2) y no `cantidad·pre` del `ctrpro` (design §Importes); difieren en ≤ 0,0001·|cantidad|. **Siguiente:** revisión del lote B.
+**Lote A aprobado** (T1, `783f2d1` + `91b929d`; segunda pasada APPROVED, `055a7e1`). **Lote en curso:** B. **T2-T6 hechas** (implementer, 2026-10-06; `c7c0b95`, `91f80f6`, `e2d52fb`, `f0130ed`, `d936ced`, `43eae24`): settings (R10), modelos (R1, R5-R7, R9), SQL L1-L15/E1-E12 (R31), funciones puras y filas; informe en [`impl_F-009_loteB.md`](impl_F-009_loteB.md). Revisión: trozo 1 APROBADO; trozo 2, ciclo 1 hecho (ε de stock cero `EPSILON_STOCK` = 1e-6 y **opción C** del humano para el precio de la vinculada: `usa_precio_del_contrato`, `tot` = round(can·pre, 2)). **Siguiente:** segunda pasada del trozo 2.
+
+**Spec v8.2 (spec-author, 2026-10-06):** opción C del humano para los importes de la vinculada (R17, design §Importes,
+contrato §2.2/§3.1/§3.2/H14, solo redacción), ε = 1e-6 del stock en R19 y dos diferencias más en §Equivalencia (O2).
+Detalle en [`spec_F-009.md`](spec_F-009.md) §v8.2. **Pendiente**: el implementer pasa `importe_linea`/tolerancia de A a C;
+el humano confirma que el cambio de §3.2 del contrato (cuándo salta `precio_distinto_del_contrato`) es solo redacción para F-053.
 
 ### Estado de la spec al aprobarla
 
