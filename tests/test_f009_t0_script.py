@@ -1910,3 +1910,44 @@ def test_f009_t0a_quinquies_un_fallo_no_pierde_el_bloque_y_main() -> None:
     assert "M14e_muestra SIN MEDICIÓN" in texto and "M14d mov.prepma" in texto
     entero = t0.m14(_ClienteFalso(datos)).texto()  # type: ignore[arg-type]
     assert "M14e entrada (1 mov;" in entero and "Hipótesis M14e" in entero
+
+
+# --- T0a-quinquies, ciclo 1 de revisión (progress/review_F-009_T0a_quinquies.md) -------------------------------
+
+
+def _redondeada(prepma_ant: float, pre: float, decimales: int = 4) -> dict[str, Any]:
+    exacto = t0.prepma_ponderado(prepma_ant, 100.0, 10.0, pre)
+    assert exacto is not None
+    return _fila_m14e(prepma_ant=prepma_ant, pre=pre, prepma=round(exacto, decimales))
+
+
+def test_f009_t0a_quinquies_c1_prepma_redondeado_a_4_decimales_confirma() -> None:
+    """Cambio 1: un Real tipo precio guardado con 4 decimales no puede refutar la hipótesis."""
+    assert t0.TOL_ABSOLUTA_M14E == float(t0._TOL_PRECIO) == 0.0001
+    fila = _redondeada(12.0, 12.5)   # exacto 12,0454545…; guardado 12,0455: 3,8e-6 relativo, 4,5e-5 absoluto
+    assert not t0._casi_rel(fila["prepma"], t0.variantes_m14e(fila)["global_anterior"])
+    assert t0.acierta_m14e(fila["prepma"], t0.variantes_m14e(fila)["global_anterior"])
+    texto = " ".join(t0.lectura_m14e([{**fila, "ide": i} for i in range(20)]))
+    assert "Hipótesis M14e (media ponderada global con el stock anterior, en las entradas): CONFIRMADA" in texto
+    assert "la principal exacta (tolerancia relativa 1e-06) 0 de 20 (0.0 %)" in texto
+    erronea = [{**fila, "ide": i, "prepma": fila["prepma"] + 0.01} for i in range(20)]
+    assert "NO confirmada (0 de 20" in " ".join(t0.lectura_m14e(erronea))
+
+
+def test_f009_t0a_quinquies_c1_base_cero_no_se_contrasta_ni_concluye() -> None:
+    """Cambio 2: sin ningún mov con anterior del producto no hay «NO confirmada (0 de 0)»."""
+    texto = " ".join(t0.lectura_m14e([_fila_m14e(ide=i, prepma_ant=None) for i in range(3)]))
+    assert "M14e entrada (3 mov; con mov anterior del producto 0;" in texto
+    assert "ningún mov con anterior del producto ⇒ no se contrasta" in texto
+    assert "Hipótesis M14e: ninguna entrada con mov anterior del producto ⇒ no se concluye." in texto
+    assert "NO confirmada" not in texto and "sin regla escribible" not in texto and "0 de 0" not in texto
+
+
+def test_f009_t0a_quinquies_c1_filas_que_no_discriminan_y_representatividad() -> None:
+    """Obs. a y b: filas en que la principal, (a) y (b) dan lo mismo; albaranes y productos de la muestra."""
+    assert "s.docide," in t0.SQL["M14e_muestra"] and t0.SQL["M14e_muestra"].count("m.docide,") == 2
+    iguales = _fila_m14e(ide=1, pre=10.0, prepma=10.0, docide=7)    # pre = prepma_ant: todas dan 10
+    distinta = _fila_m14e(ide=2, docide=8, proide=5)
+    texto = " ".join(t0.lectura_m14e([iguales, distinta]))
+    assert "no discriminan (principal = (a) = (b)) 1 de 2 (50.0 %)" in texto
+    assert "muestra de 2 mov en 2 albaranes y 2 productos" in texto

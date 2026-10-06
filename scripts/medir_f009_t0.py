@@ -204,7 +204,7 @@ _M14D_DESDE = (
 
 # T0a-quinquies, M14e: la muestra (dos `?`: la ventana), en derivada con su TOP.
 _M14E_MUESTRA = (
-    f"(SELECT TOP {MUESTRA_M14E} m.ide, m.proide, m.almide, m.fechor, m.canent, m.cansal, m.pre, m.prc, m.prepma, "
+    f"(SELECT TOP {MUESTRA_M14E} m.ide, m.docide, m.proide, m.almide, m.fechor, m.canent, m.cansal, m.pre, m.prc, m.prepma, "
     "m.almcan, m.almpma FROM dbo.con c JOIN dbo.dcapro d ON d.docide = c.ide JOIN dbo.mov m ON m.docide = d.docide "
     f"AND m.linide = d.ide {_M9_VENTANA} AND m.doctip = 14 ORDER BY m.ide DESC)"
 )
@@ -310,8 +310,10 @@ UMBRAL_HEREDA_DNC = 0.95     # M19: «el campo se hereda de la línea de planifi
 MARCAS_USUARIO_TECNICO = ("API", "SIGRID", "SERVIC", "SVC", "SYNC", "AUTOM", "PRUEBA", "TEST", "SISTEMA", "ADMIN",
                           "_RW", "WEB", "ROBOT")
 # T0a-quinquies, M14e: ¿mov.prepma = media ponderada GLOBAL del producto? Muestra pequeña y tolerancias con nombre.
-TOL_RELATIVA_M14E = 1e-6     # |a - b| ≤ tol · max(1, |a|, |b|): valores copiados o recalculados en coma flotante
-TOL_HOLGADA_M14E = 1e-3      # informativa: acierto si Sigrid redondea el prepma a pocos decimales
+TOL_RELATIVA_M14E = 1e-6     # |a - b| ≤ tol · max(1, |a|, |b|): coma flotante sin redondeo («exacta», informativa)
+# Ciclo 1 de revisión: el acierto admite además la tolerancia de precio del script (la de M14c y M14d): un «Real tipo
+# precio» guardado con 4 decimales se aparta hasta 5e-5 del valor calculado, más que 1e-6 relativo desde 10 €.
+TOL_ABSOLUTA_M14E = float(_TOL_PRECIO)
 REINTENTOS_INTERBLOQUEO = 2  # error 1205 de SQL Server (transitorio): se reintenta con espera creciente
 ESPERA_INTERBLOQUEO_S = 5
 
@@ -627,7 +629,7 @@ SQL: dict[str, str] = {
     # suma del último almcan anterior de cada OTRO almacén del producto (almacenes de proalm, DISTINCT; un TOP 1 por
     # pafhi en cada uno; la suma en una derivada agrupada, no sobre una subconsulta: error 130). La fórmula, en Python.
     "M14e_muestra": (
-        "SELECT s.ide, s.proide, s.almide, s.canent, s.cansal, s.pre, s.prc, s.prepma, s.almcan, s.almpma, "
+        "SELECT s.ide, s.docide, s.proide, s.almide, s.canent, s.cansal, s.pre, s.prc, s.prepma, s.almcan, s.almpma, "
         "a.prepma AS prepma_ant, b.almcan AS almcan_ant_alm, g.stock_otros, g.almacenes_otros, g.almacenes_con_mov, "
         "CASE WHEN pp.proide IS NULL THEN 0 ELSE 1 END AS alm_propio_en_proalm "
         f"FROM {_M14E_MUESTRA} s "
@@ -2050,6 +2052,11 @@ def _casi_rel(a: float, b: float, tol: float = TOL_RELATIVA_M14E) -> bool:
     return abs(a - b) <= tol * max(1.0, abs(a), abs(b))
 
 
+def acierta_m14e(a: float, b: float) -> bool:
+    """Acierto de M14e: max(tolerancia relativa, tolerancia absoluta de precio)."""
+    return abs(a - b) <= max(TOL_RELATIVA_M14E * max(1.0, abs(a), abs(b)), TOL_ABSOLUTA_M14E)
+
+
 def prepma_ponderado(prepma_ant: float | None, stock: float, can: float, precio: float) -> float | None:
     """(prepma_ant × stock + can × precio) / (stock + can); None sin prepma anterior o con denominador 0."""
     denominador = stock + can
@@ -2093,22 +2100,28 @@ def _lectura_tipo_m14e(tipo: str, filas: Filas) -> tuple[str, float, float]:
     n = len(filas)
     base = sum(1 for f in filas if _anterior(f) is not None)
     aciertos = {campo: 0.0 for campo, _ in VARIANTES_M14E}
-    holgada = sin_cambio = den_cero = negativo = 0
+    exacta = sin_cambio = den_cero = negativo = no_discriminan = 0
     for f in filas:
         prepma, v = _num(f.get("prepma")), variantes_m14e(f)
         stock = _num(f.get("stock_otros")) + _num(f.get("almcan")) - _num(f.get("canent")) + _num(f.get("cansal"))
         den_cero += abs(stock + _num(f.get("canent"))) < 1e-12
         negativo += stock < 0
         for campo, valor in v.items():
-            aciertos[campo] += valor is not None and _casi_rel(prepma, valor)
-        principal = v["global_anterior"]
-        holgada += principal is not None and _casi_rel(prepma, principal, TOL_HOLGADA_M14E)
-        sin_cambio += _anterior(f) is not None and _casi_rel(prepma, _num(f.get("prepma_ant")))
+            aciertos[campo] += valor is not None and acierta_m14e(prepma, valor)
+        principal, a, b = v["global_anterior"], v["global_posterior"], v["can_neta"]
+        exacta += principal is not None and _casi_rel(prepma, principal)
+        sin_cambio += _anterior(f) is not None and acierta_m14e(prepma, _num(f.get("prepma_ant")))
+        # Ciclo 1, obs. a: filas en que la principal, (a) y (b) dan lo mismo (pre ≈ prepma_ant, canent pequeño…).
+        no_discriminan += (principal is not None and a is not None and b is not None
+                           and acierta_m14e(principal, a) and acierta_m14e(principal, b))
+    cab = (f"M14e {tipo} ({n} mov; con mov anterior del producto {base}; denominador 0: {den_cero}; stock global "
+           f"anterior < 0: {negativo}): ")
+    if base == 0:   # ciclo 1, cambio 2: sin base no se contrasta nada
+        return cab + "ningún mov con anterior del producto ⇒ no se contrasta.", 0.0, 0.0
     todas = ", ".join(f"{desc} {_pct(aciertos[campo], base)}" for campo, desc in VARIANTES_M14E)
-    texto = (f"M14e {tipo} ({n} mov; con mov anterior del producto {base}; denominador 0: {den_cero}; stock global "
-             f"anterior < 0: {negativo}): {_veredicto_m16c(aciertos, VARIANTES_M14E, base)}; todas: {todas}; la "
-             f"principal con tolerancia holgada ({TOL_HOLGADA_M14E:g}) {_pct(holgada, base)}; prepma = el del mov "
-             f"anterior (sin cambio) {_pct(sin_cambio, base)}.")
+    texto = (f"{cab}{_veredicto_m16c(aciertos, VARIANTES_M14E, base)}; todas: {todas}; la principal exacta "
+             f"(tolerancia relativa {TOL_RELATIVA_M14E:g}) {_pct(exacta, base)}; no discriminan (principal = (a) = (b)) "
+             f"{_pct(no_discriminan, base)}; prepma = el del mov anterior (sin cambio) {_pct(sin_cambio, base)}.")
     return texto, aciertos["global_anterior"], base
 
 
@@ -2134,14 +2147,19 @@ def lectura_m14e(filas: Filas | None) -> list[str]:
     salida.append(f"M14e comprobaciones: almacén del mov en proalm {_pct(_suma(filas, 'alm_propio_en_proalm'), n)} "
                   f"(si no, proalm podría no listar todos los almacenes del producto); almcan del mov anterior de su "
                   f"almacén = almcan - canent + cansal {_pct(coherente, n)}; otros almacenes del producto "
-                  f"{_suma(filas, 'almacenes_otros'):.0f}, con mov anterior {_suma(filas, 'almacenes_con_mov'):.0f}.")
+                  f"{_suma(filas, 'almacenes_otros'):.0f}, con mov anterior {_suma(filas, 'almacenes_con_mov'):.0f}; "
+                  f"muestra de {n} mov en {len({f.get('docide') for f in filas})} albaranes y "
+                  f"{len({f.get('proide') for f in filas})} productos.")
     if principal is None:
         salida.append("Hipótesis M14e: ninguna entrada en la muestra ⇒ no se concluye.")
+    elif principal[1] <= 0:
+        salida.append("Hipótesis M14e: ninguna entrada con mov anterior del producto ⇒ no se concluye.")
     else:
         ok = _cumple(principal[0], principal[1], UMBRAL_REGLA_ESCRIBIBLE)
         salida.append(f"Hipótesis M14e (media ponderada global con el stock anterior, en las entradas): "
                       f"{'CONFIRMADA' if ok else 'NO confirmada'} ({_pct(*principal)}; REGLA escribible = ≥ "
-                      f"{_UMBRAL_M14E_TXT}, tolerancia relativa {TOL_RELATIVA_M14E:g}).")
+                      f"{_UMBRAL_M14E_TXT}; acierto = diferencia ≤ max({TOL_RELATIVA_M14E:g} relativo, {TOL_ABSOLUTA_M14E:g} "
+                      "absoluto)).")
     return salida
 
 
