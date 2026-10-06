@@ -10,7 +10,7 @@
 (`function_app.py`, R2-R4, trazas) · **E** T16-T18 (mutación, `ARCHITECTURE.md`, `azure-apps/sigrid_api.md`).
 Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorización expresa). Fuera:
 `infrastructure/security/`, casos de uso y modelos del clásico y de `albaran-directo`, `.env`, Azure y SQL Server.
-**Lote en curso:** A. **T1 hecha** (implementer, 2026-10-06; commit `783f2d1`, solo test y dorado, sin producción): seis casos de design §Caracterización en verde sobre `dev`; informe en [`impl_F-009.md`](impl_F-009.md) §Lote A. **Siguiente:** revisión del lote A (reviewer).
+**Lote en curso:** A. **T1 hecha** (implementer, 2026-10-06; `783f2d1`, solo test y dorado, sin producción). Revisión pasada 1 CHANGES_REQUESTED ([`review_F-009.md`](review_F-009.md)): ramas de error de las rutas añadidas en `91b929d` (13 casos; dorado ampliado sin reescribir historia y T14 reformulada, decisión del líder); informe en [`impl_F-009.md`](impl_F-009.md) §Lote A. **Siguiente:** segunda pasada del reviewer.
 
 ### Estado de la spec al aprobarla
 
