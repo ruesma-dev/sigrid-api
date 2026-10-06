@@ -32,22 +32,17 @@ que el humano aprobó en la PARADA 1, igual que en el lote B.
   versionado, y `ruff check` sale limpio en los tres ficheros.
 - Credenciales: las cinco lecturas del repositorio (`execute_read_query`, `read_full_row`, `read_rows_by`,
   `peek_next_ide`, `locate_contract`) usan `_read_credentials()`. La previa no llama a `run_in_write_transaction`.
-- Sondas en el scratchpad (sin `__pycache__`; el árbol queda limpio):
-  - El producto `ma9999` da `producto_no_permitido`.
-  - La partida `01.0a` se resuelve contra la fila `01.0A`, y lo mismo la naturaleza `ma99` y la `caa` `0404.cdsb37`.
-  - La clave de mapeo `ma9999` da `naturaleza_no_valida`.
-  - Un `ivaide` que no está en `dbo.iva`, con `commit:true`, da `ValueError` antes de abrir la transacción.
+- Sondas en el scratchpad (sin `__pycache__`; árbol limpio): `ma9999` → `producto_no_permitido`; `01.0a` se resuelve
+  contra `01.0A`, igual la naturaleza `ma99` y la `caa` `0404.cdsb37`; la clave de mapeo `ma9999` →
+  `naturaleza_no_valida`; un `ivaide` fuera de `dbo.iva` con `commit:true` → `ValueError` sin abrir transacción.
 
 ## Lo pedido, punto por punto
 
 1. **Reglas de resolución.** Todas cuadran con la spec v8.2 y con el contrato §2.3/§4.1:
-   - La obra se busca por empresas (`:350-373`).
-   - El contrato es el del localizador, solo los de esa obra (`:375-406`).
-   - La plantilla se busca en la empresa de la obra, por `entide` o por CIF (`:293-335`). Sin contrato, el `entide`
-     sale de la `dca` plantilla (decisión 2).
-   - Almacén y centro salen de la misma fuente, y un error ahí corta antes de mirar las líneas (`:652-675`,
-     decisión 3).
-   - Vinculadas: `ctrpro or ctr` (`:1072-1092`).
+   - Obra por empresas (`:350-373`); contrato del localizador, solo de esa obra (`:375-406`); plantilla en la empresa
+     de la obra, por `entide` o por CIF (`:293-335`), y sin contrato el `entide` de la `dca` plantilla (decisión 2).
+   - Almacén y centro de la misma fuente; su error corta antes de las líneas (`:652-675`, decisión 3). Vinculadas:
+     `ctrpro or ctr` (`:1072-1092`).
    - Sin vincular: lista blanca → maestro → naturaleza (`numemp` ∈ {0, emp}, `fecbaj` 0) → la única `cua` → la `caa`
      `<obra>.<sufijo>` del centro (`:1021-1064`).
    - Partidas: solo imputables, y el `paride` de R14b (`:1137-1168`).
@@ -75,8 +70,7 @@ que el humano aprobó en la PARADA 1, igual que en el lote B.
      ERP. Además, el índice único CI `(emp, tip, cod)` impide que el SQL devuelva otro producto.
    - **Pero no la fija ningún test** (O1).
 4. **Idempotencia.**
-   - La RED de R30 es real (reproducida arriba).
-   - En la previa, L11 va tras la plantilla y antes de `conest`/`usu`, como en §4.1.
+   - RED de R30 real (reproducida). En la previa, L11 va tras la plantilla y antes de `conest`/`usu` (§4.1).
    - En commit, si la referencia ya aparece fuera, sale sin abrir transacción (el test comprueba `transacciones ==
      []`). Si no, E1 es la primera sentencia de `work`, bajo `SIGRID_REFEXT_14`.
    - La respuesta `idempotente` sigue §3.1 y §6.d: `committed` false, `dry_run` = `not commit`, `cod` recortado,
@@ -86,22 +80,19 @@ que el humano aprobó en la PARADA 1, igual que en el lote B.
    ninguna transacción. Las columnas bancarias las quita el propio modelo (`albaran_compra_models.py:358-365`) de
    `cabecera` y `filas.dca`, y el test las busca en el JSON volcado. El preview viene completo: seis filas numeradas
    y enlazadas, `cod_provisional` con L14 y `peek` de las cinco tablas, y el balance de L12 por producto y almacén.
-6. **Tests y ficheros.** Los tests no tocan red ni BBDD y comparan SQL y parámetros. No se ha tocado nada prohibido, e
-   `init.sh` sale en verde.
+6. **Tests y ficheros.** Sin red ni BBDD, comparan SQL y parámetros; nada prohibido tocado; `init.sh` en verde.
 
 ## Checkpoints
 
 Fuera de este trozo, porque son del cierre de la feature: en C2, `current.md` y `history.md`; los manuales de C4; los
 puntos de campaña de C4 bis (RM1-RM6, totales y tiempos; T16); y el resto de C5 (`tasks.md`, con T13-T25 abiertas).
 
-- **C1** [x] `init.sh` termina con exit 0 · [x] están los ficheros del arnés.
-- **C2** [x] solo F-009 está `in_progress` · [x] la rama es `feature/F-009-alta-albaran-compra`.
+- **C1** [x] `init.sh` con exit 0 · [x] ficheros del arnés. **C2** [x] solo F-009 `in_progress` · [x] rama de F-009.
 - **C3** [x] Hexagonal: `application` importa solo `application` y `domain` · [x] primera línea con la ruta · [x] sin
   `print`, TODO, secretos (la credencial del doble es ficticia) ni dependencias nuevas · [x] base de la petición y
   nada contra `ruesma_rep` · [x] `cod/res/fec/tip/est` en `con` · [x] estado contra `dbo.conest` (L13) · [x] SQL con
   `?`. Lo recalculado es de T10 (lo revisa el otro reviewer).
-- **C3 bis** N/A: el trozo no toca ningún fichero de `docs/referencia/`.
-- **C4** [x] cada requisito tiene su `test_f009_rN_*` y pasa (tabla de abajo) · [x] sin red ni BBDD.
+- **C3 bis** N/A: no toca `docs/referencia/`. **C4** [x] cada requisito con su `test_f009_rN_*` en verde · [x] sin BBDD.
 - **C4 bis** [x] `rigor: critico` declarado · [x] RED de T7 y T8 con la traza real · [x] cobertura `[OK]` al 100 % ·
   mutación N/A justificada (T16, arriba) · [x] «Evidencias» con los cuatro números; la de mutantes dice «no medido,
   T16» con su motivo, y sin campaña no hay workers que declarar.
@@ -128,24 +119,19 @@ puntos de campaña de C4 bis (RM1-RM6, totales y tiempos; T16); y el resto de C5
 ## Observaciones (no bloquean; la O1 y la O2, antes de T16)
 
 - **O1 · Ningún test fija la decisión 8.** Comprobado con RM4: en una copia sin `.casefold()` en `_clave` (`:74`),
-  los dos ficheros de tests siguen en verde (`157 passed`). Sería un superviviente seguro de T16, en `critico`. Hay
-  que añadir:
-  - un test con la fila de L6 `01.0A` frente a la petición `01.0a`;
-  - otro con la naturaleza o la `caa` en minúsculas;
-  - y conviene uno de la lista blanca exacta: `ma9999` da `producto_no_permitido` sin leer `productos`.
+  los dos ficheros de tests siguen en verde (`157 passed`): superviviente seguro de T16, en `critico`. Añadir un test
+  con la fila de L6 `01.0A` frente a la petición `01.0a`, otro con la naturaleza o la `caa` en minúsculas y, mejor,
+  uno de la lista blanca exacta (`ma9999` → `producto_no_permitido` sin leer `productos`).
 - **O2 · Decisión 7.** El `ValueError` se queda, pero su mensaje (`:1193`) solo dice el `indice`: hay que añadirle la
   `referencia_linea`. Además, en T18 (`azure-apps/sigrid_api.md`) hay que escribir que el 400 de texto libre también
   cubre un maestro incoherente: IVA inexistente o plantilla ilegible.
 - **O3 · Decisión 5: una línea puede salir varias veces en `details.lineas`** (en `r9_…`, la de índice 3). La forma
   no cambia, pero §3.3 y §6.e enseñan un elemento por línea. **Para el líder**: confirmar con F-053 que no indexa por
   `referencia_linea`, porque perdería el código `error` que gana por H25, y escribirlo en T18.
-- **O4 · `producto` es `null` en las vinculadas** (decisión 4), y §3.1 lo define como «código del producto». La forma
-  no cambia y sv9 no casa por ese campo, pero hay que reflejarlo en T18.
-- **O5 · `idempotente` pone `fec` en `cabecera = {"fec": …}`** (decisión 9), cuando en las otras respuestas `cabecera`
-  es la fila `dca`, que guarda la fecha en `fecdoc`. No hay forma nueva y sv9 no guarda `cabecera` (F-053 R16), pero
-  hay que documentarlo en T18.
-- **O6 · El fichero `` `0`].{t `` está sin seguimiento en la raíz**: 0 bytes, del 2026-09-24 y ajeno a F-009. Lo decide
-  el humano antes del cierre (C5).
+- **O4/O5 · Para T18.** `producto` es `null` en las vinculadas (decisión 4; §3.1 dice «código del producto»), y
+  `idempotente` pone `fec` en `cabecera = {"fec": …}` (decisión 9), que en las demás es la fila `dca`. Ni forma nueva
+  ni campos que sv9 use (F-053 R16): basta documentarlo.
+- **O6 · `` `0`].{t `` sin seguimiento en la raíz** (0 bytes, 2026-09-24, ajeno a F-009): lo decide el humano (C5).
 - **O7 · Un `ctrpro` cuyo producto no aparece en L7b se queda sin `mov` y sin aviso** (segunda parte de la decisión
   7). Con `proide` 0 tiene sentido; con un `pro` borrado, el stock no se movería y nadie se enteraría. Para T22 o para
   T18.
