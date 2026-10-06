@@ -10,7 +10,7 @@
 (`function_app.py`, R2-R4, trazas) · **E** T16-T18 (mutación, `ARCHITECTURE.md`, `azure-apps/sigrid_api.md`).
 Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorización expresa). Fuera:
 `infrastructure/security/`, casos de uso y modelos del clásico y de `albaran-directo`, `.env`, Azure y SQL Server.
-**Lote en curso:** A.
+**Lote en curso:** A. **T1 hecha** (implementer, 2026-10-06; commit `783f2d1`, solo test y dorado, sin producción): seis casos de design §Caracterización en verde sobre `dev`; informe en [`impl_F-009.md`](impl_F-009.md) §Lote A. **Siguiente:** revisión del lote A (reviewer).
 
 ### Estado de la spec al aprobarla
 
