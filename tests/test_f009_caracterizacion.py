@@ -24,24 +24,28 @@ Los datos son sintéticos: ni CIF, ni obras, ni identificadores reales.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime as _datetime_real
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any
 
 import azure.functions as func
 import pytest
 
 import function_app
 from application.use_cases import create_purchase_albaran_use_case as modulo_clasico
-from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
+from application.use_cases.create_purchase_albaran_use_case import (
+    CreatePurchaseAlbaranUseCase,
+)
 from domain.models import sql_models
 
 DORADO = Path(__file__).parent / "fixtures" / "f009_caracterizacion.json"
 
 _BD = "ruesma_prueba"
-_AHORA = _datetime_real(2026, 3, 15, 9, 30, 5)
+# Ingenuo a propósito: el caso de uso usa `datetime.now()` sin zona y solo lee sus campos.
+_AHORA = _datetime_real(2026, 3, 15, 9, 30, 5)  # noqa: DTZ001
 
 
 # ---------------------------------------------------------------------------
