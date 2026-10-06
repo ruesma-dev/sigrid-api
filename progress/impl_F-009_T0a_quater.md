@@ -31,12 +31,10 @@ stock global (solo `proalm.canact`, el de hoy). Ventana `VENTANA_M9` (un mes, `?
   propiedades `entre_anterior_y_pre` (compatible con media ponderada), `anterior_igual_pre`,
   `anterior_igual_siguiente`, `anterior_es_albaran`. **Agrupada por la clase del `mov` siguiente**
   (`otro_documento` / `albaran_compra` / `sin_siguiente`).
-- `M14d_muestra`: los 15 `mov` de albarán más recientes con esos valores (solo va a `%TEMP%`).
-- `lectura_m14d`: la mejor candidata (desempate por orden) «⇒ mov.prepma = …» si llega a `UMBRAL_REGLA_PREPMA`;
+- `M14d_muestra`: los 15 `mov` de albarán más recientes (solo va a `%TEMP%`). `lectura_m14d`: la mejor candidata (desempate por orden) «⇒ mov.prepma = …» si llega a `UMBRAL_REGLA_PREPMA`;
   si no, «no concluyente (la mejor: …)». Línea de **arrastre**: si el `mov` siguiente que NO es compra repite el
   prepma (≥ 95 %) ⇒ «precio medio de compra del PRODUCTO que solo cambia con las compras (el resultante)».
-- El **PMP global resultante no es calculable barato** (Sigrid no guarda el stock global por `mov`): el prepma del
-  `mov` siguiente es su sustituto, y la lectura lo dice.
+  El **PMP global resultante no es calculable barato** (no hay stock global por `mov`): lo sustituye el siguiente.
 
 ## M16d · XA9999, excepciones de MA9999 y MA99 frente a MA1501 (duda 2)
 
@@ -62,19 +60,16 @@ stock global (solo `proalm.canact`, el de hoy). Ventana `VENTANA_M9` (un mes, `?
 
 ## M19 (nuevo) · planificación de compras y `cod2`; altas por usuario (dudas 3 y 4)
 
-Diccionario: `dncpro` tiene `proide`, `cod2`, `caaide`, `cenide`, `paride`, **`natide`**, `dncide`; `dnc.obride`;
-`ctrpro` tiene `cod2`, `natide` y `dncproide`; `pro` **no** tiene `cod2`.
-
 - `M19_dnc` (grupos, 6 `?`): sin vincular desde 2025 con `dncproide > 0` frente a su `dncpro`: cod2 igual / ambos
   vacíos, caaide, producto, natide (= la de `dncpro` y = la del producto de `dncpro`), partida, `dncide`, obra del
   `dnc`, centro. Lectura por grupo y TOTAL; «se heredan (≥ 95 %): …; no se heredan: …».
-- `M19_cod2_origen` (sin `?`), por `con_dnc`/`sin_dnc`, solo líneas con cod2: línea del contrato de la cabecera
-  con el mismo producto / cualquiera, **planificación de la misma obra y producto / de la misma obra** (para las que
-  no enlazan `dncproide`), línea anterior del mismo proveedor y de la misma obra y producto (`LAG`), código de la
-  partida, código del producto; propiedades: repetido en otra línea del albarán (`COUNT(*) OVER`), albarán con
-  contrato. Fuentes externas en derivadas `DISTINCT` + `LEFT JOIN` (no multiplican filas).
+- `M19_cod2_origen` (sin `?`, **la última de M19** desde el ciclo 1), por `con_dnc`/`sin_dnc`, solo líneas con
+  cod2. Fijan UN valor (compiten): planificación de la misma obra y producto y línea del contrato con el mismo
+  producto, **si su clave tiene un único cod2**; línea anterior del mismo proveedor y de la misma obra y producto
+  (`LAG`); código de la partida y del producto. Propiedades (no compiten): existe en alguna planificación de la obra
+  / línea del contrato, claves con varios cod2, repetido en el albarán, albarán con contrato.
 - `M19_cod2_valores` (TOP 10 cod2 con nº de obras, productos y proveedores; sin nombres) y `M19_vinculadas`
-  (cod2 de la línea frente a `ctrpro` por clave primaria y a la `dncpro` del contrato).
+  (cod2, `dncide` y `dncproide` de la línea frente a su `ctrpro` por clave primaria: H35 del contrato v7.1).
 - `M19_altas_usuario` (5 `?`): líneas MA9999/QA9999/XA9999 desde `DESDE_ALTAS_LOG` por `log.usu` de la **última**
   ope 1 de su (emp, cod) en la ventana (`_ALTAS_LOG`; el cod se reutiliza tras borrar, M17b), y por producto.
   De `usu` solo el código y `tipdes` (`en_usu`, `desactivado`). `''` = **sin alta en log** (la API no escribe log).
@@ -83,14 +78,9 @@ Diccionario: `dncpro` tiene `proide`, `cod2`, `caaide`, `cenide`, `paride`, **`n
 - `M19_sin_alta` (TOP 10 albaranes recientes con esos genéricos y sin alta) y `M19_api` (productos de
   `AC26/15951`): «solo el albarán de prueba de la API» / «hay otros además del de prueba».
 
-## Lecturas baratas añadidas (justificación)
-
-`M16d_sufijos` y `obra_natcod` (la composición de la caa de XA9999 no se ve con una sola candidata);
-`regla_ampliada` (es la regla que escribiría la spec si XA9999 sigue `<obra>.<caagascod entero>`); clase del `mov`
-siguiente y `entre_anterior_y_pre` (distinguen «PMP de compra del producto» de «precio de la línea»);
-`M19_cod2_valores`, `es_cod_partida`/`es_cod_producto` y `repetido_en_albaran` (forma y alcance del cod2);
-`M19_sin_alta` y `M19_api` (cierran la duda 4 con nombres de albarán, no solo cifras). Todas por las mismas
-tablas e índices que M16b/M16c/M17.
+**Lecturas baratas añadidas**: `M16d_sufijos`, `obra_natcod` y `regla_ampliada` (composición de la caa de XA9999);
+clase del `mov` siguiente y `entre_anterior_y_pre` (PMP de compra del producto frente a precio de la línea);
+`M19_cod2_valores`, `es_cod_*`, `repetido_en_albaran`, `M19_sin_alta` y `M19_api`. Mismas tablas e índices que M16b-M17.
 
 ## Desviaciones (justificadas)
 
@@ -102,13 +92,9 @@ tablas e índices que M16b/M16c/M17.
 
 ## Riesgo de tiempo (balanceador 230 s; `sql/read` no corta la consulta en el servidor)
 
-Todas las sentencias van envueltas (`_leer_tabla`, y M14d además en el `try` de las partes de `m14`): una que
-falle se anota y el bloque sigue. Referencias de T0b-ter: M14c 0,5 s (mismo patrón que M14d, dos seeks por `mov`
-en `pfhi`, ~8.300 `mov`); M16c_reglas 9,8 s (universo de `M16d_candidatas`, que añade dos `LAG` sobre ~190.000
-filas); M16c_naturalezas_ma 2,9 s (universo de las tres de elección); M17 1-2 s (ventana de `log`). Lo más
-pesado: `M16d_candidatas` y `M19_cod2_origen` (dos `LAG`, un `COUNT OVER` y cuatro derivadas `DISTINCT` sobre
-`ctrpro` (245.566 filas) y `dncpro`). Estimación: decenas de segundos, no minutos. Por eso M16d va al final de
-M16 y M19 es un bloque aparte.
+Todo envuelto (`_leer_tabla`; M14d además en el `try` de `m14`). Referencias de T0b-ter: M14c 0,5 s (patrón de
+M14d), M16c_reglas 9,8 s (universo de `M16d_candidatas`, + dos `LAG`), M16c_naturalezas_ma 2,9 s, M17 1-2 s. Lo
+más pesado, `M16d_candidatas` y `M19_cod2_origen`, va al final de su bloque. Estimación: decenas de segundos.
 
 ## Fase RED (comando exacto, salida real)
 
@@ -121,33 +107,15 @@ __main__.py: error: medición desconocida: M19 (válidas: M1, M2, ..., M17, M18)
 FAILED tests/test_f009_t0_script.py::test_f009_t0_hay_una_medicion_por_cada_m_de_la_spec
 FAILED tests/test_f009_t0_script.py::test_f009_t0a_quater_existen_las_sentencias_nuevas
 FAILED ...::test_f009_t0a_quater_sentencias_parametrizadas_sin_literales_ni_isnull_negativo[M14d_prepma_producto]  (y las otras 15)
-FAILED ...::test_f009_t0a_quater_cada_llamada_lleva_tantos_parametros_como_marcadores[m19]
-FAILED ...::test_f009_t0a_quater_m14d_va_por_el_producto_en_cualquier_almacen
-FAILED ...::test_f009_t0a_quater_m14_pasa_la_ventana_de_un_mes_a_m14d
-FAILED ...::test_f009_t0a_quater_lectura_m14d_arrastre_y_candidatas
-FAILED ...::test_f009_t0a_quater_lectura_m14d_en_el_limite_del_umbral[95-True]  (y [94-False])
-FAILED ...::test_f009_t0a_quater_lectura_m14d_sin_medicion_frente_a_cero_filas
-FAILED ...::test_f009_t0a_quater_m16d_sql_de_excepciones_y_candidatas  (y m16d_eleccion…, m16_pasa_xa9999…)
-FAILED ...::test_f009_t0a_quater_lecturas_m16d_maestro_excepciones_y_sufijos
-FAILED ...::test_f009_t0a_quater_lectura_m16d_candidatas  (y …_en_el_limite[95-True], [94-False])
-FAILED ...::test_f009_t0a_quater_lectura_m16d_eleccion_por_dimension
-FAILED ...::test_f009_t0a_quater_lecturas_m16d_sin_medicion_frente_a_cero_filas
-FAILED ...::test_f009_t0a_quater_m19_sql - KeyError:...  (y m19_pasa_los_parametros)
-FAILED ...::test_f009_t0a_quater_lectura_m19_dnc - A...  (y …_cod2_origen_y_vinculadas, …_usuarios_y_api)
-FAILED ...::test_f009_t0a_quater_lecturas_m19_sin_medicion_frente_a_cero_filas
+FAILED ...::test_f009_t0a_quater_lectura_m14d_arrastre_y_candidatas  (y el resto de m14d, m16d y m19: 20 tests)
 FAILED ...::test_f009_t0a_quater_un_fallo_no_pierde_el_bloque[m14-M14d_prepma_producto]  (y las otras 15)
 FAILED ...::test_f009_t0a_quater_main_con_la_lista_de_t0b_quater
 57 failed, 84 passed, 425 deselected in 11.63s
 ```
 
-Errores (`grep "^E " | sort | uniq -c`): `AttributeError: … no attribute 'm19'` (×9), `KeyError:
-'M14d_prepma_producto'` (×4), `… no attribute 'lectura_m14d'` (×4), `KeyError: 'M16d_excepciones'` (×3), `… no
-attribute 'lectura_m16d_candidatas'` (×3), `KeyError: 'M19_dnc'`, `'M16d_sufijos'`, `'M16d_por_*'`,
-`'M16d_maestro'`, `'M16d_candidatas'`, `'M14d_muestra'` (×2 cada una), `SystemExit: 2` (main con `--solo … M19`).
-Los 84 que pasaban son los parametrizados sobre todo `SQL` (aún sin las sentencias nuevas) y los de `m14`/`m16` que
-cuentan marcadores. Tras el código: `630 passed, 1 warning in 2.08s` a la primera; ruff marcó un ISC004
-(concatenación implícita en una lista) y se envolvió entre paréntesis: `630 passed`, ruff limpio (por defecto y
-`--preview --select E2,W,E7,F`).
+Errores: `AttributeError: … no attribute 'm19'` (×9), `… 'lectura_m14d'` (×4), `KeyError: 'M14d_prepma_producto'`
+(×4) y demás `KeyError` de las sentencias nuevas, `SystemExit: 2` (`--solo … M19`). Tras el código: `630 passed`;
+ruff marcó un ISC004 (envuelto entre paréntesis) y quedó limpio.
 
 Ajuste de test: `test_f009_t0a_ter_un_fallo_de_m16c_no_pierde_el_bloque…` usa ahora `_datos_quater()` (con datos de
 M16d): con la fixture anterior, M16d devolvía cero filas legítimas y su texto contenía «cero filas».
@@ -159,23 +127,57 @@ M16d): con la fixture anterior, M16d devolvía cero filas legítimas y su texto 
 | M14d: producto en cualquier almacén por `pfhi`, ventana, banderas | `m14d_va_por_el_producto…`, `m14_pasa_la_ventana…` |
 | M14d: lectura, arrastre, umbral 95/94, sin medición ≠ cero filas | `lectura_m14d_arrastre…`, `…_en_el_limite_del_umbral`, `lectura_m14d_sin_medicion…` |
 | M16d: XA9999, excepciones y sufijos (XA9999 y MA9999) | `m16d_sql_de_excepciones…`, `m16_pasa_xa9999_y_ma9999…`, `lecturas_m16d_maestro…` |
-| M16d: candidatas (regla ampliada, «anterior» por obra+naturaleza y obra+producto) | `m16d_sql…`, `lectura_m16d_candidatas`, `…_candidatas_en_el_limite` |
-| M16d: MA99/MA1501 por obra, proveedor y usuario | `m16d_eleccion_por_obra_proveedor_y_usuario`, `lectura_m16d_eleccion_por_dimension` |
+| M16d: candidatas y MA99/MA1501 por obra, proveedor y usuario | `lectura_m16d_candidatas`, `…_en_el_limite`, `m16d_eleccion_…`, `lectura_m16d_eleccion_…` |
 | M19: dnc/dncpro, origen del cod2, vinculadas | `m19_sql`, `lectura_m19_dnc`, `lectura_m19_cod2_origen_y_vinculadas` |
 | M19: altas por usuario, técnicos, API | `lectura_m19_usuarios_y_api`, `m19_pasa_los_parametros` |
 | `?` = parámetros en cada llamada real; sin literales; sin `ISNULL(…, -1)`; nunca `cla`/`pas` | `cada_llamada_lleva_tantos_parametros…` (m14, m16, m19), `sentencias_parametrizadas…` (×16), `ninguna_sentencia_lee_contrasenas` (todas) |
 | Sin medición ≠ cero filas; un fallo no pierde el bloque | `lecturas_m16d/m19_sin_medicion…`, `un_fallo_no_pierde_el_bloque` (×16) |
-| Guardia real de `sql/read`, error 130, solo SELECT | los parametrizados previos sobre todo `SQL` (ya incluyen las 16 nuevas) |
-| `--solo M14 M16 M19` | `main_con_la_lista_de_t0b_quater` |
+| Guardia real, error 130, solo SELECT; `--solo M14 M16 M19` | parametrizados sobre todo `SQL`; `main_con_la_lista_de_t0b_quater` |
 
-## Salida real de `bash harness/init.sh` (tras el commit `aa599f0`)
+## Ciclo 1 de revisión (`progress/review_F-009_T0a_quater.md`, CHANGES_REQUESTED) · `7f350bb`
+
+| Punto | Cambio |
+|---|---|
+| 1 cod2: candidatas que no fijan UN valor | `dnc_misma_obra` y `ctr_cualquier_linea` pasan a `PROPIEDADES_COD2` (se informan, no compiten). Las dos «mismo producto» van por una derivada con UNA fila por clave, `COUNT(DISTINCT cod2) AS n_cod2` y `MIN(cod2)`, y aciertan solo con `n_cod2 = 1` y cod2 igual: equivale al `HAVING … = 1` pedido y además da `ctr_producto_ambiguo` / `dnc_obra_producto_ambigua` (claves con varios cod2) como propiedades. El cierre dice que `con_dnc` se lee en M19_dnc (su fuente directa) |
+| 2 H35 en las vinculadas | `M19_vinculadas` suma `dncproide_igual`/`dncide_igual` (iguales y ≠ 0) y `*_ambos_cero`. `COPIA_H35` (cod2, dncide, dncproide) se lee con `UMBRAL_HEREDA_DNC`: «⇒ se copia / NO se copia siempre de ctrpro» por campo y «H35 CONFIRMADA / NO confirmada en: …» |
+| 3 Orden de M19 | `M19_cod2_origen` se lanza la última, tras `M19_api` |
+| 4 Arrastre sin base | `lectura_m14d` con 0 mov siguientes de otro documento: «sin mov siguiente de otro documento: no se mide el arrastre» |
+| obs. a | `_eleccion_de` avisa de los ítems con más de dos naturalezas (pureza sobrestimada ahí) |
+| obs. b | Con `M19_sin_alta` vacío, la lectura dice que descartar la API se apoya en el código de sus endpoints de albarán (no escriben `dbo.log`) y que no se mide |
+| obs. d | `dncide` entra en `HEREDA_M19` (conclusión de M19_dnc) |
+
+No aplicada la obs. c (`M16d_maestro` por `con.emp`/`cod`): riesgo bajo y no cambia lo que se decide.
+Tests: los de cod2, vinculadas y dnc ajustados; cinco nuevos (`test_f009_t0a_quater_c1_*`): existencia ≠ regla
+(una propiedad al 98 % no da «REGLA escribible»), H35 en el límite (950/949 de 1000), `M19_cod2_origen` la última,
+arrastre sin base y aviso de más de dos naturalezas. **RED**: los tests nuevos contra el script de `8e6e298`
+(copia en el scratchpad, `PYTHONPATH` a la copia):
+
+```
+$ python -m pytest tests/test_f009_t0_script.py -q -p no:cacheprovider --rootdir . -k "t0a_quater"
+E  assert "SELECT docide, proide, COUNT(DISTINCT RTRIM(LTRIM(cod2))) AS n_cod2, ..." in "SELECT x.origen_dnc, ...
+E  AssertionError: assert '... natide, dncide; no se heredan: partida.' in '... natide; no se heredan: partida.'
+E  AttributeError: module 'scripts.medir_f009_t0' has no attribute 'PROPIEDADES_COD2'
+E  AssertionError: assert ('M19_api' == 'M19_cod2_origen'
+E  AssertionError: assert 'sin mov siguiente de otro documento: no se mide el arrastre' in 'M14d mov.prepma (60 mov ...
+FAILED ...::test_f009_t0a_quater_m19_sql · ..._lectura_m19_dnc · ..._lectura_m19_cod2_origen_y_vinculadas
+FAILED ...::test_f009_t0a_quater_c1_las_candidatas_de_existencia_no_compiten_por_la_regla
+FAILED ...::test_f009_t0a_quater_c1_h35_en_el_limite_del_umbral[850-True]  (y [849-False])
+FAILED ...::test_f009_t0a_quater_c1_cod2_origen_va_la_ultima_de_m19
+FAILED ...::test_f009_t0a_quater_c1_m14d_sin_siguiente_de_otro_documento_no_concluye_el_arrastre
+FAILED ...::test_f009_t0a_quater_c1_eleccion_avisa_si_un_item_tiene_mas_de_dos_naturalezas
+9 failed, 153 passed, 474 deselected in 2.59s
+```
+
+Con el código: `636 passed`; ruff limpio en los dos ficheros (por defecto y `--preview --select E2,W,E7,F`).
+
+## Salida real de `bash harness/init.sh` (tras el commit `7f350bb` del ciclo 1)
 
 ```
 [OK] compileall: sin errores de sintaxis
 [AVISO] ruff: 80 avisos (deuda previa, no bloquea).   (los dos ficheros tocados: «All checks passed!»)
-2363 passed, 1 skipped, 1 warning in 74.48s (0:01:14)
+2369 passed, 1 skipped, 1 warning in 75.15s (0:01:15)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 98.9% de 1322 líneas cambiadas cubiertas (1307/1322, umbral 80%, nivel critico)
+[OK] PUERTA COBERTURA: 98.9% de 1337 líneas cambiadas cubiertas (1322/1337, umbral 80%, nivel critico)
 [OK] PUERTA TAMAÑO: F-009 dentro de los topes (requirements 150/150, design 250/250)
 [OK] Rama actual: feature/F-009-alta-albaran-compra
 ENTORNO LISTO. Puedes trabajar.
@@ -210,8 +212,8 @@ git switch feature/F-009-alta-albaran-compra
 
 | Evidencia | Valor real |
 |---|---|
-| Tests de la prueba de humo | 630 pasan (antes 426), 2,08 s |
-| Suite completa | 2363 passed, 1 skipped, 74,48 s |
-| Cobertura de líneas cambiadas | 98,9 % (1307/1322) tras el commit; antes de él, 98,4 % (867/881) |
+| Tests de la prueba de humo | 636 pasan tras el ciclo 1 (630 en la entrega; antes 426), 2,02 s |
+| Suite completa | 2369 passed, 1 skipped, 75,15 s |
+| Cobertura de líneas cambiadas | 98,9 % (1322/1337) tras el ciclo 1 (`PUERTA COBERTURA`) |
 | Mutación | No aplica: script de mediciones desechable que se retira antes de T1 (N3, decisión del humano), como en T0a-ter; no se lanzó campaña |
 | ruff en los dos ficheros | sin avisos (también `--preview --select E2,W,E7,F`) |
