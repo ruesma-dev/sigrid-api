@@ -375,9 +375,11 @@ def ejecutar(nombre: str, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     repo = RepositorioDoble(json.loads(json.dumps(caso["datos"])))
     settings = SettingsDoble()
     caso_de_uso = CreatePurchaseAlbaranUseCase(repo, settings)
+    # T13 (lote D): `build_dependencies` devuelve ocho; la octava es el caso de
+    # uso del modo extendido, al que ningun caso de este dorado llega.
     monkeypatch.setattr(
         function_app, "build_dependencies",
-        lambda: (settings, repo, None, None, None, None, caso_de_uso),
+        lambda: (settings, repo, None, None, None, None, caso_de_uso, None),
     )
     ruta = {
         "albaran": function_app.sigrid_albaran,

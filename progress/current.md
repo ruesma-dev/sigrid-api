@@ -1,6 +1,10 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+**Lote D de F-009 en curso (implementer, 2026-10-06):** T13 (`function_app.py`: selector de modo, camino
+extendido, guarda R8 en las dos rutas, docstring H32, cableado en `build_dependencies`), T14 (R2-R4), T15
+(trazas R32 con `reloj`) y las observaciones O1/O2 del lote C, trozo 1. Informe: `progress/impl_F-009_loteD.md`.
+
 ## F-009 `in_progress` (2026-10-06) — implementación por lotes
 
 **PARADA 1 aprobada por el humano (2026-10-06):** v8.1 y plan en cinco lotes, cada uno implementer → reviewer
