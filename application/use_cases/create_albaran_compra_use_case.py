@@ -1241,7 +1241,10 @@ class _Catalogo:
             tasas = {int(f[0]): float(f[1] or 0) for f in filas}
         for linea in lineas:
             if linea.ivaide and linea.ivaide not in tasas:
-                raise ValueError(f"El IVA {linea.ivaide} de la linea {linea.indice} no esta en dbo.iva.")
+                raise ValueError(
+                    f"El IVA {linea.ivaide} de la linea {linea.indice} "
+                    f"(referencia_linea '{linea.linea.referencia_linea}') no esta en dbo.iva."
+                )
             linea.iva = tasas.get(linea.ivaide, 0.0)
         self._avisos_de_contrato(lineas)
 

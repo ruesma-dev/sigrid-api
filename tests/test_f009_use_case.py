@@ -1229,6 +1229,75 @@ def test_f009_r18_la_devolucion_no_supera_lo_pendiente() -> None:
 
 
 # =====================================================================================
+# Lote D · observación O1 del lote C (decisión 8): códigos sin mayúsculas; lista
+# blanca, mapeo y prefijos exactos (el prefijo, en `r29_..._distingue_mayusculas`)
+# =====================================================================================
+
+
+def test_f009_r14_la_partida_se_compara_sin_mayusculas() -> None:
+    repo = RepositorioDoble({"partidas": [(5, "01.0A", 1, 0, 0)]})
+    respuesta, _ = ejecutar([vinculada(partida="01.0a")], repo=repo)
+    assert dcapro(respuesta)["paride"] == 5
+
+
+def test_f009_r13_el_producto_del_maestro_se_compara_sin_mayusculas() -> None:
+    repo = RepositorioDoble({"productos": [(66, "ma9999", 0, 1)]})
+    respuesta, _ = ejecutar([sin_vincular()], repo=repo)
+    assert dcapro(respuesta)["proide"] == 66
+
+
+def test_f009_r13b_la_naturaleza_se_compara_sin_mayusculas() -> None:
+    repo = RepositorioDoble({"naturalezas": [(501, "ma99", 0, 0, "MOD.CDSB37", "6000001")]})
+    respuesta, _ = ejecutar([sin_vincular()], repo=repo)
+    fila = dcapro(respuesta)
+    assert (fila["natide"], fila["cueide"], fila["caaide"]) == (501, 601, 701)
+
+
+def test_f009_r15_la_analitica_se_compara_sin_mayusculas() -> None:
+    repo = RepositorioDoble({"analiticas": [(701, "0404.cdsb37", 80)]})
+    respuesta, _ = ejecutar([sin_vincular()], repo=repo)
+    assert dcapro(respuesta)["caaide"] == 701
+
+
+def test_f009_r13b_la_cuenta_se_compara_sin_mayusculas() -> None:
+    repo = RepositorioDoble({
+        "naturalezas": [(501, "MA99", 0, 0, "MOD.CDSB37", "CUENTA-A")],
+        "cuentas": [(601, "cuenta-a")],
+    })
+    respuesta, _ = ejecutar([sin_vincular()], repo=repo)
+    assert dcapro(respuesta)["cueide"] == 601
+
+
+def test_f009_r13_la_lista_blanca_es_exacta_y_no_se_lee_el_maestro() -> None:
+    repo = RepositorioDoble()
+    assert fallos([sin_vincular(producto="ma9999")], repo=repo) == [
+        (0, "L2", "producto_no_permitido")]
+    assert not {"productos", "naturalezas"} & set(repo.lecturas_hechas())
+
+
+def test_f009_r13b_el_mapeo_es_exacto() -> None:
+    """`ma9999` en la lista blanca y en el maestro (sin mayúsculas), pero el mapeo
+    solo tiene `MA9999`: sin entrada exacta no hay naturaleza."""
+    settings = SettingsDoble(sigrid_albaran_productos_sin_contrato=["ma9999"],
+                             sigrid_albaran_naturaleza_por_producto={"MA9999": "MA99"})
+    assert fallos([sin_vincular(producto="ma9999")], settings=settings) == [
+        (0, "L2", "naturaleza_no_valida")]
+
+
+# =====================================================================================
+# Lote D · observación O2 del lote C (decisión 7): el IVA inexistente dice qué línea
+# =====================================================================================
+
+
+def test_f009_r17_el_iva_inexistente_nombra_indice_y_referencia_de_la_linea() -> None:
+    lineas = [vinculada("A", partida="01.01"), vinculada("REF-B", partida="01.01")]
+    repo = RepositorioDoble({"iva": []})
+    esperado = r"^El IVA 3 de la linea 0 \(referencia_linea 'A'\) no esta en dbo\.iva\.$"
+    with pytest.raises(ValueError, match=esperado):
+        ejecutar(lineas, repo=repo)
+
+
+# =====================================================================================
 # T15 · R32: una traza por petición, sin textos, precios ni datos bancarios
 # =====================================================================================
 
