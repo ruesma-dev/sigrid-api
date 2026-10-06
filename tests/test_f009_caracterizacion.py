@@ -332,6 +332,24 @@ CASOS: dict[str, dict[str, Any]] = {
             "max_ide": {"con": 12001, "dcapro": 22000, "mov": 42000},
         },
     },
+    # --- Ramas de error de las dos rutas (las que T13 edita): ninguna llega
+    # al repositorio. `crudo` = cuerpo HTTP tal cual, sin pasar por JSON.
+    "clasico_falla_pydantic": {
+        "ruta": "albaran",
+        "peticion": {"database": _BD, "cod_obra": "9999", "cif_proveedor": "B00000000",
+                     "lineas_recibidas": [{"ctrpro_ide": 5101, "cantidad": -1}]},
+        "datos": {},
+    },
+    "clasico_cuerpo_numero": {"ruta": "albaran", "peticion": 5, "datos": {}},
+    "clasico_cuerpo_lista": {"ruta": "albaran", "peticion": [], "datos": {}},
+    "clasico_cuerpo_no_json": {"ruta": "albaran", "crudo": "{esto no es json", "datos": {}},
+    "directo_falla_pydantic": {
+        "ruta": "albaran-directo",
+        "peticion": {"database": _BD, "cod_obra": "9999",
+                     "lineas": [{"proide": 9001, "pre": 1.0}]},
+        "datos": {},
+    },
+    "directo_cuerpo_numero": {"ruta": "albaran-directo", "peticion": 5, "datos": {}},
 }
 
 
@@ -365,18 +383,28 @@ def ejecutar(nombre: str, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "albaran": function_app.sigrid_albaran,
         "albaran-directo": function_app.sigrid_albaran_directo,
     }[caso["ruta"]]._function.get_user_function()
+    cuerpo_http = caso["crudo"] if "crudo" in caso else json.dumps(caso["peticion"])
     respuesta = ruta(func.HttpRequest(
         method="POST", url=f"/api/sigrid/{caso['ruta']}",
-        body=json.dumps(caso["peticion"]).encode(),
+        body=cuerpo_http.encode(),
         headers={"Content-Type": "application/json"},
     ))
-    observado = {
-        "ruta": caso["ruta"],
-        "peticion": caso["peticion"],
+    cuerpo = json.loads(respuesta.get_body().decode("utf-8"))
+    # La `url` de cada error de pydantic lleva su versión (errors.pydantic.dev/2.x):
+    # se quita para no atar el dorado a la librería. `type`, `loc`, `msg` e
+    # `input` se quedan.
+    for error in cuerpo.get("details", {}).get("validation", []):
+        error.pop("url", None)
+    observado = {"ruta": caso["ruta"]}
+    if "crudo" in caso:
+        observado["crudo"] = caso["crudo"]
+    else:
+        observado["peticion"] = caso["peticion"]
+    observado.update({
         "status": respuesta.status_code,
-        "cuerpo": json.loads(respuesta.get_body().decode("utf-8")),
+        "cuerpo": cuerpo,
         "llamadas": repo.llamadas,
-    }
+    })
     return json.loads(json.dumps(observado))
 
 
@@ -384,7 +412,7 @@ def _dorado() -> dict[str, Any]:
     return json.loads(DORADO.read_text(encoding="utf-8"))
 
 
-def test_f009_r4_el_dorado_cubre_exactamente_los_casos_del_diseno() -> None:
+def test_f009_r4_el_dorado_cubre_exactamente_los_casos_definidos() -> None:
     assert sorted(_dorado()) == sorted(CASOS)
 
 
@@ -424,6 +452,19 @@ def test_f009_r2_los_errores_del_clasico_son_400_con_valueerror() -> None:
         assert dorado[nombre]["status"] == 400
         assert dorado[nombre]["cuerpo"]["details"] == {"type": "ValueError"}
         assert not any(l["metodo"] == "run_in_write_transaction" for l in dorado[nombre]["llamadas"])
+
+
+def test_f009_r2_r3_las_ramas_de_error_de_las_rutas_no_llegan_al_repositorio() -> None:
+    dorado = _dorado()
+    for nombre in ("clasico_falla_pydantic", "clasico_cuerpo_numero", "clasico_cuerpo_lista",
+                   "directo_falla_pydantic", "directo_cuerpo_numero"):
+        assert dorado[nombre]["status"] == 400
+        assert dorado[nombre]["cuerpo"]["error"] == "Solicitud invalida."
+        assert dorado[nombre]["cuerpo"]["details"]["type"] == "ValidationError"
+        assert dorado[nombre]["llamadas"] == []
+    no_json = dorado["clasico_cuerpo_no_json"]
+    assert no_json["status"] == 400 and no_json["cuerpo"]["details"] == {"type": "JSONDecodeError"}
+    assert no_json["llamadas"] == []
 
 
 def test_f009_r3_los_dry_run_no_abren_transaccion() -> None:

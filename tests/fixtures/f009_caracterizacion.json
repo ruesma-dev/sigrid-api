@@ -1729,5 +1729,200 @@
     }
    }
   ]
+ },
+ "clasico_falla_pydantic": {
+  "ruta": "albaran",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_obra": "9999",
+   "cif_proveedor": "B00000000",
+   "lineas_recibidas": [
+    {
+     "ctrpro_ide": 5101,
+     "cantidad": -1
+    }
+   ]
+  },
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Solicitud invalida.",
+   "details": {
+    "type": "ValidationError",
+    "validation": [
+     {
+      "type": "missing",
+      "loc": [
+       "cod_contrato"
+      ],
+      "msg": "Field required",
+      "input": {
+       "database": "ruesma_prueba",
+       "cod_obra": "9999",
+       "cif_proveedor": "B00000000",
+       "lineas_recibidas": [
+        {
+         "ctrpro_ide": 5101,
+         "cantidad": -1
+        }
+       ]
+      }
+     },
+     {
+      "type": "greater_than_equal",
+      "loc": [
+       "lineas_recibidas",
+       0,
+       "cantidad"
+      ],
+      "msg": "Input should be greater than or equal to 0",
+      "input": -1,
+      "ctx": {
+       "ge": 0.0
+      }
+     }
+    ]
+   }
+  },
+  "llamadas": []
+ },
+ "clasico_cuerpo_numero": {
+  "ruta": "albaran",
+  "peticion": 5,
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Solicitud invalida.",
+   "details": {
+    "type": "ValidationError",
+    "validation": [
+     {
+      "type": "model_type",
+      "loc": [],
+      "msg": "Input should be a valid dictionary or instance of AddPurchaseAlbaranRequest",
+      "input": 5,
+      "ctx": {
+       "class_name": "AddPurchaseAlbaranRequest"
+      }
+     }
+    ]
+   }
+  },
+  "llamadas": []
+ },
+ "clasico_cuerpo_lista": {
+  "ruta": "albaran",
+  "peticion": [],
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Solicitud invalida.",
+   "details": {
+    "type": "ValidationError",
+    "validation": [
+     {
+      "type": "model_type",
+      "loc": [],
+      "msg": "Input should be a valid dictionary or instance of AddPurchaseAlbaranRequest",
+      "input": [],
+      "ctx": {
+       "class_name": "AddPurchaseAlbaranRequest"
+      }
+     }
+    ]
+   }
+  },
+  "llamadas": []
+ },
+ "clasico_cuerpo_no_json": {
+  "ruta": "albaran",
+  "crudo": "{esto no es json",
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+   "details": {
+    "type": "JSONDecodeError"
+   }
+  },
+  "llamadas": []
+ },
+ "directo_falla_pydantic": {
+  "ruta": "albaran-directo",
+  "peticion": {
+   "database": "ruesma_prueba",
+   "cod_obra": "9999",
+   "lineas": [
+    {
+     "proide": 9001,
+     "pre": 1.0
+    }
+   ]
+  },
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Solicitud invalida.",
+   "details": {
+    "type": "ValidationError",
+    "validation": [
+     {
+      "type": "missing",
+      "loc": [
+       "cif_proveedor"
+      ],
+      "msg": "Field required",
+      "input": {
+       "database": "ruesma_prueba",
+       "cod_obra": "9999",
+       "lineas": [
+        {
+         "proide": 9001,
+         "pre": 1.0
+        }
+       ]
+      }
+     },
+     {
+      "type": "missing",
+      "loc": [
+       "lineas",
+       0,
+       "can"
+      ],
+      "msg": "Field required",
+      "input": {
+       "proide": 9001,
+       "pre": 1.0
+      }
+     }
+    ]
+   }
+  },
+  "llamadas": []
+ },
+ "directo_cuerpo_numero": {
+  "ruta": "albaran-directo",
+  "peticion": 5,
+  "status": 400,
+  "cuerpo": {
+   "ok": false,
+   "error": "Solicitud invalida.",
+   "details": {
+    "type": "ValidationError",
+    "validation": [
+     {
+      "type": "model_type",
+      "loc": [],
+      "msg": "Input should be a valid dictionary or instance of AddDirectAlbaranRequest",
+      "input": 5,
+      "ctx": {
+       "class_name": "AddDirectAlbaranRequest"
+      }
+     }
+    ]
+   }
+  },
+  "llamadas": []
  }
 }
