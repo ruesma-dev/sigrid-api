@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+from types import SimpleNamespace
 from typing import Any
 
 import azure.functions as func
@@ -26,6 +27,7 @@ import function_app
 from application.use_cases.create_albaran_compra_use_case import (
     CreateAlbaranCompraUseCase,
 )
+from domain.models import sql_models
 from domain.models.albaran_compra_models import (
     COLUMNAS_BANCARIAS,
     AlbaranCompraError,
@@ -422,6 +424,15 @@ def test_f009_t13_build_dependencies_cablea_el_caso_de_uso_extendido(
     assert deps[6]._repo is deps[1]
 
 
+#: Límites de `sql/read` y `sql/write` para validar sus defectos sin leer el entorno.
+_LIMITES_SQL = SimpleNamespace(
+    default_max_rows=1000, max_allowed_rows=1000,
+    default_query_timeout_seconds=30, max_query_timeout_seconds=60,
+    default_write_timeout_seconds=30, max_write_timeout_seconds=60,
+    default_max_affected_rows=1, max_affected_rows=1,
+)
+
+
 @pytest.mark.parametrize(
     "funcion", ["sql_read", "sql_write", "sigrid_contrato_lineas", "documents_read"]
 )
@@ -432,6 +443,11 @@ def test_f009_t13_las_demas_rutas_desempaquetan_la_tupla_de_ocho(
     de Pydantic); si desempaquetara siete, saldría un `ValueError` («too many
     values to unpack»), también 400 pero de otro tipo, en todas las peticiones."""
     monkeypatch.setattr(function_app, "build_dependencies", lambda: (None,) * 8)
+    # `SqlReadRequest` y `SqlWriteRequest` llaman a `get_settings()` al validar
+    # sus defectos, y eso lee el entorno real: con el `.env` volcado al entorno
+    # (lo hace la campaña de mutación, T16) el 400 traía un error de
+    # configuración que ni siquiera se serializa. Se aísla con unos límites fijos.
+    monkeypatch.setattr(sql_models, "get_settings", lambda: _LIMITES_SQL)
     ruta = getattr(function_app, funcion)._function.get_user_function()
     respuesta = ruta(func.HttpRequest(
         method="POST", url="/api/x", body=b"{}", headers={"Content-Type": "application/json"},
