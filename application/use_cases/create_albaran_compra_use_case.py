@@ -144,22 +144,29 @@ class _Cabecera:
 
 @dataclass
 class _Linea:
-    """Una linea ya validada, con todo lo que necesitan sus filas."""
+    """Una linea ya validada, con todo lo que necesitan sus filas.
+
+    Los `None` son «todavia sin resolver» o «no aplica», nunca un valor: nadie
+    los lee asi (T16, canario en `progress/impl_F-009_loteE_mutacion.md`).
+    `paride` lo pone `_resolver_lineas` tras validar la partida; `tipmov` e
+    `ivaide`, `_Catalogo.completar`; `natide`, `cueide` y `caaide` solo
+    existen en las sin vincular.
+    """
 
     indice: int
     linea: LineaAlbaranIn
     proide: int
     producto: str | None
     ctrpro: dict[str, Any] | None
-    paride: int
     almide: int
     cenide: int
-    natide: int = 0
-    cueide: int = 0
-    caaide: int = 0
-    tipmov: int = 0
+    paride: int | None = None
+    natide: int | None = None
+    cueide: int | None = None
+    caaide: int | None = None
+    tipmov: int | None = None
     plantilla: dict[str, Any] | None = None
-    ivaide: int = 0
+    ivaide: int | None = None
     iva: float = 0.0
     avisos: list[AvisoAlbaran] = field(default_factory=list)
 
@@ -441,14 +448,16 @@ class CreateAlbaranCompraUseCase:
                 f"Hay {len(de_la_obra)} contratos '{request.cod_contrato}' de la obra y el proveedor.",
                 codigo="contrato_ambiguo",
             )
-        ctride = int(de_la_obra[0]["ide"]) if de_la_obra else 0
-        ctr = self._fila_completa(request, "ctr", ctride) if de_la_obra else None
+        ctr = (
+            self._fila_completa(request, "ctr", int(de_la_obra[0]["ide"])) if de_la_obra else None
+        )
         if ctr is None:
             raise AlbaranCompraError(
                 f"No hay un contrato '{request.cod_contrato}' de la obra '{request.cod_obra}' y ese "
                 "proveedor.",
                 codigo="contrato_no_encontrado",
             )
+        ctride = int(de_la_obra[0]["ide"])
         columnas, filas = self._repo.read_rows_by(
             database=request.database, table="ctrpro", where_column="docide",
             where_value=ctride, order_by="pos",
@@ -565,7 +574,7 @@ class CreateAlbaranCompraUseCase:
             construido = self._construir(request, cabecera, lineas, sellos, vigentes)
             filas = numerar(
                 construido.filas, cod=cod, ide_con=ide_con, ide_dcapro=ide_dcapro,
-                ide_ctrprodes=ide_ctrprodes, ide_mov=ide_mov, ide_log=0,
+                ide_ctrprodes=ide_ctrprodes, ide_mov=ide_mov, ide_log=None,
             )
 
             # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K.
@@ -596,6 +605,7 @@ class CreateAlbaranCompraUseCase:
 
             # E11b: la fila de alta de `log`, al final (F-006).
             ide_log = _reservar(cursor, sentencias.reservar_ide_log())
+            # El `ide` de `log` se reserva al final (F-006): hasta aqui iba `None`.
             filas = replace(filas, log={**filas.log, "ide": ide_log})
             _ejecutar(cursor, sentencias.insertar_log(filas.log))
 
@@ -796,7 +806,9 @@ class CreateAlbaranCompraUseCase:
             vigentes,
         )
         movimientos: list[tuple[int, dict[str, Any]]] = []
-        for linea, balance in zip(con_mov, balances, strict=True):
+        # Sin `strict`: `encadenar_balances` da un balance por movimiento (RM6, test
+        # `test_f009_r19_encadenar_devuelve_un_balance_por_movimiento`).
+        for linea, balance in zip(con_mov, balances):
             # R21: `dcapro.prepma` = el `prepma` de su `mov` (0 sin `mov`).
             dcapro[linea.indice]["prepma"] = balance.prepma
             movimientos.append((
@@ -837,7 +849,7 @@ class CreateAlbaranCompraUseCase:
         return _Construido(
             filas=FilasAlbaran(con=con, dca=dca, dcapro=dcapro, ctrprodes=ctrprodes,
                                mov=movimientos, log=log),
-            balances={linea.indice: b for linea, b in zip(con_mov, balances, strict=True)},
+            balances={linea.indice: b for linea, b in zip(con_mov, balances)},
             totales=totales,
         )
 
@@ -1135,7 +1147,6 @@ class _Catalogo:
             proide=_entero(ctrpro.get("proide")),
             producto=None,
             ctrpro=ctrpro,
-            paride=0,
             # R15: almacen y centro del ctrpro o, si no los tiene, del contrato.
             almide=_entero(ctrpro.get("almide") or ctr.get("almide")),
             cenide=_entero(ctrpro.get("cenide") or ctr.get("cenide")),
@@ -1169,14 +1180,15 @@ class _Catalogo:
                 "en su centro: alta a mano.",
             )
         natide, cueide, caaide = naturaleza
-        almide, cenide = self._cab.almacen_sin_vincular or (0, 0)
+        # `_resolver_lineas` lo fija antes de validar ninguna sin vincular (R15).
+        assert self._cab.almacen_sin_vincular is not None
+        almide, cenide = self._cab.almacen_sin_vincular
         return _Linea(
             indice=indice,
             linea=linea,
             proide=int(filas[0][0]),
             producto=producto,
             ctrpro=None,
-            paride=0,
             almide=almide,
             cenide=cenide,
             natide=natide,

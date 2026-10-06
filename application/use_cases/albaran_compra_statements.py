@@ -752,13 +752,14 @@ def numerar(
     ide_dcapro: int,
     ide_ctrprodes: int | None,
     ide_mov: int | None,
-    ide_log: int,
+    ide_log: int | None,
 ) -> FilasAlbaran:
     """
     Copia de `filas` con `cod`, los `ide` reservados y los enlaces puestos. No
     toca `filas`: cada reintento numera sobre las filas limpias (R27). Los
     `ide` de cada tabla son consecutivos desde el reservado; sin `ctrprodes` o
-    sin `mov` no hace falta reservar (`None`).
+    sin `mov` no hace falta reservar (`None`). El commit numera `log` con
+    `None` y le pone su `ide` al reservarlo, al final (E11b, como F-006).
     """
     if filas.ctrprodes and ide_ctrprodes is None:
         raise ValueError("Hay ctrprodes y no se ha reservado ide_ctrprodes.")
@@ -769,8 +770,8 @@ def numerar(
         con={**filas.con, "ide": ide_con, "cod": cod},
         dca={**filas.dca, "ide": ide_con},
         dcapro=[
-            {**fila, "ide": ide, "docide": ide_con}
-            for ide, fila in zip(ides_dcapro, filas.dcapro, strict=True)
+            {**fila, "ide": ides_dcapro[i], "docide": ide_con}
+            for i, fila in enumerate(filas.dcapro)
         ],
         ctrprodes=[
             (
