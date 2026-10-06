@@ -1,7 +1,18 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v8.1 (2026-10-06), `spec_ready` — T0 terminada; espera la aprobación del humano (PARADA 1)
+## F-009 `in_progress` (2026-10-06) — implementación por lotes
+
+**PARADA 1 aprobada por el humano (2026-10-06):** v8.1 y plan en cinco lotes, cada uno implementer → reviewer
+(revisión troceada por bloques de `CHECKPOINTS.md`), sin empezar el siguiente hasta aprobar el anterior:
+**A** T1 (caracterización, commit sin producción) · **B** T2-T6 (settings, modelos, SQL, funciones puras, filas) ·
+**C** T7-T12 (caso de uso, idempotencia, dry-run, commit, devoluciones, equivalencia) · **D** T13-T15
+(`function_app.py`, R2-R4, trazas) · **E** T16-T18 (mutación, `ARCHITECTURE.md`, `azure-apps/sigrid_api.md`).
+Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorización expresa). Fuera:
+`infrastructure/security/`, casos de uso y modelos del clásico y de `albaran-directo`, `.env`, Azure y SQL Server.
+**Lote en curso:** A.
+
+### Estado de la spec al aprobarla
 
 **v8.1 (spec-author, T0c):** T0b-quinquies volcada ([`spec_F-009.md`](spec_F-009.md) §v8.1). **M14e refuta la media
 ponderada global** del producto (2 de 34 entradas, 4 de 16 devoluciones). Regla nueva aprobada por el humano:

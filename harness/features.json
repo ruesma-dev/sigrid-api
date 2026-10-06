@@ -186,7 +186,7 @@
         "MANUAL (humano): dry-run clásico y extendido y primer commit:true autorizado sobre CTSU16/0206 (obra 0404), revisión en la UI, repetición idempotente y anulación desde la UI",
         "bash harness/init.sh en verde"
       ],
-      "status": "spec_ready",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "critico",
       "priority": 7,
