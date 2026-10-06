@@ -12,7 +12,14 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from f009_dobles import AHORA, CTR, OBRA, RepositorioDoble, SettingsDoble
+from f009_dobles import (
+    AHORA,
+    CTR,
+    OBRA,
+    IntegrityError,
+    RepositorioDoble,
+    SettingsDoble,
+)
 
 from application.use_cases.create_albaran_compra_use_case import (
     CreateAlbaranCompraUseCase,
@@ -850,3 +857,280 @@ def test_f009_r7_avisos_con_codigo_y_warnings_en_orden() -> None:
         a.mensaje for l in respuesta.lineas for a in l.avisos
     ]
     assert respuesta.warnings == esperados and len(esperados) == 4
+
+
+# =====================================================================================
+# T10 · R24: guardas antes de leer nada
+# =====================================================================================
+
+
+@pytest.mark.parametrize("commit", [False, True])
+def test_f009_r24_demasiadas_lineas_tambien_en_la_previa(commit: bool) -> None:
+    repo = RepositorioDoble()
+    settings = SettingsDoble(sigrid_albaran_max_lineas=2)
+    lineas = [vinculada("A"), vinculada("B"), vinculada("C")]
+    assert codigo(lineas, repo=repo, settings=settings, commit=commit) == "demasiadas_lineas"
+    assert repo.llamadas == []
+
+
+def test_f009_r24_en_el_tope_vale() -> None:
+    respuesta, _ = ejecutar([vinculada("A"), vinculada("B")],
+                            settings=SettingsDoble(sigrid_albaran_max_lineas=2))
+    assert len(respuesta.lineas) == 2
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        SettingsDoble(sigrid_domain_write_enabled=False),
+        SettingsDoble(sigrid_albaran_write_enabled=False),
+        SettingsDoble(sql_server_write_username=None),
+        SettingsDoble(sql_server_write_password=""),
+    ],
+    ids=["dominio", "albaranes", "sin_usuario", "sin_clave"],
+)
+def test_f009_r24_commit_sin_llaves_no_lee_nada(settings: SettingsDoble) -> None:
+    repo = RepositorioDoble()
+    assert codigo(repo=repo, settings=settings, commit=True) == "escritura_albaranes_deshabilitada"
+    assert repo.llamadas == []
+
+
+@pytest.mark.parametrize("bases", [[], ["otra"]], ids=["lista_vacia", "otra_base"])
+def test_f009_r24_commit_en_una_base_no_permitida(bases: list[str]) -> None:
+    repo = RepositorioDoble()
+    settings = SettingsDoble(allowed_write_databases=bases)
+    assert codigo(repo=repo, settings=settings, commit=True) == "base_de_datos_no_permitida"
+    assert repo.llamadas == []
+
+
+# =====================================================================================
+# T10 · R25, R26, R20: una transacción, reservas bajo bloqueo y medición del contrato
+# =====================================================================================
+
+_SECUENCIA_COMPLETA = [
+    "referencia", "reservar_cod", "ide_con", "ide_dcapro", "ide_ctrprodes", "ide_mov",
+    "balance_bajo_bloqueo", "balance_bajo_bloqueo",
+    "insert_con", "insert_dca", "insert_dcapro", "insert_dcapro", "insert_ctrprodes",
+    "insert_mov", "insert_mov",
+    "servido", "sumas_contrato", "estados_contrato",
+    "ide_log", "insert_log",
+    "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes", "releer_log",
+]
+
+
+def test_f009_r25_el_albaran_entero_en_una_transaccion() -> None:
+    respuesta, repo = ejecutar([vinculada(), sin_vincular()], commit=True)
+    assert repo.transacciones == [{
+        "database": "ruesma", "timeout_seconds": 30,
+        "applock_resources": ["SIGRID_REFEXT_14", "SIGRID_SERIE_14", "SIGRID_IDE_con",
+                              "SIGRID_IDE_dcapro", "SIGRID_IDE_ctrprodes", "SIGRID_IDE_mov",
+                              "SIGRID_IDE_log"],
+        "applock_timeout_ms": 10000, "max_retries": 3,
+    }]
+    assert repo.sentencias() == _SECUENCIA_COMPLETA
+    assert repo.cursores[0].connection.timeout == 30
+    assert (respuesta.estado, respuesta.committed, respuesta.dry_run) == ("creado", True, False)
+    assert (respuesta.con_ide, respuesta.cod) == (2900011, "AC26/15953")
+    assert respuesta.avisos == []
+
+
+def test_f009_r25_lo_insertado_es_lo_que_se_devuelve() -> None:
+    respuesta, repo = ejecutar([vinculada(), sin_vincular()], commit=True)
+    filas = respuesta.filas
+    assert repo.parametros_en_transaccion("insert_con") == [list(filas["con"].values())]
+    assert repo.parametros_en_transaccion("insert_dcapro") == [list(f.values()) for f in filas["dcapro"]]
+    assert repo.parametros_en_transaccion("insert_log") == [list(filas["log"].values())]
+    assert [f["ide"] for f in filas["dcapro"]] == [8000011, 8000012]
+    assert [f["ide"] for f in filas["ctrprodes"]] == [400011]
+    assert [f["ide"] for f in filas["mov"]] == [9000011, 9000012]
+    assert (filas["log"]["ide"], filas["log"]["cod"]) == (8488899, "AC26/15953")
+    assert len(repo.parametros_en_transaccion("insert_ctrprodes")) == 1
+    assert len(repo.parametros_en_transaccion("insert_mov")) == 2
+
+
+def test_f009_r25_la_fila_dca_escrita_lleva_las_bancarias() -> None:
+    respuesta, repo = ejecutar([vinculada()], commit=True)
+    ((sql, params),) = [(s, p) for _i, c, s, p in repo.en_transaccion if c == "insert_dca"]
+    columnas = [c.strip()[1:-1] for c in sql[sql.index("(") + 1 : sql.index(")")].split(",")]
+    escrita = dict(zip(columnas, params, strict=True))
+    assert (escrita["bancue"], escrita["cpacue1"]) == ("ES12", "ES34")
+    assert "bancue" not in respuesta.filas["dca"]
+
+
+def test_f009_r31_en_la_transaccion_solo_los_update_de_r25_y_ningun_delete() -> None:
+    _respuesta, repo = ejecutar([vinculada(), sin_vincular()], commit=True)
+    verbos = {sql.split()[0] for _i, _c, sql, _p in repo.en_transaccion}
+    assert verbos == {"SELECT", "INSERT", "UPDATE"}
+    actualizaciones = {sql for _i, _c, sql, _p in repo.en_transaccion if sql.startswith("UPDATE")}
+    assert actualizaciones == {
+        "UPDATE dbo.ctrpro SET canser = canser + ? WHERE ide = ?",
+        "UPDATE dbo.ctr SET estser = ?, estfac = ? WHERE ide = ?",
+    }
+
+
+def test_f009_r26_reservas_bajo_bloqueo_y_sin_lecturas_de_la_previa() -> None:
+    _respuesta, repo = ejecutar([vinculada(), sin_vincular()], commit=True)
+    assert repo.parametros_en_transaccion("reservar_cod") == [[6, 1, 14, "AC26/%"]]
+    assert repo.parametros_en_transaccion("balance_bajo_bloqueo") == [[55, 70], [66, 70]]
+    assert not {"balance", "ultimo_cod"} & set(repo.lecturas_hechas())
+    assert not any(t == "peek" for t, _ in repo.llamadas)
+
+
+def test_f009_r26_el_balance_sale_de_e7_no_de_la_previa() -> None:
+    repo = RepositorioDoble(reservas={"balance_bajo_bloqueo": lambda _i, p: (20.0, 5.0)})
+    respuesta, _ = ejecutar([vinculada()], repo=repo, commit=True)
+    mov = respuesta.filas["mov"][0]
+    assert (mov["almcan"], mov["almpma"], mov["prepma"]) == (
+        22.0, (20.0 * 5.0 + 2.0 * 10.5) / 22.0, 5.0)
+    assert dcapro(respuesta)["prepma"] == 5.0
+    assert (respuesta.lineas[0].stock_anterior, respuesta.lineas[0].stock_resultante) == (20.0, 22.0)
+
+
+def test_f009_r26_sin_mov_anterior_bajo_bloqueo_parte_de_cero() -> None:
+    repo = RepositorioDoble(reservas={"balance_bajo_bloqueo": lambda _i, p: None})
+    respuesta, _ = ejecutar([vinculada()], repo=repo, commit=True)
+    assert (respuesta.filas["mov"][0]["almcan"], respuesta.filas["mov"][0]["prepma"]) == (2.0, 0.0)
+
+
+def test_f009_r26_serie_vacia_empieza_en_1() -> None:
+    repo = RepositorioDoble(reservas={"reservar_cod": (None,)})
+    respuesta, _ = ejecutar(repo=repo, commit=True)
+    assert respuesta.cod == "AC26/1"
+
+
+def test_f009_r26_sin_vinculadas_ni_mov_no_se_reservan_sus_ide() -> None:
+    repo = RepositorioDoble({"productos": [(66, "MA9999", 0, 0)]})
+    respuesta, repo = ejecutar([sin_vincular()], repo=repo, commit=True)
+    assert repo.sentencias() == [
+        "referencia", "reservar_cod", "ide_con", "ide_dcapro",
+        "insert_con", "insert_dca", "insert_dcapro",
+        "ide_log", "insert_log",
+        "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes", "releer_log",
+    ]
+    assert (respuesta.filas["mov"], respuesta.filas["ctrprodes"]) == ([], [])
+
+
+def test_f009_r20_sin_vinculadas_ningun_update_aunque_haya_contrato() -> None:
+    respuesta, repo = ejecutar([sin_vincular()], commit=True)
+    assert not {"servido", "sumas_contrato", "estados_contrato"} & set(repo.sentencias())
+    assert respuesta.filas["dca"]["ctride"] == CTR
+    assert respuesta.estados_contrato == {}
+
+
+def test_f009_r20_servido_por_linea_y_estados_con_las_sumas_de_dentro() -> None:
+    repo = RepositorioDoble(reservas={"sumas_contrato": (111.0, 111.0, 0.0)})
+    respuesta, repo = ejecutar([vinculada("A", cantidad=2.0), vinculada("B", cantidad=3.0)],
+                               repo=repo, commit=True)
+    assert repo.parametros_en_transaccion("servido") == [[2.0, 9001], [3.0, 9001]]
+    assert repo.parametros_en_transaccion("sumas_contrato") == [[CTR]]
+    assert repo.parametros_en_transaccion("estados_contrato") == [[1, 0, CTR]]
+    assert respuesta.estados_contrato == {
+        "estser_before": 0, "estfac_before": 0, "estser_after": 1, "estfac_after": 0,
+        "sum_can": 111.0, "sum_canser_before": 106.0, "sum_canser_after": 111.0, "sum_canfac": 0.0,
+    }
+
+
+def test_f009_r19_mov_si_y_solo_si_tipmov_1_y_prepma_de_su_mov_o_0() -> None:
+    """O3 del lote B: el caso de uso decide qué líneas llevan `mov` y su `prepma`."""
+    repo = RepositorioDoble({"productos": [(66, "MA9999", 0, 0), (68, "XA9999", 0, 1)]})
+    respuesta, _ = ejecutar(
+        [vinculada("A"), vinculada("B", ctrpro_ide=9003, precio=100.0), sin_vincular("C"),
+         sin_vincular("D", producto="XA9999")],
+        repo=repo,
+    )
+    filas = respuesta.filas
+    assert [(m["linide"], m["proide"]) for m in filas["mov"]] == [(8000001, 55), (8000004, 68)]
+    assert [f["prepma"] for f in filas["dcapro"]] == [9.0, 0, 0, 0.0]
+    por_linea = {m["linide"]: m["prepma"] for m in filas["mov"]}
+    for fila in filas["dcapro"]:
+        assert fila["prepma"] == por_linea.get(fila["ide"], 0)
+
+
+def test_f009_r21_prepma_encadenado_en_el_mismo_producto_y_almacen() -> None:
+    respuesta, _ = ejecutar([vinculada("A", cantidad=2.0), vinculada("B", cantidad=3.0)])
+    movs = respuesta.filas["mov"]
+    assert movs[0]["prepma"] == 9.0
+    assert movs[1]["prepma"] == movs[0]["almpma"] == (10.0 * 9.0 + 2.0 * 10.5) / 12.0
+    assert [f["prepma"] for f in respuesta.filas["dcapro"]] == [m["prepma"] for m in movs]
+
+
+def test_f009_r19_el_mov_lleva_el_pre_escrito_en_la_fila() -> None:
+    """Condición (b) del reviewer del lote B: `mov.pre` y el balance, con el `pre` escrito."""
+    respuesta, _ = ejecutar([vinculada(precio=10.50004, partida="01.01")])
+    assert dcapro(respuesta)["pre"] == 10.5
+    mov = respuesta.filas["mov"][0]
+    assert (mov["pre"], mov["prc"], mov["almpma"]) == (10.5, 10.5, (10.0 * 9.0 + 2.0 * 10.5) / 12.0)
+
+
+# =====================================================================================
+# T10 · R27: reintento ante clave duplicada
+# =====================================================================================
+
+
+def test_f009_r27_reintenta_la_transaccion_entera_recalculando() -> None:
+    repo = RepositorioDoble(
+        reservas={
+            "reservar_cod": lambda i, _p: (15952 + i - 1,),
+            "ide_con": lambda i, _p: (2900011 + 10 * (i - 1),),
+            "ide_dcapro": lambda i, _p: (8000011 + 10 * (i - 1),),
+            "balance_bajo_bloqueo": lambda i, _p: (10.0 * i, 9.0),
+        },
+        fallos={"insert_dcapro": lambda i: IntegrityError("2627") if i == 1 else None},
+    )
+    respuesta, repo = ejecutar([vinculada()], repo=repo, commit=True)
+    assert len(repo.cursores) == 2
+    assert repo.sentencias(2)[:2] == ["referencia", "reservar_cod"]
+    assert (respuesta.con_ide, respuesta.cod) == (2900021, "AC26/15954")
+    assert repo.parametros_en_transaccion("insert_con", intento=2) == [
+        list(respuesta.filas["con"].values())
+    ]
+    assert respuesta.filas["dcapro"][0]["ide"] == 8000021
+    assert respuesta.filas["mov"][0]["almcan"] == 22.0
+    assert respuesta.filas["dcapro"][0]["prepma"] == 9.0
+    # Reentrante: el intento 2 parte de filas limpias, no de las del 1.
+    (dcapro1,) = repo.parametros_en_transaccion("insert_dcapro", intento=1)
+    (dcapro2,) = repo.parametros_en_transaccion("insert_dcapro", intento=2)
+    assert (dcapro1[0], dcapro2[0]) == (8000011, 8000021)
+
+
+def test_f009_r27_agotados_los_reintentos_colision_de_clave() -> None:
+    repo = RepositorioDoble(fallos={"insert_con": IntegrityError("2627")})
+    exc = error(repo=repo, commit=True)
+    assert exc.codigo == "colision_de_clave"
+    assert isinstance(exc.__cause__, IntegrityError)
+    assert len(repo.cursores) == 4
+
+
+def test_f009_r27_otro_error_de_la_base_no_se_disfraza() -> None:
+    repo = RepositorioDoble(fallos={"insert_mov": RuntimeError("se cayo la red")})
+    with pytest.raises(RuntimeError, match="se cayo la red"):
+        ejecutar(repo=repo, commit=True)
+    assert len(repo.cursores) == 1
+
+
+# =====================================================================================
+# T10 · R28: relecturas antes del COMMIT
+# =====================================================================================
+
+
+def test_f009_r28_relecturas_por_clave() -> None:
+    _respuesta, repo = ejecutar([vinculada(), sin_vincular()], commit=True)
+    relecturas = ("releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes",
+                  "releer_log")
+    assert [repo.parametros_en_transaccion(c) for c in relecturas] == [
+        [[1, 14, "AC26/15953"]], [[2900011]], [[2900011]], [[2900011, 14]], [[2900011, 14]],
+        [[8488899]],
+    ]
+
+
+@pytest.mark.parametrize(
+    ("relectura", "valor"),
+    [("releer_con", 2), ("releer_dca", 0), ("releer_dcapro", 1), ("releer_mov", 3),
+     ("releer_ctrprodes", 0), ("releer_log", 0)],
+)
+def test_f009_r28_si_no_cuadran_rollback_con_codigo(relectura: str, valor: int) -> None:
+    repo = RepositorioDoble(forzar={relectura: (valor,)})
+    exc = error([vinculada(), sin_vincular()], repo=repo, commit=True)
+    assert exc.codigo == "filas_afectadas_inesperadas"
+    assert repo.sentencias()[-1] == relectura
+    assert len(repo.cursores) == 1

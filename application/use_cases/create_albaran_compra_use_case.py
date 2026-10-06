@@ -19,7 +19,7 @@ de lectura del repositorio); solo el commit abre una transaccion de escritura.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -191,7 +191,7 @@ class CreateAlbaranCompraUseCase:
     # ------------------------------------------------------------------ #
     def run(self, request: AlbaranCompraRequest) -> AlbaranCompraResponse:
         # 1. Guardas sin leer la base.
-        self._comprobar_prefijo(request)
+        self._comprobar_guardas(request)
         sentencias = AlbaranCompraStatements(database=request.database)
         # R22: un instante por peticion, fuera de cualquier transaccion.
         sellos = sellos_del_alta(self._ahora_utc(), request.fecha_albaran)
@@ -214,15 +214,41 @@ class CreateAlbaranCompraUseCase:
         return self._previa(request, sentencias, cabecera, lineas, sellos)
 
     # ------------------------------------------------------------------ #
-    # Guardas sin leer la base (R29)
+    # Guardas sin leer la base (R24, R29)
     # ------------------------------------------------------------------ #
-    def _comprobar_prefijo(self, request: AlbaranCompraRequest) -> None:
-        prefijos = self._settings.sigrid_albaran_prefijos_referencia
+    def _comprobar_guardas(self, request: AlbaranCompraRequest) -> None:
+        settings = self._settings
+        tope = settings.sigrid_albaran_max_lineas
+        if len(request.lineas) > tope:
+            raise AlbaranCompraError(
+                f"El albaran trae {len(request.lineas)} lineas y el tope es {tope}: alta a mano.",
+                codigo="demasiadas_lineas",
+            )
+        prefijos = settings.sigrid_albaran_prefijos_referencia
         if not any(request.referencia_externa.startswith(prefijo) for prefijo in prefijos):
             raise AlbaranCompraError(
                 "La referencia externa no empieza por ningun prefijo admitido "
                 f"({', '.join(prefijos) or 'ninguno configurado'}).",
                 codigo="referencia_no_permitida",
+            )
+        if not request.commit:
+            return
+        if not (
+            settings.sigrid_domain_write_enabled
+            and settings.sigrid_albaran_write_enabled
+            and settings.sql_server_write_username
+            and settings.sql_server_write_password
+        ):
+            raise AlbaranCompraError(
+                "Escritura de albaranes desactivada: hacen falta SIGRID_DOMAIN_WRITE_ENABLED, "
+                "SIGRID_ALBARAN_WRITE_ENABLED y credenciales de escritura.",
+                codigo="escritura_albaranes_deshabilitada",
+            )
+        # Una lista VACIA no abre (al contrario que el modo clasico).
+        if request.database not in settings.allowed_write_databases:
+            raise AlbaranCompraError(
+                f"La base '{request.database}' no esta permitida para escritura.",
+                codigo="base_de_datos_no_permitida",
             )
 
     # ------------------------------------------------------------------ #
@@ -455,8 +481,15 @@ class CreateAlbaranCompraUseCase:
         sellos: SellosAlbaran,
     ) -> AlbaranCompraResponse:
         timeout = self._settings.default_write_timeout_seconds
+        emp = cabecera.obra.emp
+        vinculadas = [linea for linea in lineas if linea.vinculada]
+        pares = self._pares_con_mov(lineas)
 
         def work(cursor: Any) -> dict[str, Any]:
+            # Reentrante: el repositorio repite `work` entero ante una clave
+            # duplicada (R27). `lineas` no se toca: cada intento reserva `cod`,
+            # `ide` y balances y construye sus filas desde cero; los sellos de
+            # tiempo ya vienen fijados (R22).
             cursor.connection.timeout = timeout
             # E1: idempotencia bajo el applock de referencias, antes de reservar nada.
             _ejecutar(cursor, sentencias.buscar_referencia(request.referencia_externa))
@@ -464,17 +497,107 @@ class CreateAlbaranCompraUseCase:
             if existente is not None:
                 _ejecutar(cursor, sentencias.leer_lineas_de_albaran(int(existente[0])))
                 return {"idempotente": (existente, list(cursor.fetchall()))}
-            raise NotImplementedError("Las reservas y los INSERT llegan en T10.")
 
-        resultado = self._repo.run_in_write_transaction(
-            database=request.database,
-            timeout_seconds=timeout,
-            applock_resources=list(APPLOCKS),
-            applock_timeout_ms=self._settings.applock_timeout_ms,
-            max_retries=self._settings.domain_write_max_retries,
-            work=work,
+            # E2-E7 (R26): reservas y balances vigentes, todo bajo UPDLOCK, HOLDLOCK.
+            _ejecutar(cursor, sentencias.reservar_cod(emp, sellos.prefijo))
+            cod = siguiente_cod(sellos.prefijo, cursor.fetchone()[0])
+            ide_con = _reservar(cursor, sentencias.reservar_ide_con())
+            ide_dcapro = _reservar(cursor, sentencias.reservar_ide_dcapro())
+            ide_ctrprodes = _reservar(cursor, sentencias.reservar_ide_ctrprodes()) if vinculadas else None
+            ide_mov = _reservar(cursor, sentencias.reservar_ide_mov()) if pares else None
+            vigentes: dict[tuple[int, int], tuple[float, float]] = {}
+            for proide, almide in pares:
+                _ejecutar(cursor, sentencias.reservar_balance(proide, almide))
+                fila = cursor.fetchone()
+                if fila is not None:
+                    vigentes[(proide, almide)] = (float(fila[0] or 0), float(fila[1] or 0))
+            construido = self._construir(request, cabecera, lineas, sellos, vigentes)
+            filas = numerar(
+                construido.filas, cod=cod, ide_con=ide_con, ide_dcapro=ide_dcapro,
+                ide_ctrprodes=ide_ctrprodes, ide_mov=ide_mov, ide_log=0,
+            )
+
+            # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K.
+            _ejecutar(cursor, sentencias.insertar_con(filas.con))
+            _ejecutar(cursor, sentencias.insertar_dca(filas.dca))
+            for fila_dcapro in filas.dcapro:
+                _ejecutar(cursor, sentencias.insertar_dcapro(fila_dcapro))
+            for _i, fila_ctrprodes in filas.ctrprodes:
+                _ejecutar(cursor, sentencias.insertar_ctrprodes(fila_ctrprodes))
+            for _i, fila_mov in filas.mov:
+                _ejecutar(cursor, sentencias.insertar_mov(fila_mov))
+
+            # E9-E11 (R20): solo con vinculadas; sin ellas, ningun UPDATE (H31).
+            estados: dict[str, Any] = {}
+            if vinculadas:
+                for linea in vinculadas:
+                    _ejecutar(cursor, sentencias.sumar_servido(int(linea.ctrpro["ide"]),
+                                                               linea.linea.cantidad))
+                _ejecutar(cursor, sentencias.leer_sumas_contrato(cabecera.ctride))
+                suma_can, suma_canser, suma_canfac = cursor.fetchone()
+                estados = _estados(
+                    cabecera.contrato.fila, float(suma_can or 0), float(suma_canser or 0),
+                    float(suma_canfac or 0), sum(l.linea.cantidad for l in vinculadas),
+                )
+                _ejecutar(cursor, sentencias.actualizar_estados_contrato(
+                    cabecera.ctride, estados["estser_after"], estados["estfac_after"]
+                ))
+
+            # E11b: la fila de alta de `log`, al final (F-006).
+            ide_log = _reservar(cursor, sentencias.reservar_ide_log())
+            filas = replace(filas, log={**filas.log, "ide": ide_log})
+            _ejecutar(cursor, sentencias.insertar_log(filas.log))
+
+            # E12 (R28): relecturas por clave antes del COMMIT.
+            for sentencia, esperadas, que in (
+                (sentencias.releer_con(emp, cod), 1, "con"),
+                (sentencias.releer_dca(ide_con), 1, "dca"),
+                (sentencias.releer_dcapro(ide_con), len(filas.dcapro), "dcapro"),
+                (sentencias.releer_mov(ide_con), len(filas.mov), "mov"),
+                (sentencias.releer_ctrprodes(ide_con), len(filas.ctrprodes), "ctrprodes"),
+                (sentencias.releer_log(ide_log), 1, "log"),
+            ):
+                cuantas = _reservar(cursor, sentencia)
+                if cuantas != esperadas:
+                    raise AlbaranCompraError(
+                        f"Se esperaban {esperadas} filas de {que} y hay {cuantas}: se revierte "
+                        "el albaran entero.",
+                        codigo="filas_afectadas_inesperadas",
+                    )
+            return {
+                "construido": _Construido(filas=filas, balances=construido.balances,
+                                          totales=construido.totales),
+                "estados": estados,
+            }
+
+        try:
+            resultado = self._repo.run_in_write_transaction(
+                database=request.database,
+                timeout_seconds=timeout,
+                applock_resources=list(APPLOCKS),
+                applock_timeout_ms=self._settings.applock_timeout_ms,
+                max_retries=self._settings.domain_write_max_retries,
+                work=work,
+            )
+        except Exception as exc:
+            if _es_colision_de_clave(exc):
+                raise AlbaranCompraError(
+                    "Colision de clave repetida tras los reintentos (alta simultanea con el "
+                    "escritorio): no se ha escrito nada. Reenvialo.",
+                    codigo="colision_de_clave",
+                ) from exc
+            raise
+        if "idempotente" in resultado:
+            return self._respuesta_idempotente(request, *resultado["idempotente"])
+        return self._respuesta(
+            request,
+            cabecera,
+            lineas,
+            resultado["construido"],
+            estado="creado",
+            estados=resultado["estados"],
+            avisos=[],
         )
-        return self._respuesta_idempotente(request, *resultado["idempotente"])
 
     # ------------------------------------------------------------------ #
     # Lineas (R9, R12-R17)
@@ -818,6 +941,17 @@ class CreateAlbaranCompraUseCase:
 
 def _ejecutar(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:
     cursor.execute(sentencia[0], *sentencia[1])
+
+
+def _reservar(cursor: Any, sentencia: tuple[str, list[Any]]) -> int:
+    _ejecutar(cursor, sentencia)
+    return int(cursor.fetchone()[0])
+
+
+def _es_colision_de_clave(exc: BaseException) -> bool:
+    """`pyodbc.IntegrityError` sin importar `pyodbc` en la capa de aplicacion
+    (como F-006): el repositorio la propaga tal cual al agotar los reintentos."""
+    return any(clase.__name__ == "IntegrityError" for clase in type(exc).__mro__)
 
 
 def _estados(
