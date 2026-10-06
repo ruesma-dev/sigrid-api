@@ -1,10 +1,10 @@
 <!-- specs/F-009-alta-albaran-compra/requirements.md -->
-# F-009 · Requisitos (v8)
+# F-009 · Requisitos (v8.1)
 
 **`POST /api/sigrid/albaran` gana un modo extendido (alta idempotente de UN albarán de compra con líneas
 vinculadas y sin vincular, con o sin partida por línea y devoluciones); el clásico sigue idéntico.**
 «PRE-1» de albaranes F-053. Huecos **Hn** de [`contrato_albaranes.md`](contrato_albaranes.md) §5 (detalle y
-ejemplos; si discrepa, manda la spec). v8: T0b-ter y T0b-quater del 2026-10-06 y decisiones del humano; **[Mn]** = abierta.
+ejemplos; si discrepa, manda la spec). v8.1: T0 cerrada (M14e, 2026-10-06) y decisiones del humano.
 
 ## Modos y retrocompatibilidad
 - **R1.** CUANDO llegue `POST /api/sigrid/albaran`, el sistema debe decidir el modo por las **claves
@@ -84,7 +84,7 @@ cantidad y `canser += cantidad`. SI `canser` queda < 0, ENTONCES se **admite** c
 `servido_negativo`; SI el stock queda < 0, `stock_negativo`.
 - **R19.** El sistema debe escribir un `mov` por línea **si y solo si** su producto tiene `pro.tipmov` = 1 (M9, también
 `XA9999`), como hoy (`tip 1`, `oritip 5`, `destip 2`, `doctip 14`), **fechado en el alta** (N1), con `almpma` `(stock·pma +
-can·pre)/(stock + can)` sin redondear (con `stock + can` = 0 se conserva) y `prepma` de design §`prepma` [M14e].
+can·pre)/(stock + can)` sin redondear (con `stock + can` = 0 se conserva) y `prepma` = el PMP de partida (design §`prepma`).
 - **R20.** CUANDO haya vinculadas, el sistema debe recalcular `ctr.estser`/`estfac` **dentro** de la
 transacción con las sumas del contrato tras actualizar `canser` (`estser` = 1 si `Σcanser ≥ Σcan`, si no
 0: una devolución puede devolverlo a 0). Sin vinculadas, ningún `UPDATE` (H31).
@@ -109,7 +109,7 @@ y devolver `previsto`, `cod`/`ide` provisionales (`cod_provisional`) y las filas
 - **R26.** Dentro de la transacción, bajo `sp_getapplock` (design §Applocks) y con `WITH (UPDLOCK,
 HOLDLOCK)`, el sistema debe reservar el `cod` (`MAX` numérico del prefijo + 1 en la empresa de la obra;
 índice único `(emp, tip, cod)`), los `ide` de `con`, `dcapro`, `ctrprodes`, `mov` y `log` (`MAX+1`) y leer
-el stock y PMP vigentes de cada (producto, almacén) y el `prepma` y stock global de cada producto.
+el stock y PMP vigentes de cada (producto, almacén), de los que salen `almcan`, `almpma` y `prepma` (R19).
 - **R27.** SI un `INSERT` choca con una clave única (alta simultánea del escritorio), ENTONCES el sistema
 debe repetir la transacción entera recalculando `cod`, `ide` y balances hasta `DOMAIN_WRITE_MAX_RETRIES`;
 agotados, 400 `colision_de_clave` y el ERP intacto.
@@ -136,10 +136,10 @@ repetido, partida y precio del `ctrpro`), el sistema debe producir filas iguales
 del clásico, salvo las diferencias de design §Equivalencia.
 - **R34.** El sistema debe cubrir R1-R33 con tests sin red ni BBDD (`test_f009_rN_*`), comparando el SQL
 carácter a carácter, con fase RED en R1, R8, R10, R11, R13b, R14, R15, R17-R19, R26-R28 y R30.
-- **R35.** MANUAL (humano): T0 (hasta T0b-quater hechas; **T0b-quinquies** `--solo M14` con M14e); dry-run
-clásico y extendido sobre `CTSU16/0206` (obra 0404); `commit:true` autorizado de **un** albarán extendido revisado
-en la UI (con `prepma`), repetición `idempotente` y anulación en la UI (nunca `DELETE`); tras el despliegue, solo
-lectura de la **primera alta y la primera devolución reales** del pipeline.
+- **R35.** MANUAL (humano): T0 (hecha, T0b a T0b-quinquies); dry-run clásico y extendido sobre `CTSU16/0206` (obra
+0404); `commit:true` autorizado de **un** albarán extendido revisado en la UI (`prepma` frente a un albarán del escritorio
+del mismo día y almacén), repetición `idempotente` y anulación en la UI (nunca `DELETE`); tras el despliegue, solo
+lectura de la **primera alta** (`prepma`) **y la primera devolución reales** del pipeline.
 - **R36.** El sistema debe actualizar en el mismo trabajo `azure-apps/sigrid_api.md` (§4, §4.1, §7.2, §7.5, §7.6,
 §8.6, §8.7, §10 con F-053, §13), el docstring de `sigrid_albaran` (H32), `docs/ARCHITECTURE.md` y `local.settings.sample.json`.
 

@@ -1,7 +1,7 @@
 <!-- progress/spec_F-009.md -->
-# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v8
+# Spec F-009 · Alta de albaranes de compra para el pipeline (PRE-1 de albaranes F-053) — v8.1
 
-Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7); **v8 del 2026-10-06** (T0b-ter, T0b-quater, contrato v7.1 y decisiones del humano; §v8). Rama
+Spec-author. v1 y v2 del 2026-10-01 (respuestas del humano a la PARADA 1); v3 del 2026-10-02 (T0); v4 del 2026-10-02 (respuestas a N1-N3); **v5 del 2026-10-05** (huecos de `contrato_albaranes.md` §5 y decisiones del humano; §v5); **v5.1** del mismo día (respuestas a N4-N12; §v5.1); **v6** del mismo día (repetición de T0 y decisiones del humano; §v6); **v7** del mismo día (T0b-bis y decisiones del humano; §v7); **v8 del 2026-10-06** (T0b-ter, T0b-quater, contrato v7.1 y decisiones del humano; §v8); **v8.1 del mismo día** (T0b-quinquies, cierre de T0 y retirada del script; §v8.1). Rama
 `feature/F-009-alta-albaran-compra` desde `dev` (2a5ac24). Estado `spec_ready`, `sdd`, rigor
 `critico`, prioridad 7 (antes que F-007 y F-008). Spec en `specs/F-009-alta-albaran-compra/`.
 **No se ha llamado a la API, ni a Azure, ni al SQL Server**: lo que depende de cómo trabaja el
@@ -10,6 +10,69 @@ escritorio de Sigrid queda como medición de solo lectura (T0) o como verificaci
 `bash harness/init.sh` en verde **con el venv del proyecto**. Desde una sesión con `VIRTUAL_ENV`
 heredado de otro repositorio sale en rojo (`azure.functions` ausente): el portero respeta un
 venv ya activado. No es un fallo del repo; se lanza sin esa variable.
+
+## v8.1 (T0c): resultado de T0b-quinquies (M14e, 2026-10-06), cierre de T0 y retirada del script
+
+Spec-author. Solo spec; sin llamar a la API, Azure ni el SQL Server. Fuente: el fichero de resultados del humano
+(`%TEMP%`, 2026-10-06 14:31; **no** se versiona: lleva datos de negocio). Aquí solo cifras agregadas y conclusiones.
+Definición de M14e: `impl_F-009_T0a_quinquies.md` (APPROVED en la segunda pasada: `review_F-009_T0a_quinquies.md`).
+
+### Resultado
+
+| M | Resultado agregado | Decisión en la v8.1 |
+|---|---|---|
+| M14e | Los 50 `mov` de albarán más recientes (7 albaranes, 6 productos). Media ponderada global con el stock anterior de todos los almacenes: **2 de 34 entradas (5,9 %)** y **4 de 16 devoluciones (25,0 %)**; sus variantes (stock global posterior, `canent − cansal`, `prc`) empatan; solo el stock del almacén, 0 %. Comprobaciones de la muestra al 100 % (almacén en `proalm`, cadena de `almcan`). El producto de la muestra (QA9999) tiene > 4 M unidades en 147 almacenes: una entrada de 25 apenas mueve la media global y el `prepma` real cambia en la tercera cifra | **Refutada** la media global (≥ 95 % exigido). Regla nueva (abajo) |
+| M14, M14c, M14d (repetidas) | `dcapro.prepma` = `mov.prepma` 100 % (8.734 líneas desde 2026-09); sin `mov`, 0 en el 99,5 % (2.914 de 2.930); `mov.prepma` = PMP del almacén antes de la entrada 9,7 % (842 de 8.670); = `prepma` del `mov` anterior o siguiente del producto 29,5 %; forma de pago y efecto del albarán anterior 94,2 % / 97,7 % | Sin cambios (R21, M14b); el 9,7 % se explica abajo |
+
+### Regla nueva de `prepma` (decisión del humano, «sí», 2026-10-06)
+
+`mov.prepma` (y `dcapro.prepma`, igual el 100 %) = **el `almpma` del último `mov` del mismo producto y almacén antes
+de la línea**: el PMP del almacén vigente en el momento del alta; encadenado si el albarán lleva varias líneas del
+mismo par; sin `mov` anterior, 0; sin `mov` (`tipmov` 0), `prepma` 0 como en la v8.
+
+- **Evidencia**: en el albarán más reciente de la muestra (5 `mov` consecutivos de QA9999 en un mismo almacén),
+  `prepma(n)` = `almpma(n-1)` en 4 de 4; coincide con la primera pasada de T0 (M14: «el del escritorio coincide con el
+  PMP vigente del almacén»).
+- **Por qué el histórico da poco** (M14c: 9,7 %): al entrar un albarán con fecha anterior, el escritorio recalcula los
+  `mov` posteriores (M10) y reescribe su `almpma`, pero el `prepma` queda congelado con el valor del alta. En el albarán
+  anterior de la muestra (ya recalculado) la igualdad no se da.
+- **Estado**: hipótesis **coherente con los datos, no demostrada sobre el histórico**. Verificación manual en **T22**
+  (primer commit autorizado: comparar con un albarán del escritorio dado de alta el mismo día en el mismo almacén) y
+  en **T24** (primera alta real: `prepma` frente al `almpma` del `mov` anterior; consulta en §Manuales). Si no
+  cuadra, solo difiere ese campo (no toca stock, importes ni medición): ficha correctiva.
+
+### Lo que se simplifica
+
+El valor ya lo lee L12 (último `mov` del producto y almacén, para el balance; E7 dentro, con `UPDLOCK`). Se retira
+todo lo que solo servía a la media global: **L12b** (`prepma` anterior del producto), **L12c** (stock global),
+**E7b** (su lectura dentro de la transacción **sin** `UPDLOCK`) y su riesgo, y la función **`siguiente_prepma`**
+(`siguiente_balance` devuelve también el PMP de partida). Desaparece la decisión (b) de §v8 «Preguntas abiertas».
+
+### Decisiones del humano aprobadas (2026-10-06)
+
+- (a) Campo `naturaleza` **retirado** (no se conserva «si viene, manda»).
+- (c) `cuacomcod` sin una única `cua` en la empresa del albarán ⇒ `naturaleza_no_valida` (configuración), sin código nuevo.
+- `tex` **vacío** en las sin vincular (§Reseteo).
+- (b) E7b sin `UPDLOCK`: **desaparece** con la simplificación.
+
+### Qué cambió en la spec
+
+| Cambio | Dónde |
+|---|---|
+| `prepma` = PMP de partida del almacén (hipótesis, verificación manual); fuera L12b-c, E7b, `siguiente_prepma` y su riesgo; descartada la media global | R19, R26, R35; design §Ficheros a crear, §`prepma`, L12, E7, §Flujo, §Condicionales, §Riesgos; tasks T4, T5, T10, T22, T24 |
+| T0 cerrada: §Condicionales solo con lo que se verifica a mano (T22-T24) | design §Condicionales; R35; tasks (precondición, T0a-quinquies, T0b-quinquies y T0c hechas) |
+| Script de mediciones y su prueba retirados (N3) en un commit propio de T0c; quedan en el historial | `scripts/medir_f009_t0.py`, `tests/test_f009_t0_script.py` |
+| Contrato (solo estado, sin tocar la forma de §2-§4, congelada para F-053): cabecera v8.1, §0, H11, H28 y la fila «Abierto» de §8 | `contrato_albaranes.md` |
+
+R21 y T6 no cambian de texto (`dcapro.prepma` = `mov.prepma`; `mov` con `prepma` de §`prepma`). §Equivalencia
+mantiene `prepma` como diferencia declarada (el clásico escribe el PMP resultante). Topes tras la v8.1
+(`python -m harness.tamano --feature F-009`): `requirements.md` 150/150 y `design.md` 249/250.
+
+### Preguntas abiertas y notas
+
+**Ninguna pregunta abierta.** Notas que siguen en pie (de §v8, sin cambios): el hallazgo para Administración (el
+maestro de `MA9999` lleva `MA1501`; fuera de F-009) y la nota de M19 (el «0 sin alta» no prueba que no haya altas sin
+`log`). F-053 no cambia. Siguiente: aprobación del humano de la v8.1 y PARADA 1 de implementación (T1).
 
 ## v8: resultados de T0b-ter y T0b-quater (2026-10-06) y decisiones del humano
 
@@ -490,6 +553,9 @@ ahora detecta el patrón del error 130 (agregado sobre subconsulta o sobre un `A
 
 ## T0: comando para PowerShell
 
+**Retirado en T0c (v8.1)**: `scripts/medir_f009_t0.py` y `tests/test_f009_t0_script.py` salieron del repositorio
+en un commit propio (`git rm`); siguen en el historial. Lo que sigue queda como registro.
+
 El script `scripts/medir_f009_t0.py` lanza M1-M15 como SELECT por `POST /api/sql/read` (nada de
 escrituras ni de endpoints de dominio; el propio cliente rechaza en local cualquier SQL que no
 sea `SELECT`/`WITH` de una sentencia). Lee `SIGRID_API_BASE_URL` y `SIGRID_API_FUNCTION_KEY` del
@@ -606,6 +672,11 @@ Dry-run **extendido** (T21; los `<...>` se leen antes del contrato y de las part
     { "referencia_linea": "3", "ctrpro_ide": <ide>, "cantidad": -1, "precio": 100.0, "partida": "<cod>" },
     { "referencia_linea": "4", "producto": "QA9999", "descripcion": "Prueba F-009 maquinaria", "unidad": "H", "cantidad": 1, "precio": 1.0 } ] }
 ```
+
+**`prepma` de la primera alta real (T24; T22 con el albarán de prueba)**, solo lectura, con su `referencia_externa`:
+`SELECT m.ide, m.proide, m.almide, m.prepma, (SELECT TOP 1 a.almpma FROM dbo.mov a WHERE a.proide = m.proide AND a.almide = m.almide AND a.ide < m.ide ORDER BY a.fechor DESC, a.ide DESC) AS pmp_anterior FROM dbo.mov m JOIN dbo.dca d ON d.ide = m.docide WHERE d.synckey = ? ORDER BY m.ide`
+→ cuadra si `prepma` = `pmp_anterior` (salvo que un albarán posterior con fecha anterior haya recalculado ese `mov`, M10).
+En T22, además, el `prepma` de un albarán del escritorio dado de alta el mismo día en el mismo almacén.
 
 **Primera devolución real (T24)**, solo lectura, con la `referencia_externa` de ese albarán:
 

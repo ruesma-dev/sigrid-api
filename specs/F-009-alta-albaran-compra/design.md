@@ -1,5 +1,5 @@
 <!-- specs/F-009-alta-albaran-compra/design.md -->
-# F-009 · Diseño (v8)
+# F-009 · Diseño (v8.1)
 
 Detalle campo a campo, casos de línea, códigos → estados de F-053 y ejemplos: [`contrato_albaranes.md`](contrato_albaranes.md).
 
@@ -24,7 +24,7 @@ salvo que también traiga `lineas_recibidas` ⇒ `AlbaranCompraError(codigo="pet
 | Fichero | Capa | Qué contiene |
 |---|---|---|
 | `domain/models/albaran_compra_models.py` | domain | `elegir_modo_albaran`, `LineaAlbaranIn`, `AlbaranCompraRequest` (validadores de R5-R6), `AvisoAlbaran`, `LineaResultado(AlbaranLinePreview)`, `FalloLinea`, `AlbaranCompraResponse(AddPurchaseAlbaranResponse)`, `AlbaranCompraError(ValueError)` con `codigo` cerrado y `lineas` opcional, `COLUMNAS_BANCARIAS`. **Importa** los modelos clásicos; no los edita |
-| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L15 (con L7b, L12b-c y L15a-c) y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `siguiente_prepma`, `estados_contrato`, `importe_linea`, `sufijo_analitica`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
+| `application/use_cases/albaran_compra_statements.py` | application | `AlbaranCompraStatements(database)`: SQL constante L1-L15 (con L7b y L15a-c) y E1-E12; puras `siguiente_cod`, `siguiente_balance`, `estados_contrato`, `importe_linea`, `sufijo_analitica`, `redondear_euros` y constructores de filas. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
 | `application/use_cases/create_albaran_compra_use_case.py` | application | `CreateAlbaranCompraUseCase(repository, settings, ahora_utc=..., reloj=...)` |
 | `tests/test_f009_caracterizacion.py` + `tests/fixtures/f009_caracterizacion.json` | — | §Caracterización |
 | `tests/test_f009_settings.py`, `_models.py`, `_statements.py`, `_use_case.py`, `_route.py`, `_equivalencia.py` | — | Ver `tasks.md` |
@@ -92,7 +92,7 @@ campo `naturaleza`** (v8, H34): el de la v7 se retira; mandarlo da 400 sin códi
   `lineas` leídas por `pos` (`indice` 0.., `pos`, `proide`, `cantidad`, `precio`, `total`, `paride`, `almide` y
   `referencia_linea` de `refent`, R30c); el resto de campos, vacíos (`{}`/`[]`).
 
-## Filas que se escriben (cifras de T0: `progress/spec_F-009.md` §v6-§v8)
+## Filas que se escriben (cifras de T0: `progress/spec_F-009.md` §v6-§v8.1)
 
 - **`con`**: clon de la plantilla (L5: mismo proveedor y empresa, H3) con `tip 14`, `emp` de la obra,
   `cod` ← E2, `res` ← `"<entres>. (<su_referencia>)"` recortado, `fec`, `est` 1 `PDT` en `conest` (M13).
@@ -129,14 +129,16 @@ sin el prefijo `MOD.` si lo lleva, entero si no (`MOD.CDSB37`, obra `0678` ⇒ `
 negocio: «códigos genéricos»): el escritorio imputa ~42 % de las MA9999 a `CDMA15` (`MA1501` del maestro); el alta
 automática, **todas** a `MA99`/`CDSB37`. Descartadas: §v6-§v7 de `progress/spec_F-009.md`, `pro.natide` y el campo `naturaleza`.
 
-## `prepma` (R19, R21) [M14e]
+## `prepma` (R19, R21)
 
-`mov.prepma` es el «Precio Medio Compra» **del producto** (M14d: no es el del `mov` anterior ni el del siguiente).
-`siguiente_prepma(prepma_ant, stock_ant, can, pre)` = `(prepma_ant·stock_ant + can·pre)/(stock_ant + can)` sin
-redondear; `prepma_ant` del último `mov` del producto (L12b; sin él, 0), `stock_ant` = suma del último `almcan` de
-cada almacén del producto (L12c); con `stock_ant + can` = 0, `prepma_ant`. Varias líneas del mismo producto se
-encadenan en orden. **Condicional a M14e**: ≥ 95 % ⇒ fijada; si no, se escribe igual como **mejor aproximación**,
-con riesgo declarado (§Riesgos) y verificación en T22 y T24.
+`mov.prepma` = el **PMP de partida** de su línea: el `almpma` del último `mov` del mismo producto y almacén (L12/E7;
+sin él, 0) o, si una línea anterior del albarán lleva ese par, el `almpma` resultante de esa línea (se encadenan como
+el balance). Lo devuelve `siguiente_balance` junto a `almcan`/`almpma`; sin lectura ni función propias. **Hipótesis
+coherente con los datos, no demostrada sobre el histórico**: en el albarán más reciente de M14e, `prepma(n)` =
+`almpma(n-1)` en 4 de 4 `mov` consecutivos, como apuntó la primera pasada de T0 (M14); el histórico da poco (M14c: 9,7 %)
+porque el escritorio recalcula los `mov` posteriores a un albarán con fecha anterior (M10) y reescribe su `almpma`,
+pero el `prepma` queda con el valor del alta. Verificación manual en T22 y T24. Descartada la media ponderada global
+del producto (M14e: 2 de 34 entradas y 4 de 16 devoluciones; `progress/spec_F-009.md` §v8.1).
 
 **Importes (R17; H14, H33)**: `redondear_euros(x)` = `Decimal(repr(x)).quantize(Decimal("0.01"), ROUND_HALF_UP)`;
 `tot` = `redondear_euros(cantidad·pre)`, `ivacuo` = `redondear_euros(tot·iva)`; test con el empate 2,675 → 2,68
@@ -172,9 +174,7 @@ aquí el `mov` se fecha en el alta y el albarán conserva su fecha; L12/E7 por `
   si hay uno, `SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro WHERE docide = ?
   ORDER BY pos` (R30c).
 - **L12** balance: `SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? ORDER BY
-  fechor DESC, ide DESC` (N1). **L12b** `SELECT TOP 1 prepma FROM dbo.mov WHERE proide = ? ORDER BY fechor DESC,
-  ide DESC`; **L12c** `SELECT ISNULL(SUM(x.almcan), 0) FROM (SELECT almcan, ROW_NUMBER() OVER (PARTITION BY almide
-  ORDER BY fechor DESC, ide DESC) AS n FROM dbo.mov WHERE proide = ?) x WHERE x.n = 1` (§`prepma`).
+  fechor DESC, ide DESC` (N1; sin fila, `(0, 0)`); de él salen `almcan`, `almpma` y `prepma` (§`prepma`).
 - **L13** `SELECT est FROM dbo.conest WHERE tip = ? AND est = ?`; `SELECT TOP (1) cod FROM dbo.usu WHERE
   cod = ?`. **L14** (dry-run) `cod` provisional = E2 sin bloqueos y `peek_next_ide` de las 5 tablas.
 - **L15a** `SELECT ide, cod, numemp, fecbaj, caagascod, cuacomcod FROM dbo.auxpronat WHERE cod IN (?, …)` (las del
@@ -185,8 +185,7 @@ aquí el `mov` se fecha en el alta y el albarán conserva su fecha; L12/E7 por `
 Dentro de `work(cursor)`, en orden: **E1** = L11 (sale sin escribir si aparece); **E2** `SELECT
 MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) WHERE emp = ? AND tip
 = ? AND cod LIKE ?` (`None` → 1); **E3-E6** `SELECT ISNULL(MAX(ide), 0) + 1 FROM
-dbo.<con|dcapro|ctrprodes|mov> WITH (UPDLOCK, HOLDLOCK)`; **E7** = L12 con `WITH (UPDLOCK, HOLDLOCK)` y **E7b** =
-L12b y L12c **sin** bloqueo de rango (§Riesgos); **E8** `INSERT INTO dbo.<tabla> (<columnas>) VALUES (?, …)`: `con` →
+dbo.<con|dcapro|ctrprodes|mov> WITH (UPDLOCK, HOLDLOCK)`; **E7** = L12 con `WITH (UPDLOCK, HOLDLOCK)`; **E8** `INSERT INTO dbo.<tabla> (<columnas>) VALUES (?, …)`: `con` →
 `dca` → `dcapro`×N → `ctrprodes`×M → `mov`×K; solo con vinculadas, **E9** `UPDATE dbo.ctrpro SET canser = canser
 + ? WHERE ide = ?`, **E10** `SELECT SUM(can), SUM(canser), SUM(canfac) FROM dbo.ctrpro WHERE docide = ?` y **E11**
 `UPDATE dbo.ctr SET estser = ?, estfac = ? WHERE ide = ?` (H31); **E11b** `log`: `MAX(ide)+1 WITH (UPDLOCK,
@@ -201,16 +200,17 @@ el clásico y `albaran-directo`; F-006 toma `_con` y `_log` en el mismo orden: s
 1. Tope de líneas y prefijo (R24, R29). Con `commit`: llaves, credenciales y base (R24).
 2. `ahora` (Madrid) una vez; L1-L5, L11 (R30 sale ya si aparece), L13.
 3. Por línea, en orden: L6-L10 y L15 (con caché) y validación (R12-R17); **todos** los fallos → `lineas_no_validas`.
-4. Construcción pura de filas con balances de L12-L12c → si dry-run, `previsto` con L14.
+4. Construcción pura de filas con balances de L12 → si dry-run, `previsto` con L14.
 5. Si commit, `run_in_write_transaction(work)`; `work` es **reentrante**: reconstruye las filas en cada
-   intento con `cod`, `ide` y balances de E2-E7b (fechas fijas); reintentos agotados → `colision_de_clave`.
+   intento con `cod`, `ide` y balances de E2-E7 (fechas fijas); reintentos agotados → `colision_de_clave`.
 6. Traza (R32) y respuesta.
 
 ## Condicionales
 
-**Cerradas** (cifras en `progress/spec_F-009.md` §v6-§v8): M3, M7, M9 (con `XA9999`), M11, M13, M14, M14b, M14c,
-M16, M16b-d, M17b, M18, M19 y P2-P4. **Abierta: M14e** (T0b-quinquies; §`prepma`, R19): ≥ 95 % ⇒ se fija tal cual;
-si no, se escribe igual como mejor aproximación, con riesgo declarado y verificación en T22/T24.
+**T0 cerrada**, ninguna medición pendiente (cifras en `progress/spec_F-009.md` §v6-§v8.1): M3, M7, M9 (con `XA9999`),
+M11, M13, M14, M14b-e, M16, M16b-d, M17b, M18, M19 y P2-P4. **Solo verificación manual**: `prepma` (hipótesis de
+§`prepma`) en T22 (frente a un albarán del escritorio del mismo día y almacén) y T24 (primera alta real); la primera
+devolución real (regla A, M5) en T24; y en T22-T23, lo revisable en la UI.
 
 ## Códigos (R1, R8, R9)
 
@@ -240,10 +240,10 @@ plantilla; H35), el `log` y el `mov` con `tipmov` 0 (R19).
   obra y plantilla en la de la lista; vacía cierra el modo; no se descartan obras de baja (N6).
 - **Naturaleza por configuración** (H34): el mapeo vacío cierra las sin vincular (`naturaleza_no_valida`); lista
   blanca y mapeo deben cubrir los mismos productos (T19). Corregir el maestro de `MA9999` es de Administración.
-- **`prepma`** [M14e]: si no llega al 95 %, puede diferir del que pondría el escritorio (PMP de compra del producto;
-  no toca stock, importes ni medición). E7b va **sin** `UPDLOCK`: el stock global abarca miles de `mov` por producto
-  genérico y bloquearlo escalaría a tabla; un alta simultánea del escritorio puede desviarlo. Coste de L12c: M14e.
+- **`prepma`** (hipótesis, §`prepma`): si el escritorio usa otra regla, solo difiere ese campo (no toca stock,
+  importes ni medición) y T22/T24 lo detectan. Sale del balance de E7, ya bajo `UPDLOCK`: sin lecturas nuevas.
 - **Precio negativo** (H8): segunda barrera tras sv9, fallo de línea con código (no `ge=0`). **Stock negativo**: aviso.
 - **Descartado**: ruta nueva; modo por valores; meter el modo en `CreatePurchaseAlbaranUseCase`;
   reutilizar `albaran-directo`; plantilla de otro proveedor o empresa; `dcapropar` (M7); recibir almacén,
-  centro, analítica o naturaleza del llamante; campo `almacen` y `fecha_no_valida` (v5.1); las de §Analítica.
+  centro, analítica o naturaleza del llamante; campo `almacen` y `fecha_no_valida` (v5.1); las de §Analítica;
+  la media ponderada global de `prepma` (M14e) con sus lecturas del stock global sin `UPDLOCK`.

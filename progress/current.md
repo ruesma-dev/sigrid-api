@@ -1,20 +1,21 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 spec v8 (2026-10-06), `spec_ready` — espera la validación del humano y T0b-quinquies (M14e)
+## F-009 spec v8.1 (2026-10-06), `spec_ready` — T0 terminada; espera la aprobación del humano (PARADA 1)
 
-**v8 (spec-author):** T0b-ter y T0b-quater volcadas ([`spec_F-009.md`](spec_F-009.md) §v8, tabla M → resultado →
-decisión). Cerradas: M9 de `XA9999` (`tipmov` 1), M14c (`prepma` 0 sin `mov`), M16c/M16d (analítica de las sin
-vincular: `caa` del centro de la línea con `<obra>.<caagascod sin MOD.>`), P2 (`numemp` ∈ {0, empresa}), P3 y P4
-(`cueide` de la `cua` del `cuacomcod`) y M19 (H35: las vinculadas copian `cod2`, `dncide` y `dncproide` del
-`ctrpro`). Decisiones del humano aplicadas: **H34** (naturaleza por el mapeo de la sexta App Setting
-`SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`, nunca del maestro; en MA9999 el ~42 % que el escritorio lleva a `CDMA15`
-irá a `CDSB37`) y la regla del contrato («solo se toca para actualizar consumos», escrita en su cabecera). Campo
-opcional `naturaleza` de la v7 **retirado**. Contrato §8 entero absorbido. **Abierto:** el valor de `mov.prepma`
-(media ponderada global del producto), regla escrita condicional a **M14e**. Topes: 150/150 y 249/250.
-**Siguiente:** implementer, T0a-quinquies (M14e en el script; ya en curso en paralelo); humano, **T0b-quinquies**
-`--solo M14`; después T0c (v8.1 y retirada del script). **Para validar por el humano** (§v8, «Preguntas abiertas»):
-campo `naturaleza` retirado; E7b sin `UPDLOCK`; `cua` ausente ⇒ `naturaleza_no_valida`; `tex` vacío (heredada).
+**v8.1 (spec-author, T0c):** T0b-quinquies volcada ([`spec_F-009.md`](spec_F-009.md) §v8.1). **M14e refuta la media
+ponderada global** del producto (2 de 34 entradas, 4 de 16 devoluciones). Regla nueva aprobada por el humano:
+`mov.prepma` (y `dcapro.prepma`) = **el `almpma` del último `mov` del mismo producto y almacén antes de la línea** (el
+PMP del almacén vigente en el alta; encadenado en el albarán; 0 sin `mov` anterior), hipótesis coherente con los datos
+y no demostrada sobre el histórico ⇒ verificación manual en **T22** (frente a un albarán del escritorio del mismo día y
+almacén) y **T24** (primera alta real). Simplificación: fuera L12b-c, E7b (y su lectura sin `UPDLOCK`) y
+`siguiente_prepma`; el valor sale de L12/E7. Aprobadas por el humano las decisiones de §v8: campo `naturaleza`
+retirado, `cuacomcod` sin una única `cua` ⇒ `naturaleza_no_valida` y `tex` vacío en las sin vincular. **T0 cerrada**,
+sin mediciones pendientes ni preguntas abiertas; §Condicionales solo con lo manual (T22-T24). **Script de T0 retirado**
+(`scripts/medir_f009_t0.py` y su prueba, commit propio; quedan en el historial). Contrato: solo estado (cabecera, §0,
+§5 y §8), sin tocar la forma de §2-§4 (congelada para F-053); con la Parte A de las propuestas de F-053 (H8, H17, H28,
+H29 y H30 cerrados por el humano el 2026-10-06). Topes: 150/150 y 249/250. **Siguiente:** el humano aprueba la v8.1 y
+el líder hace la PARADA 1 de implementación (T1, caracterización sobre `dev`) antes de pasar a `in_progress`.
 
 *(Lo que sigue es el estado de la v7, ya superado por la v8.)*
 
