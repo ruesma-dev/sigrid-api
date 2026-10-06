@@ -16,9 +16,21 @@ usuario cambia la naturaleza: la muestra apunta a la del producto, contra la dec
 sin medir), P6 (F-053). **Respuestas del humano (2026-10-05):** `XA9999` es decisión suya
 (confirmado); P1 (M14c), P2, P3 y P5 se miden en la misma pasada. **T0a-ter hecha** (M16c, M14c,
 `XA9999`, `numemp`; `38d3571`, `ade7b47`, `bda26b1`; APPROVED en la segunda pasada:
-[`review_F-009_T0a_ter.md`](review_F-009_T0a_ter.md)). **Siguiente, del humano (T0b-ter):**
-`--solo M9 M14 M16` (comando en [`impl_F-009_T0a_ter.md`](impl_F-009_T0a_ter.md)) → T0c (v8 y
-retirada del script). **Ojo:** la sesión del agente de albaranes editó `contrato_albaranes.md` en este
+[`review_F-009_T0a_ter.md`](review_F-009_T0a_ter.md)). **T0b-ter hecha** (2026-10-06, fichero
+`%TEMP%\f009_t0_20261006_005622.txt`): `XA9999` con `tipmov` 1; `cueide` = `cuacomcod` de la
+naturaleza 97,9 % (P3 y P4 cerrados); `numemp` 0 en todas (P2); `prepma` 0 sin `mov`; analítica con
+la regla de la v7 solo 86,8 % (XA9999 0 %: su `caagascod` no lleva `.`; MA9999 con partida 92,3 %);
+`mov.prepma` sin explicar (es el «Precio Medio Compra» del producto, no del almacén). Negocio
+(correo del director de Administración y Control de Costes): `cod2` lo pone el jefe de obra en la
+planificación de compras; naturalezas específicas «a efectos prácticos no se usan». **T0a-quater
+hecha** (M14d, M16d, M19 nueva; `aa599f0`, `8e6e298`, `7f350bb`, `2b7a85f`; APPROVED en la segunda
+pasada: [`review_F-009_T0a_quater.md`](review_F-009_T0a_quater.md)). **Siguiente, del humano
+(T0b-quater):** `--solo M14 M16 M19` (comando en
+[`impl_F-009_T0a_quater.md`](impl_F-009_T0a_quater.md)) → T0c (v8 y retirada del script).
+**Pendiente del humano:** confirmar H34 (naturaleza por mapeo producto → naturaleza `MA99`/`QA99`/
+`XA99`) y H35 (las vinculadas copian `cod2`/`dncide`/`dncproide` del `ctrpro`), que trae el contrato
+v7.1 (`2631b1a`, **segundo commit de la sesión de albaranes en este repo**); y si albaranes debe
+proponer en un fichero aparte en vez de editar el contrato. **Ojo:** la sesión del agente de albaranes editó `contrato_albaranes.md` en este
 repo (`844ebc8`, v6.1); la v7 lo integró. El contrato es de sigrid-api: albaranes debería proponer, no
 editar.
 
