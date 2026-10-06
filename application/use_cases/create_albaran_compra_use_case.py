@@ -18,6 +18,9 @@ de lectura del repositorio); solo el commit abre una transaccion de escritura.
 """
 from __future__ import annotations
 
+import json
+import logging
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -58,6 +61,9 @@ from domain.models.albaran_compra_models import (
 )
 from domain.models.sql_models import SqlReadRequest
 
+logger = logging.getLogger(__name__)
+
+_ENDPOINT = "sigrid/albaran"
 _AVISO_PROVISIONAL = (
     "DRY-RUN: no se ha escrito nada. El cod y los ide son provisionales (MAX+1 sin "
     "reservar); en el commit se reservan bajo bloqueo."
@@ -181,15 +187,60 @@ class CreateAlbaranCompraUseCase:
         repository: Any,
         settings: Any,
         ahora_utc: Callable[[], datetime] = _ahora_utc,
+        reloj: Callable[[], float] = time.monotonic,
     ) -> None:
         self._repo = repository
         self._settings = settings
         self._ahora_utc = ahora_utc
+        self._reloj = reloj
 
     # ------------------------------------------------------------------ #
-    # Orquestacion
+    # Orquestacion y traza (R32)
     # ------------------------------------------------------------------ #
     def run(self, request: AlbaranCompraRequest) -> AlbaranCompraResponse:
+        """Una traza por peticion al terminar, con exito o sin el: obra,
+        contrato, referencia, `commit`, `estado`, `cod`, n de lineas, codigos y
+        duracion. NUNCA textos (descripciones, mensajes, `su_referencia`),
+        precios, importes ni datos bancarios: solo identificadores y codigos."""
+        arranque = self._reloj()
+        traza: dict[str, Any] = {
+            "endpoint": _ENDPOINT,
+            "modo": "extendido",
+            "database": request.database,
+            "obra": request.cod_obra,
+            "contrato": request.cod_contrato,
+            "referencia": request.referencia_externa,
+            "commit": request.commit,
+            "n_lineas": len(request.lineas),
+        }
+        try:
+            respuesta = self._ejecutar(request)
+        except AlbaranCompraError as exc:
+            traza.update(resultado="error", codigo=exc.codigo,
+                         codigos=[fallo.codigo for fallo in exc.lineas])
+            self._trazar(traza, arranque)
+            raise
+        except Exception as exc:
+            # El tipo y no el mensaje: puede citar valores de la peticion.
+            traza.update(resultado="excepcion", codigo=type(exc).__name__, codigos=[])
+            self._trazar(traza, arranque)
+            raise
+        traza.update(
+            resultado="ok",
+            estado=respuesta.estado,
+            cod=respuesta.cod,
+            con_ide=respuesta.con_ide,
+            codigos=[aviso.codigo for aviso in respuesta.avisos]
+            + [aviso.codigo for linea in respuesta.lineas for aviso in linea.avisos],
+        )
+        self._trazar(traza, arranque)
+        return respuesta
+
+    def _trazar(self, traza: dict[str, Any], arranque: float) -> None:
+        traza["duracion_ms"] = round((self._reloj() - arranque) * 1000, 1)
+        logger.info(json.dumps(traza, ensure_ascii=False, default=str))
+
+    def _ejecutar(self, request: AlbaranCompraRequest) -> AlbaranCompraResponse:
         # 1. Guardas sin leer la base.
         self._comprobar_guardas(request)
         sentencias = AlbaranCompraStatements(database=request.database)

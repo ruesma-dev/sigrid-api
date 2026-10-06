@@ -9,6 +9,9 @@ los dobles de `f009_dobles.py`, que reconocen cada sentencia por su SQL exacto.
 """
 from __future__ import annotations
 
+import json
+import logging
+import time
 from typing import Any
 
 import pytest
@@ -1223,3 +1226,124 @@ def test_f009_r18_la_devolucion_no_supera_lo_pendiente() -> None:
     respuesta, _ = ejecutar([vinculada("A", ctrpro_ide=9002, cantidad=-1.0, precio=3.0)])
     # Sin `mov` previo del 56 en el 70: stock 0 -> -1. Ni supera ni deja canser < 0.
     assert avisos(respuesta.lineas[0]) == ["stock_negativo"]
+
+
+# =====================================================================================
+# T15 · R32: una traza por petición, sin textos, precios ni datos bancarios
+# =====================================================================================
+
+_LOGGER = "application.use_cases.create_albaran_compra_use_case"
+
+#: Lo que la petición y la plantilla traen y ninguna traza puede llevar.
+_PROHIBIDOS = ("Arena de rio", "m3", "A-77", "2.675", "10.5", "ES12", "ES34",
+               "PROVEEDOR PRUEBA SL", "B12345678", "DRY-RUN", "Escritura")
+
+
+class RelojDoble:
+    def __init__(self, *marcas: float) -> None:
+        self.marcas = list(marcas)
+
+    def __call__(self) -> float:
+        return self.marcas.pop(0)
+
+
+def trazar(
+    caplog: pytest.LogCaptureFixture,
+    lineas: list[dict[str, Any]] | None = None,
+    *,
+    repo: RepositorioDoble | None = None,
+    settings: SettingsDoble | None = None,
+    **cambios: Any,
+) -> tuple[Any, list[dict[str, Any]]]:
+    caso = CreateAlbaranCompraUseCase(
+        repo or RepositorioDoble(), settings or SettingsDoble(), ahora_utc=lambda: AHORA,
+        reloj=RelojDoble(100.0, 100.25),
+    )
+    with caplog.at_level(logging.DEBUG, logger=_LOGGER):
+        try:
+            resultado: Any = caso.run(peticion(lineas, **cambios))
+        except Exception as exc:  # noqa: BLE001 - el test mira la traza de cualquier fallo
+            resultado = exc
+    registros = [r for r in caplog.records if r.name == _LOGGER]
+    assert [r.levelno for r in registros] == [logging.INFO]
+    for prohibido in _PROHIBIDOS:
+        assert prohibido not in caplog.text, prohibido
+    return resultado, [json.loads(r.getMessage()) for r in registros]
+
+
+_BASE_TRAZA = {
+    "endpoint": "sigrid/albaran", "modo": "extendido", "database": "ruesma", "obra": "0404",
+    "contrato": "CTSU16/0206", "referencia": "ALB-1",
+}
+
+
+def test_f009_r32_traza_de_una_previa(caplog: pytest.LogCaptureFixture) -> None:
+    lineas = [vinculada("A", ctrpro_ide=9002, cantidad=-1.0, precio=3.0), sin_vincular()]
+    respuesta, trazas = trazar(caplog, lineas)
+    assert trazas == [{
+        **_BASE_TRAZA, "commit": False, "n_lineas": 2, "resultado": "ok", "estado": "previsto",
+        "cod": respuesta.cod, "con_ide": respuesta.con_ide,
+        "codigos": ["cod_provisional", "stock_negativo"], "duracion_ms": 250.0,
+    }]
+    assert respuesta.cod.startswith("AC26/")
+
+
+def test_f009_r32_traza_de_un_commit(caplog: pytest.LogCaptureFixture) -> None:
+    respuesta, trazas = trazar(caplog, [sin_vincular()], commit=True)
+    assert respuesta.estado == "creado"
+    assert trazas == [{
+        **_BASE_TRAZA, "commit": True, "n_lineas": 1, "resultado": "ok", "estado": "creado",
+        "cod": respuesta.cod, "con_ide": 2900011, "codigos": [], "duracion_ms": 250.0,
+    }]
+
+
+def test_f009_r32_traza_de_un_idempotente(caplog: pytest.LogCaptureFixture) -> None:
+    repo = RepositorioDoble({"referencia": [_EXISTENTE], "lineas_del_existente": _LINEAS_EXISTENTE})
+    _respuesta, trazas = trazar(caplog, [vinculada()], repo=repo)
+    assert trazas == [{
+        **_BASE_TRAZA, "commit": False, "n_lineas": 1, "resultado": "ok",
+        "estado": "idempotente", "cod": "AC26/15000", "con_ide": 2800001, "codigos": [],
+        "duracion_ms": 250.0,
+    }]
+
+
+def test_f009_r32_traza_de_un_error_de_cabecera(caplog: pytest.LogCaptureFixture) -> None:
+    exc, trazas = trazar(caplog, repo=RepositorioDoble({"obra": []}), cod_contrato=None,
+                         lineas=[sin_vincular()])
+    assert isinstance(exc, AlbaranCompraError)
+    assert trazas == [{
+        **_BASE_TRAZA, "contrato": None, "commit": False, "n_lineas": 1, "resultado": "error",
+        "codigo": "obra_no_encontrada", "codigos": [], "duracion_ms": 250.0,
+    }]
+
+
+def test_f009_r32_traza_de_lineas_no_validas_con_sus_codigos(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lineas = [vinculada("A", ctrpro_ide=1), sin_vincular("B", producto="SM9999", precio=-2.675)]
+    exc, trazas = trazar(caplog, lineas)
+    assert isinstance(exc, AlbaranCompraError)
+    assert trazas == [{
+        **_BASE_TRAZA, "commit": False, "n_lineas": 2, "resultado": "error",
+        "codigo": "lineas_no_validas",
+        "codigos": ["linea_no_es_del_contrato", "producto_no_permitido", "precio_negativo"],
+        "duracion_ms": 250.0,
+    }]
+    assert all(fallo.mensaje not in caplog.text for fallo in exc.lineas)
+
+
+def test_f009_r32_traza_de_lo_inesperado_con_el_tipo_y_sin_el_mensaje(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    exc, trazas = trazar(caplog, repo=RepositorioDoble(truncar_en="obra"))
+    assert isinstance(exc, ValueError) and not isinstance(exc, AlbaranCompraError)
+    assert trazas == [{
+        **_BASE_TRAZA, "commit": False, "n_lineas": 1, "resultado": "excepcion",
+        "codigo": "ValueError", "codigos": [], "duracion_ms": 250.0,
+    }]
+    assert "truncada" not in caplog.text
+
+
+def test_f009_r32_el_reloj_por_defecto_es_monotonic() -> None:
+    caso = CreateAlbaranCompraUseCase(RepositorioDoble(), SettingsDoble())
+    assert caso._reloj is time.monotonic
