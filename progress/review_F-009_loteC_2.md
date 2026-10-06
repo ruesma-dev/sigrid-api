@@ -18,17 +18,10 @@ en este trozo es N/A justificado y será exigible al cierre. Para compensarlo, a
   `-k "r26 or r27 or r28"` da `15 failed, 132 deselected`; el `-k` ancho del informe, `29 failed, 4 passed, 114
   deselected`. Las dos coinciden con el informe, y los 4 que pasan son los que él dice.
 - **RM4, mutantes manuales del camino de commit** (copia de HEAD en el scratchpad, `test_f009_use_case.py` y
-  `test_f009_equivalencia.py`): **15/15 MUERTOS**. Los mutantes:
-  - `if vinculadas:` → `True`, y E5 reservado siempre.
-  - `_es_colision_de_clave` → `False`.
-  - `cuantas != esperadas` → `>`, y → `<`.
-  - E7 ignorado, y `ide` del `log` sin poner.
-  - Sin `timeout`, y sin comprobar la clave de escritura.
-  - Servido = 0 en `_estados`, y `estser`/`estfac` cruzados.
-  - `abs(cantidad)` en E9, y lista de bases vacía que abre.
-  - `almcan <= 0`, y relectura de `mov` con `len(dcapro)`.
-
-  Un decimosexto mutante, que solo tocaba un comentario, era el control y quedó vivo, como debía.
+  `test_f009_equivalencia.py`): **15/15 MUERTOS**: `if vinculadas:` → `True`; E5 siempre; `_es_colision_de_clave`
+  → `False`; `cuantas != esperadas` → `>` y → `<`; E7 ignorado; `ide` del `log` sin poner; sin `timeout`; sin clave
+  de escritura; servido 0 en `_estados`; `estser`/`estfac` cruzados; `abs(cantidad)` en E9; lista de bases vacía que
+  abre; `almcan <= 0`; relectura de `mov` con `len(dcapro)`. El control (solo un comentario) quedó vivo, como debía.
 - Dorado intacto: `git log -- tests/fixtures/f009_caracterizacion.json` da solo `91b929d` y `783f2d1`.
 - `git diff dev..HEAD` **vacío** en el clásico, `albaran-directo` y sus modelos, `infrastructure/` (incluido
   `security/`), `function_app.py` y `.env`. `.env` no está versionado.
@@ -56,10 +49,9 @@ en este trozo es N/A justificado y será exigible al cierre. Para compensarlo, a
      un choque da `IntegrityError` y se reintenta.
    - El `HOLDLOCK` de E7 cubre el rango de `pafhi` (`proide`, `almide`, `fechor`, `ide`): un `mov` del mismo par queda
      bloqueado hasta nuestro `COMMIT`. Lo residual, en O5. **OK.**
-4. **Reintento (R27, decisión 12).** `_es_colision_de_clave` (`:951-954`) es la de F-006. Tres casos probados:
-   - El reintento recalcula `cod`, `ide` y balance: `AC26/15954`, `dcapro` 8000021, `almcan` 22.
-   - Agotados los reintentos: `colision_de_clave`, con `__cause__` `IntegrityError` y 4 cursores.
-   - `RuntimeError`: sube tal cual, con 1 cursor. **OK** (ver O3).
+4. **Reintento (R27, decisión 12).** `_es_colision_de_clave` (`:951-954`) es la de F-006. Probado: el reintento
+   recalcula `cod`, `ide` y balance (`AC26/15954`, `dcapro` 8000021, `almcan` 22); agotados, `colision_de_clave` con
+   `__cause__` `IntegrityError` y 4 cursores; un `RuntimeError` sube tal cual, con 1 cursor. **OK** (ver O3).
 5. **Relecturas (R28)**, E12 (`:552-566`).
    - Un fallo de cuadre lanza `filas_afectadas_inesperadas` dentro de `work`: hay `rollback` y no se reintenta.
    - El doble contesta con lo **realmente insertado** en el intento (`f009_dobles.py:271-273`).
@@ -81,24 +73,20 @@ en este trozo es N/A justificado y será exigible al cierre. Para compensarlo, a
    - Diferencia exacta: `dca.synckey`, `dcapro` {`prepma`, `refent`, `cod2`, `dncide`, `dncproide`} y `mov` {`fec`,
      `fechor`, `prepma`}. Todas declaradas en design §Equivalencia v8.2, y `DECLARADAS` rechaza cualquier otra.
    - Con la fecha de hoy solo queda `prepma`. **OK.**
-10. **Tests y entorno.**
-    - El doble reconoce el SQL **exacto** del constructor y falla con cualquier otro.
-    - RED real en R26-R28, reproducida.
-    - Ficheros prohibidos sin tocar e `init.sh` en verde. **OK.**
+10. **Tests y entorno.** El doble reconoce el SQL **exacto** del constructor y falla con cualquier otro; RED real en
+    R26-R28, reproducida; ficheros prohibidos sin tocar; `init.sh` en verde. **OK.**
 
 ## Checkpoints
 
-- **C1** [x] `init.sh` exit 0; ficheros del arnés presentes.
-- **C2** [x] una `in_progress` · [x] rama correcta · [x] `current.md` al día (`699ba6f`) · [x] `history.md` (sin
-  `done` nueva).
+- **C1** [x] `init.sh` exit 0; ficheros del arnés. **C2** [x] una `in_progress` · [x] rama correcta · [x]
+  `current.md` al día (`699ba6f`) · [x] `history.md` (sin `done` nueva).
 - **C3**
   - [x] Hexagonal: sin `pyodbc` en `application/`; `IntegrityError` se reconoce por nombre.
   - [x] Ruta en la primera línea. [x] Sin `print`, TODO ni secretos (el doble usa credenciales falsas y nombradas así).
     Sin dependencias nuevas.
   - [x] Base `ruesma`. [x] `cod`/`res`/`fec`/`tip`/`est` en `con`.
   - [x] Totales, `canser`, `estser/estfac` y `mov`/PMP recalculados. [x] `est` contra `conest`. [x] SQL con `?`.
-- **C3 bis** N/A: no toca `docs/referencia/`.
-- **C4** [x] Requisitos del trozo trazados (tabla de cobertura) · [x] sin red ni BBDD · [x] manuales T19-T24 listados.
+- **C3 bis** N/A: no toca `docs/referencia/`. **C4** [x] Requisitos del trozo trazados (tabla de cobertura) · [x] sin red ni BBDD · [x] manuales T19-T24 listados.
 - **C4 bis**
   - [x] `rigor` `critico`. [x] RED de R26-R28 real y **reproducida**; T11 y T12 no la piden (R34). [x] Cobertura
     100 %.
@@ -126,9 +114,7 @@ en este trozo es N/A justificado y será exigible al cierre. Para compensarlo, a
 | R28 | `r28_relecturas_por_clave`, `r28_si_no_cuadran_rollback_con_codigo` (×6) |
 | R33 | `test_f009_equivalencia.py`: `r33_mismas_filas_*_salvo_las_declaradas`, `r33_con_la_fecha_de_hoy_*` |
 
-## Cambios requeridos
-
-Ninguno.
+## Cambios requeridos: ninguno.
 
 ## Observaciones (no bloquean)
 
