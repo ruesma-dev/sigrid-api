@@ -422,6 +422,25 @@ def test_f009_t13_build_dependencies_cablea_el_caso_de_uso_extendido(
     assert deps[6]._repo is deps[1]
 
 
+@pytest.mark.parametrize(
+    "funcion", ["sql_read", "sql_write", "sigrid_contrato_lineas", "documents_read"]
+)
+def test_f009_t13_las_demas_rutas_desempaquetan_la_tupla_de_ocho(
+    monkeypatch: pytest.MonkeyPatch, funcion: str
+) -> None:
+    """Con la tupla de ocho, cada ruta llega a validar su modelo (`{}` da el 400
+    de Pydantic); si desempaquetara siete, saldría un `ValueError` («too many
+    values to unpack»), también 400 pero de otro tipo, en todas las peticiones."""
+    monkeypatch.setattr(function_app, "build_dependencies", lambda: (None,) * 8)
+    ruta = getattr(function_app, funcion)._function.get_user_function()
+    respuesta = ruta(func.HttpRequest(
+        method="POST", url="/api/x", body=b"{}", headers={"Content-Type": "application/json"},
+    ))
+    cuerpo = json.loads(respuesta.get_body().decode("utf-8"))
+    assert respuesta.status_code == 400
+    assert cuerpo["details"]["type"] == "ValidationError"
+
+
 def test_f009_h32_el_docstring_de_sigrid_albaran_ya_no_dice_que_replica_todas_las_lineas() -> None:
     doc = function_app.sigrid_albaran._function.get_user_function().__doc__ or ""
     assert "TODAS las lineas" not in doc
