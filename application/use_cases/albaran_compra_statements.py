@@ -19,6 +19,8 @@ de la fila, cada una validada como identificador y entre corchetes; `mov`,
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from application.use_cases.parte_reclamacion_statements import LOG_COLUMNAS
@@ -30,6 +32,13 @@ TIP_ALBARAN = 14
 TIP_CONTRATO = 44
 TIP_OBRA = 42
 TIP_PRODUCTO = 3
+
+#: Prefijo de la serie del albaran de compra: `AC<aa>/` del anio de la fecha.
+PREFIJO_SERIE = "AC"
+
+#: Tolerancia de precio frente al `ctrpro` (H14, M4) y centimo de euro (H33).
+TOLERANCIA_PRECIO = Decimal("0.0001")
+_CENTIMO = Decimal("0.01")
 
 #: Estado inicial del albaran: `est` 1 (`PDT`), que debe estar en `dbo.conest` (R22).
 EST_INICIAL = 1
@@ -165,6 +174,142 @@ def _parametros_de_serie(emp: int, prefijo: str) -> list[Any]:
     """Parametros de L14 y E2: donde empieza el numero tras el prefijo, la
     empresa, el tipo y el `LIKE` del prefijo (`AC<aa>/` no lleva comodines)."""
     return [len(prefijo) + 1, emp, TIP_ALBARAN, prefijo + "%"]
+
+
+# =====================================================================================
+# Funciones puras (T5)
+# =====================================================================================
+
+
+def prefijo_de_serie(fecha: int) -> str:
+    """`AC<aa>/` del anio de `fecha` (AAAAMMDD, la del albaran; R22)."""
+    return f"{PREFIJO_SERIE}{(fecha // 10000) % 100:02d}/"
+
+
+def siguiente_cod(prefijo: str, maximo: int | None) -> str:
+    """El siguiente `cod` de la serie a partir del MAX numerico de E2/L14
+    (`None` si no hay ninguno). Sin ceros a la izquierda, como el clasico."""
+    return f"{prefijo}{(maximo or 0) + 1}"
+
+
+def _decimal(valor: float | Decimal) -> Decimal:
+    """`Decimal` de lo que se ve: `repr` del float, no su binario (2,675 es
+    2,675 y no 2,67499999...)."""
+    return valor if isinstance(valor, Decimal) else Decimal(repr(valor))
+
+
+def redondear_euros(valor: float | Decimal) -> Decimal:
+    """A 2 decimales con `ROUND_HALF_UP` (H33): 2,675 -> 2,68."""
+    return _decimal(valor).quantize(_CENTIMO, rounding=ROUND_HALF_UP)
+
+
+def importe_linea(cantidad: float, precio: float, iva: float) -> tuple[Decimal, Decimal]:
+    """R17: `tot` = cantidad·precio y `ivacuo` = tot·iva, cada uno redondeado
+    a 2 decimales; `iva` es la fraccion de `dbo.iva` (M11). El producto se hace
+    en `Decimal`, sin pasar por el binario."""
+    tot = redondear_euros(_decimal(cantidad) * _decimal(precio))
+    return tot, redondear_euros(tot * _decimal(iva))
+
+
+def sumar_importes(importes: Sequence[tuple[Decimal, Decimal]]) -> dict[str, float]:
+    """Totales de la cabecera (`totbas`, `totiva`, `totdoc`) a partir de los
+    `(tot, ivacuo)` de las lineas, sumados en `Decimal`."""
+    totbas = sum((tot for tot, _ in importes), Decimal(0))
+    totiva = sum((ivacuo for _, ivacuo in importes), Decimal(0))
+    return {"totbas": float(totbas), "totiva": float(totiva), "totdoc": float(totbas + totiva)}
+
+
+def precio_coincide(precio: float, pre_contrato: float) -> bool:
+    """H14: el precio pedido es el del `ctrpro` si difiere <= 0,0001 (M4)."""
+    return abs(_decimal(precio) - _decimal(pre_contrato)) <= TOLERANCIA_PRECIO
+
+
+@dataclass(frozen=True)
+class Balance:
+    """Balance de UN `mov`: stock y PMP de partida y resultantes (R19)."""
+
+    stock_anterior: float
+    pmp_anterior: float
+    almcan: float
+    almpma: float
+
+    @property
+    def prepma(self) -> float:
+        """`mov.prepma` (y `dcapro.prepma`): el PMP de PARTIDA del almacen, el
+        `almpma` del `mov` anterior del mismo producto y almacen (design
+        §`prepma`, v8.1; hipotesis con verificacion manual en T22/T24)."""
+        return self.pmp_anterior
+
+
+def siguiente_balance(
+    anterior: tuple[float, float] | None, cantidad: float, pre: float
+) -> Balance:
+    """
+    R19: `almcan` = stock + can; `almpma` = (stock·pma + can·pre)/(stock + can)
+    sin redondear, y con `stock + can` = 0 se conserva el PMP. Sin `mov`
+    anterior, `(0, 0)`. Las devoluciones (cantidad < 0) usan la MISMA formula:
+    regla A, entrada con `canent` < 0 (M5, R18).
+    """
+    stock, pma = anterior if anterior is not None else (0.0, 0.0)
+    almcan = stock + cantidad
+    almpma = pma if almcan == 0 else (stock * pma + cantidad * pre) / almcan
+    return Balance(stock_anterior=stock, pmp_anterior=pma, almcan=almcan, almpma=almpma)
+
+
+def encadenar_balances(
+    movimientos: Sequence[tuple[int, int, float, float]],
+    vigentes: Mapping[tuple[int, int], tuple[float, float]],
+) -> list[Balance]:
+    """
+    Los balances de los `mov` del albaran, en su orden. `movimientos` son
+    `(proide, almide, cantidad, pre)`; `vigentes`, el `(almcan, almpma)` de L12/E7
+    por (producto, almacen) (sin entrada: sin `mov` anterior). Si dos lineas
+    llevan el mismo par, la segunda parte del resultado de la primera. No toca
+    `vigentes`.
+    """
+    actuales: dict[tuple[int, int], tuple[float, float]] = dict(vigentes)
+    balances: list[Balance] = []
+    for proide, almide, cantidad, pre in movimientos:
+        balance = siguiente_balance(actuales.get((proide, almide)), cantidad, pre)
+        actuales[(proide, almide)] = (balance.almcan, balance.almpma)
+        balances.append(balance)
+    return balances
+
+
+_PREFIJO_ANALITICA = "MOD."
+
+
+def sufijo_analitica(caagascod: str | None) -> str:
+    """R15: el `caagascod` de la naturaleza, recortado y sin el prefijo `MOD.`
+    si lo lleva; entero si no (M16d). Vacio si no hay."""
+    sufijo = (caagascod or "").strip()
+    if sufijo.startswith(_PREFIJO_ANALITICA):
+        sufijo = sufijo[len(_PREFIJO_ANALITICA):].strip()
+    return sufijo
+
+
+def codigo_analitica(cod_obra: str, caagascod: str | None) -> str | None:
+    """`<RTRIM(cod_obra)>.<sufijo>` de la `caa` de una sin vincular (R15), o
+    `None` si el sufijo sale vacio (`analitica_no_resuelta`)."""
+    sufijo = sufijo_analitica(caagascod)
+    return f"{cod_obra.rstrip()}.{sufijo}" if sufijo else None
+
+
+def _r2(valor: float | None) -> float:
+    return round(float(valor or 0), 2)
+
+
+def estados_contrato(
+    suma_can: float | None, suma_canser: float | None, suma_canfac: float | None
+) -> tuple[int, int]:
+    """
+    R20: `(estser, estfac)` con las sumas del contrato (E10) tras actualizar
+    `canser`. `estser` = 1 si Σcanser >= Σcan (una devolucion puede devolverlo
+    a 0); `estfac` = 1 si Σcanfac >= Σcan. A 2 decimales, como el clasico; una
+    suma NULL (contrato sin lineas) cuenta como 0.
+    """
+    can = _r2(suma_can)
+    return (1 if _r2(suma_canser) >= can else 0, 1 if _r2(suma_canfac) >= can else 0)
 
 
 class AlbaranCompraStatements:

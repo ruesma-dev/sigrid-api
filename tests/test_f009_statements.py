@@ -12,7 +12,9 @@ fichero. Las sentencias salen de `specs/F-009-alta-albaran-compra/design.md`
 
 from __future__ import annotations
 
+import dataclasses
 import re
+from decimal import Decimal
 
 import pytest
 
@@ -637,3 +639,273 @@ def test_f009_r31_control_negativo_tambien_en_las_generadas(
     )
     with pytest.raises(DatabaseReferenceError):
         sentencias.insertar_clonada("msdb.dbo.x", {"ide": 1})
+
+
+# =====================================================================================
+# T5 · funciones puras. Se usan por `modulo.<nombre>` a propósito: así la fase RED
+# falla test a test (AttributeError) sin tumbar la recogida de los de T4.
+# =====================================================================================
+
+
+# --- R26: numeración de la serie -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "maximo, esperado",
+    [(None, "AC26/1"), (0, "AC26/1"), (1, "AC26/2"), (15952, "AC26/15953")],
+)
+def test_f009_r26_siguiente_cod(maximo: int | None, esperado: str) -> None:
+    """E2/L14 dan el MAX numérico tras el prefijo (`None` sin ninguno): + 1,
+    sin ceros a la izquierda, como el clásico (`AC26/15950`)."""
+    assert modulo.siguiente_cod("AC26/", maximo) == esperado
+
+
+@pytest.mark.parametrize(
+    "fecha, esperado",
+    [
+        (20261006, "AC26/"),
+        (20270101, "AC27/"),
+        (20001231, "AC00/"),
+        (19991231, "AC99/"),
+    ],
+)
+def test_f009_r22_prefijo_del_anio_de_la_fecha_del_albaran(
+    fecha: int, esperado: str
+) -> None:
+    assert modulo.prefijo_de_serie(fecha) == esperado
+
+
+# --- R17: importes con Decimal y ROUND_HALF_UP --------------------------------------------
+
+
+def test_f009_r17_redondear_euros_empate_hacia_arriba() -> None:
+    """H33: 2,675 → 2,68 (`round` da 2,67 por la representación binaria)."""
+    assert round(2.675, 2) == 2.67
+    assert modulo.redondear_euros(2.675) == Decimal("2.68")
+    assert modulo.redondear_euros(-2.675) == Decimal("-2.68")
+    assert modulo.redondear_euros(1.005) == Decimal("1.01")
+    assert modulo.redondear_euros(Decimal("0.125")) == Decimal("0.13")
+    assert modulo.redondear_euros(2.674999) == Decimal("2.67")
+    assert modulo.redondear_euros(0) == Decimal("0.00")
+
+
+@pytest.mark.parametrize(
+    "cantidad, precio, iva, tot, ivacuo",
+    [
+        (1.0, 2.675, 0.21, "2.68", "0.56"),  # empate en tot
+        (3.0, 0.895, 0.21, "2.69", "0.56"),  # 2,685 exacto en Decimal
+        (2.0, 10.5, 0.21, "21.00", "4.41"),
+        (10.0, 1.25, 0.10, "12.50", "1.25"),
+        (1.0, 0.5, 0.21, "0.50", "0.11"),  # 0,105 → 0,11
+        (-2.0, 10.5, 0.21, "-21.00", "-4.41"),  # devolución (R18)
+        (-1.0, 2.675, 0.21, "-2.68", "-0.56"),
+        (7.0, 33.333333, 0.21, "233.33", "49.00"),
+        (1.0, 0.0, 0.21, "0.00", "0.00"),
+        (5.0, 4.0, 0.0, "20.00", "0.00"),
+    ],
+)
+def test_f009_r17_importe_linea(
+    cantidad: float, precio: float, iva: float, tot: str, ivacuo: str
+) -> None:
+    """`tot` = cantidad·precio e `ivacuo` = tot·iva, a 2 decimales, con el IVA de
+    `dbo.iva` en fracción (M11)."""
+    assert modulo.importe_linea(cantidad, precio, iva) == (
+        Decimal(tot),
+        Decimal(ivacuo),
+    )
+
+
+def test_f009_r17_sumar_importes_sin_error_binario() -> None:
+    importes = [(Decimal("0.10"), Decimal("0.02")), (Decimal("0.20"), Decimal("0.04"))]
+    assert modulo.sumar_importes(importes) == {
+        "totbas": 0.3,
+        "totiva": 0.06,
+        "totdoc": 0.36,
+    }
+    assert modulo.sumar_importes([]) == {"totbas": 0.0, "totiva": 0.0, "totdoc": 0.0}
+    resultado = modulo.sumar_importes([(Decimal("-21.00"), Decimal("-4.41"))])
+    assert resultado == {"totbas": -21.0, "totiva": -4.41, "totdoc": -25.41}
+
+
+@pytest.mark.parametrize(
+    "precio, pre_contrato, coincide",
+    [
+        (10.0, 10.0, True),
+        (10.0001, 10.0, True),  # en el borde: ≤ 0,0001
+        (9.9999, 10.0, True),
+        (10.00010001, 10.0, False),
+        (10.0002, 10.0, False),
+        (33.333333, 33.3333, True),  # el cociente de sv9 frente al del contrato
+        (0.0, 0.0001, True),
+        (0.0, 0.00011, False),
+    ],
+)
+def test_f009_r17_tolerancia_de_precio(
+    precio: float, pre_contrato: float, coincide: bool
+) -> None:
+    """H14: |precio − ctrpro.pre| ≤ 0,0001 (M4), sin error binario en el borde."""
+    assert modulo.precio_coincide(precio, pre_contrato) is coincide
+
+
+# --- R19 y R18: balance de stock, PMP y `prepma` -------------------------------------------
+
+
+def test_f009_r19_balance_de_entrada() -> None:
+    balance = modulo.siguiente_balance((10.0, 2.0), 5.0, 3.0)
+    assert balance == modulo.Balance(
+        stock_anterior=10.0, pmp_anterior=2.0, almcan=15.0, almpma=(10 * 2 + 5 * 3) / 15
+    )
+    # `prepma` = el PMP de PARTIDA (design §prepma, v8.1), no el resultante.
+    assert balance.prepma == 2.0
+
+
+def test_f009_r19_sin_mov_anterior_parte_de_cero() -> None:
+    balance = modulo.siguiente_balance(None, 4.0, 2.5)
+    assert (balance.stock_anterior, balance.pmp_anterior) == (0.0, 0.0)
+    assert (balance.almcan, balance.almpma, balance.prepma) == (4.0, 2.5, 0.0)
+
+
+def test_f009_r19_almpma_sin_redondear() -> None:
+    balance = modulo.siguiente_balance((3.0, 1.0), 1.0, 2.0)
+    assert balance.almpma == 5.0 / 4.0
+    balance = modulo.siguiente_balance((2.0, 1.0), 1.0, 1.0 / 3.0)
+    assert balance.almpma == (2.0 + 1.0 / 3.0) / 3.0
+    assert round(balance.almpma, 2) != balance.almpma
+
+
+def test_f009_r19_con_denominador_cero_se_conserva_el_pmp() -> None:
+    balance = modulo.siguiente_balance((5.0, 7.5), -5.0, 9.0)
+    assert (balance.almcan, balance.almpma, balance.prepma) == (0.0, 7.5, 7.5)
+    balance = modulo.siguiente_balance((-2.0, 4.0), 2.0, 9.0)
+    assert (balance.almcan, balance.almpma) == (0.0, 4.0)
+
+
+def test_f009_r18_devolucion_regla_a() -> None:
+    """M5: entrada con `canent` < 0 y PMP `(stock·pma + can·pre)/(stock + can)`."""
+    balance = modulo.siguiente_balance((10.0, 2.0), -4.0, 3.0)
+    assert balance.almcan == 6.0
+    assert balance.almpma == (10 * 2 - 4 * 3) / 6
+    assert balance.prepma == 2.0
+
+
+def test_f009_r18_devolucion_que_deja_el_stock_negativo() -> None:
+    balance = modulo.siguiente_balance((1.0, 2.0), -3.0, 2.0)
+    assert balance.almcan == -2.0
+    assert balance.almpma == (1 * 2 - 3 * 2) / -2
+    balance = modulo.siguiente_balance(None, -1.0, 5.0)
+    assert (balance.almcan, balance.almpma, balance.prepma) == (-1.0, 5.0, 0.0)
+
+
+def test_f009_r19_encadenado_por_producto_y_almacen() -> None:
+    """Varias líneas del mismo par se encadenan: cada una parte del resultado
+    de la anterior; los pares distintos no se mezclan."""
+    vigentes = {(55, 7): (10.0, 2.0), (55, 8): (1.0, 100.0)}
+    balances = modulo.encadenar_balances(
+        [
+            (55, 7, 5.0, 3.0),
+            (55, 8, 1.0, 50.0),
+            (55, 7, -3.0, 4.0),
+            (56, 7, 2.0, 1.0),
+            (55, 7, 2.0, 1.0),
+        ],
+        vigentes,
+    )
+    primero = modulo.siguiente_balance((10.0, 2.0), 5.0, 3.0)
+    tercero = modulo.siguiente_balance((primero.almcan, primero.almpma), -3.0, 4.0)
+    quinto = modulo.siguiente_balance((tercero.almcan, tercero.almpma), 2.0, 1.0)
+    assert balances == [
+        primero,
+        modulo.siguiente_balance((1.0, 100.0), 1.0, 50.0),
+        tercero,
+        modulo.siguiente_balance(None, 2.0, 1.0),
+        quinto,
+    ]
+    assert tercero.prepma == primero.almpma
+    assert quinto.prepma == tercero.almpma
+    # Pura: los vigentes no se tocan.
+    assert vigentes == {(55, 7): (10.0, 2.0), (55, 8): (1.0, 100.0)}
+
+
+def test_f009_r19_encadenar_sin_lineas() -> None:
+    assert modulo.encadenar_balances([], {(1, 1): (1.0, 1.0)}) == []
+
+
+def test_f009_r19_el_balance_no_se_puede_cambiar() -> None:
+    balance = modulo.siguiente_balance(None, 1.0, 1.0)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        balance.almcan = 3.0  # type: ignore[misc]
+
+
+# --- R15: sufijo de la cuenta analítica -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "caagascod, sufijo",
+    [
+        ("MOD.CDSB37", "CDSB37"),
+        ("MOD.CDQA12", "CDQA12"),
+        ("CDXA01", "CDXA01"),  # sin MOD., entero (M16d)
+        ("  MOD.CDSB37  ", "CDSB37"),
+        ("CDXA01   ", "CDXA01"),
+        ("MOD.", ""),
+        ("", ""),
+        ("   ", ""),
+        (None, ""),
+        ("MOD.MOD.X", "MOD.X"),  # solo un prefijo
+        ("XMOD.CDSB37", "XMOD.CDSB37"),
+        ("mod.cdsb37", "mod.cdsb37"),  # el prefijo medido va en mayúsculas
+        (
+            "CD.SB37",
+            "CD.SB37",
+        ),  # un punto que no es MOD. no corta (regla de la v7, descartada)
+    ],
+)
+def test_f009_r15_sufijo_analitica(caagascod: str | None, sufijo: str) -> None:
+    assert modulo.sufijo_analitica(caagascod) == sufijo
+
+
+@pytest.mark.parametrize(
+    "cod_obra, caagascod, codigo",
+    [
+        ("0678", "MOD.CDSB37", "0678.CDSB37"),
+        ("0404", "CDXA01", "0404.CDXA01"),
+        ("0676-B  ", "MOD.CDQA12", "0676-B.CDQA12"),  # RTRIM del código de obra
+        ("0404", "MOD.", None),
+        ("0404", "", None),
+        ("0404", None, None),
+    ],
+)
+def test_f009_r15_codigo_de_la_analitica(
+    cod_obra: str, caagascod: str | None, codigo: str | None
+) -> None:
+    """`<cod_obra>.<sufijo>`; sin sufijo no hay código (→ `analitica_no_resuelta`)."""
+    assert modulo.codigo_analitica(cod_obra, caagascod) == codigo
+
+
+# --- R20: estados del contrato -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "can, canser, canfac, estados",
+    [
+        (10.0, 10.0, 0.0, (1, 0)),
+        (10.0, 9.99, 10.0, (0, 1)),
+        (10.0, 12.0, 12.0, (1, 1)),
+        (10.0, -2.0, 0.0, (0, 0)),  # devolución que deja Σcanser < 0
+        (0.0, 0.0, 0.0, (1, 1)),
+        (0.0, -1.0, 0.0, (0, 1)),
+        (10.0, 9.999, 0.0, (1, 0)),  # a 2 decimales, como el clásico
+        (10.0, 9.994, 0.0, (0, 0)),
+    ],
+)
+def test_f009_r20_estados_contrato(
+    can: float, canser: float, canfac: float, estados: tuple[int, int]
+) -> None:
+    """`estser` = 1 si Σcanser ≥ Σcan (una devolución puede devolverlo a 0);
+    `estfac` = 1 si Σcanfac ≥ Σcan. Sumas de E10, tras el `UPDATE` de `canser`."""
+    assert modulo.estados_contrato(can, canser, canfac) == estados
+
+
+def test_f009_r20_estados_con_sumas_nulas() -> None:
+    """`SUM` de E10 sin filas da NULL: cuenta como 0."""
+    assert modulo.estados_contrato(None, None, None) == (1, 1)
