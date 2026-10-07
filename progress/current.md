@@ -1,26 +1,25 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-009 cerrada (2026-10-07), `done`, **sin desplegar** — guion T19-T24
+## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
-Resumen en `history.md`. Mergeada a `dev` con `--no-ff` (local; el push lo hace el humano). Spec v8.2;
-contrato con albaranes en `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa
-`8a6ecab`; avisar a la sesión de albaranes ANTES de tocarlo). Mutación: 2 equivalentes aceptados por el humano.
+Resumen en `history.md`. `dev` con el merge `b050109` desplegado en `func-sigridapi-dev-huyke`. Contrato con
+albaranes: `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa `8a6ecab`; avisar a la
+sesión de albaranes —la de esta máquina, `albaranes [dd1842]`— ANTES de tocarlo).
 
-**Avance (2026-10-07):** **T19 hecha**: App Settings aplicadas (llave `false`) y `func publish` desde `dev`
-(`b050109`, push hecho). **T20 y T21 hechas** sobre `CTSU16/0206`: el dry-run clásico sale igual que antes; el
-extendido (vinculada sin partida, MA9999 con partida, devolución vinculada y QA9999 sin partida) trae producto,
-naturaleza (MA99, QA99), analítica (`0404.CDSB37`, `0404.CDQA12`), cuenta y `prepma` correctos. **T22 hecha**, con
-autorización del humano limitada a que el contrato solo cambie la medición (sin añadir ni borrar líneas;
-`ctrprodes` incluido): llave abierta solo para la prueba y cerrada justo después. Albarán **`AC26/28916`** (`con.ide`
-2850080, `synckey` `ALB-prueba-F009-1`, usuario `prueba`), la repetición responde `idempotente`. Lecturas tras la
-grabación: 4 `dcapro`, 4 `mov` con `prepma` = `almpma` del `mov` anterior del par en los 4, 2 `ctrprodes`
-(+1/−1), `canser` 258688 6→7 y 258687 1→0, contrato con 17 líneas y Σ`can` 84 sin cambios, estados 0/0 y `log`
-de alta. Correo al director de Administración y Control de Costes para revisar la contabilización.
-**Siguiente:** T23 (anular `AC26/28916` desde la UI) **después** de su respuesta; luego, la comprobación en
-lectura de que el `con` ya no existe y de que el stock y `canser` vuelven a su valor.
+**Hecho:** T19 (App Settings y despliegue), T20-T21 (previas sobre `CTSU16/0206`), T22 (una grabación autorizada,
+`AC26/28916`, verificada con lecturas e idempotente; el humano autorizó que el contrato solo cambiara la medición,
+`ctrprodes` incluido) y T23 (anulada desde la UI por Administración; comprobado en lectura que no queda nada de
+`ALB-prueba-F009-1`). En la misma sesión, Administración dio de baja también los albaranes de prueba de junio de
+GARSAN (`AC26/15950`-`15953`, `15980`, `15991`, `16031`): por eso `CTSU16/0206` baja de Σ`canser` 73 a 28 y el stock
+del producto 498102 en el almacén 829236 vuelve a sus `mov` de 2019; no es efecto de F-009. **Llave
+`SIGRID_ALBARAN_WRITE_ENABLED=true` desde el 2026-10-07**, por orden del humano; albaranes avisado (su llave es
+`ALTA_SIGRID_COMMIT` en sv9). `azure-apps` `d066470` (sin push: no tiene remoto).
 
-**Guion de verificación manual** (cada paso con el humano; escrituras solo con su autorización expresa y concreta):
+**Queda T24** (con F-053 en real, solo lectura): `prepma` de la primera alta real y stock/PMP/`canser` de la primera
+devolución real (consultas en `progress/spec_F-009.md` §Manuales).
+
+**Guion de verificación manual** (referencia; hecho hasta T23):
 
 1. **T19 · Despliegue** desde `dev` tras el push. App Settings por fichero JSON (`--settings "@fichero.json"`,
    listas y mapeo solo en JSON, cargadas antes con `Settings` como variable de entorno):
@@ -121,7 +120,7 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-Primero, el despliegue y la verificación de F-009 (guion de arriba). Después,
+F-009 solo espera T24 (con F-053 en real). Lo siguiente:
 F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor
 `critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read`
 fije el tope real de la consulta. Candidato del arnés: el diagnóstico de la
@@ -130,7 +129,8 @@ en serie).
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-009 está cerrada y mergeada a
-> `dev`, sin desplegar: sigue el guion T19-T24 de `current.md` con el humano
-> (despliegue con la llave cerrada, previas y UNA grabación autorizada). Antes de
-> tocar §2-§4 del contrato con albaranes, avisa a la sesión de albaranes.
+> Lee `CLAUDE.md` y `progress/current.md`. F-009 está desplegada, verificada y
+> con la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar
+> §2-§4 del contrato con albaranes, avisa a la sesión de albaranes. Lo siguiente
+> del backlog (F-007, F-008, la feature de `sql/read`): no arranques nada sin
+> preguntar.
