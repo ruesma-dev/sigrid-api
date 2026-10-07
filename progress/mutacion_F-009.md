@@ -198,3 +198,11 @@ original, `31 passed`. «31 passed» en una fila = el test no lo mata: son los 1
 | 74 | `albaran_compra_models.py:265` [entero] | `referencia_externa: str = Field(..., min_length=1, max_length=128)       # dca.synckey` → `referencia_externa: str = Field(..., min_length=2, max_length=128)       # dca.synckey` | 1 failed, 30 passed | r5_un_caracter_basta_en_cada_texto_y_uno_en_cada_entero |
 | 75 | `albaran_compra_models.py:266` [entero] | `cod_contrato: str \| None = Field(default=None, min_length=1, max_length=24)` → `cod_contrato: str \| None = Field(default=None, min_length=2, max_length=24)` | 1 failed, 30 passed | r5_un_caracter_basta_en_cada_texto_y_uno_en_cada_entero |
 | 76 | `albaran_compra_models.py:269` [entero] | `empide: int \| None = Field(default=None, ge=1, strict=True)` → `empide: int \| None = Field(default=None, ge=2, strict=True)` | 1 failed, 30 passed | r5_un_caracter_basta_en_cada_texto_y_uno_en_cada_entero |
+
+## Aceptación del humano (2026-10-07)
+
+Los **2 supervivientes** de la campaña válida (`8a85804`): `create_albaran_compra_use_case.py` `cantidad > 0` → `>= 0`
+y `cantidad < 0` → `<= 0`, quedan **aceptados por el humano como equivalentes** (rigor `critico`), tras ver la
+medición: suite entera en serie con el mutante aplicado, diferencial de 5.000 peticiones válidas con 0 diferencias y
+control negativo con cantidad 0 colada (75 y 74 de 200 difieren). Reproducido por el reviewer
+(`review_F-009_loteE_mutacion.md`).

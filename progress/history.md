@@ -218,3 +218,51 @@ guion manual: T17 apagaba `SIGRID_DOMAIN_WRITE_ENABLED`, de la que dependen los
 demás endpoints de dominio. Los guiones MANUAL se revisan contra el estado
 desplegado (`azure-apps`), no solo contra la spec. Una ruta nueva no debe copiar
 `str(ValidationError)` al log: lleva los valores de entrada.
+
+---
+
+## F-009 · Modo extendido de `sigrid/albaran`: alta de albaranes de compra desde albaranes (PRE-1 de F-053)
+
+**Cerrada el 2026-10-07, sin desplegar.** Rigor `critico`, `sdd`. Rama `feature/F-009-alta-albaran-compra`, mergeada a
+`dev` con `--no-ff`. Spec v8.2 (`specs/F-009-alta-albaran-compra/`); historia de versiones en `progress/spec_F-009.md`.
+
+**Por qué:** albaranes (F-053) tiene que dar de alta en Sigrid los albaranes de compra aprobados, con líneas que la
+pasarela no sabía escribir: sin contrato, sin partida, devoluciones, producto y cuenta analítica. El contrato con
+albaranes lo escribió primero su agente (33 huecos, `contrato_albaranes.md`) y es de sigrid-api: albaranes solo lo
+toca para actualizar consumos (regla del humano).
+
+**Qué hace:** `POST /api/sigrid/albaran` decide el modo por las claves del JSON (`lineas`/`referencia_externa` ⇒
+extendido; mezcla ⇒ `peticion_mixta`); el clásico y `albaran-directo` siguen idénticos (test de caracterización con
+dorado escrito antes del código). Un albarán por petición en UNA transacción: `con` (emp de la obra, `cod` y `ide`
+reservados bajo applock, `est` 1), `dca` (plantilla del último albarán del mismo proveedor y empresa, `synckey` =
+`ALB-…`), `dcapro` vinculadas (consumen medición: `ctrprodes`, `canser`, estados del contrato; `caaide`, `cod2`,
+`dncide`/`dncproide` del `ctrpro`) y sin vincular (MA9999/QA9999/XA9999 elegido por albaranes; naturaleza del mapeo
+MA99/QA99/XA99, nunca del maestro; analítica `<obra>.<caagascod sin MOD.>`; cuenta del `cuacomcod`; IVA de la última
+línea del mismo proveedor), partida o sin partida («almacén»), `mov` si y solo si `pro.tipmov` = 1 con `prepma` = PMP
+del almacén antes de la entrada, devoluciones (regla A), `log` de alta; idempotencia por `synckey`; errores con código,
+también por línea; dry-run por defecto y segunda llave `SIGRID_ALBARAN_WRITE_ENABLED` (cierra también el clásico y
+`albaran-directo`). Seis App Settings nuevas, defecto cerrado, solo en JSON.
+
+**Mediciones (T0, solo lectura, cinco pasadas):** M1-M19 sobre producción decidieron cada regla (plantilla, estados,
+partidas imputables, analítica, cuenta, `tipmov`, `prepma`, anulación que borra, `refent` libre, `cod2`…); las cifras en
+`spec_F-009.md` §v5-§v8.1. Dos hipótesis refutadas midiendo (analítica de la partida o del almacén; media ponderada
+global del producto). Consultas a negocio (director de Administración y Control de Costes) sobre `cod2`, planificación
+de compras y naturalezas.
+
+**Evidencias:** 2.370 tests; cobertura 100 % de 1.103 líneas cambiadas; mutación `critico` 481/479 sobre `8a85804`
+(4 workers; la campaña previa dejó 76, **todos confirmados en serie**: 60 muertos con tests nuevos y 14 eran código
+muerto, quitado), 2 equivalentes **aceptados por el humano**. Cinco lotes (A-E) con revisión troceada por lote,
+APROBADO (`review_F-009*.md`). `azure-apps` `51b29a6` (sin push: no tiene remoto).
+
+**Lecciones:**
+- Medir antes de escribir reglas: la analítica, la naturaleza y el `prepma` salieron distintos de lo que parecía, y
+  el maestro de MA9999 tiene la naturaleza mal (MA1501, «cerámico»).
+- Las lecturas pesadas de T0 cortadas por el balanceador **siguen vivas en el servidor** (`sql/read` no fija el tope
+  de la consulta): causa probable de un interbloqueo en producción. Feature propia pendiente.
+- Comparar campos «Real» de Sigrid con tolerancia, nunca `== 0` (residuo binario ⇒ PMP absurdo).
+- Un test que construye `Settings` (o que valida modelos que la leen) debe aislar el entorno: la campaña exporta el
+  `.env` (otra vez, `92bf606`).
+- Coordinación entre sesiones: el consumidor congela su referencia del contrato y el dueño avisa antes de tocar
+  §2-§4.
+
+**Queda (guion en `current.md`):** despliegue y verificación manual T19-T24 (una grabación autorizada).

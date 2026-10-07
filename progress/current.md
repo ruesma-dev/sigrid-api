@@ -1,136 +1,35 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-**T16 de F-009 hecha (implementer, 2026-10-07):** campaña de mutación `critico` válida sobre `8a85804` (4 workers):
-481 mutantes, 479 muertos, **2 supervivientes equivalentes demostrados** (cantidad 0 imposible por el modelo; serie +
-diferencial de 5.000 peticiones, 0 diferencias, con control negativo). La campaña previa (`92bf606`) dejó 76, todos
-confirmados en serie: 60 muertos con `tests/test_f009_mutacion.py` (`db945d6`), 14 eran relleno que nadie lee o
-`strict` inalcanzables, quitados con canario y control negativo (`8a85804`, RM6 escrito). Base roja del primer intento
-arreglada en `92bf606` (test de la tupla de ocho aislado del entorno). Informes:
-[`impl_F-009_loteE_mutacion.md`](impl_F-009_loteE_mutacion.md) y [`mutacion_F-009.md`](mutacion_F-009.md).
-**Pendiente:** que el humano acepte los 2 equivalentes; revisión del lote E (T16-T18); el fichero vacío ajeno
-`` `0`].{t `` de la raíz (24-09) sigue ahí sin versionar: decide el humano.
+## F-009 cerrada (2026-10-07), `done`, **sin desplegar** — guion T19-T24
 
-**Lote E de F-009, parte documental hecha (implementer, 2026-10-06):** T17 (`docs/ARCHITECTURE.md`, `1da0c5e`) y
-T18 (`azure-apps/sigrid_api.md`, commit `51b29a6` en `azure-apps`, sin push: no tiene remoto). Sin tocar código ni
-tests. Informe en [`impl_F-009_loteE_docs.md`](impl_F-009_loteE_docs.md). **Siguiente:** T16 (campaña de mutación)
-y la revisión del lote E.
+Resumen en `history.md`. Mergeada a `dev` con `--no-ff` (local; el push lo hace el humano). Spec v8.2;
+contrato con albaranes en `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa
+`8a6ecab`; avisar a la sesión de albaranes ANTES de tocarlo). Mutación: 2 equivalentes aceptados por el humano.
 
-**Lote D de F-009 hecho (implementer, 2026-10-06):** T13 (`function_app.py`: selector de modo, camino
-extendido, guarda R8 en las dos rutas, docstring H32, cableado en `build_dependencies` con ocho posiciones), T14
-(R2-R4 comprobados), T15 (traza R32 con `reloj`) y las observaciones O1/O2 del lote C, trozo 1. Commits `6ed3c7a`,
-`8ac52cb`, `fd1674c`, `11d13c0`, `8ab15de`. Dorado sin cambios (solo el arnés: tupla de ocho). Seis decisiones de
-T13 (tipo de R8 en clásico y directo, orden R8 frente a las guardas, sin `except IntegrityError`…) en
-[`impl_F-009_loteD.md`](impl_F-009_loteD.md). **Siguiente:** revisión del lote D; después el lote E (T16-T18).
+**Guion de verificación manual** (cada paso con el humano; escrituras solo con su autorización expresa y concreta):
 
-## F-009 `in_progress` (2026-10-06) — implementación por lotes
+1. **T19 · Despliegue** desde `dev` tras el push. App Settings por fichero JSON (`--settings "@fichero.json"`,
+   listas y mapeo solo en JSON, cargadas antes con `Settings` como variable de entorno):
+   `SIGRID_ALBARAN_WRITE_ENABLED=false`, `SIGRID_ALBARAN_PREFIJOS_REFERENCIA=["ALB-"]`,
+   `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO=["MA9999","QA9999","XA9999"]`, `SIGRID_ALBARAN_EMPRESAS_OBRA=[1]`,
+   `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO={"MA9999":"MA99","QA9999":"QA99","XA9999":"XA99"}` y el tope de líneas
+   por defecto. `func azure functionapp publish func-sigridapi-dev-huyke --python` lo lanza el humano con `!`.
+   Tras T19, albaranes ya puede probar la **previa** (`commit=false`) contra el servicio real.
+2. **T20** · dry-run clásico de siempre sobre `CTSU16/0206` (obra 0404): igual que antes salvo `cod`/`ide`.
+3. **T21** · dry-run extendido sobre `CTSU16/0206`: una vinculada, una MA9999 con partida (naturaleza `MA99`,
+   `caa` `0404.CDSB37`), una QA9999 sin partida y una negativa; revisar `filas` y `avisos` con el humano.
+4. **T22** · **una** grabación (`commit:true`) autorizada, con la llave abierta solo para la prueba y usuario
+   `prueba`; revisión en la UI (líneas, partidas, naturaleza, analítica, cuenta, `cod2` y planificación de la
+   vinculada, stock, PMP y **`prepma` frente a un albarán del escritorio del mismo día y almacén**, medición del
+   contrato) y repetición `idempotente`. Volver a cerrar la llave.
+5. **T23** · anular el albarán de prueba desde la UI (nunca `DELETE`); comprobar en lectura que el `con` ya no existe.
+6. **T24** · con F-053 en real: `prepma` de la primera alta real y stock/PMP/`canser` de la primera devolución real
+   (consultas en `progress/spec_F-009.md` §Manuales).
 
-**PARADA 1 aprobada por el humano (2026-10-06):** v8.1 y plan en cinco lotes, cada uno implementer → reviewer
-(revisión troceada por bloques de `CHECKPOINTS.md`), sin empezar el siguiente hasta aprobar el anterior:
-**A** T1 (caracterización, commit sin producción) · **B** T2-T6 (settings, modelos, SQL, funciones puras, filas) ·
-**C** T7-T12 (caso de uso, idempotencia, dry-run, commit, devoluciones, equivalencia) · **D** T13-T15
-(`function_app.py`, R2-R4, trazas) · **E** T16-T18 (mutación, `ARCHITECTURE.md`, `azure-apps/sigrid_api.md`).
-Luego PARADA 2 y manuales T19-T24 (despliegue y escrituras solo con autorización expresa). Fuera:
-`infrastructure/security/`, casos de uso y modelos del clásico y de `albaran-directo`, `.env`, Azure y SQL Server.
-**Lote A aprobado** (T1, `783f2d1` + `91b929d`; segunda pasada APPROVED, `055a7e1`). **Lote B aprobado** (T2-T6; `c7c0b95`, `91f80f6`, `e2d52fb`, `f0130ed`, `d936ced`, `43eae24`, ciclo 1 `2a007f6`; informe [`impl_F-009_loteB.md`](impl_F-009_loteB.md), revisiones `review_F-009_loteB_1.md` y `_2.md` APPROVED). **Lote C hecho** (implementer, 2026-10-06; T7-T12, `c4fb55b`, `0ed5573`, `d4e695d`, `65f4ae6`, `f60d9a5`, `1c10f72`): caso de uso `create_albaran_compra_use_case.py` (resolución, idempotencia, previa, commit reentrante, devoluciones) y equivalencia con el clásico; informe en [`impl_F-009_loteC.md`](impl_F-009_loteC.md), con sus decisiones de interpretación. **Siguiente:** revisión del lote C; después el lote D (T13-T15).
-
-**Spec v8.2 (spec-author, 2026-10-06):** opción C del humano para los importes de la vinculada (R17, design §Importes,
-contrato §2.2/§3.1/§3.2/H14, solo redacción), ε = 1e-6 del stock en R19 y dos diferencias más en §Equivalencia (O2).
-Detalle en [`spec_F-009.md`](spec_F-009.md) §v8.2. El código ya aplica C y el ε (`2a007f6`). **Pendiente**:
-el humano confirma que el cambio de §3.2 del contrato (cuándo salta `precio_distinto_del_contrato`) es solo redacción para F-053.
-
-### Estado de la spec al aprobarla
-
-**v8.1 (spec-author, T0c):** T0b-quinquies volcada ([`spec_F-009.md`](spec_F-009.md) §v8.1). **M14e refuta la media
-ponderada global** del producto (2 de 34 entradas, 4 de 16 devoluciones). Regla nueva aprobada por el humano:
-`mov.prepma` (y `dcapro.prepma`) = **el `almpma` del último `mov` del mismo producto y almacén antes de la línea** (el
-PMP del almacén vigente en el alta; encadenado en el albarán; 0 sin `mov` anterior), hipótesis coherente con los datos
-y no demostrada sobre el histórico ⇒ verificación manual en **T22** (frente a un albarán del escritorio del mismo día y
-almacén) y **T24** (primera alta real). Simplificación: fuera L12b-c, E7b (y su lectura sin `UPDLOCK`) y
-`siguiente_prepma`; el valor sale de L12/E7. Aprobadas por el humano las decisiones de §v8: campo `naturaleza`
-retirado, `cuacomcod` sin una única `cua` ⇒ `naturaleza_no_valida` y `tex` vacío en las sin vincular. **T0 cerrada**,
-sin mediciones pendientes ni preguntas abiertas; §Condicionales solo con lo manual (T22-T24). **Script de T0 retirado**
-(`scripts/medir_f009_t0.py` y su prueba, commit propio; quedan en el historial). Contrato: solo estado (cabecera, §0,
-§5 y §8), sin tocar la forma de §2-§4 (congelada para F-053); con la Parte A de las propuestas de F-053 (H8, H17, H28,
-H29 y H30 cerrados por el humano el 2026-10-06). Topes: 150/150 y 249/250. **Siguiente:** el humano aprueba la v8.1 y
-el líder hace la PARADA 1 de implementación (T1, caracterización sobre `dev`) antes de pasar a `in_progress`.
-
-*(Lo que sigue es el estado de la v7, ya superado por la v8.)*
-
-## F-009 spec v7 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-ter
-
-**v7 (spec-author):** T0b-bis volcada ([`spec_F-009.md`](spec_F-009.md) §v7, tabla M → resultado →
-decisión). Cerradas: M9 (`mov` si y solo si `pro.tipmov` = 1; **H20 cerrado**, sin puerta dura), M11
-(L8b), M14b (L5), M17b (anular borra; **H9 cerrado**, R30b retirada) y `dcaproana` (no se escribe).
-M14 corrige R21: `dcapro.prepma` = `mov.prepma`. Decisión del humano aplicada: campo opcional
-`naturaleza` en la sin vincular (`naturaleza_no_valida`); analítica = `caa` `<obra>.<sufijo del
-caagascod>` y cuenta del `cuacomcod` de la naturaleza, **condicional a M16c** (`analitica_no_resuelta`).
-Lista blanca con `XA9999` (contrato v6.1). Contrato con albaranes al día (§2.2, §3.3, H9, H10, H20, §8).
-Topes: 150/150 y 250/250. **Para el humano:** validar la v7 y las preguntas **P1-P6** de §v7: P1
-(`mov.prepma`: ¿M14c en T0b-ter?), P2 (`numemp`), P3 (`cua` por empresa), P4 (cuenta cuando el
-usuario cambia la naturaleza: la muestra apunta a la del producto, contra la decisión), P5 (`XA9999`
-sin medir), P6 (F-053). **Respuestas del humano (2026-10-05):** `XA9999` es decisión suya
-(confirmado); P1 (M14c), P2, P3 y P5 se miden en la misma pasada. **T0a-ter hecha** (M16c, M14c,
-`XA9999`, `numemp`; `38d3571`, `ade7b47`, `bda26b1`; APPROVED en la segunda pasada:
-[`review_F-009_T0a_ter.md`](review_F-009_T0a_ter.md)). **T0b-ter hecha** (2026-10-06, fichero
-`%TEMP%\f009_t0_20261006_005622.txt`): `XA9999` con `tipmov` 1; `cueide` = `cuacomcod` de la
-naturaleza 97,9 % (P3 y P4 cerrados); `numemp` 0 en todas (P2); `prepma` 0 sin `mov`; analítica con
-la regla de la v7 solo 86,8 % (XA9999 0 %: su `caagascod` no lleva `.`; MA9999 con partida 92,3 %);
-`mov.prepma` sin explicar (es el «Precio Medio Compra» del producto, no del almacén). Negocio
-(correo del director de Administración y Control de Costes): `cod2` lo pone el jefe de obra en la
-planificación de compras; naturalezas específicas «a efectos prácticos no se usan». **T0a-quater
-hecha** (M14d, M16d, M19 nueva; `aa599f0`, `8e6e298`, `7f350bb`, `2b7a85f`; APPROVED en la segunda
-pasada: [`review_F-009_T0a_quater.md`](review_F-009_T0a_quater.md)). **Siguiente, del humano
-(T0b-quater):** `--solo M14 M16 M19` (comando en
-[`impl_F-009_T0a_quater.md`](impl_F-009_T0a_quater.md)) → T0c (v8 y retirada del script).
-**Pendiente del humano:** confirmar H34 (naturaleza por mapeo producto → naturaleza `MA99`/`QA99`/
-`XA99`) y H35 (las vinculadas copian `cod2`/`dncide`/`dncproide` del `ctrpro`), que trae el contrato
-v7.1 (`2631b1a`, **segundo commit de la sesión de albaranes en este repo**); y si albaranes debe
-proponer en un fichero aparte en vez de editar el contrato. **Ojo:** la sesión del agente de albaranes editó `contrato_albaranes.md` en este
-repo (`844ebc8`, v6.1); la v7 lo integró. El contrato es de sigrid-api: albaranes debería proponer, no
-editar.
-
-*(Lo que sigue es el estado de la v6, ya superado por T0b-bis.)*
-
-## F-009 spec v6 (2026-10-05), `spec_ready` — espera la validación del humano y T0b-bis
-
-**v6 (spec-author):** T0b volcada en la spec ([`spec_F-009.md`](spec_F-009.md) §v6, tabla M →
-resultado → decisión). Cerradas: M3 (`paride` opcional, R14b), M7 (sin `dcapropar`), M13 (`est` 1,
-`ori` 0), M14 (reseteo), M16 (almacén; `caaide` de las vinculadas del `ctrpro`) y M18
-(`referencia_linea` en `dcapro.refent`, R30c). Decisiones del humano aplicadas: lista blanca
-`["MA9999", "QA9999"]` con producto por línea (H20 para los dos) y analítica de las sin vincular
-condicional a M16b, sin regla provisional. Abiertas a **T0b-bis** (`--solo M9 M11 M14 M16 M17`, tras
-ampliar el script con M14b, M16b y M17b; M9 y M11 deben cubrir también QA9999): M9, M11, M14b, M16b,
-M17b. **Para el humano:** validar la v6; `cod2` y `dncide` (consultados por correo al director de
-Administración y Control de Costes el 2026-10-05; no bloquean); confirmar `tex` vacío en las sin
-vincular. Topes: requirements 150/150, design 250/250 (la regla de M16b tendrá que resumir y enlazar).
-**T0a-bis hecha** (script de la segunda pasada, `00179a2`, `0037c72`, `c42bb2b`; APPROVED en la
-segunda pasada: [`review_F-009_T0a_bis.md`](review_F-009_T0a_bis.md)). **Siguiente, del humano
-(T0b-bis):** `--solo M9 M11 M14 M16 M17` (comando en [`impl_F-009_T0a_bis.md`](impl_F-009_T0a_bis.md))
-y pegar el fichero de `%TEMP%`. Después T0c: v7 (o PARADA si M16b no da regla) y retirar el script.
-
-*(Lo que sigue es el estado de la v5.1, ya superado por T0b.)*
-
-PRE-1 de albaranes F-053: **modo extendido de `sigrid/albaran`** (el clásico, idéntico y fijado
-por un test de caracterización previo). **v5** incorpora los huecos de F-009 del contrato con
-albaranes ([`contrato_albaranes.md`](../specs/F-009-alta-albaran-compra/contrato_albaranes.md) §5,
-con tabla de estado H1-H33) y las decisiones del humano del 2026-10-05 (H4, H8, H9, H17, H20, H28,
-H31). **v5.1** aplica las respuestas a N4-N12: aprobadas con la recomendación salvo N10, sustituida;
-**sin campo `almacen`** (la línea sin partida, `partida` ausente o `null`, es el «almacén» de
-Ruesma: `paride` 0 nunca heredado, `almide`/`cenide` en toda línea, aviso
-`sin_partida_en_linea_con_partida`) y **sin `fecha_no_valida`** (las fechas futuras las controla la
-app). Detalle en [`spec_F-009.md`](spec_F-009.md) §v5.1. Topes: requirements 150/150, design 249/250.
-
-**v5.1 aprobada por el humano** (2026-10-05, «lo demás ok»). **T0a hecha** (script ampliado,
-`7592dc7`, `988e7c1`, `2f68c41`; APPROVED en la segunda pasada: [`review_F-009_T0a.md`](review_F-009_T0a.md)).
-**Siguiente, del humano (T0b):** lanzar **una** repetición
-`--solo M3 M7 M9 M11 M13 M14 M16 M17 M18` (comando al final de [`impl_F-009_T0a.md`](impl_F-009_T0a.md))
-y pegar el fichero de `%TEMP%`. Después T0c: el spec-author lo vuelca (v6 si cambia alguna regla
-condicional) y se retira el script (N3). Puerta dura H20: sin M9 cerrada no hay modo real. El fichero de
-resultados de T0 vive en `%TEMP%`. F-053 debe dejar de mandar `almacen` (daría 400 sin código).
-
-**Para el agente de albaranes:** [`para_albaranes_F-009.md`](para_albaranes_F-009.md) (decisiones
-del humano y huecos de F-053/F-049/F-051; F-053 debe realinearse con la v5.1).
+**Riesgos residuales documentados** (`review_F-009_loteC_2.md`): avisos de servido decididos con `canser` leído
+fuera de la transacción; reintento ante toda `IntegrityError` («reenvíalo» engañoso, ERP intacto); concurrencia
+de estados del contrato como en el clásico. **Para Administración**: la ficha de MA9999 tiene naturaleza `MA1501`.
 
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
 
@@ -209,13 +108,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-F-007 (proformas) y F-008 (facturas de compra), `pending`
-con `sdd` y rigor `critico`; y F-001 (calentamiento). Candidato del arnés: el
-diagnóstico de la mutación paralela.
+Primero, el despliegue y la verificación de F-009 (guion de arriba). Después,
+F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor
+`critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read`
+fije el tope real de la consulta. Candidato del arnés: el diagnóstico de la
+mutación paralela (en F-009 no dio falsos supervivientes: 76 de 76 confirmados
+en serie).
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-006 está cerrada, desplegada y
-> verificada; queda que el humano anule en Sigrid el parte de prueba
-> `RS26.09/0439`. Lo siguiente del backlog es F-007 (proformas) o F-008 (facturas
-> de compra), ambas `pending` con `sdd`: no arranques ninguna sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-009 está cerrada y mergeada a
+> `dev`, sin desplegar: sigue el guion T19-T24 de `current.md` con el humano
+> (despliegue con la llave cerrada, previas y UNA grabación autorizada). Antes de
+> tocar §2-§4 del contrato con albaranes, avisa a la sesión de albaranes.
