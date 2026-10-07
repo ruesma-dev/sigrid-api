@@ -16,6 +16,9 @@ del producto 498102 en el almacén 829236 vuelve a sus `mov` de 2019; no es efec
 `SIGRID_ALBARAN_WRITE_ENABLED=true` desde el 2026-10-07**, por orden del humano; albaranes avisado (su llave es
 `ALTA_SIGRID_COMMIT` en sv9). `azure-apps` `d066470` (sin push: no tiene remoto).
 
+**Pendiente de confirmar:** respuesta del director de Administración y Control de Costes (correo del 2026-10-07)
+sobre si la contabilización de `AC26/28916` salía correcta (sobre todo MA9999 → `0404.CDSB37` con MA99).
+
 **Queda T24** (con F-053 en real, solo lectura): `prepma` de la primera alta real y stock/PMP/`canser` de la primera
 devolución real (consultas en `progress/spec_F-009.md` §Manuales).
 
