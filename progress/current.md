@@ -7,6 +7,19 @@ Resumen en `history.md`. Mergeada a `dev` con `--no-ff` (local; el push lo hace 
 contrato con albaranes en `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa
 `8a6ecab`; avisar a la sesión de albaranes ANTES de tocarlo). Mutación: 2 equivalentes aceptados por el humano.
 
+**Avance (2026-10-07):** **T19 hecha**: App Settings aplicadas (llave `false`) y `func publish` desde `dev`
+(`b050109`, push hecho). **T20 y T21 hechas** sobre `CTSU16/0206`: el dry-run clásico sale igual que antes; el
+extendido (vinculada sin partida, MA9999 con partida, devolución vinculada y QA9999 sin partida) trae producto,
+naturaleza (MA99, QA99), analítica (`0404.CDSB37`, `0404.CDQA12`), cuenta y `prepma` correctos. **T22 hecha**, con
+autorización del humano limitada a que el contrato solo cambie la medición (sin añadir ni borrar líneas;
+`ctrprodes` incluido): llave abierta solo para la prueba y cerrada justo después. Albarán **`AC26/28916`** (`con.ide`
+2850080, `synckey` `ALB-prueba-F009-1`, usuario `prueba`), la repetición responde `idempotente`. Lecturas tras la
+grabación: 4 `dcapro`, 4 `mov` con `prepma` = `almpma` del `mov` anterior del par en los 4, 2 `ctrprodes`
+(+1/−1), `canser` 258688 6→7 y 258687 1→0, contrato con 17 líneas y Σ`can` 84 sin cambios, estados 0/0 y `log`
+de alta. Correo al director de Administración y Control de Costes para revisar la contabilización.
+**Siguiente:** T23 (anular `AC26/28916` desde la UI) **después** de su respuesta; luego, la comprobación en
+lectura de que el `con` ya no existe y de que el stock y `canser` vuelven a su valor.
+
 **Guion de verificación manual** (cada paso con el humano; escrituras solo con su autorización expresa y concreta):
 
 1. **T19 · Despliegue** desde `dev` tras el push. App Settings por fichero JSON (`--settings "@fichero.json"`,
