@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
+from typing import Any
 
 import azure.functions as func
 import pyodbc
@@ -12,6 +13,7 @@ from application.use_cases.add_contract_lines_use_case import AddContractLinesUs
 from application.use_cases.attach_concepto_grafico_use_case import (
     AttachConceptoGraficoUseCase,
 )
+from application.use_cases.create_albaran_compra_use_case import CreateAlbaranCompraUseCase
 from application.use_cases.create_direct_albaran_use_case import CreateDirectAlbaranUseCase
 from application.use_cases.create_partes_reclamacion_use_case import (
     CreatePartesReclamacionUseCase,
@@ -21,6 +23,11 @@ from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommand
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
 from application.use_cases.read_document_use_case import ReadDocumentUseCase
 from config.settings import Settings, get_settings
+from domain.models.albaran_compra_models import (
+    AlbaranCompraError,
+    AlbaranCompraRequest,
+    elegir_modo_albaran,
+)
 from domain.models.albaran_directo_models import AddDirectAlbaranRequest
 from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
 from domain.models.concepto_grafico_models import (
@@ -56,6 +63,7 @@ def build_dependencies() -> tuple[
     ExecuteSqlCommandUseCase,
     AddContractLinesUseCase,
     CreatePurchaseAlbaranUseCase,
+    CreateAlbaranCompraUseCase,
 ]:
     settings = get_settings()
     repository = SqlServerRepository(settings)
@@ -64,16 +72,19 @@ def build_dependencies() -> tuple[
     command_use_case = ExecuteSqlCommandUseCase(repository, settings)
     contract_lines_use_case = AddContractLinesUseCase(repository, settings)
     albaran_use_case = CreatePurchaseAlbaranUseCase(repository, settings)
+    # F-009: modo extendido de sigrid/albaran (el clasico sigue en la posicion 6).
+    albaran_compra_use_case = CreateAlbaranCompraUseCase(repository, settings)
     return (
         settings, repository, sql_use_case, document_use_case,
         command_use_case, contract_lines_use_case, albaran_use_case,
+        albaran_compra_use_case,
     )
 
 
 @app.route(route="sql/read", methods=["POST"])
 def sql_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, sql_use_case, _, _, _, _ = build_dependencies()
+        _, _, sql_use_case, _, _, _, _, _ = build_dependencies()
         body = req.get_json()
         request_model = SqlReadRequest.model_validate(body)
         response_model = sql_use_case.run(request_model)
@@ -111,7 +122,7 @@ def sql_read(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sql/write", methods=["POST"])
 def sql_write(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, _, _, command_use_case, _, _ = build_dependencies()
+        _, _, _, _, command_use_case, _, _, _ = build_dependencies()
         body = req.get_json()
         request_model = SqlWriteRequest.model_validate(body)
         response_model = command_use_case.run(request_model)
@@ -154,7 +165,7 @@ def sigrid_contrato_lineas(req: func.HttpRequest) -> func.HttpResponse:
     defecto (commit=false): no escribe, solo previsualiza filas y totales.
     """
     try:
-        _, _, _, _, _, contract_lines_use_case, _ = build_dependencies()
+        _, _, _, _, _, contract_lines_use_case, _, _ = build_dependencies()
         body = req.get_json()
         request_model = AddContractLinesRequest.model_validate(body)
         response_model = contract_lines_use_case.run(request_model)
@@ -185,24 +196,38 @@ def sigrid_contrato_lineas(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sigrid/albaran", methods=["POST"])
 def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Crea un albaran de compra (recepcion) a partir de un contrato de compra
-    existente, localizado por (codigo de contrato + codigo de obra + CIF del
-    proveedor). Replica TODAS las lineas del contrato: las recibidas con su
-    cantidad, el resto con cantidad 0. Inserta la cabecera (con + dca), las
-    lineas (dcapro), la trazabilidad contrato->albaran (ctrprodes), los
-    movimientos de stock (mov), actualiza ctrpro.canser y recalcula los
-    estados estser/estfac de la cabecera del contrato.
+    Alta de UN albaran de compra (recepcion, con.tip 14). Dos modos, elegidos
+    por las CLAVES del JSON antes de validar nada (F-009 R1):
 
-    DRY-RUN por defecto (commit=false): no escribe, solo previsualiza la
-    cabecera resultante, lineas, movimientos de stock y nuevos estados del
-    contrato, reservando los identificadores que se usarian.
+    - clasico (sin `lineas` ni `referencia_externa`): albaran desde un contrato
+      de compra existente, localizado por (codigo de contrato + codigo de obra +
+      CIF del proveedor). Crea SOLO las lineas de `lineas_recibidas` (las que
+      apuntan al mismo ctrpro se suman en una). Inserta la cabecera (con + dca),
+      las lineas (dcapro), la trazabilidad contrato->albaran (ctrprodes) y los
+      movimientos de stock (mov), actualiza ctrpro.canser y recalcula los
+      estados estser/estfac del contrato. Sin cambios respecto a antes de F-009.
+    - extendido (con `lineas` o `referencia_externa`): alta idempotente por
+      `referencia_externa` con lineas vinculadas a un contrato y sin vincular,
+      con o sin partida y con devoluciones (CreateAlbaranCompraUseCase). Los
+      fallos de negocio son 400 con `details.codigo` (y `details.lineas` en
+      `lineas_no_validas`). `lineas_recibidas` junto a esas claves es
+      `peticion_mixta`.
+
+    DRY-RUN por defecto (commit=false) en los dos modos: no escribe, solo
+    previsualiza. El commit exige ademas SIGRID_ALBARAN_WRITE_ENABLED (R8).
     """
     try:
-        _, _, _, _, _, _, albaran_use_case = build_dependencies()
+        deps = build_dependencies()
+        settings, albaran_use_case, albaran_compra_use_case = deps[0], deps[6], deps[7]
         body = req.get_json()
+        if elegir_modo_albaran(body) == "extendido":
+            return _sigrid_albaran_extendido(body, settings, albaran_compra_use_case)
         request_model = AddPurchaseAlbaranRequest.model_validate(body)
+        _exigir_escritura_de_albaranes(settings, request_model.commit)
         response_model = albaran_use_case.run(request_model)
         return json_response(response_model)
+    except AlbaranCompraError as exc:
+        return _respuesta_albaran_compra_error(exc, "sigrid/albaran")
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/albaran: %s", exc)
         return error_response(
@@ -226,6 +251,56 @@ def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 
+def _sigrid_albaran_extendido(
+    body: Any, settings: Settings, use_case: CreateAlbaranCompraUseCase
+) -> func.HttpResponse:
+    """Modo extendido de sigrid/albaran (F-009). Su `ValidationError` se traza
+    solo con donde y que fallo: `str(exc)` volcaria textos y precios de la
+    peticion, y R32 no los quiere en las trazas. La respuesta, la de siempre."""
+    try:
+        request_model = AlbaranCompraRequest.model_validate(body)
+    except ValidationError as exc:
+        logger.warning(
+            "ValidationError en sigrid/albaran (extendido): %s",
+            [(error["loc"], error["type"]) for error in exc.errors()],
+        )
+        return error_response(
+            "Solicitud invalida.",
+            status_code=400,
+            details={"type": type(exc).__name__, "validation": exc.errors()},
+        )
+    _exigir_escritura_de_albaranes(settings, request_model.commit)
+    return json_response(use_case.run(request_model))
+
+
+def _exigir_escritura_de_albaranes(settings: Settings, commit: bool) -> None:
+    """R8: segunda llave del commit de sigrid/albaran (los dos modos) y de
+    sigrid/albaran-directo, despues de validar el modelo y ANTES del caso de
+    uso. El dry-run no cambia."""
+    if commit and not settings.sigrid_albaran_write_enabled:
+        raise AlbaranCompraError(
+            "Escritura de albaranes desactivada (SIGRID_ALBARAN_WRITE_ENABLED=false): "
+            "no se ha escrito nada.",
+            codigo="escritura_albaranes_deshabilitada",
+        )
+
+
+def _respuesta_albaran_compra_error(exc: AlbaranCompraError, ruta: str) -> func.HttpResponse:
+    """R9: 400 con `details.codigo` y, en `lineas_no_validas`, `details.lineas`
+    con TODAS las que fallan. Se trazan solo los codigos (R32): los mensajes
+    pueden citar valores de la peticion."""
+    logger.warning(
+        "AlbaranCompraError en %s: codigo=%s lineas=%s",
+        ruta,
+        exc.codigo,
+        [(fallo.indice, fallo.codigo) for fallo in exc.lineas],
+    )
+    details: dict[str, Any] = {"type": type(exc).__name__, "codigo": exc.codigo}
+    if exc.lineas:
+        details["lineas"] = [fallo.model_dump() for fallo in exc.lineas]
+    return error_response(str(exc), status_code=400, details=details)
+
+
 @app.route(route="sigrid/albaran-directo", methods=["POST"])
 def sigrid_albaran_directo(req: func.HttpRequest) -> func.HttpResponse:
     """
@@ -241,8 +316,11 @@ def sigrid_albaran_directo(req: func.HttpRequest) -> func.HttpResponse:
         use_case = CreateDirectAlbaranUseCase(repository, settings)
         body = req.get_json()
         request_model = AddDirectAlbaranRequest.model_validate(body)
+        _exigir_escritura_de_albaranes(settings, request_model.commit)
         response_model = use_case.run(request_model)
         return json_response(response_model)
+    except AlbaranCompraError as exc:
+        return _respuesta_albaran_compra_error(exc, "sigrid/albaran-directo")
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/albaran-directo: %s", exc)
         return error_response(
@@ -382,7 +460,7 @@ def sigrid_partes_reclamacion(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="documents/read", methods=["POST"])
 def documents_read(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        _, _, _, document_use_case, _, _, _ = build_dependencies()
+        _, _, _, document_use_case, _, _, _, _ = build_dependencies()
         body = req.get_json()
         request_model = DocumentReadRequest.model_validate(body)
         response_model = document_use_case.run(request_model)

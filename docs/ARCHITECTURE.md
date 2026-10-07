@@ -31,16 +31,22 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
   `sigrid/partes-reclamacion`, `documents/read`, `diagnostics/tcp`.
+  `build_dependencies()` devuelve una tupla de **ocho** posiciones (la 6 es el
+  albarán clásico y la 7 el modo extendido, F-009); las rutas que no la usan
+  entera la desempaquetan igual.
 - **`domain/`** — sin dependencias de infraestructura.
   - `models/`: `sql_models` (lectura/escritura/documentos), `document_models`,
     `sigrid_domain_models` (líneas de contrato), `albaran_domain_models`,
-    `albaran_directo_models`, `concepto_grafico_models` (adjuntar documentos),
+    `albaran_directo_models`, `albaran_compra_models` (modo extendido de
+    `sigrid/albaran`, F-009), `concepto_grafico_models` (adjuntar documentos),
     `parte_reclamacion_models` (alta en lote de partes de Posventa).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
   `read_document_use_case`, `add_contract_lines_use_case`,
   `create_purchase_albaran_use_case`, `create_direct_albaran_use_case`,
+  `create_albaran_compra_use_case` (modo extendido de `sigrid/albaran`, con su
+  constructor puro `albaran_compra_statements`; F-009),
   `create_partes_reclamacion_use_case` (una transacción por parte, con su
   constructor puro de sentencias `parte_reclamacion_statements`).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
@@ -50,6 +56,47 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   uniforme de respuestas HTTP.
 - **`config/settings.py`** — `Settings` (pydantic-settings) leído de `.env` en
   local y de App Settings en Azure.
+
+### Los dos modos de `sigrid/albaran` (F-009)
+
+Una sola ruta y dos modos, elegidos **por las claves** del JSON antes de validar
+nada (`elegir_modo_albaran`, función pura del dominio): con `lineas` o
+`referencia_externa`, **extendido**; sin ninguna, **clásico**; las dos familias
+a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
+
+- **Clásico**: `AddPurchaseAlbaranRequest` + `CreatePurchaseAlbaranUseCase`,
+  **intocables** (como `albaran-directo`). Los fija un test de caracterización
+  con dorado (`tests/test_f009_caracterizacion.py`), que no se regenera. Él y
+  `albaran-directo` quedan obsoletos cuando el pipeline de albaranes (F-053)
+  esté en real.
+- **Extendido** (alta idempotente de UN albarán con líneas vinculadas y sin
+  vincular, con o sin partida, y devoluciones), en tres piezas por capa:
+  - *domain*: `albaran_compra_models` — petición (`extra="forbid"`), respuesta
+    (superconjunto de la clásica, sin columnas bancarias), avisos y
+    `AlbaranCompraError(ValueError)` con `codigo` cerrado y `lineas` de fallos.
+  - *application*: `albaran_compra_statements` — SQL **constante** con `?`
+    (lecturas L1-L15 y sentencias de transacción E1-E12), autovalidado con
+    `DatabaseReferenceGuard`, y funciones puras (código de serie, balance de
+    stock y PMP, estados del contrato, importes con `Decimal`, constructores de
+    filas). Sin E/S. `create_albaran_compra_use_case` orquesta: guardas sin
+    leer la base, lecturas de cabecera y de líneas (acumula **todos** los fallos
+    de línea), construcción pura y, con `commit`, un `work` reentrante en
+    **una** transacción del repositorio (`run_in_write_transaction`) bajo
+    applocks en orden fijo (`SIGRID_REFEXT_14`, `SIGRID_SERIE_14`, `SIGRID_IDE_con`,
+    `_dcapro`, `_ctrprodes`, `_mov`, `_log`): idempotencia re-comprobada dentro,
+    `cod` e `ide` reservados con `UPDLOCK, HOLDLOCK`, relecturas antes del
+    COMMIT. La colisión de clave agotada sale del caso de uso como
+    `AlbaranCompraError(colision_de_clave)`: la ruta no captura `IntegrityError`.
+  - *infrastructure*: nada nuevo; reutiliza los métodos del repositorio.
+- **Ruta**: la guarda `SIGRID_ALBARAN_WRITE_ENABLED` (R8) va en `sigrid/albaran`
+  (los dos modos) y en `sigrid/albaran-directo`, **después** de validar el modelo
+  y **antes** del caso de uso, solo con `commit`. `AlbaranCompraError` → 400
+  `details:{type, codigo[, lineas]}`; los `except` previos no cambian.
+- **Trazas** (R32): una por petición extendida, la emite el **caso de uso** al
+  terminar (obra, contrato, referencia, `commit`, `estado`, `cod`, nº de líneas,
+  códigos y duración; nunca textos, precios ni datos bancarios). Lo que la ruta
+  corta antes del caso de uso (`peticion_mixta`, Pydantic, R8) deja solo su
+  `warning` de ruta, sin esa traza.
 
 ## Semántica de dominio imprescindible
 
@@ -108,7 +155,9 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
 - **Escritura apagada por defecto**, y encendida por capas independientes:
   credenciales `user_rw`, `ALLOWED_WRITE_PREFIXES`, `ALLOWED_WRITE_DATABASES`
   y, para dominio, `SIGRID_DOMAIN_WRITE_ENABLED` más `commit:true` explícito
-  en la petición (por defecto **dry-run**).
+  en la petición (por defecto **dry-run**). Albaranes, partes y documentos
+  tienen además su segunda llave propia (`SIGRID_ALBARAN_WRITE_ENABLED`,
+  `SIGRID_RECLAMACION_WRITE_ENABLED`, `SIGRID_DOCUMENT_WRITE_ENABLED`).
 - **PROHIBIDO desde local**: escribir sin autorización expresa del humano para
   esa acción concreta; `DELETE` contra Sigrid en cualquier caso; escribir en
   `ruesma_rep` por cualquier vía que no sea `sigrid/concepto-grafico` (y ese,

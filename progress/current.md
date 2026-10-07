@@ -1,6 +1,36 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-009 cerrada (2026-10-07), `done`, **sin desplegar** — guion T19-T24
+
+Resumen en `history.md`. Mergeada a `dev` con `--no-ff` (local; el push lo hace el humano). Spec v8.2;
+contrato con albaranes en `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa
+`8a6ecab`; avisar a la sesión de albaranes ANTES de tocarlo). Mutación: 2 equivalentes aceptados por el humano.
+
+**Guion de verificación manual** (cada paso con el humano; escrituras solo con su autorización expresa y concreta):
+
+1. **T19 · Despliegue** desde `dev` tras el push. App Settings por fichero JSON (`--settings "@fichero.json"`,
+   listas y mapeo solo en JSON, cargadas antes con `Settings` como variable de entorno):
+   `SIGRID_ALBARAN_WRITE_ENABLED=false`, `SIGRID_ALBARAN_PREFIJOS_REFERENCIA=["ALB-"]`,
+   `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO=["MA9999","QA9999","XA9999"]`, `SIGRID_ALBARAN_EMPRESAS_OBRA=[1]`,
+   `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO={"MA9999":"MA99","QA9999":"QA99","XA9999":"XA99"}` y el tope de líneas
+   por defecto. `func azure functionapp publish func-sigridapi-dev-huyke --python` lo lanza el humano con `!`.
+   Tras T19, albaranes ya puede probar la **previa** (`commit=false`) contra el servicio real.
+2. **T20** · dry-run clásico de siempre sobre `CTSU16/0206` (obra 0404): igual que antes salvo `cod`/`ide`.
+3. **T21** · dry-run extendido sobre `CTSU16/0206`: una vinculada, una MA9999 con partida (naturaleza `MA99`,
+   `caa` `0404.CDSB37`), una QA9999 sin partida y una negativa; revisar `filas` y `avisos` con el humano.
+4. **T22** · **una** grabación (`commit:true`) autorizada, con la llave abierta solo para la prueba y usuario
+   `prueba`; revisión en la UI (líneas, partidas, naturaleza, analítica, cuenta, `cod2` y planificación de la
+   vinculada, stock, PMP y **`prepma` frente a un albarán del escritorio del mismo día y almacén**, medición del
+   contrato) y repetición `idempotente`. Volver a cerrar la llave.
+5. **T23** · anular el albarán de prueba desde la UI (nunca `DELETE`); comprobar en lectura que el `con` ya no existe.
+6. **T24** · con F-053 en real: `prepma` de la primera alta real y stock/PMP/`canser` de la primera devolución real
+   (consultas en `progress/spec_F-009.md` §Manuales).
+
+**Riesgos residuales documentados** (`review_F-009_loteC_2.md`): avisos de servido decididos con `canser` leído
+fuera de la transacción; reintento ante toda `IntegrityError` («reenvíalo» engañoso, ERP intacto); concurrencia
+de estados del contrato como en el clásico. **Para Administración**: la ficha de MA9999 tiene naturaleza `MA1501`.
+
 ## F-006 cerrada, desplegada y verificada (2026-09-25)
 
 Resumen en `history.md`; verificación en
@@ -59,6 +89,13 @@ ajeno; lo borra el humano si quiere.
   el primer commit (`e903394`, 2026-04-16), en `origin/main` y `origin/dev`.
   Lo que cierra el hueco es **rotarlas** en Sigrid y en el Key Vault; después
   `git rm --cached local.settings.json` y `.gitignore`.
+- **`sql/read` no aplica `timeout_seconds` como tope de la consulta** (hallazgo del reviewer de
+  F-009 T0a-bis, 2026-10-05): `sql_server_repository.py:43` lo pasa a `pyodbc.connect(timeout=…)`,
+  que es el tiempo de *login*; los casos de uso de dominio sí fijan `cursor.connection.timeout`.
+  Una lectura que el balanceador corta a 230 s **sigue corriendo en el SQL Server de producción**
+  (verosímil causa del 1205 y de los 121 s de M14 en T0b). Afecta a todos los consumidores:
+  feature propia (fijar `connection.timeout` en `execute_read_query` y actualizar
+  `azure-apps/sigrid_api.md`). Mientras tanto, no relanzar una lectura justo después de un corte.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
 - **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`; no se probó `DELETE`.
 - El guard de `ALLOWED_WRITE_DATABASES` vacía **falla abierto** en los cuatro
@@ -71,13 +108,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-F-007 (proformas) y F-008 (facturas de compra), `pending`
-con `sdd` y rigor `critico`; y F-001 (calentamiento). Candidato del arnés: el
-diagnóstico de la mutación paralela.
+Primero, el despliegue y la verificación de F-009 (guion de arriba). Después,
+F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor
+`critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read`
+fije el tope real de la consulta. Candidato del arnés: el diagnóstico de la
+mutación paralela (en F-009 no dio falsos supervivientes: 76 de 76 confirmados
+en serie).
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-006 está cerrada, desplegada y
-> verificada; queda que el humano anule en Sigrid el parte de prueba
-> `RS26.09/0439`. Lo siguiente del backlog es F-007 (proformas) o F-008 (facturas
-> de compra), ambas `pending` con `sdd`: no arranques ninguna sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-009 está cerrada y mergeada a
+> `dev`, sin desplegar: sigue el guion T19-T24 de `current.md` con el humano
+> (despliegue con la llave cerrada, previas y UNA grabación autorizada). Antes de
+> tocar §2-§4 del contrato con albaranes, avisa a la sesión de albaranes.
