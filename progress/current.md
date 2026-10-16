@@ -1,6 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-010 · spec escrita (2026-10-16), pendiente de aprobación del humano
+
+Rama `feature/F-010-documents-read-nombres-y-clave`. Spec en
+`specs/F-010-documents-read-nombres-y-clave/` (rigor `critico`); informe en
+[`spec_F-010.md`](spec_F-010.md). Decisiones abiertas para el humano (detalle en el informe):
+**D1** codificación mínima de `X-Document-Filename` (no ASCII, controles y `%`); **D2** `safe=""`
+en `Content-Disposition`; **D3** 409 `DocumentoAmbiguoError` para la ambigüedad; **D4** tope de 4
+columnas en `key`; **D5** `TOP (2)` y ambigüedad para toda petición; **D6** hallazgo:
+`documents/read` no valida `database` contra `ALLOWED_DATABASES` → propuesta de feature aparte
+(F-011); **D7** `key` excluyente con `id_column`/`id_value`. Verificaciones MANUAL (humano): T13
+(antes de desplegar), T14 (despliegue) y T15 (post-despliegue, solo lectura, ide 365617);
+comandos en design §Verificación manual.
+
 ## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
 Resumen en `history.md`. `dev` con el merge `b050109` desplegado en `func-sigridapi-dev-huyke`. Contrato con
