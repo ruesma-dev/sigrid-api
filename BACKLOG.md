@@ -12,7 +12,7 @@ Resumen: **10 features**, 4 abiertas, 6 terminadas.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-010 | documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad | 10 | pendiente | critico | `feature/F-010-documents-read-nombres-y-clave` |
+| F-010 | documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad | 10 | spec lista | critico | `feature/F-010-documents-read-nombres-y-clave` |
 
 ## Terminadas
 
@@ -47,7 +47,7 @@ Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Esc
 
 ### F-010 · documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad
 
-estado **pendiente** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-010-documents-read-nombres-y-clave`
+estado **spec lista** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-010-documents-read-nombres-y-clave`
 
 Alta del 2026-10-16 a propuesta de datamart-seg-anual (F-139) y mcp-bbdd (F-023), que van a abrir adjuntos de Sigrid para la IA. (1) binary_file_response (interface_adapters/http/http_response_factory.py) manda X-Document-Filename sin codificar; el host de Functions rechaza la cabecera no ASCII y responde 500 con cuerpo vacío (fuera del try del handler). Reproducido por el líder el 2026-10-16 contra la API desplegada: ruesma_rep.dbo.gra ide 365617 con filename_columns [nomori] -> 500 vacío; con [cod] -> 200. Datamart midió 11.262 de 199.032 adjuntos de compras (5,7 %) afectados. sigrid-api-v2 tiene la misma línea (responses.py:62), fuera de este repo. (2) read_document hace SELECT TOP (1) ... WHERE [id_column] = ?: si la columna no es única sirve una fila cualquiera sin avisar. En gra los índices únicos son gra_indide (ide, PK) y gra_empcod (emp, cod); cod solo no tiene restricción (hoy 365.617 filas, 365.617 cod distintos, 25 emp). Propuesta del consumidor: clave compuesta opcional (key: {col: valor}, cada nombre por IdentifierGuard, AND) manteniendo id_column/id_value, y error si hay más de una fila. Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.
 

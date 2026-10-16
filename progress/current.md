@@ -1,6 +1,15 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-010 en `spec_ready` (2026-10-16): espera la aprobación del humano
+
+Propuesta de datamart (F-139) y mcp-bbdd (F-023) sobre `documents/read`, verificada por el líder con lecturas:
+`gra` ide 365617 con `["nomori"]` → 500 con cuerpo vacío, con `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y
+`(emp, cod)`. Spec en `specs/F-010-documents-read-nombres-y-clave/`, informe y decisiones D1-D7 en
+`progress/spec_F-010.md`. Rama `feature/F-010-documents-read-nombres-y-clave`. **Hallazgo D6 (confirmado por el
+líder): `documents/read` no valida `database` contra `ALLOWED_DATABASES` y `_connect` la interpola en la cadena de
+conexión**; el spec-author propone F-011 aparte.
+
 ## F-010 · spec escrita (2026-10-16), pendiente de aprobación del humano
 
 Rama `feature/F-010-documents-read-nombres-y-clave`. Spec en
