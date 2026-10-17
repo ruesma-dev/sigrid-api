@@ -159,3 +159,37 @@ Verde tras el `except`: `15 passed in 0.73s`. R5 ya pasaba en T8 porque su rojo 
 | Análisis de supervivientes (ronda 1) | 1) `min_length=1→2` de `id_column`: hueco real, test nuevo; **medido** con el mutante aplicado a mano: `1 failed, 54 passed`. 2) `zip(strict=True→False)`: estrictez inalcanzable, código quitado (24→23 mutantes). Detalle en el informe de mutación |
 | Tiempo de la suite | 47,84 s (`init.sh`); línea base de la campaña 45,9 s y 50,2 s |
 | `bash harness/init.sh` final | **ENTORNO LISTO**; ruff 79 avisos (deuda previa, no bloquea) |
+
+## Corrección H1 (review_F-010_C1C3C5.md, opción a)
+
+**Qué cambió.** Con `id_column` no válido el error decía `'key'`; R12 exige el texto de `dev`
+(`dev:infrastructure/repositories/sql_server_repository.py`, `field_name="id_column"`).
+`build_document_query` y `read_document` (adaptador y puerto) aceptan `key_field_name: str =
+"key"`, que solo cambia el nombre citado por `IdentifierGuard` para los nombres de `key`; el caso
+de uso pasa `"id_column"` si la petición no trae `key`. SQL, parámetros, orden de validación,
+código 400 y tipo `IdentifierValidationError` sin cambios. `infrastructure/security/` sin tocar.
+Ficheros: `infrastructure/repositories/sql_server_repository.py`, `domain/ports/sql_repository.py`,
+`application/use_cases/read_document_use_case.py`, `tests/test_f010_caso_de_uso.py` (2 tests
+nuevos sobre el adaptador real, sin conexión; 2 aserciones de `key_field_name` en los existentes),
+`tests/test_f010_repositorio.py` (1 test nuevo).
+
+**RED** (test escrito antes del arreglo):
+`.venv/Scripts/python -m pytest tests/test_f010_caso_de_uso.py -q -k "conserva_su_texto"`
+```
+E       AssertionError: assert 'El identific...itidos: ide;x' == 'El identific...itidos: ide;x'
+E         - El identificador 'id_column' contiene caracteres no permitidos: ide;x
+E         ?                   ^^^^^^^^^
+E         + El identificador 'key' contiene caracteres no permitidos: ide;x
+E         ?                   ^^^
+FAILED tests/test_f010_caso_de_uso.py::test_f010_r12_id_column_no_valido_conserva_su_texto
+```
+**GREEN**: los 5 ficheros `test_f010_*` + `test_f004_route`, `test_f006_route`,
+`test_f009_route` → `222 passed`. F-010 pasa de 157 a 160 tests.
+
+**Mutantes aplicados a mano** (los 5 ficheros `test_f010_*`, restaurado tras cada uno):
+M1 adaptador vuelve a `field_name="key"` → `2 failed, 158 passed`; M2 `read_document` no reenvía
+el argumento → `2 failed`; M3 el caso de uso pasa siempre `"key"` → `2 failed`; M4 condición
+invertida → `4 failed`; M5 el caso de uso no pasa el argumento → `3 failed`. Los cinco, muertos.
+
+**No ejecutado aquí, a propósito** (encargo del líder): `bash harness/init.sh` ni la campaña de
+mutación (corre en otro worktree). La tabla «Evidencias» de arriba es previa a esta corrección.

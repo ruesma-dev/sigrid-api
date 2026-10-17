@@ -30,8 +30,12 @@ class SqlRepository(ABC):
         key: dict[str, Any],
         blob_column: str,
         filename_columns: list[str],
+        key_field_name: str = "key",
     ) -> RawDocumentRecord:
         """Lee UNA fila localizada por `key` (columnas unidas por AND, en orden).
+
+        `key_field_name` es el campo que nombra el error de un nombre de `key` no
+        valido ("id_column" si la peticion llego por id_column, F-010 R12).
 
         Lanza IdentifierValidationError (nombre no valido), ValueError (ninguna
         fila, o BLOB NULL) y DocumentoAmbiguoError (mas de una fila).

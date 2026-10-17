@@ -180,6 +180,17 @@ def test_f010_r10_nombre_de_key_no_valido_se_rechaza(nombre: str) -> None:
     assert "'key'" in str(info.value)
 
 
+def test_f010_r12_el_error_cita_el_campo_indicado(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(IdentifierValidationError) as info:
+        componer({"ide;x": 1}, key_field_name="id_column")
+    assert str(info.value) == "El identificador 'id_column' contiene caracteres no permitidos: ide;x"
+    repo, _, conexiones = repositorio(monkeypatch, [])
+    with pytest.raises(IdentifierValidationError) as info:
+        leer(repo, {"ide;x": 1}, key_field_name="id_column")
+    assert "'id_column'" in str(info.value)
+    assert conexiones == []
+
+
 def test_f010_r10_nombre_no_valido_no_abre_conexion(monkeypatch: pytest.MonkeyPatch) -> None:
     repo, cursor, conexiones = repositorio(monkeypatch, [("a.pdf", None, _PDF)])
     with pytest.raises(IdentifierValidationError):

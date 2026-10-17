@@ -20,6 +20,7 @@ def build_document_query(
     key: dict[str, Any],
     blob_column: str,
     filename_columns: list[str],
+    key_field_name: str = "key",
 ) -> tuple[str, list[Any], str]:
     """(sql, parametros, condicion legible) de documents/read. Pura (F-010 R10-R11).
 
@@ -27,13 +28,15 @@ def build_document_query(
     cada nombre de `key`, blob_column y filename_columns. Los valores de `key`
     viajan como parametros `?` en el orden de `key`; nunca en el texto del SQL.
     `TOP (2)` basta para distinguir una fila de mas de una (decision D5).
+    `key_field_name` es el campo que nombra el error de un nombre de `key` no
+    valido: "id_column" cuando la peticion llego por id_column (R12, texto de dev).
     """
     safe_schema = IdentifierGuard.validate_identifier(schema, field_name="schema")
     safe_table = IdentifierGuard.validate_identifier(table, field_name="table")
     # Pares (nombre validado, valor) en el orden de `key`: lista y no dict, para no
     # fundir dos nombres que el recorte deje iguales (el modelo ya los rechaza).
     safe_key = [
-        (IdentifierGuard.validate_identifier(column, field_name="key"), value)
+        (IdentifierGuard.validate_identifier(column, field_name=key_field_name), value)
         for column, value in key.items()
     ]
     safe_blob_column = IdentifierGuard.validate_identifier(blob_column, field_name="blob_column")
@@ -367,6 +370,7 @@ class SqlServerRepository(SqlRepository):
         key: dict[str, Any],
         blob_column: str,
         filename_columns: list[str],
+        key_field_name: str = "key",
     ) -> RawDocumentRecord:
         query, parameters, condition = build_document_query(
             schema=schema,
@@ -374,6 +378,7 @@ class SqlServerRepository(SqlRepository):
             key=key,
             blob_column=blob_column,
             filename_columns=filename_columns,
+            key_field_name=key_field_name,
         )
         # Ya validados por build_document_query: IdentifierGuard solo los recorta.
         source = f"[{schema.strip()}].[{table.strip()}]"

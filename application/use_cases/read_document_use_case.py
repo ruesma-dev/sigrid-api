@@ -22,6 +22,8 @@ class ReadDocumentUseCase:
             key=localizacion,
             blob_column=request.blob_column,
             filename_columns=request.filename_columns,
+            # El error de un nombre no valido cita el campo que mando el cliente (R12).
+            key_field_name="key" if request.key is not None else "id_column",
         )
         # Reserva document_<v1>_<v2>...: con una columna, el document_<id_value> de antes (R15).
         etiqueta = "_".join(str(valor) for valor in localizacion.values())
