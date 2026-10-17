@@ -1,44 +1,27 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-010 implementada (2026-10-17), pendiente de revisión y de las manuales
+## F-010 en curso (`in_progress`): implementada, en revisión (2026-10-17)
 
-Implementer: T1-T12 y T16 hechas en la rama (`b86a4c8`..`c13686f`) y en `azure-apps` (`0c4cbeb`, sin
-push). `init.sh` en verde (2527 passed, cobertura 100 % de 80 líneas), mutación en serie 23/23
-muertos. Informe: [`impl_F-010.md`](impl_F-010.md). **Desviaciones justificadas allí**: validadores
-con `PydanticCustomError` (un `ValueError` hacía 500 el 400 de R7-R9 al serializar `exc.errors()`)
-y `build_document_query` sin `zip`. Quedan: reviewer; **T13** (captura previa, humano) y **aviso a
-albaranes antes de desplegar**; **T14** despliegue; **T15** verificación post-despliegue; luego quitar
-el aviso «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` §8.3 y avisar a mcp-bbdd y datamart.
+`documents/read`: nombres no ASCII sin 500 y localización sin ambigüedad. Origen: propuesta de datamart (F-139) y
+mcp-bbdd (F-023), verificada por el líder el 2026-10-16 con lecturas (`gra` ide 365617: `["nomori"]` → 500 con cuerpo
+vacío, `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y `(emp, cod)`). Rama
+`feature/F-010-documents-read-nombres-y-clave`; spec en `specs/F-010-documents-read-nombres-y-clave/`.
 
-## F-010 en `in_progress` (2026-10-17): spec aprobada por el humano
-
-El humano aprobó el 2026-10-17 D1-D5 y D7 tal como están en `progress/spec_F-010.md`. D6 queda fuera de F-010 (será
-feature propia, aún sin dar de alta). Las sesiones `mcp` y `datamart` ya están avisadas de D6 (no tienen que hacer
-nada: mandan la constante `ruesma_rep`) y de lo que cambia para ellas con F-010; hay que avisarlas otra vez al
-desplegar. A albaranes hay que avisarla **antes** del despliegue (`X-Document-Filename` puede llevar `%XX`).
-
-Antecedente (2026-10-16):
-
-Propuesta de datamart (F-139) y mcp-bbdd (F-023) sobre `documents/read`, verificada por el líder con lecturas:
-`gra` ide 365617 con `["nomori"]` → 500 con cuerpo vacío, con `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y
-`(emp, cod)`. Spec en `specs/F-010-documents-read-nombres-y-clave/`, informe y decisiones D1-D7 en
-`progress/spec_F-010.md`. Rama `feature/F-010-documents-read-nombres-y-clave`. **Hallazgo D6 (confirmado por el
-líder): `documents/read` no valida `database` contra `ALLOWED_DATABASES` y `_connect` la interpola en la cadena de
-conexión**; el spec-author propone F-011 aparte.
-
-## F-010 · spec escrita (2026-10-16), pendiente de aprobación del humano
-
-Rama `feature/F-010-documents-read-nombres-y-clave`. Spec en
-`specs/F-010-documents-read-nombres-y-clave/` (rigor `critico`); informe en
-[`spec_F-010.md`](spec_F-010.md). Decisiones abiertas para el humano (detalle en el informe):
-**D1** codificación mínima de `X-Document-Filename` (no ASCII, controles y `%`); **D2** `safe=""`
-en `Content-Disposition`; **D3** 409 `DocumentoAmbiguoError` para la ambigüedad; **D4** tope de 4
-columnas en `key`; **D5** `TOP (2)` y ambigüedad para toda petición; **D6** hallazgo:
-`documents/read` no valida `database` contra `ALLOWED_DATABASES` → propuesta de feature aparte
-(F-011); **D7** `key` excluyente con `id_column`/`id_value`. Verificaciones MANUAL (humano): T13
-(antes de desplegar), T14 (despliegue) y T15 (post-despliegue, solo lectura, ide 365617);
-comandos en design §Verificación manual.
+- **Spec** ([`spec_F-010.md`](spec_F-010.md)): el humano aprobó el 2026-10-17 D1-D5 y D7 tal cual. **D6** (hallazgo,
+  confirmado por el líder: `documents/read` no valida `database` contra `ALLOWED_DATABASES` y `_connect` la interpola
+  en la cadena de conexión) queda **fuera** de F-010; pendiente de que el humano diga si se da de alta como F-011.
+- **Implementación** ([`impl_F-010.md`](impl_F-010.md)): T1-T12 y T16 en la rama; `azure-apps` `0c4cbeb` (sin
+  push). Desviaciones justificadas allí (`PydanticCustomError`, `build_document_query` sin `zip`, `null` = no enviado).
+- **Revisión troceada:** C4/C4 bis RED+cobertura/C4 ter APROBADO ([`review_F-010_C4.md`](review_F-010_C4.md));
+  C1/C2/C3/C3 bis/C5 RECHAZADO por H1 (con `id_column` inválido el error dice `'key'`, rompe R12; en corrección por
+  el implementer) y H2 (este fichero, corregido por el líder) ([`review_F-010_C1C3C5.md`](review_F-010_C1C3C5.md));
+  mutación en remedición en worktree aparte; falta el veredicto final con `init.sh`.
+- **Avisos:** `mcp` y `datamart` avisadas de D6 (no tienen que hacer nada: mandan la constante `ruesma_rep`) y de lo
+  que cambia con F-010; hay que avisarlas otra vez al desplegar. **Albaranes, antes de desplegar**
+  (`X-Document-Filename` puede llevar `%XX`). `sigrid-api-v2` tiene el mismo fallo de cabecera: fuera de alcance.
+- **Queda (humano y líder):** T13 captura previa de cabeceras; T14 despliegue; T15 verificación post-despliegue en
+  solo lectura (ide 365617); quitar el aviso «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` §8.3.
 
 ## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
@@ -162,17 +145,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-F-009 solo espera T24 (con F-053 en real). Lo siguiente:
-F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor
-`critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read`
-fije el tope real de la consulta. Candidato del arnés: el diagnóstico de la
-mutación paralela (en F-009 no dio falsos supervivientes: 76 de 76 confirmados
-en serie).
+**F-010 en curso** (ver arriba): cerrar la revisión, merge a `dev` y T13-T15 con el humano. F-009 solo espera T24
+(con F-053 en real). Después: la posible F-011 (validar `database` en `documents/read`, D6 de F-010, rigor
+`critico`); F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
+(calentamiento); y la feature propuesta para que `sql/read` fije el tope real de la consulta. Candidato del arnés: el
+diagnóstico de la mutación paralela (en F-009 no dio falsos supervivientes: 76 de 76 confirmados en serie).
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-009 está desplegada, verificada y
-> con la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar
-> §2-§4 del contrato con albaranes, avisa a la sesión de albaranes. Lo siguiente
-> del backlog (F-007, F-008, la feature de `sql/read`): no arranques nada sin
+> Lee `CLAUDE.md` y `progress/current.md`. F-010 (`documents/read`) está `in_progress` en su rama: retoma la
+> revisión (informes `review_F-010_*.md`) y, aprobada, el merge y T13-T15 con el humano; avisa a albaranes antes de
+> desplegar. F-009 está desplegada con la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar
+> §2-§4 del contrato con albaranes, avisa a la sesión de albaranes. Lo demás del backlog: no arranques nada sin
 > preguntar.
