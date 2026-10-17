@@ -116,7 +116,9 @@ ajeno; lo borra el humano si quiere.
 
 F-010 cerrada el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real). **F-011**
 (`documents/read` valida `database`, D6 de F-010, rigor `critico`) dada de alta en `pending` el 2026-10-18 a
-petición del humano; la spec no se lanza sin su orden. Después: F-007 (proformas) y F-008 (facturas de compra),
+petición del humano. **Spec de F-011 escrita el 2026-10-18** (`specs/F-011-documents-read-valida-database/`,
+informe `progress/spec_F-011.md`): espera a que el humano decida D1 (qué lista), D2 (blindar `_connect` para toda
+la API, lo que cierra también un hueco nuevo en el dry-run de `sigrid/contrato-lineas`), D3 y D4. Después: F-007 (proformas) y F-008 (facturas de compra),
 `pending` con `sdd` y rigor `critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read` fije el tope
 real de la consulta. Candidato del arnés: el diagnóstico de la mutación paralela.
 
