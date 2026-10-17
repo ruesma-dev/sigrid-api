@@ -1,7 +1,14 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-010 en `spec_ready` (2026-10-16): espera la aprobación del humano
+## F-010 en `in_progress` (2026-10-17): spec aprobada por el humano
+
+El humano aprobó el 2026-10-17 D1-D5 y D7 tal como están en `progress/spec_F-010.md`. D6 queda fuera de F-010 (será
+feature propia, aún sin dar de alta). Las sesiones `mcp` y `datamart` ya están avisadas de D6 (no tienen que hacer
+nada: mandan la constante `ruesma_rep`) y de lo que cambia para ellas con F-010; hay que avisarlas otra vez al
+desplegar. A albaranes hay que avisarla **antes** del despliegue (`X-Document-Filename` puede llevar `%XX`).
+
+Antecedente (2026-10-16):
 
 Propuesta de datamart (F-139) y mcp-bbdd (F-023) sobre `documents/read`, verificada por el líder con lecturas:
 `gra` ide 365617 con `["nomori"]` → 500 con cuerpo vacío, con `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y
