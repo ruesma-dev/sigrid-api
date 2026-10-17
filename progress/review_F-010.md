@@ -125,3 +125,14 @@ y [`review_F-010_mutacion.md`](review_F-010_mutacion.md); aquí, si siguen valie
 merge (despliegue y verificación): hoy C4 las quiere pendientes y C5 las quiere `[x]`, y cada cierre lo
 resuelve a su manera. Propuesta: «toda tarea `[x]` salvo las MANUAL posteriores al merge, que
 bloquean el `done` pero no el APROBADO». Vale para cualquier proyecto: a `arnes-base`.
+
+## Cierre de H3 y H4 (pasada 3, incremental desde `913761a`, punta `1a68467`)
+
+`git diff 913761a..HEAD --stat`: solo `progress/` (`current.md`, `impl_F-010.md`, `mutacion_F-010.md`); ni código ni tests.
+- **H3 cerrado** (`956f30d`): `mutacion_F-010.md` mide `913761a` (mismo código que `64ffde0`; lo posterior no toca el
+  alcance, RM1 [x]): 209 líneas, 24/24 muertos, 0 sin veredicto; 24 × 6,2 ≈ 148,3 s (RM2 [x]); cuadra con mi serie.
+  «Evidencias» al día sobre `913761a`, con una sola cabecera de tabla.
+- **H4 cerrado** (`1a68467`): sin «en corrección» ni «remedición»; T13-T15 enlazadas a `design.md` §Verificación manual.
+- `bash harness/init.sh` entero sobre la punta: ENTORNO LISTO, 2530 passed/1 skipped, cobertura 80/80, TAMAÑO 138/140.
+
+**Veredicto: APROBADO para merge a `dev`.** No es el `done`: C5 sigue con T13-T15 abiertas (MANUAL, humano).
