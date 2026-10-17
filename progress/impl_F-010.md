@@ -151,14 +151,19 @@ Verde tras el `except`: `15 passed in 0.73s`. R5 ya pasaba en T8 porque su rojo 
 
 | Evidencia | Valor medido |
 |---|---|
-| Tests ejecutados (suite completa, `init.sh`) | **2527 passed, 1 skipped**, 0 failed |
-| Tests nuevos de F-010 | 157 (55 + 55 + 23 + 9 + 15), todos en verde |
+Medidas sobre la punta `913761a` (posterior a H1 `64ffde0`; H3 de `review_F-010.md`).
+
+| Evidencia | Valor medido |
+|---|---|
+| Tests ejecutados (suite completa, `init.sh`) | **2530 passed, 1 skipped**, 0 failed, 47,87 s |
+| Tests de F-010 | 160 (55 cabecera + 55 modelo + 24 repositorio + 11 caso de uso + 15 ruta, por `pytest --co`), todos en verde |
 | Cobertura de líneas cambiadas | `PUERTA COBERTURA: 100.0% de 80 líneas cambiadas cubiertas (80/80, umbral 80%, nivel critico)` (antes de los tests de nulos: 97,5 %, 78/80; las dos líneas eran los `return None` de `null` explícito) |
 | Mutación, ronda 1 (`bef6a25`, `--workers 1`) | 24 generados, 22 muertos, **2 supervivientes**, 0 timeouts, 246,7 s |
-| Mutación, ronda final (`bb4a612`, `--workers 1`) | **23 generados, 23 muertos, 0 supervivientes**, 0 timeouts, 0 sin veredicto, 155,4 s, línea base 50,2 s → [`mutacion_F-010.md`](mutacion_F-010.md) |
-| Análisis de supervivientes (ronda 1) | 1) `min_length=1→2` de `id_column`: hueco real, test nuevo; **medido** con el mutante aplicado a mano: `1 failed, 54 passed`. 2) `zip(strict=True→False)`: estrictez inalcanzable, código quitado (24→23 mutantes). Detalle en el informe de mutación |
-| Tiempo de la suite | 47,84 s (`init.sh`); línea base de la campaña 45,9 s y 50,2 s |
-| `bash harness/init.sh` final | **ENTORNO LISTO**; ruff 79 avisos (deuda previa, no bloquea) |
+| Mutación, ronda 2 (`bb4a612`, `--workers 1`, previa a H1) | 23 generados, 23 muertos, 0 supervivientes, 155,4 s, 198 líneas |
+| Mutación, ronda final (`913761a`, `--workers 1`) | 209 líneas en alcance; **24 generados, 24 evaluados, 24 muertos, 0 supervivientes**, 0 timeouts, 0 sin veredicto, 148,3 s, línea base 45,6 s, media 6,2 s/mutante, timeout 120 s → [`mutacion_F-010.md`](mutacion_F-010.md). El mutante nuevo respecto a la ronda 2 es el de H1 (`read_document_use_case.py:26`, `is not None → is None`): muerto |
+| Análisis de supervivientes (ronda 1) | 1) `min_length=1→2` de `id_column`: hueco real, test nuevo; **medido** con el mutante aplicado a mano: `1 failed, 54 passed`. 2) `zip(strict=True→False)`: estrictez inalcanzable, código quitado (24→23 mutantes). Detalle en el informe de mutación. Ronda final: sin supervivientes que analizar |
+| Tiempo de la suite | 47,87 s (`init.sh`); línea base de la campaña final 45,6 s |
+| `bash harness/init.sh` final | **ENTORNO LISTO**; ruff 79 avisos (deuda previa, no bloquea); PUERTA TAMAÑO en verde |
 
 ## Corrección H1 (review_F-010_C1C3C5.md, opción a)
 
@@ -192,4 +197,5 @@ el argumento → `2 failed`; M3 el caso de uso pasa siempre `"key"` → `2 faile
 invertida → `4 failed`; M5 el caso de uso no pasa el argumento → `3 failed`. Los cinco, muertos.
 
 **No ejecutado aquí, a propósito** (encargo del líder): `bash harness/init.sh` ni la campaña de
-mutación (corre en otro worktree). La tabla «Evidencias» de arriba es previa a esta corrección.
+mutación (corre en otro worktree). Ambas se ejecutaron después sobre `913761a` (corrección H3):
+la tabla «Evidencias» de arriba ya refleja esta corrección.
