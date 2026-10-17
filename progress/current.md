@@ -1,6 +1,14 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-011 en `spec_ready` (2026-10-18): espera la aprobación del humano
+
+Rama `feature/F-011-documents-read-valida-database`; spec en `specs/F-011-documents-read-valida-database/`, informe y
+decisiones D1-D4 en [`spec_F-011.md`](spec_F-011.md). **Hallazgo nuevo, confirmado por el líder:** el hueco no es
+solo de `documents/read`: `sigrid/contrato-lineas` conecta en dry-run con `request.database` (`locate_contract`,
+`add_contract_lines_use_case.py:38`) y la lista blanca de escritura solo se mira en el paso 6 con `commit` (l. 171);
+el albarán clásico y `albaran-directo` siguen el mismo patrón. Solo lo cierra A1 (D2: `IdentifierGuard` en `_connect`).
+
 ## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
 Resumen en `history.md`. `dev` con el merge `b050109` desplegado en `func-sigridapi-dev-huyke`. Contrato con

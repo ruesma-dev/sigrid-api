@@ -12,7 +12,7 @@ Resumen: **11 features**, 4 abiertas, 7 terminadas.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-011 | documents/read debe validar database contra ALLOWED_DATABASES | 11 | pendiente | critico | `feature/F-011-documents-read-valida-database` |
+| F-011 | documents/read debe validar database contra ALLOWED_DATABASES | 11 | spec lista | critico | `feature/F-011-documents-read-valida-database` |
 
 ## Terminadas
 
@@ -48,7 +48,7 @@ Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Esc
 
 ### F-011 · documents/read debe validar database contra ALLOWED_DATABASES
 
-estado **pendiente** · prioridad 11 · rigor `critico` · SDD sí · rama `feature/F-011-documents-read-valida-database`
+estado **spec lista** · prioridad 11 · rigor `critico` · SDD sí · rama `feature/F-011-documents-read-valida-database`
 
 Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.
 

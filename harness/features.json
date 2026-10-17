@@ -208,7 +208,7 @@
       "title": "documents/read debe validar database contra ALLOWED_DATABASES",
       "description": "Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.",
       "acceptance": "1) documents/read con una base fuera de ALLOWED_DATABASES responde 400 sin abrir conexión. 2) ruesma_rep sigue funcionando igual. 3) Un valor de database con ';' o '=' se rechaza antes de llegar a la cadena de conexión. 4) azure-apps/sigrid_api.md §8.3 actualizada. 5) init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md.",
-      "status": "pending",
+      "status": "spec_ready",
       "sdd": true,
       "rigor": "critico",
       "priority": 11,
