@@ -200,3 +200,31 @@ def test_f010_r12_los_demas_campos_no_cambian() -> None:
 def test_f010_r12_extra_se_sigue_ignorando() -> None:
     p = peticion(id_column="ide", id_value=1, campo_de_mas="x")
     assert not hasattr(p, "campo_de_mas")
+
+
+# --- Los errores de localización se vuelcan a JSON (la ruta lo hace) ----------
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"key": {"emp": 1}, "id_column": "ide"},
+        {},
+        {"id_column": "ide"},
+        {"key": {}},
+        {"key": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}},
+        {"key": {" ": 1}},
+        {"key": {"emp": 1, "EMP": 2}},
+        {"key": {"emp": None}},
+    ],
+)
+def test_f010_r7_r9_los_errores_se_serializan_a_json(campos: dict[str, Any]) -> None:
+    import json
+
+    error = rechaza(**campos)
+    json.dumps(error.errors())
+
+
+def test_f010_r9_los_mensajes_nombran_el_motivo() -> None:
+    assert "key admite como mucho 4 columnas." in str(rechaza(key={c: 1 for c in "abcde"}))
+    assert "key repite la columna EMP." in str(rechaza(key={"emp": 1, " EMP ": 2}))

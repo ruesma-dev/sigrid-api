@@ -207,22 +207,33 @@ class DocumentReadRequest(BaseModel):
     @field_validator("key")
     @classmethod
     def _normalize_key(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
-        """Recorta los nombres, conserva el orden y rechaza las formas no validas (R9)."""
+        """Recorta los nombres, conserva el orden y rechaza las formas no validas (R9).
+
+        Errores como PydanticCustomError y no ValueError: la ruta vuelca
+        `exc.errors()` a JSON, y un ValueError viaja dentro de `ctx` y no se
+        serializa (daria 500 en vez de 400).
+        """
         if value is None:
             return None
         if not value:
-            raise ValueError("key no puede ser un objeto vacio.")
+            raise PydanticCustomError("key_invalida", "key no puede ser un objeto vacio.")
         if len(value) > MAX_COLUMNAS_CLAVE:
-            raise ValueError(f"key admite como mucho {MAX_COLUMNAS_CLAVE} columnas.")
+            raise PydanticCustomError(
+                "key_invalida",
+                "key admite como mucho {maximo} columnas.",
+                {"maximo": MAX_COLUMNAS_CLAVE},
+            )
         normalizada: dict[str, Any] = {}
         vistos: set[str] = set()
         for nombre, valor in value.items():
             limpio = nombre.strip()
             if not limpio:
-                raise ValueError("key no admite nombres de columna vacios.")
+                raise PydanticCustomError("key_invalida", "key no admite nombres de columna vacios.")
             plegado = limpio.casefold()
             if plegado in vistos:
-                raise ValueError(f"key repite la columna {limpio}.")
+                raise PydanticCustomError(
+                    "key_invalida", "key repite la columna {columna}.", {"columna": limpio}
+                )
             vistos.add(plegado)
             normalizada[limpio] = valor
         return normalizada
@@ -236,9 +247,11 @@ class DocumentReadRequest(BaseModel):
         trae_id_value = "id_value" in self.model_fields_set
         if self.key is not None:
             if self.id_column is not None or trae_id_value:
-                raise ValueError("key es excluyente con id_column/id_value.")
+                raise PydanticCustomError(
+                    "localizacion_invalida", "key es excluyente con id_column/id_value."
+                )
         elif self.id_column is None or not trae_id_value:
-            raise ValueError("Indica key, o id_column con id_value.")
+            raise PydanticCustomError("localizacion_invalida", "Indica key, o id_column con id_value.")
         return self
 
     def localizacion(self) -> dict[str, Any]:
