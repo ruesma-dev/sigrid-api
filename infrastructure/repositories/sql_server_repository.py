@@ -30,24 +30,27 @@ def build_document_query(
     """
     safe_schema = IdentifierGuard.validate_identifier(schema, field_name="schema")
     safe_table = IdentifierGuard.validate_identifier(table, field_name="table")
-    safe_key_columns = [IdentifierGuard.validate_identifier(column, field_name="key") for column in key]
+    # Pares (nombre validado, valor) en el orden de `key`: lista y no dict, para no
+    # fundir dos nombres que el recorte deje iguales (el modelo ya los rechaza).
+    safe_key = [
+        (IdentifierGuard.validate_identifier(column, field_name="key"), value)
+        for column, value in key.items()
+    ]
     safe_blob_column = IdentifierGuard.validate_identifier(blob_column, field_name="blob_column")
     safe_filename_columns = [
         IdentifierGuard.validate_identifier(column, field_name="filename_columns")
         for column in filename_columns
     ]
 
-    values = list(key.values())
+    values = [value for _, value in safe_key]
     projected_filename_columns = ", ".join(f"[{column}]" for column in safe_filename_columns)
-    where = " AND ".join(f"[{column}] = ?" for column in safe_key_columns)
+    where = " AND ".join(f"[{column}] = ?" for column, _ in safe_key)
     sql = (
         f"SELECT TOP (2) {projected_filename_columns}, "
         f"CAST([{safe_blob_column}] AS varbinary(max)) AS file_content "
         f"FROM [{safe_schema}].[{safe_table}] WHERE {where}"
     )
-    condition = " AND ".join(
-        f"{column}={value}" for column, value in zip(safe_key_columns, values, strict=True)
-    )
+    condition = " AND ".join(f"{column}={value}" for column, value in safe_key)
     return sql, values, condition
 
 

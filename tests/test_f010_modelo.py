@@ -112,6 +112,12 @@ def test_f010_r8_id_column_con_id_value_null_se_sigue_aceptando() -> None:
 
 def test_f010_r8_id_column_vacia_se_rechaza_como_hoy() -> None:
     rechaza(id_column="", id_value=1)
+    rechaza(id_column="   ", id_value=1)
+
+
+def test_f010_r8_id_column_de_un_caracter_se_acepta_como_hoy() -> None:
+    # Frontera de min_length=1: superviviente 1 de la primera campaña.
+    assert peticion(id_column="a", id_value=1).localizacion() == {"a": 1}
 
 
 def test_f010_r8_id_column_se_recorta_como_hoy() -> None:
