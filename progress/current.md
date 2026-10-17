@@ -22,7 +22,11 @@ vacío, `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y `(emp, cod)`)
 - **Avisos:** `mcp` y `datamart` avisadas de D6 (no tienen que hacer nada: mandan la constante `ruesma_rep`) y de lo
   que cambia con F-010; hay que avisarlas otra vez al desplegar. **Albaranes, antes de desplegar**
   (`X-Document-Filename` puede llevar `%XX`). `sigrid-api-v2` tiene el mismo fallo de cabecera: fuera de alcance.
-- **Queda (humano y líder):** T13 captura previa de cabeceras; T14 despliegue; T15 verificación post-despliegue en
+- **Mergeada en `dev`** (`77ac0d4`, local; `init.sh` en verde sobre `dev`). **Albaranes avisada** el 2026-10-17
+  (sesión `albaranes [6577c2]`). **T13 hecha** por el líder el 2026-10-17 (solo lectura): `gra` ide 365660, `nomori`
+  ASCII con espacios, 200, 40.795 bytes, cabeceras guardadas fuera del repo (scratchpad de la sesión,
+  `f010_t13_captura.json`: llevan el nombre). Si se pierde, repetir 4a antes de desplegar.
+- **Queda (humano y líder):** push de `dev` y T14 despliegue (humano, con `!`); T15 verificación post-despliegue en
   solo lectura (ide 365617). Comandos en `specs/F-010-documents-read-nombres-y-clave/design.md` §Verificación
   manual. Después, quitar el aviso «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` §8.3.
 - **Hallazgo del arnés para el humano** (`review_F-010_mutacion.md`): el hook PostToolUse de `.claude/settings.json`
