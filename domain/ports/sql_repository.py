@@ -27,9 +27,13 @@ class SqlRepository(ABC):
         database: str,
         schema: str,
         table: str,
-        id_column: str,
-        id_value: Any,
+        key: dict[str, Any],
         blob_column: str,
         filename_columns: list[str],
     ) -> RawDocumentRecord:
+        """Lee UNA fila localizada por `key` (columnas unidas por AND, en orden).
+
+        Lanza IdentifierValidationError (nombre no valido), ValueError (ninguna
+        fila, o BLOB NULL) y DocumentoAmbiguoError (mas de una fila).
+        """
         raise NotImplementedError

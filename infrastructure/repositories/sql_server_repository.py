@@ -7,10 +7,48 @@ from typing import Any, Callable, Iterator
 import pyodbc
 
 from config.settings import Settings
-from domain.models.document_models import RawDocumentRecord
+from domain.models.document_models import DocumentoAmbiguoError, RawDocumentRecord
 from domain.models.sql_models import SqlReadRequest, SqlWriteRequest
 from domain.ports.sql_repository import SqlRepository
 from infrastructure.security.identifier_guard import IdentifierGuard
+
+
+def build_document_query(
+    *,
+    schema: str,
+    table: str,
+    key: dict[str, Any],
+    blob_column: str,
+    filename_columns: list[str],
+) -> tuple[str, list[Any], str]:
+    """(sql, parametros, condicion legible) de documents/read. Pura (F-010 R10-R11).
+
+    Valida cada identificador con IdentifierGuard en este orden: schema, table,
+    cada nombre de `key`, blob_column y filename_columns. Los valores de `key`
+    viajan como parametros `?` en el orden de `key`; nunca en el texto del SQL.
+    `TOP (2)` basta para distinguir una fila de mas de una (decision D5).
+    """
+    safe_schema = IdentifierGuard.validate_identifier(schema, field_name="schema")
+    safe_table = IdentifierGuard.validate_identifier(table, field_name="table")
+    safe_key_columns = [IdentifierGuard.validate_identifier(column, field_name="key") for column in key]
+    safe_blob_column = IdentifierGuard.validate_identifier(blob_column, field_name="blob_column")
+    safe_filename_columns = [
+        IdentifierGuard.validate_identifier(column, field_name="filename_columns")
+        for column in filename_columns
+    ]
+
+    values = list(key.values())
+    projected_filename_columns = ", ".join(f"[{column}]" for column in safe_filename_columns)
+    where = " AND ".join(f"[{column}] = ?" for column in safe_key_columns)
+    sql = (
+        f"SELECT TOP (2) {projected_filename_columns}, "
+        f"CAST([{safe_blob_column}] AS varbinary(max)) AS file_content "
+        f"FROM [{safe_schema}].[{safe_table}] WHERE {where}"
+    )
+    condition = " AND ".join(
+        f"{column}={value}" for column, value in zip(safe_key_columns, values, strict=True)
+    )
+    return sql, values, condition
 
 
 class SqlServerRepository(SqlRepository):
@@ -323,28 +361,19 @@ class SqlServerRepository(SqlRepository):
         database: str,
         schema: str,
         table: str,
-        id_column: str,
-        id_value: Any,
+        key: dict[str, Any],
         blob_column: str,
         filename_columns: list[str],
     ) -> RawDocumentRecord:
-        safe_schema = IdentifierGuard.validate_identifier(schema, field_name="schema")
-        safe_table = IdentifierGuard.validate_identifier(table, field_name="table")
-        safe_id_column = IdentifierGuard.validate_identifier(id_column, field_name="id_column")
-        safe_blob_column = IdentifierGuard.validate_identifier(blob_column, field_name="blob_column")
-        safe_filename_columns = [
-            IdentifierGuard.validate_identifier(column, field_name="filename_columns")
-            for column in filename_columns
-        ]
-
-        projected_filename_columns = ", ".join(f"[{column}]" for column in safe_filename_columns)
-        query = f"""
-            SELECT TOP (1)
-                {projected_filename_columns},
-                CAST([{safe_blob_column}] AS varbinary(max)) AS file_content
-            FROM [{safe_schema}].[{safe_table}]
-            WHERE [{safe_id_column}] = ?
-        """
+        query, parameters, condition = build_document_query(
+            schema=schema,
+            table=table,
+            key=key,
+            blob_column=blob_column,
+            filename_columns=filename_columns,
+        )
+        # Ya validados por build_document_query: IdentifierGuard solo los recorta.
+        source = f"[{schema.strip()}].[{table.strip()}]"
 
         username, password = self._read_credentials()
         with self._connect(
@@ -355,23 +384,27 @@ class SqlServerRepository(SqlRepository):
             autocommit=True,
         ) as connection:
             cursor = connection.cursor()
-            cursor.execute(query, id_value)
-            row = cursor.fetchone()
+            cursor.execute(query, *parameters)
+            rows = cursor.fetchall()
 
-        if row is None:
+        if not rows:
             raise ValueError(
-                f"No existe ninguna fila en [{safe_schema}].[{safe_table}] con {safe_id_column}={id_value}."
+                f"No existe ninguna fila en {source} con {condition}."
+            )
+        if len(rows) > 1:
+            raise DocumentoAmbiguoError(
+                f"La localizacion casa con mas de una fila en {source} "
+                f"({condition}): no se sirve ninguna. Usa una clave unica "
+                "(en dbo.gra: key con emp y cod, o id_column ide)."
             )
 
+        row = rows[0]
         file_content = row[-1]
         if file_content is None:
-            raise ValueError(
-                f"La columna {safe_blob_column} esta vacia para {safe_id_column}={id_value}."
-            )
+            raise ValueError(f"La columna {blob_column.strip()} esta vacia para {condition}.")
 
         candidates = [str(value).strip() for value in row[:-1] if value not in (None, "")]
         return RawDocumentRecord(
             file_name_candidates=candidates,
             content=bytes(file_content),
-            id_value=id_value,
         )
