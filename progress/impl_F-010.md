@@ -149,8 +149,6 @@ Verde tras el `except`: `15 passed in 0.73s`. R5 ya pasaba en T8 porque su rojo 
 
 ## Evidencias
 
-| Evidencia | Valor medido |
-|---|---|
 Medidas sobre la punta `913761a` (posterior a H1 `64ffde0`; H3 de `review_F-010.md`).
 
 | Evidencia | Valor medido |
