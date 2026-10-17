@@ -1,44 +1,11 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-010 en curso (`in_progress`): implementada, en revisión (2026-10-17)
-
-`documents/read`: nombres no ASCII sin 500 y localización sin ambigüedad. Origen: propuesta de datamart (F-139) y
-mcp-bbdd (F-023), verificada por el líder el 2026-10-16 con lecturas (`gra` ide 365617: `["nomori"]` → 500 con cuerpo
-vacío, `["cod"]` → 200; índices únicos de `gra`: `ide` (PK) y `(emp, cod)`). Rama
-`feature/F-010-documents-read-nombres-y-clave`; spec en `specs/F-010-documents-read-nombres-y-clave/`.
-
-- **Spec** ([`spec_F-010.md`](spec_F-010.md)): el humano aprobó el 2026-10-17 D1-D5 y D7 tal cual. **D6** (hallazgo,
-  confirmado por el líder: `documents/read` no valida `database` contra `ALLOWED_DATABASES` y `_connect` la interpola
-  en la cadena de conexión) queda **fuera** de F-010; pendiente de que el humano diga si se da de alta como F-011.
-- **Implementación** ([`impl_F-010.md`](impl_F-010.md)): T1-T12 y T16 en la rama; `azure-apps` `0c4cbeb` (sin
-  push). Desviaciones justificadas allí (`PydanticCustomError`, `build_document_query` sin `zip`, `null` = no enviado).
-- **Revisión:** troceada en [`review_F-010_C4.md`](review_F-010_C4.md) (APROBADO),
-  [`review_F-010_C1C3C5.md`](review_F-010_C1C3C5.md) (H1 y H2, cerrados: H1 en `64ffde0`, H2 en este fichero) y
-  [`review_F-010_mutacion.md`](review_F-010_mutacion.md) (APROBADO). Final en [`review_F-010.md`](review_F-010.md):
-  código aprobado (`init.sh` 2530 passed, cobertura 100 % de 80 líneas, mutación en serie 24/24 sobre `913761a`);
-  H3 cerrado en `956f30d` ([`mutacion_F-010.md`](mutacion_F-010.md)); H4, este fichero. Permite el merge a `dev`,
-  **no el `done`**: C5 exige T13-T15 hechas (o que el humano acepte por escrito cerrar con ellas pendientes).
-- **Avisos:** `mcp` y `datamart` avisadas de D6 (no tienen que hacer nada: mandan la constante `ruesma_rep`) y de lo
-  que cambia con F-010; hay que avisarlas otra vez al desplegar. **Albaranes, antes de desplegar**
-  (`X-Document-Filename` puede llevar `%XX`). `sigrid-api-v2` tiene el mismo fallo de cabecera: fuera de alcance.
-- **Mergeada en `dev`** (`77ac0d4`, local; `init.sh` en verde sobre `dev`). **Albaranes avisada** el 2026-10-17
-  (sesión `albaranes [6577c2]`). **T13 hecha** por el líder el 2026-10-17 (solo lectura): `gra` ide 365660, `nomori`
-  ASCII con espacios, 200, 40.795 bytes, cabeceras guardadas fuera del repo (scratchpad de la sesión,
-  `f010_t13_captura.json`: llevan el nombre). Si se pierde, repetir 4a antes de desplegar.
-- **Queda (humano y líder):** push de `dev` y T14 despliegue (humano, con `!`); T15 verificación post-despliegue en
-  solo lectura (ide 365617). Comandos en `specs/F-010-documents-read-nombres-y-clave/design.md` §Verificación
-  manual. Después, quitar el aviso «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` §8.3.
-- **Hallazgo del arnés para el humano** (`review_F-010_mutacion.md`): el hook PostToolUse de `.claude/settings.json`
-  ejecuta pytest tras cada Edit/Write y falseó un superviviente durante una campaña en serie. Propuesta sin aplicar:
-  saltarlo mientras exista `.arnes_cache/mutacion_en_curso.json`, `PYTHONDONTWRITEBYTECODE=1` (portar a
-  `arnes-base`) y que la herramienta recompruebe cada superviviente.
-
 ## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
 Resumen en `history.md`. `dev` con el merge `b050109` desplegado en `func-sigridapi-dev-huyke`. Contrato con
 albaranes: `specs/F-009-alta-albaran-compra/contrato_albaranes.md` (§2-§4 congelado: F-053 usa `8a6ecab`; avisar a la
-sesión de albaranes —la de esta máquina, `albaranes [dd1842]`— ANTES de tocarlo).
+sesión de albaranes —hoy `albaranes [6577c2]` en esta máquina— ANTES de tocarlo).
 
 **Hecho:** T19 (App Settings y despliegue), T20-T21 (previas sobre `CTSU16/0206`), T22 (una grabación autorizada,
 `AC26/28916`, verificada con lecturas e idempotente; el humano autorizó que el contrato solo cambiara la medición,
@@ -55,25 +22,7 @@ sobre si la contabilización de `AC26/28916` salía correcta (sobre todo MA9999 
 **Queda T24** (con F-053 en real, solo lectura): `prepma` de la primera alta real y stock/PMP/`canser` de la primera
 devolución real (consultas en `progress/spec_F-009.md` §Manuales).
 
-**Guion de verificación manual** (referencia; hecho hasta T23):
-
-1. **T19 · Despliegue** desde `dev` tras el push. App Settings por fichero JSON (`--settings "@fichero.json"`,
-   listas y mapeo solo en JSON, cargadas antes con `Settings` como variable de entorno):
-   `SIGRID_ALBARAN_WRITE_ENABLED=false`, `SIGRID_ALBARAN_PREFIJOS_REFERENCIA=["ALB-"]`,
-   `SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO=["MA9999","QA9999","XA9999"]`, `SIGRID_ALBARAN_EMPRESAS_OBRA=[1]`,
-   `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO={"MA9999":"MA99","QA9999":"QA99","XA9999":"XA99"}` y el tope de líneas
-   por defecto. `func azure functionapp publish func-sigridapi-dev-huyke --python` lo lanza el humano con `!`.
-   Tras T19, albaranes ya puede probar la **previa** (`commit=false`) contra el servicio real.
-2. **T20** · dry-run clásico de siempre sobre `CTSU16/0206` (obra 0404): igual que antes salvo `cod`/`ide`.
-3. **T21** · dry-run extendido sobre `CTSU16/0206`: una vinculada, una MA9999 con partida (naturaleza `MA99`,
-   `caa` `0404.CDSB37`), una QA9999 sin partida y una negativa; revisar `filas` y `avisos` con el humano.
-4. **T22** · **una** grabación (`commit:true`) autorizada, con la llave abierta solo para la prueba y usuario
-   `prueba`; revisión en la UI (líneas, partidas, naturaleza, analítica, cuenta, `cod2` y planificación de la
-   vinculada, stock, PMP y **`prepma` frente a un albarán del escritorio del mismo día y almacén**, medición del
-   contrato) y repetición `idempotente`. Volver a cerrar la llave.
-5. **T23** · anular el albarán de prueba desde la UI (nunca `DELETE`); comprobar en lectura que el `con` ya no existe.
-6. **T24** · con F-053 en real: `prepma` de la primera alta real y stock/PMP/`canser` de la primera devolución real
-   (consultas en `progress/spec_F-009.md` §Manuales).
+Guion T19-T24 completo en `history.md` y `progress/spec_F-009.md` §Manuales.
 
 **Riesgos residuales documentados** (`review_F-009_loteC_2.md`): avisos de servido decididos con `canser` leído
 fuera de la transacción; reintento ante toda `IntegrityError` («reenvíalo» engañoso, ERP intacto); concurrencia
@@ -123,6 +72,13 @@ ajeno; lo borra el humano si quiere.
   Sesgo pesimista en las dos features, así que los ceros son sólidos. **Tercera
   evidencia en F-006:** 6 de 42 supervivientes de la ronda 1 murieron al
   reevaluarlos en serie (`mutacion_F-006.md`).
+- **Hook `PostToolUse` y mutación** (F-010, `review_F-010_mutacion.md`): el hook de `.claude/settings.json` ejecuta
+  pytest tras cada Edit/Write y falseó un superviviente durante una campaña en serie. Propuesta sin aplicar: saltarlo
+  mientras exista `.arnes_cache/mutacion_en_curso.json`, `PYTHONDONTWRITEBYTECODE=1` y que la herramienta recompruebe
+  cada superviviente antes de declararlo.
+- **C4 y C5 de `CHECKPOINTS.md` chocan** con las tareas MANUAL posteriores al merge (F-010, `review_F-010.md`):
+  propuesta «toda tarea `[x]` salvo las MANUAL de despliegue y verificación, que bloquean el `done` pero no el
+  APROBADO».
 - **Un test que construye `Settings` real debe aislar el entorno** (la campaña
   exporta el `.env`): lección de F-004 T14c; merece regla en `CONVENTIONS.md`.
 - Pendientes de antes: `pytest-timeout` para los cuelgues; «Evidencias» con
@@ -144,6 +100,8 @@ ajeno; lo borra el humano si quiere.
   (verosímil causa del 1205 y de los 121 s de M14 en T0b). Afecta a todos los consumidores:
   feature propia (fijar `connection.timeout` en `execute_read_query` y actualizar
   `azure-apps/sigrid_api.md`). Mientras tanto, no relanzar una lectura justo después de un corte.
+- **`sigrid-api-v2`** tiene el mismo fallo de cabecera que arregló F-010 (`interface_adapters/http/responses.py:62`):
+  aviso para ese repositorio, no tarea de este.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
 - **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`; no se probó `DELETE`.
 - El guard de `ALLOWED_WRITE_DATABASES` vacía **falla abierto** en los cuatro
@@ -156,16 +114,15 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-010 en curso** (ver arriba): cerrar la revisión, merge a `dev` y T13-T15 con el humano. F-009 solo espera T24
-(con F-053 en real). Después: la posible F-011 (validar `database` en `documents/read`, D6 de F-010, rigor
-`critico`); F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
-(calentamiento); y la feature propuesta para que `sql/read` fije el tope real de la consulta. Candidato del arnés: el
-diagnóstico de la mutación paralela (en F-009 no dio falsos supervivientes: 76 de 76 confirmados en serie).
+F-010 cerrada el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real). **F-011**
+(`documents/read` valida `database`, D6 de F-010, rigor `critico`) dada de alta en `pending` el 2026-10-18 a
+petición del humano; la spec no se lanza sin su orden. Después: F-007 (proformas) y F-008 (facturas de compra),
+`pending` con `sdd` y rigor `critico`; F-001 (calentamiento); y la feature propuesta para que `sql/read` fije el tope
+real de la consulta. Candidato del arnés: el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-010 (`documents/read`) está `in_progress` en su rama: retoma la
-> revisión (informes `review_F-010_*.md`) y, aprobada, el merge y T13-T15 con el humano; avisa a albaranes antes de
-> desplegar. F-009 está desplegada con la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar
-> §2-§4 del contrato con albaranes, avisa a la sesión de albaranes. Lo demás del backlog: no arranques nada sin
-> preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-010 está cerrada y desplegada. F-009 está desplegada con la llave
+> abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar §2-§4 del contrato con albaranes, avisa a la
+> sesión de albaranes. Lo siguiente del backlog (F-011, F-007, F-008, la feature de `sql/read`): no arranques nada
+> sin preguntar.

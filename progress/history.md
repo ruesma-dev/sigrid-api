@@ -266,3 +266,28 @@ APROBADO (`review_F-009*.md`). `azure-apps` `51b29a6` (sin push: no tiene remoto
   §2-§4.
 
 **Queda (guion en `current.md`):** despliegue y verificación manual T19-T24 (una grabación autorizada).
+
+---
+
+## F-010 · `documents/read`: nombres no ASCII sin 500 y localización sin ambigüedad
+
+**Cerrada el 2026-10-18.** Rigor `critico`. Rama `feature/F-010-documents-read-nombres-y-clave`. Propuesta de
+datamart-seg-anual (F-139) y mcp-bbdd (F-023), verificada por el líder con lecturas antes de la spec.
+
+- **El 500:** `X-Document-Filename` iba sin codificar y el host de Functions rechaza las cabeceras no ASCII (500 con
+  cuerpo vacío; ~5,7 % de los adjuntos de compras, medido por datamart). Ahora va con codificación porcentual UTF-8
+  de lo no ASCII, los controles y el `%`; un nombre ASCII sin `%` sale idéntico. `Content-Disposition` con
+  `quote(safe="")`.
+- **La ambigüedad:** `SELECT TOP (1) WHERE [id_column] = ?` servía una fila cualquiera si la columna no era única.
+  Ahora `TOP (2)` y **409 `DocumentoAmbiguoError`** para toda petición, y campo opcional `key` (1-4 columnas,
+  nombres por `IdentifierGuard`, valores con `?`, AND), excluyente con `id_column`/`id_value`, que siguen igual y
+  con los mismos textos de error. En `gra` los únicos índices únicos son `ide` (PK) y `(emp, cod)`.
+- **Decisiones del humano:** D1-D5 y D7 de `spec_F-010.md` tal cual. **D6** (no se valida `database`, que además se
+  interpola en la cadena de conexión) fuera: es **F-011**.
+- **Verificación:** `init.sh` 2530 passed/1 skipped; cobertura 100 % de 80 líneas cambiadas; mutación en serie 24/24
+  muertos (`mutacion_F-010.md`). Revisión troceada: H1 (texto de error de `id_column`) y H2-H4 (papeleo), cerrados.
+  Desplegada el 2026-10-18 desde `dev` `fc2079a`; T15 en solo lectura: 365617 por `nomori` 200, mismo fichero por
+  `key`, 409 por `emp`, cabeceras ASCII idénticas (`verificacion_F-010.md`).
+- **Ecosistema:** `azure-apps` `0c4cbeb` y `bdc8ec0` (§8.3). Avisadas albaranes (antes del despliegue; lee la
+  cabecera: decodificar con `unquote`), mcp-bbdd y datamart. `sigrid-api-v2` tiene el mismo fallo: aviso.
+- **Lección del arnés:** el hook `PostToolUse` puede falsear la mutación en serie (propuesta en `current.md`).
