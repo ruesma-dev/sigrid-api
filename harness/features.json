@@ -197,11 +197,22 @@
       "title": "documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad",
       "description": "Alta del 2026-10-16 a propuesta de datamart-seg-anual (F-139) y mcp-bbdd (F-023), que van a abrir adjuntos de Sigrid para la IA. (1) binary_file_response (interface_adapters/http/http_response_factory.py) manda X-Document-Filename sin codificar; el host de Functions rechaza la cabecera no ASCII y responde 500 con cuerpo vacío (fuera del try del handler). Reproducido por el líder el 2026-10-16 contra la API desplegada: ruesma_rep.dbo.gra ide 365617 con filename_columns [nomori] -> 500 vacío; con [cod] -> 200. Datamart midió 11.262 de 199.032 adjuntos de compras (5,7 %) afectados. sigrid-api-v2 tiene la misma línea (responses.py:62), fuera de este repo. (2) read_document hace SELECT TOP (1) ... WHERE [id_column] = ?: si la columna no es única sirve una fila cualquiera sin avisar. En gra los índices únicos son gra_indide (ide, PK) y gra_empcod (emp, cod); cod solo no tiene restricción (hoy 365.617 filas, 365.617 cod distintos, 25 emp). Propuesta del consumidor: clave compuesta opcional (key: {col: valor}, cada nombre por IdentifierGuard, AND) manteniendo id_column/id_value, y error si hay más de una fila. Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.",
       "acceptance": "1) Un nombre con ñ y á devuelve 200 y X-Document-Filename solo lleva ASCII que, decodificado, da el nombre original; Content-Disposition sigue igual. 2) Si la condición de localización casa con más de una fila, error 4xx explícito en vez de servir la primera. 3) Localización por clave compuesta opcional con nombres validados por IdentifierGuard, valores parametrizados con ?, unidos por AND; id_column/id_value siguen funcionando igual. 4) azure-apps/sigrid_api.md §8.3 actualizada. 5) init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md.",
-      "status": "in_progress",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 10,
       "branch": "feature/F-010-documents-read-nombres-y-clave"
+    },
+    {
+      "id": "F-011",
+      "title": "documents/read debe validar database contra ALLOWED_DATABASES",
+      "description": "Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.",
+      "acceptance": "1) documents/read con una base fuera de ALLOWED_DATABASES responde 400 sin abrir conexión. 2) ruesma_rep sigue funcionando igual. 3) Un valor de database con ';' o '=' se rechaza antes de llegar a la cadena de conexión. 4) azure-apps/sigrid_api.md §8.3 actualizada. 5) init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md.",
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 11,
+      "branch": "feature/F-011-documents-read-valida-database"
     }
   ]
 }

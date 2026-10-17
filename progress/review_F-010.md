@@ -19,22 +19,13 @@ puede ser incremental solo sobre `progress/` (más `init.sh`).
 mutación completa con **cero supervivientes** sin test o justificación aceptada por el humano, y las
 `MANUAL (humano)` listadas con su comando exacto.
 
-## Cambios requeridos
+## Cambios requeridos (pasada 2; cerrados en la pasada 3)
 
-1. **H3 · `progress/mutacion_F-010.md` no mide el código que se revisa (RM1).** Declara SHA `bb4a612`,
-   198 líneas y 23 mutantes; `64ffde0` tocó tres ficheros del alcance (`read_document_use_case.py`,
-   `sql_repository.py`, `sql_server_repository.py`) y el alcance real es **209 líneas y 24 mutantes**
-   (el nuevo: `read_document_use_case.py:26`, `is not None` → `is None`). Regenerar con
-   `python -m harness.mutacion --feature F-010 --workers 1` sobre la punta, sin `Edit`/`Write`
-   mientras corre, y poner al día la tabla «Evidencias» de `progress/impl_F-010.md` (l. 150-161,
-   hoy previa a H1: suite 2530 passed/1 skipped, F-010 160 tests, 24 mutantes). Resultado esperado,
-   ya medido por mí: 24/24 (ver «Mutación»).
-2. **H4 · `progress/current.md` (lo lleva el líder).** (a) l. 17-19: H1 sigue «en corrección por el
-   implementer» y la mutación «en remedición»; ya están cerrados (`64ffde0`, `cf5bbda`). (b) l. 23-24:
-   T13-T15 se listan **sin comando ni enlace a él**. La reescritura de H2 (`0443a4c`) borró el bloque
-   que decía «comandos en design §Verificación manual», que es justo en lo que se apoyó el `[x]` de C4
-   en `review_F-010_C4.md` (l. 26-28 y 102). Basta con enlazar `specs/F-010-…/design.md` §Verificación
-   manual (l. 216) y el comando de T14 de `tasks.md` l. 17.
+1. **H3 · `mutacion_F-010.md` no medía el código revisado (RM1)**: SHA `bb4a612`, 198 líneas y 23 mutantes; tras
+   `64ffde0` el alcance es **209 líneas y 24 mutantes** (nuevo: `read_document_use_case.py:26`, `is not None` →
+   `is None`). Regenerar con `--workers 1` sobre la punta y poner al día «Evidencias» de `impl_F-010.md`. Esperado 24/24.
+2. **H4 · `current.md`** (líder): H1 y la mutación seguían «en corrección» / «en remedición», y T13-T15 iban sin
+   comando ni enlace a `design.md` §Verificación manual (l. 216) ni al comando de T14 (`tasks.md` l. 17).
 
 ## H1 y H2
 
@@ -102,29 +93,22 @@ y [`review_F-010_mutacion.md`](review_F-010_mutacion.md); aquí, si siguen valie
   supervivientes · [x] «Evidencias» existe con los cuatro números y workers, pero previa a H1 → H3.
 - **C4 ter** N/A: no existe `harness/rutas_sensibles.json` y `init.sh` no señala rutas.
 - **C5** · tareas: T1-T12 y T16 `[x]` con commit `F-010 Tn:` (T9-T10 comparten `2bcda71`; H1 va como
-  `F-010 H1:`). **T13-T15 abiertas, MANUAL (humano)**: T13 es antes del despliegue, T14 es el
-  despliegue y T15 después; no pueden estar hechas en la revisión de código, y C4 exige precisamente
-  que figuren «pendientes de que el humano las ejecute». **Pero C5 no las exime**: dice «todas las
-  tareas `[x]`». Por tanto, una vez corregidos H3 y H4, el APROBADO de código **autoriza el merge a
-  `dev`** (necesario para T14), **no el `done`**: F-010 pasa a `done` cuando T13-T15 estén `[x]`, o si
-  el humano acepta por escrito cerrar con ellas pendientes (precedente: F-009 cerrada con T24).
+  `F-010 H1:`). **T13-T15 abiertas, MANUAL (humano)** (antes, durante y después del despliegue): C4
+  las quiere pendientes, pero C5 pide «todas `[x]`». El APROBADO de código **autoriza el merge a `dev`**
+  (necesario para T14), **no el `done`**, que espera a T13-T15 `[x]` (cerrado en «Cierre de C5»).
   [x] sin artefactos de la feature sin trackear · [x] `features.json` coherente (`in_progress`).
 
 ## Observaciones (no bloquean)
 
 - **O1** `current.md` l. 26-93: el bloque F-009 conserva el guion T19-T23 ya ejecutado y F-006 su lista
   completa; H2 admitía dejar lo pendiente «como lista corta o en `history.md`». Recortar al cerrar.
-- **O2** La puerta de cobertura sigue en 80 líneas tras H1: lo añadido son líneas de continuación
-  de llamadas y firmas ya contadas; las cubre la suite (24.º mutante muerto).
-- **O3** El hook `PostToolUse` no estorbó esta vez (sin `Edit`/`Write` durante la campaña, cero falsos
-  supervivientes). Sigue en pie la automejora de `review_F-010_mutacion.md` (portar a `arnes-base`).
+- **O2** Cobertura sigue en 80 líneas tras H1: lo añadido son continuaciones ya contadas (24.º mutante muerto).
+- **O3** El hook `PostToolUse` no estorbó (cero falsos supervivientes); sigue la automejora de `review_F-010_mutacion.md`.
 
 ## Automejora propuesta (no aplicada)
 
-`CHECKPOINTS.md` C5: decir explícitamente qué pasa con las tareas `MANUAL (humano)` posteriores al
-merge (despliegue y verificación): hoy C4 las quiere pendientes y C5 las quiere `[x]`, y cada cierre lo
-resuelve a su manera. Propuesta: «toda tarea `[x]` salvo las MANUAL posteriores al merge, que
-bloquean el `done` pero no el APROBADO». Vale para cualquier proyecto: a `arnes-base`.
+`CHECKPOINTS.md` C5: «toda tarea `[x]` salvo las `MANUAL (humano)` posteriores al merge (despliegue y
+verificación), que bloquean el `done` pero no el APROBADO». Hoy C4 y C5 chocan. Vale para `arnes-base`.
 
 ## Cierre de H3 y H4 (pasada 3, incremental desde `913761a`, punta `1a68467`)
 
@@ -136,3 +120,20 @@ bloquean el `done` pero no el APROBADO». Vale para cualquier proyecto: a `arnes
 - `bash harness/init.sh` entero sobre la punta: ENTORNO LISTO, 2530 passed/1 skipped, cobertura 80/80, TAMAÑO 138/140.
 
 **Veredicto: APROBADO para merge a `dev`.** No es el `done`: C5 sigue con T13-T15 abiertas (MANUAL, humano).
+
+## Cierre de C5 (pasada 4, incremental desde `e8a962c`, punta `4faecb2`)
+
+`git diff e8a962c..HEAD --stat`: solo `progress/current.md`, `progress/verificacion_F-010.md` y `tasks.md` (T13-T15 a
+`[x]`); ni código, ni tests, ni spec: `init.sh` y la mutación de la pasada 3 siguen valiendo y no se repiten.
+- [x] **R18 y design §Verificación manual** (`verificacion_F-010.md`): paso 0 (`sql/read` 200); 1 (365617 `["nomori"]` → 200,
+  cabecera ASCII que decodifica al `nomori`, y `filename*` también); 2 (por `key`: `X-Document-Size` 17.865 y SHA-256
+  idéntico); 3 (409 `DocumentoAmbiguoError`); 4a (T13, ide 365660, antes del despliegue) y 4b (idénticas). T14: despliegue
+  del humano desde `dev` `fc2079a`, exit 0, sin App Settings. Ni `nomori` ni `cod` en el registro ni en `current.md`.
+- [x] **`azure-apps` `bdc8ec0`**: solo §8.3; cambia «PENDIENTE DE DESPLIEGUE» por «desplegada y verificada el 2026-10-18»
+  con lo medido, coherente con l. 194; sin secretos (el nombre de la Function App ya está en §11); sin push.
+- [x] **C5 tareas**: T1-T16 `[x]`. Lo hace el líder al cerrar: `features.json` a `done`, resumen en `history.md` y
+  `current.md` limpio (con O1). No cuenta como fallo.
+- **O4** (no bloquea): T13 y T15 las ejecutó el líder, en solo lectura, con un guion Python fuera del repo, no el humano
+  con los comandos de `design.md`; los resultados cubren cada comprobación de R18.
+
+**Veredicto: APROBADO para `done`.**
