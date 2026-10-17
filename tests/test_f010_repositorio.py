@@ -9,9 +9,10 @@ llamar. Ajustes falsos con `SimpleNamespace`.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
 
@@ -153,7 +154,7 @@ def test_f010_r11_read_document_ejecuta_una_vez_con_parametros_posicionales(
 ) -> None:
     repo, cursor, _ = repositorio(monkeypatch, [("a.pdf", None, _PDF)])
     leer(repo, {"emp": 1, "cod": "ABC"})
-    esperado_sql, esperados, _ = componer({"emp": 1, "cod": "ABC"})
+    esperado_sql, _esperados, _ = componer({"emp": 1, "cod": "ABC"})
     assert cursor.llamadas == [(esperado_sql, (1, "ABC"))]
 
 

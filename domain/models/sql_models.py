@@ -3,7 +3,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import PydanticCustomError
 
 from config.settings import get_settings
@@ -139,7 +146,7 @@ class SqlWriteRequest(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _fold_single_into_statements(self) -> "SqlWriteRequest":
+    def _fold_single_into_statements(self) -> SqlWriteRequest:
         """Normaliza el atajo single-statement a la lista `statements`."""
         has_single = bool(self.sql and self.sql.strip())
         has_batch = bool(self.statements)
@@ -239,7 +246,7 @@ class DocumentReadRequest(BaseModel):
         return normalizada
 
     @model_validator(mode="after")
-    def _check_localizacion(self) -> "DocumentReadRequest":
+    def _check_localizacion(self) -> DocumentReadRequest:
         """`key` excluye a `id_column`/`id_value`; sin `key` hacen falta los dos (R7, R8).
 
         `id_value: null` cuenta como presente (se acepta, como antes de F-010).

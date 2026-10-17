@@ -34,6 +34,7 @@ from domain.models.concepto_grafico_models import (
     AttachConceptoGraficoRequest,
     ConceptoGraficoError,
 )
+from domain.models.document_models import DocumentoAmbiguoError
 from domain.models.parte_reclamacion_models import (
     CreatePartesReclamacionRequest,
     ParteReclamacionError,
@@ -469,6 +470,15 @@ def documents_read(req: func.HttpRequest) -> func.HttpResponse:
             content_type=response_model.content_type,
             file_name=response_model.file_name,
             disposition=request_model.disposition,
+        )
+    except DocumentoAmbiguoError as exc:
+        # Antes que ValueError, del que hereda: la ambiguedad no es «no hay
+        # binario» (F-010 R13, decision D3).
+        logger.warning("DocumentoAmbiguoError en documents/read: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=409,
+            details={"type": "DocumentoAmbiguoError"},
         )
     except IdentifierValidationError as exc:
         logger.warning("IdentifierValidationError en documents/read: %s", exc)

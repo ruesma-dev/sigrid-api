@@ -60,7 +60,7 @@ def test_f010_r1_la_cabecera_es_ascii_imprimible(nombre: str) -> None:
 
 
 def test_f010_r1_cada_control_y_del_viajan_codificados() -> None:
-    for codigo in [*range(0x00, 0x20), 0x7F]:
+    for codigo in [*range(0x20), 0x7F]:
         nombre = f"x{chr(codigo)}y"
         assert cabecera(nombre) == f"x%{codigo:02X}y"
 
