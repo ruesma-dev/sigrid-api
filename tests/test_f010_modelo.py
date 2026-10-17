@@ -228,3 +228,31 @@ def test_f010_r7_r9_los_errores_se_serializan_a_json(campos: dict[str, Any]) -> 
 def test_f010_r9_los_mensajes_nombran_el_motivo() -> None:
     assert "key admite como mucho 4 columnas." in str(rechaza(key={c: 1 for c in "abcde"}))
     assert "key repite la columna EMP." in str(rechaza(key={"emp": 1, " EMP ": 2}))
+
+
+# --- Nulos explícitos: `null` equivale a ausente en id_column y en key ---------
+
+
+def test_f010_r6_key_null_explicito_equivale_a_no_traerla() -> None:
+    p = peticion(key=None, id_column="ide", id_value=7)
+    assert p.key is None
+    assert p.localizacion() == {"ide": 7}
+
+
+def test_f010_r8_key_null_sin_id_column_se_rechaza() -> None:
+    rechaza(key=None)
+
+
+def test_f010_r7_id_column_null_explicito_con_key_equivale_a_no_traerla() -> None:
+    p = peticion(key={"emp": 1}, id_column=None)
+    assert p.id_column is None
+    assert p.localizacion() == {"emp": 1}
+
+
+def test_f010_r8_id_column_null_con_id_value_se_rechaza() -> None:
+    rechaza(id_column=None, id_value=1)
+
+
+def test_f010_r6_un_identificador_null_ya_no_se_convierte_en_el_texto_none() -> None:
+    error = rechaza(id_column="ide", id_value=1, table=None)
+    assert "table" in str(error)
