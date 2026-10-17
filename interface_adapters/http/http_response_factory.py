@@ -35,6 +35,20 @@ def error_response(message: str, *, status_code: int = 400, details: dict[str, A
     return json_response(payload, status_code=status_code)
 
 
+#: ASCII imprimible (0x20-0x7E) salvo "%": lo que X-Document-Filename deja tal cual (F-010 R1-R3).
+_SEGUROS_EN_CABECERA = "".join(chr(c) for c in range(0x20, 0x7F) if chr(c) != "%")
+
+
+def filename_header_value(file_name: str) -> str:
+    """Nombre para X-Document-Filename: ASCII imprimible que `unquote` devuelve al original.
+
+    Codifica en porcentual UTF-8 todo lo que no sea ASCII imprimible y el propio
+    `%`, de modo que un nombre ASCII sin `%` viaja identico y cualquier otro se
+    decodifica sin ambiguedad con `urllib.parse.unquote` (F-010, decision D1).
+    """
+    return quote(file_name, safe=_SEGUROS_EN_CABECERA, encoding="utf-8", errors="strict")
+
+
 def binary_file_response(
     *,
     content: bytes,
@@ -42,10 +56,11 @@ def binary_file_response(
     file_name: str,
     disposition: str = "attachment",
 ) -> func.HttpResponse:
-    encoded_name = quote(file_name)
+    # safe="": RFC 5987 no admite "/" sin codificar en filename* (F-010, decision D2).
+    encoded_name = quote(file_name, safe="")
     headers = {
         "Content-Disposition": f"{disposition}; filename*=UTF-8''{encoded_name}",
-        "X-Document-Filename": file_name,
+        "X-Document-Filename": filename_header_value(file_name),
         "X-Document-Size": str(len(content)),
     }
     return func.HttpResponse(

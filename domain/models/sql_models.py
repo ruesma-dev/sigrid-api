@@ -3,7 +3,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import PydanticCustomError
 
 from config.settings import get_settings
@@ -139,7 +146,7 @@ class SqlWriteRequest(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _fold_single_into_statements(self) -> "SqlWriteRequest":
+    def _fold_single_into_statements(self) -> SqlWriteRequest:
         """Normaliza el atajo single-statement a la lista `statements`."""
         has_single = bool(self.sql and self.sql.strip())
         has_batch = bool(self.statements)
@@ -173,20 +180,92 @@ class SqlWriteResponse(BaseModel):
     committed: bool
 
 
+#: Columnas que admite `key` en documents/read (F-010, decision D4): el indice
+#: unico mas ancho de `ruesma_rep.dbo.gra` tiene 2; 4 da margen sin abrir un
+#: WHERE arbitrario. Constante de codigo y no App Setting a proposito.
+MAX_COLUMNAS_CLAVE = 4
+
+
 class DocumentReadRequest(BaseModel):
+    """Peticion de documents/read.
+
+    La fila se localiza con `key` (1 a MAX_COLUMNAS_CLAVE columnas, unidas por
+    AND) o con el par `id_column`/`id_value`, nunca con los dos (F-010 R6-R9).
+    `localizacion()` da siempre la forma `key`.
+    """
+
     database: str = Field(..., min_length=1)
     schema: str = Field("dbo", min_length=1)
     table: str = Field(..., min_length=1)
-    id_column: str = Field(..., min_length=1)
-    id_value: Any
+    id_column: str | None = Field(None, min_length=1)
+    id_value: Any = None
+    key: dict[str, StrictInt | StrictStr] | None = None
     blob_column: str = Field(..., min_length=1)
     filename_columns: list[str] = Field(default_factory=lambda: ["nomori", "nom"])
     disposition: Literal["attachment", "inline"] = "attachment"
 
     @field_validator("database", "schema", "table", "id_column", "blob_column", mode="before")
     @classmethod
-    def _strip_identifier(cls, value: object) -> str:
+    def _strip_identifier(cls, value: object) -> str | None:
+        if value is None:
+            return None
         return str(value).strip()
+
+    @field_validator("key")
+    @classmethod
+    def _normalize_key(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Recorta los nombres, conserva el orden y rechaza las formas no validas (R9).
+
+        Errores como PydanticCustomError y no ValueError: la ruta vuelca
+        `exc.errors()` a JSON, y un ValueError viaja dentro de `ctx` y no se
+        serializa (daria 500 en vez de 400).
+        """
+        if value is None:
+            return None
+        if not value:
+            raise PydanticCustomError("key_invalida", "key no puede ser un objeto vacio.")
+        if len(value) > MAX_COLUMNAS_CLAVE:
+            raise PydanticCustomError(
+                "key_invalida",
+                "key admite como mucho {maximo} columnas.",
+                {"maximo": MAX_COLUMNAS_CLAVE},
+            )
+        normalizada: dict[str, Any] = {}
+        vistos: set[str] = set()
+        for nombre, valor in value.items():
+            limpio = nombre.strip()
+            if not limpio:
+                raise PydanticCustomError("key_invalida", "key no admite nombres de columna vacios.")
+            plegado = limpio.casefold()
+            if plegado in vistos:
+                raise PydanticCustomError(
+                    "key_invalida", "key repite la columna {columna}.", {"columna": limpio}
+                )
+            vistos.add(plegado)
+            normalizada[limpio] = valor
+        return normalizada
+
+    @model_validator(mode="after")
+    def _check_localizacion(self) -> DocumentReadRequest:
+        """`key` excluye a `id_column`/`id_value`; sin `key` hacen falta los dos (R7, R8).
+
+        `id_value: null` cuenta como presente (se acepta, como antes de F-010).
+        """
+        trae_id_value = "id_value" in self.model_fields_set
+        if self.key is not None:
+            if self.id_column is not None or trae_id_value:
+                raise PydanticCustomError(
+                    "localizacion_invalida", "key es excluyente con id_column/id_value."
+                )
+        elif self.id_column is None or not trae_id_value:
+            raise PydanticCustomError("localizacion_invalida", "Indica key, o id_column con id_value.")
+        return self
+
+    def localizacion(self) -> dict[str, Any]:
+        """Columnas y valores que localizan la fila, en orden (R12)."""
+        if self.key is not None:
+            return dict(self.key)
+        return {self.id_column: self.id_value}
 
     @field_validator("filename_columns", mode="before")
     @classmethod
