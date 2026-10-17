@@ -16,4 +16,4 @@
 - [ ] T13: **MANUAL (humano)**, antes del despliegue y solo lectura: paso 0 y paso 4a de design §Verificación manual (cabeceras de un `ide` con `nomori` ASCII con espacios)  |  Verificación: MANUAL (humano), cabeceras guardadas fuera del repo
 - [ ] T14: **MANUAL (humano)**: desplegar `dev` (`func azure functionapp publish func-sigridapi-dev-huyke --python`, lo lanza el humano); sin App Settings nuevas  |  Verificación: MANUAL (humano), la Function App responde a `sql/read`
 - [ ] T15: **MANUAL (humano)**, solo lectura: pasos 1-3 y 4b de design §Verificación manual (R18)  |  Verificación: MANUAL (humano): 200 y nombre decodificado igual al `nomori`; mismo hash por `key`; 409 `DocumentoAmbiguoError`; cabeceras ASCII idénticas a las de T13
-- [ ] T16: Ejecutar `bash harness/init.sh` en verde  |  Verificación: termina en ENTORNO LISTO
+- [x] T16: Ejecutar `bash harness/init.sh` en verde  |  Verificación: termina en ENTORNO LISTO

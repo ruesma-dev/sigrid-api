@@ -1,6 +1,16 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-010 implementada (2026-10-17), pendiente de revisión y de las manuales
+
+Implementer: T1-T12 y T16 hechas en la rama (`b86a4c8`..`c13686f`) y en `azure-apps` (`0c4cbeb`, sin
+push). `init.sh` en verde (2527 passed, cobertura 100 % de 80 líneas), mutación en serie 23/23
+muertos. Informe: [`impl_F-010.md`](impl_F-010.md). **Desviaciones justificadas allí**: validadores
+con `PydanticCustomError` (un `ValueError` hacía 500 el 400 de R7-R9 al serializar `exc.errors()`)
+y `build_document_query` sin `zip`. Quedan: reviewer; **T13** (captura previa, humano) y **aviso a
+albaranes antes de desplegar**; **T14** despliegue; **T15** verificación post-despliegue; luego quitar
+el aviso «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` §8.3 y avisar a mcp-bbdd y datamart.
+
 ## F-010 en `in_progress` (2026-10-17): spec aprobada por el humano
 
 El humano aprobó el 2026-10-17 D1-D5 y D7 tal como están en `progress/spec_F-010.md`. D6 queda fuera de F-010 (será
