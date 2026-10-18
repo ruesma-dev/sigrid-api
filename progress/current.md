@@ -13,6 +13,14 @@ global en `json_response` (recomendado); **D4** documentar en azure-apps y avisa
 (un error de regla en grabación pasa de `incierto` a `error`). Fuera de alcance, propuesto como feature aparte: las
 trazas `str(exc)` de las demás rutas vuelcan `input`.
 
+**Implementación (2026-10-18, implementer): T1-T8 y T11 hechas**, informe en [`impl_F-012.md`](impl_F-012.md).
+`validation_error_response` en `interface_adapters/http/` y en las 9 rutas; trazas y orden de `except` intactos;
+dorado de F-009 sin regenerar; 2702 tests en verde, cobertura de líneas cambiadas 100 % (14/14). `azure-apps`
+`4584469` (local, notas «PENDIENTE DE DESPLIEGUE»). Sin desviaciones de la spec; una observación medida: en
+`sql/write`, `concepto-grafico` y los R5 el 500 de antes no lo daba el `except Exception` de la ruta sino el host
+(el `TypeError` salía de la función). **Siguiente: reviewer**; luego T9 (aviso a albaranes y despliegue, humano) y
+T10 (verificación de solo lectura, líder).
+
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
 Resumen en `history.md`; verificación en [`verificacion_F-011.md`](verificacion_F-011.md). Lo que deja abierto está

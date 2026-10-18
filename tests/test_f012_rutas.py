@@ -21,7 +21,13 @@ from f009_dobles import SettingsDoble
 from pydantic import ValidationError
 from test_f004_route import _CUERPO as CUERPO_GRAFICO
 from test_f006_route import _CUERPO as CUERPO_PARTES
-from test_f009_route import _LIMITES_SQL, CLASICO, EXTENDIDO, CasoDoble, RepositorioIntocable
+from test_f009_route import (
+    _LIMITES_SQL,
+    CLASICO,
+    EXTENDIDO,
+    CasoDoble,
+    RepositorioIntocable,
+)
 
 import function_app
 from domain.models import sql_models

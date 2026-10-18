@@ -14,4 +14,4 @@ Las tareas asumen D1 = B, D2 = 9 rutas, D3 = no: es lo aprobado.
 - [x] T8: `../azure-apps/sigrid_api.md` §1.3, §8.2, §8.6 y §8.8 según design §Ficheros a modificar (R12), con nota «PENDIENTE DE DESPLIEGUE» hasta T10; commit aparte en `azure-apps`, sin push  |  Verificación: revisión del reviewer contra el código
 - [ ] T9: **MANUAL (humano)**: avisar a la sesión de albaranes (D4) y desplegar `dev` (`func azure functionapp publish ...`, lo lanza el humano); sin App Settings nuevas  |  Verificación: MANUAL (humano), la Function App lista las 9 funciones
 - [ ] T10: **MANUAL (líder, solo lectura)**: paso 1 de design §Verificación manual y, con autorización del humano, el 2 (R13); después quitar la nota de T8  |  Verificación: MANUAL (humano): 400 `ValidationError` con `ctx.error` en texto; resultados en `progress/verificacion_F-012.md`
-- [ ] T11: Ejecutar `bash harness/init.sh` en verde  |  Verificación: termina en ENTORNO LISTO
+- [x] T11: Ejecutar `bash harness/init.sh` en verde  |  Verificación: termina en ENTORNO LISTO
