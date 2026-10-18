@@ -1,51 +1,54 @@
 <!-- progress/review_F-012.md -->
-Revisión completa (pasada 1): `git diff dev...HEAD` (base `768e2e4`, HEAD `496bfeb`), más `azure-apps` `4584469`
+Revisión incremental desde 496bfeb (pasada 2): delta `496bfeb..aea4c77`; lo de la pasada 1, dado por bueno
 
 # F-012 · Revisión
 
-- **Veredicto: CHANGES_REQUESTED.** El código es correcto y fiel a la spec; lo que rechaza son cuatro cosas
-  pequeñas y baratas: PEP 8 en el fichero nuevo (H1), `current.md` (H2, H3) y la fila de workers (H4).
-  Ninguna exige repetir la campaña ni tocar tests.
-- **Nivel de rigor:** `estandar`, declarado en `harness/features.json`. Exige fase RED en lo central,
-  cobertura ≥ 80 % de lo cambiado y mutación con los supervivientes analizados (sin la exigencia de cero).
-- Reviewer, 2026-10-18. Sin tocar código, tests, `features.json` ni `.env`; sin red, API ni base; sin commit.
+## Pasada 2 (2026-10-19, HEAD `aea4c77`)
 
-## Lo ejecutado
+- **Veredicto final: APPROVED** para merge a `dev`. No es el `done`: T9 y T10 (MANUAL) lo siguen bloqueando.
+- `bash harness/init.sh` entero: **ENTORNO LISTO**, exit 0, **2702 passed, 1 skipped**; `PUERTA COBERTURA [OK]`
+  100,0 % (14/14); `PUERTA TAMAÑO [OK]`; ruff 79 avisos, como en `dev`.
+- `git diff 496bfeb..HEAD --stat`: solo `http_response_factory.py` (2 líneas en blanco), `current.md`,
+  `impl_F-012.md`, `mutacion_F-012.md` y este informe. Ningún test, ni `function_app.py`, ni `azure-apps`.
+- **H1 resuelto** (`1676d09`): una línea en blanco menos antes de `_errores_serializables` y una más antes de
+  `#: ASCII imprimible`; `ruff check --select E3 --preview` del fichero: «All checks passed!».
+- **H2 resuelto** (`aea4c77`): decisiones como aprobadas (y el aviso a albaranes ya dado); el punto «500 en vez de
+  400» remite a F-012 `in_progress` y descarta `include_context=False`; backlog y prompt para retomar ya no dan
+  F-012 por pendiente.
+- **H3 resuelto**: «Lo que queda, en orden» lista merge y push (`! git -C … push origin dev`), T9 con
+  `! func azure functionapp publish func-sigridapi-dev-huyke --python` y T10 con el paso 1 de design
+  §Verificación manual, el resultado esperado y el paso 2 solo con autorización. Vale como en F-011.
+- **H4 resuelto** (`563374c`): campaña **repetida en serie** (`--workers 1`) sobre `1676d09`: 1 generado, 1
+  muerto, 0 supervivientes, **104,2 s**, línea base 97,0 s, Workers 1; «Evidencias» trae el worker.
+  Verificación: recálculo puro sobre HEAD = 30 líneas, **1 mutante** (factory l. 52 tras H1, `status_code=400,` →
+  `401,`): coincide. **Campaña no reejecutada: 104,2 s según el informe** (> 60 s). RM1: después de `1676d09`
+  solo cambia `progress/`. RM2: 104,2 = base 97,0 + ~7 s del mutante (muere pronto con `-x`), coste 104 s por
+  mutante con W = 1: coherente. Sin «⚠ CAMPAÑA NO VÁLIDA», base rota 0.
+- **Checkpoints que estaban `[ ]`:** C2 `current.md` [x] · C3 estilo [x] · C4 MANUAL con comando [x] · C4 bis
+  «Evidencias» con workers [x]. C5 sigue aceptado como en F-010/F-011 (T9-T10 MANUAL, tras el merge).
+- **O4 · Para `arnes-base`** (lo detectó el implementer en H4): la primera campaña se lanzó en paralelo, pero el
+  informe generado decía `--workers 1` y «Workers 1» (con un solo mutante registra los workers efectivos, no el
+  modo). La cabecera del informe debería reflejar la orden real; que lo valore el líder.
 
-- `bash harness/init.sh` sobre `496bfeb`: **ENTORNO LISTO**, exit 0. **2702 passed, 1 skipped** (111,7 s).
-  `PUERTA COBERTURA [OK]` 100,0 % (14/14, umbral 80 %). `PUERTA TAMAÑO [OK]` (req 112/150, design 198/250,
-  impl 158/220). ruff 79 avisos, como en `dev`.
+## Pasada 1 (2026-10-18, HEAD `496bfeb`): CHANGES_REQUESTED
+
+- **Nivel de rigor:** `estandar`, declarado en `harness/features.json`: fase RED, cobertura ≥ 80 % de lo cambiado
+  y mutación con supervivientes analizados. Sin tocar código, tests, `features.json` ni `.env`; sin red, API ni base.
+- Texto completo de los hallazgos: `git show aea4c77:progress/review_F-012.md`. Resumen:
+  1. H1 · C3, PEP 8: E303/E305 en `http_response_factory.py` (l. 39 y 58).
+  2. H2 · C2, `current.md` con partes falsas (decisiones abiertas, F-012 «en el backlog», prompt para retomar).
+  3. H3 · C4, T9 y T10 sin comando exacto en `current.md`.
+  4. H4 · C4 bis, «Evidencias» sin el nº de workers de la campaña.
+
+### Lo ejecutado (pasada 1)
+
+- `bash harness/init.sh` sobre `496bfeb`: **ENTORNO LISTO**, 2702 passed, 1 skipped; cobertura 100,0 % (14/14).
 - **Fase RED reproducida** en una copia (`git archive HEAD` al scratchpad, con el `function_app.py` de `dev`):
   `tests/test_f012_rutas.py` → **26 failed**, los mismos 26 del informe del implementer. Volviendo al de HEAD, 38/38.
 - `git diff dev...HEAD --stat`: solo los ficheros de design (más papeleo). Ni `domain/`, `application/`,
   `infrastructure/`, `config/`, `scripts/`, ni `tests/fixtures/`, ni ningún test previo: R7 y R9 se cumplen.
-- `git status --short`: limpio antes y después.
 
-## Hallazgos (cambios requeridos)
-
-1. **H1 · C3, PEP 8** (`docs/CONVENTIONS.md` l. 23). `interface_adapters/http/http_response_factory.py`: **tres**
-   líneas en blanco antes de `def _errores_serializables` (l. 36-38; la tercera la añade el diff) y **una** sola
-   entre el final de `validation_error_response` (l. 55) y el comentario `#: ASCII imprimible…` (l. 57).
-   `ruff check --select E3 --preview` da E303 (l. 39) y E305 (l. 58); sobre la versión de `dev`, cero. Dejar dos
-   en cada sitio. Es solo espaciado: no mueve mutantes (lo recalcularé en la pasada 2).
-2. **H2 · C2, `progress/current.md` tiene partes falsas hoy** (mismo criterio que H1 de F-010 y de F-011):
-   - l. 9-10: «Decisiones para el humano (design §Decisiones)» como si siguieran abiertas; ya están aprobadas.
-   - l. 134-138: el punto «500 en vez de 400…» dice «**F-012** en el backlog (`exc.errors(include_context=False)` o
-     equivalente…)»: F-012 está `in_progress` y se eligió D1 = B, que descarta justo esa vía. Reescribirlo o quitarlo.
-   - l. 154-155 («Lo siguiente en el backlog») y l. 164 (prompt para retomar): siguen listando F-012 como pendiente
-     («no arranques nada sin preguntar»). Deben decir que F-012 está en revisión y qué falta (merge, T9, T10).
-3. **H3 · C4, las MANUAL no están en `current.md` con su comando exacto.** Hoy solo «T9 (aviso a albaranes y
-   despliegue, humano) y T10 (verificación de solo lectura, líder)» (l. 21), y en el informe
-   `func azure functionapp publish ...` con puntos suspensivos. Listar, como en F-011: T9 (humano, tras merge y
-   push) `! func azure functionapp publish func-sigridapi-dev-huyke --python`, sin App Settings nuevas; T10
-   (líder, solo lectura) el cuerpo exacto de la previa (`EXTENDIDO` de prueba, línea vinculada sin
-   `cod_contrato`, `commit: false`), cómo se lanza y el resultado esperado (400 `ValidationError`, `ctx.error` =
-   `"Una linea vinculada exige 'cod_contrato'."`); el paso 2, marcado «solo con autorización del humano».
-4. **H4 · C4 bis, «Evidencias» sin el nº de workers.** `impl_F-012.md` §Evidencias no dice con cuántos workers se
-   lanzó la campaña (el informe de mutación dice 1, `--workers 1`); y §Mutación cita el comando sin
-   `--workers 1`. Añadir la fila «Workers de la campaña: 1» y corregir el comando.
-
-## Observaciones (no bloquean)
+### Observaciones (no bloquean)
 
 - **O1 · Observación del implementer sobre el 500: confirmada.** Es semántica de Python (una excepción lanzada
   dentro de un `except` no la recoge un `except` hermano) y lo reproduje: en la copia RED, 10 fallos son
@@ -56,11 +59,9 @@ Revisión completa (pasada 1): `git diff dev...HEAD` (base `768e2e4`, HEAD `496b
 - **O2 · R5 del extendido y R32.** El `ValidationError` interno del extendido (`use_case.run`, fuera del `try`
   interior) lo traza el `except` exterior con `str(exc)`. Ya anotado en design e informe como fuera de alcance;
   apoyo la feature aparte que unifique la traza `(loc, type)`.
-- **O3 · El generador de mutantes** solo vio una constante (control sin exclusión de alcance: 43 mutantes en
-  `function_app.py` y 9 en el factory, ninguno en las líneas cambiadas salvo `400`). Hueco ya anotado en
-  `current.md` para `arnes-base`; los 6 manuales lo compensan.
+- **O3 · El generador** solo vio la constante `400` (hueco ya anotado para `arnes-base`); los 6 manuales lo cubren.
 
-## Checkpoints
+### Checkpoints (pasada 1)
 
 - **C1** [x] `init.sh` exit 0 · [x] ficheros del arnés (los comprueba `init.sh`).
 - **C2** [x] una sola `in_progress` (F-012) · [x] rama `feature/F-012-validacion-sin-500` · [ ] `current.md` solo
@@ -101,7 +102,7 @@ Revisión completa (pasada 1): `git diff dev...HEAD` (base `768e2e4`, HEAD `496b
   MANUAL, imposibles antes del merge; bloquean el `done`, no el APROBADO · [x] sin temporales ni sin trackear
   · [x] `features.json` = `in_progress`, real.
 
-## Fidelidad a requisitos y design
+### Fidelidad a requisitos y design
 
 - **D1 = B**: `_errores_serializables` = `json.loads(json.dumps(exc.errors(), default=str))`. `json_response` usa
   `json.dumps` sin encoder propio, así que todo lo serializable sale idéntico (ida y vuelta estable: tuplas,
@@ -118,7 +119,7 @@ Revisión completa (pasada 1): `git diff dev...HEAD` (base `768e2e4`, HEAD `496b
   el repositorio no conecta al construirse); las cuatro notas PENDIENTE DE DESPLIEGUE están; §10 sin tocar, como
   dice el design. La corrección de la frase del `ValidationError` interno de §8.6 es correcta (antes era 500).
 
-## Cobertura requisito → test
+### Cobertura requisito → test
 
 | R | Test | Estado |
 |---|---|---|
@@ -136,4 +137,3 @@ Revisión completa (pasada 1): `git diff dev...HEAD` (base `768e2e4`, HEAD `496b
 | R12 | revisión del reviewer (arriba) | conforme |
 | R13 | MANUAL, T10 | pendiente (tras desplegar) |
 
-**Pasada 2:** incremental desde `496bfeb`; si el delta solo toca espaciado y papeleo, basta recalcular alcance.
