@@ -199,6 +199,9 @@ key del `.env` local; nada de ello se escribe en el repo). Cuerpo base:
   || name=='ALLOWED_WRITE_DATABASES' || name=='SIGRID_DOCUMENT_WRITE_DATABASE'].{clave:name,
   valor:value}" -o table`. Esperado: `ruesma_rep` literal en `ALLOWED_DATABASES`;
   con A1, todos los valores casan con `^[A-Za-z_][A-Za-z0-9_]*$`. Si no, PARAR.
+  El patrón se aplica a **cada elemento** de las listas JSON; una
+  `SIGRID_DOCUMENT_WRITE_DATABASE` vacía es «apagado», no un fallo. Si `||` en
+  `--query` da guerra con `az.cmd`, se consulta clave a clave.
 - **Paso 1**: `database: "ruesma_rep"` → 200, `X-Document-Size` 17865.
 - **Paso 2**: `database: "base_inexistente_f011"` → 400, `details.type`
   `BaseNoPermitidaError`, texto de R1. Cualquier otra respuesta: PARAR (no está
@@ -206,8 +209,17 @@ key del `.env` local; nada de ello se escribe en el repo). Cuerpo base:
 - **Paso 3** (solo si el 2 da lo esperado): `"ruesma_rep;APP=f011"` y
   `"RUESMA_REP"` → 400 `BaseNoPermitidaError`.
 - **Paso 4**: `sql/read` con `{"database":"ruesma_rep","sql":"SELECT ide FROM
-  dbo.gra WHERE ide = ?","parameters":[365617]}` → 200, una fila.
-- **Paso 5** (solo con A1, y con autorización del humano para esta llamada
-  concreta aunque sea dry-run): `sigrid/contrato-lineas` con `commit:false`,
-  `database:"ruesma;APP=f011"` y campos de relleno → 400
-  `IdentifierValidationError` sin conectar.
+  dbo.gra WHERE ide = ?","parameters":[365617]}` → 200, una fila. Y otro sobre
+  `ruesma` (la base de los endpoints de dominio): `{"database":"ruesma","sql":"SELECT
+  TOP (1) cod FROM dbo.con WHERE tip = ?","parameters":[44]}` → 200.
+- **Paso 5** (solo con A1, solo si el paso 2 dio lo esperado, y con autorización
+  del humano para esta llamada concreta aunque sea dry-run; autorizada el
+  2026-10-18): `sigrid/contrato-lineas` con
+  `{"database":"ruesma;APP=f011","cod_contrato":"F011-NO-EXISTE","cod_obra":"F011","cif_proveedor":"F011","lines":[{"res":"f011","can":1,"pre":0}],"commit":false}`
+  → 400, `details.type` `IdentifierValidationError`, texto `El identificador
+  'database' contiene caracteres no permitidos: ruesma;APP=f011`. Si sale 400
+  `ValueError` («No se encontro un contrato…»), se conectó: A1 no está
+  desplegado, PARAR.
+- Los pasos 2, 3 y 5 esperan 400: con PowerShell 5.1 hay que leer el cuerpo con el
+  `try/catch` y `StreamReader` de `azure-apps/sigrid_api.md` §11; el líder usa un
+  script Python (`urllib`), que lo lee directamente.
