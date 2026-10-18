@@ -1,5 +1,7 @@
 # F-011 · Tareas
 
+> **Aprobada por el humano el 2026-10-18** con D1 = `ALLOWED_DATABASES` tal cual, D2 = **A1**, D3 = 400 `BaseNoPermitidaError` listando las bases permitidas y D4 = sensible a mayúsculas. Las tareas y requisitos marcados [A1] / «solo con A1» **aplican**. El humano autoriza también el paso 5 de la verificación manual (un dry-run de `sigrid/contrato-lineas` con una base inyectada, sin `commit`).
+
 Las marcadas **[A1]** solo existen si el humano aprueba D2 = A1 (design §Decisiones); con A0 se borran antes de empezar.
 
 - [ ] T1: Escribir `tests/test_f011_caso_de_uso.py` (R1 texto exacto con lista no vacía; R2 repositorio doble que revienta si se le llama; R3 `RUESMA_REP` rechazada y ` ruesma_rep ` aceptada vía modelo; R4 lista vacía → `Permitidas: (ninguna)`; R5 `ruesma_rep;APP=x`, `ruesma_rep;`, `x=y`, `ruesma rep`; R6 base no permitida + `table` no válida → `BaseNoPermitidaError`; R8 `issubclass(..., ValueError)`; R10 `ruesma_rep` llega a `read_document` con los mismos argumentos que en F-010) en ROJO; traza en `progress/impl_F-011.md`  |  Verificación: `python -m pytest tests/test_f011_caso_de_uso.py -q` falla

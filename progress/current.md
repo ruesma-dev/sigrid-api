@@ -1,7 +1,11 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-011 en `spec_ready` (2026-10-18): espera la aprobación del humano
+## F-011 en `in_progress` (2026-10-18): spec aprobada, implementer lanzado
+
+**Aprobación del humano (2026-10-18):** D1 = `ALLOWED_DATABASES` tal cual; D2 = **A1** (`IdentifierGuard` en `_connect`);
+D3 = 400 `BaseNoPermitidaError` listando las bases; D4 = sensible a mayúsculas. Autorizado el paso 5 de la
+verificación manual (dry-run de `sigrid/contrato-lineas` con base inyectada, sin `commit`). Título ampliado.
 
 Rama `feature/F-011-documents-read-valida-database`; spec en `specs/F-011-documents-read-valida-database/`, informe y
 decisiones D1-D4 en [`spec_F-011.md`](spec_F-011.md). **Hallazgo nuevo, confirmado por el líder:** el hueco no es

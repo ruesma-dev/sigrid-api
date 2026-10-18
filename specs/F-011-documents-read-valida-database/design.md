@@ -1,5 +1,7 @@
 # F-011 · Diseño: `documents/read` valida `database`
 
+> **Aprobada por el humano el 2026-10-18** con D1 = `ALLOWED_DATABASES` tal cual, D2 = **A1**, D3 = 400 `BaseNoPermitidaError` listando las bases permitidas y D4 = sensible a mayúsculas. Las tareas y requisitos marcados [A1] / «solo con A1» **aplican**. El humano autoriza también el paso 5 de la verificación manual (un dry-run de `sigrid/contrato-lineas` con una base inyectada, sin `commit`).
+
 Requisitos en [`requirements.md`](requirements.md). Rigor `critico`.
 
 ## Contexto medido en el código (2026-10-18)
