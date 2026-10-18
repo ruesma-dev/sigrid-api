@@ -4,15 +4,20 @@ from __future__ import annotations
 import re
 from urllib.parse import quote
 
+from config.settings import Settings
+from domain.models.document_models import BaseNoPermitidaError
 from domain.models.sql_models import DocumentReadRequest, DocumentReadResponse
 from domain.ports.sql_repository import SqlRepository
 
 
 class ReadDocumentUseCase:
-    def __init__(self, repository: SqlRepository) -> None:
+    def __init__(self, repository: SqlRepository, settings: Settings) -> None:
         self._repository = repository
+        self._settings = settings
 
     def run(self, request: DocumentReadRequest) -> DocumentReadResponse:
+        # La base, antes que los identificadores y que la conexion (F-011 R2, R6).
+        self._validar_base(request.database)
         # Un solo camino: id_column/id_value llega como key de una columna (F-010 R12).
         localizacion = request.localizacion()
         record = self._repository.read_document(
@@ -35,6 +40,18 @@ class ReadDocumentUseCase:
             size_bytes=len(record.content),
             content=record.content,
         )
+
+    def _validar_base(self, database: str) -> None:
+        """Igualdad exacta contra ALLOWED_DATABASES, la lista de sql/read (F-011 R1-R4).
+
+        Se lee en cada llamada, como SqlQueryGuard. Lista vacia: todo cerrado.
+        """
+        permitidas = self._settings.allowed_databases
+        if database not in permitidas:
+            raise BaseNoPermitidaError(
+                f"La base de datos '{database}' no está permitida. "
+                f"Permitidas: {', '.join(permitidas) or '(ninguna)'}"
+            )
 
     @staticmethod
     def _resolve_filename(candidates: list[str], content: bytes, etiqueta: str) -> str:

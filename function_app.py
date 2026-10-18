@@ -69,7 +69,7 @@ def build_dependencies() -> tuple[
     settings = get_settings()
     repository = SqlServerRepository(settings)
     sql_use_case = ExecuteSqlQueryUseCase(repository, settings)
-    document_use_case = ReadDocumentUseCase(repository)
+    document_use_case = ReadDocumentUseCase(repository, settings)
     command_use_case = ExecuteSqlCommandUseCase(repository, settings)
     contract_lines_use_case = AddContractLinesUseCase(repository, settings)
     albaran_use_case = CreatePurchaseAlbaranUseCase(repository, settings)

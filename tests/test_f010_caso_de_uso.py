@@ -37,7 +37,7 @@ def peticion(**campos: Any) -> DocumentReadRequest:
 
 
 def ejecutar(repo: RepositorioDoble, **campos: Any):
-    return ReadDocumentUseCase(repo).run(peticion(**campos))
+    return ReadDocumentUseCase(repo, SimpleNamespace(allowed_databases=["ruesma_rep"])).run(peticion(**campos))
 
 
 # --- R12: un solo camino hacia el repositorio ---------------------------------
@@ -120,7 +120,9 @@ def _caso_con_repositorio_real(monkeypatch: pytest.MonkeyPatch) -> ReadDocumentU
         raise AssertionError("un unit test no puede abrir una conexión real")
 
     monkeypatch.setattr(adaptador.pyodbc, "connect", prohibido)
-    return ReadDocumentUseCase(adaptador.SqlServerRepository(SimpleNamespace()))
+    return ReadDocumentUseCase(
+        adaptador.SqlServerRepository(SimpleNamespace()), SimpleNamespace(allowed_databases=["ruesma_rep"])
+    )
 
 
 def test_f010_r12_id_column_no_valido_conserva_su_texto(monkeypatch: pytest.MonkeyPatch) -> None:
