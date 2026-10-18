@@ -10,7 +10,7 @@ Resumen: **14 features**, 6 abiertas, 8 terminadas.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
+| F-007 | Endpoint de dominio para registrar proformas | 8 | spec lista | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | pendiente | estandar | `feature/F-012-validacion-sin-500` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
@@ -39,7 +39,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-007 · Endpoint de dominio para registrar proformas
 
-estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
+estado **spec lista** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.
 
