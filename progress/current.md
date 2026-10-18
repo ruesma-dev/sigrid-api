@@ -3,8 +3,9 @@
 
 ## F-011 en `in_progress` (2026-10-18): spec aprobada, implementer lanzado
 
-**Implementer (2026-10-18):** trabajando T1-T11 en orden (T12-T14 son MANUAL del líder/humano). Informe en
-`progress/impl_F-011.md`. Confirmado en el código: el albarán clásico (`locate_contract`, l. 191, frente a la lista en
+**Implementer (2026-10-18): T1-T11 y T15 hechas** (informe `progress/impl_F-011.md`, mutación
+`progress/mutacion_F-011.md`: 16 mutantes, 0 supervivientes; cobertura 100 % de 16 líneas). `azure-apps` `7bddfd4`
+con notas «PENDIENTE DE DESPLIEGUE». **Quedan T12-T14 (MANUAL)** y el reviewer. Confirmado en el código: el albarán clásico (`locate_contract`, l. 191, frente a la lista en
 l. 506), `albaran-directo` (`_resolve_obra`, l. 76, frente a l. 299) y el modo extendido de `sigrid/albaran`
 (`_comprobar_guardas` solo mira la lista con `commit`, l. 292-306) conectan en dry-run con `request.database` sin lista
 blanca. Partes y concepto-gráfico la validan siempre antes de leer.
