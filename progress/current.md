@@ -1,6 +1,18 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-012 spec escrita (2026-10-18), pendiente de aprobación
+
+Spec en `specs/F-012-validacion-sin-500/` (rama `feature/F-012-validacion-sin-500`). Medido con pydantic 2.11.3:
+el 500 sale hoy en tres rutas (`sigrid/albaran` extendido, 6 reglas; `sql/write`, `sql`+`statements` o ninguno;
+`concepto-grafico`, base64 mal formado) y, en teoría, en `albaran`/`partes` por un `ValidationError` interno. El
+dorado de F-009 fija `ctx` en 4 casos: descarta `include_context=False`. Decisiones para el humano (design
+§Decisiones): **D1** serialización, recomendada B (`default=str`: lo no serializable a texto, lo demás idéntico);
+**D2** helper único `validation_error_response` en las 9 rutas (recomendado) o solo en las 3 medidas; **D3** sin red
+global en `json_response` (recomendado); **D4** documentar en azure-apps y avisar a albaranes antes de desplegar
+(un error de regla en grabación pasa de `incierto` a `error`). Fuera de alcance, propuesto como feature aparte: las
+trazas `str(exc)` de las demás rutas vuelcan `input`.
+
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
 Resumen en `history.md`; verificación en [`verificacion_F-011.md`](verificacion_F-011.md). Lo que deja abierto está
