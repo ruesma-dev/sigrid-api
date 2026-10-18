@@ -74,11 +74,15 @@ class SqlServerRepository(SqlRepository):
         password: str,
         autocommit: bool = True,
     ) -> Iterator[pyodbc.Connection]:
+        # Defensa en profundidad para TODA la API (F-011 R13-R14, D2 = A1): la
+        # base entra sin escapar en la cadena; fuera del patron de identificador
+        # (`;`, `=`, llaves, espacios...) se rechaza antes de conectar.
+        safe_database = IdentifierGuard.validate_identifier(database, field_name="database")
         escaped_password = password.replace("}", "}}")
         connection_string = (
             f"DRIVER={{{self._settings.sql_driver}}};"
             f"SERVER=tcp:{self._settings.sql_server_host},{self._settings.sql_server_port};"
-            f"DATABASE={database};"
+            f"DATABASE={safe_database};"
             f"UID={username};"
             f"PWD={{{escaped_password}}};"
             "Encrypt=yes;"
