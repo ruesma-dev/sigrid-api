@@ -4,7 +4,7 @@
 
 Las tareas asumen D1 = B, D2 = 9 rutas, D3 = no: es lo aprobado.
 
-- [ ] T1: Escribir `tests/test_f012_respuesta_validacion.py` (R4, R6, R11) en ROJO; traza en `progress/impl_F-012.md`  |  Verificación: `python -m pytest tests/test_f012_respuesta_validacion.py -q` falla (no existe `validation_error_response`)
+- [x] T1: Escribir `tests/test_f012_respuesta_validacion.py` (R4, R6, R11) en ROJO; traza en `progress/impl_F-012.md`  |  Verificación: `python -m pytest tests/test_f012_respuesta_validacion.py -q` falla (no existe `validation_error_response`)
 - [ ] T2: `validation_error_response(exc)` en `interface_adapters/http/http_response_factory.py` según design §Clases y funciones  |  Verificación: `python -m pytest tests/test_f012_respuesta_validacion.py -q` en verde
 - [ ] T3: Escribir `tests/test_f012_rutas.py` (R1 por las 6 reglas, R2, R3, R5, R8 por las 9 rutas y de fuente, R10) en ROJO; traza del 500 de hoy en el informe  |  Verificación: `python -m pytest tests/test_f012_rutas.py -q` falla en R1, R2, R3, R5 y R8-fuente
 - [ ] T4: Sustituir los 9 bloques de `function_app.py` por `return validation_error_response(exc)` sin tocar trazas ni orden de `except` (R8, R9, R10)  |  Verificación: `python -m pytest tests/test_f012_rutas.py tests/test_f012_respuesta_validacion.py -q` en verde
