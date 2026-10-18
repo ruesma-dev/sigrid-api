@@ -1,5 +1,7 @@
 # F-012 · Requisitos: los 400 de validación no acaban en 500
 
+> **Aprobada por el humano el 2026-10-18** con las recomendaciones: D1 = **B** (saneado con `default=str`), D2 = helper único en las **9** rutas, D3 = **sin** red global en `json_response` y D4 = documentar en `azure-apps` y avisar a la sesión de albaranes antes de desplegar.
+
 Origen: `progress/review_F-011_C3.md` §«Observaciones fuera de alcance», punto 1
 (previo, de F-009). Rigor `estandar`. Diseño en [`design.md`](design.md);
 decisiones abiertas D1-D4 en design §Decisiones.

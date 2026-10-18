@@ -1,7 +1,8 @@
 # F-012 · Tareas
 
-Pendiente de aprobación del humano (D1-D4 en design §Decisiones). Las tareas
-asumen D1 = B, D2 = 9 rutas, D3 = no; con otra elección se reajustan antes de empezar.
+> **Aprobada por el humano el 2026-10-18** con las recomendaciones: D1 = **B** (saneado con `default=str`), D2 = helper único en las **9** rutas, D3 = **sin** red global en `json_response` y D4 = documentar en `azure-apps` y avisar a la sesión de albaranes antes de desplegar.
+
+Las tareas asumen D1 = B, D2 = 9 rutas, D3 = no: es lo aprobado.
 
 - [ ] T1: Escribir `tests/test_f012_respuesta_validacion.py` (R4, R6, R11) en ROJO; traza en `progress/impl_F-012.md`  |  Verificación: `python -m pytest tests/test_f012_respuesta_validacion.py -q` falla (no existe `validation_error_response`)
 - [ ] T2: `validation_error_response(exc)` en `interface_adapters/http/http_response_factory.py` según design §Clases y funciones  |  Verificación: `python -m pytest tests/test_f012_respuesta_validacion.py -q` en verde

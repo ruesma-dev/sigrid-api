@@ -1,5 +1,7 @@
 # F-012 · Diseño: un solo 400 de validación, serializable siempre
 
+> **Aprobada por el humano el 2026-10-18** con las recomendaciones: D1 = **B** (saneado con `default=str`), D2 = helper único en las **9** rutas, D3 = **sin** red global en `json_response` y D4 = documentar en `azure-apps` y avisar a la sesión de albaranes antes de desplegar.
+
 Requisitos en [`requirements.md`](requirements.md). Encaje: el arreglo vive en el
 adaptador de salida HTTP (`interface_adapters/http/`), que es quien serializa;
 dominio, casos de uso, guardias e infraestructura no se tocan. No sale del límite

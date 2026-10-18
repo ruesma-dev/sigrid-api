@@ -1,7 +1,7 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-012 spec escrita (2026-10-18), pendiente de aprobación
+## F-012 en `in_progress` (2026-10-18): spec aprobada por el humano (D1 B, D2 9 rutas, D3 no, D4 avisar)
 
 Spec en `specs/F-012-validacion-sin-500/` (rama `feature/F-012-validacion-sin-500`). Medido con pydantic 2.11.3:
 el 500 sale hoy en tres rutas (`sigrid/albaran` extendido, 6 reglas; `sql/write`, `sql`+`statements` o ninguno;

@@ -225,7 +225,7 @@
         "azure-apps/sigrid_api.md actualizado si cambia lo que ven los consumidores",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "spec_ready",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "estandar",
       "priority": 12,
