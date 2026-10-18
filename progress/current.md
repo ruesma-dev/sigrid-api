@@ -1,6 +1,28 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-007 · spec v1 escrita, pendiente de la PARADA 1 (2026-10-18)
+
+Rama `feature/F-007-registrar-proforma` (desde `dev` `fd28679`). Spec en `specs/F-007-registrar-proforma/`; medición
+solo lectura en [`explore_F-007.md`](explore_F-007.md) (M1-M15, sirve también a F-008 en §M15). **Hallazgo central:**
+una proforma es un albarán `tip 14` de la serie `PROF<aa>/` (`sercon` 230) con `dca.cla 141`, retención de garantía
+del contrato en `dcarec` (56 %), IVA de inversión del sujeto pasivo y cadena «a origen» con la anterior. La spec
+reutiliza el núcleo de F-009 con un **perfil de alta** y ruta propia `sigrid/proforma`.
+
+**Decisiones para el humano (recomendación):**
+- **D1 (bloquea):** ¿quién la llama? El coste de posventa entra hoy en POSTV2 como **albarán** (1.283 desde 2025, 3
+  proformas en su historia) y Sigrid no une parte y coste: **confirmar con negocio; sin llamante de proformas reales,
+  aplazar F-007 y resolver F-046/F-047 con F-009** (`referencia_linea` = código del parte).
+- **D2:** encadenamiento a origen **fuera** (F-007b si hace falta). **D3:** retención de `ctrrec` **sí**, solo clase 5.
+- **D4:** `ivadif` del contrato; `docoritip` 1 con contrato, a confirmar en la UI (V1). **D5:** plantilla solo de una
+  proforma previa del proveedor. **D6:** perfil en el núcleo de F-009 con dorado previo. **D7:** listas propias
+  (`SB9999`, `SM9999`), obra en `SIGRID_ALBARAN_EMPRESAS_OBRA`.
+
+**Para el líder, fuera de F-007 (afectan a F-009, antes de que F-053 pase a real):** O1, la plantilla de cabecera de
+F-009 puede ser una proforma (17 de 831 proveedores) y el albarán nacería con `cla 141`; O2, F-009 no escribe `dcarec`
+y el 88,5 % de los albaranes de contratos con retención la llevan. La memoria del arnés llama a `con.tip 20` «otra
+familia de documentos de compra»: es el **asiento contable** (`asi`), medido en M1.
+
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
 Resumen en `history.md`; verificación en [`verificacion_F-011.md`](verificacion_F-011.md). Lo que deja abierto está
