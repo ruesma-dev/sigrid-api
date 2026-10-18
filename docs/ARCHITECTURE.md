@@ -151,7 +151,20 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
   (`otra_base.dbo.tabla`) y la lista blanca no aplica nada. Los nombres de
   cuatro partes (servidor vinculado) se rechazan siempre. La lectura cruzada
   entre las bases de `ALLOWED_DATABASES` sigue permitida: hay diagnósticos que
-  la usan.
+  la usan. `documents/read` valida su `database` contra la misma
+  `ALLOWED_DATABASES` (F-011), en el caso de uso y por igualdad exacta, antes
+  de los identificadores y de conectar: fuera de ella, 400
+  `BaseNoPermitidaError` (hereda de `ValueError`, pero su `details.type` nunca
+  es `"ValueError"`, que para mcp-bbdd significa «sin binario»).
+- **Toda base pasa por `IdentifierGuard` antes de conectar** (F-011, D2 = A1):
+  `SqlServerRepository._connect` la valida con
+  `IdentifierGuard.validate_identifier(database, field_name="database")` y
+  compone `DATABASE=` con el valor validado, porque la cadena ODBC no la escapa.
+  Es la defensa en profundidad de toda la API, no la lista blanca: cierra el
+  dry-run de `contrato-lineas`, `albaran` (los dos modos) y `albaran-directo`,
+  que conectan con la base de la petición sin mirar `ALLOWED_WRITE_DATABASES`
+  (solo con `commit`), y el caso de una lista blanca mal configurada. Fuera del
+  patrón, 400 `IdentifierValidationError` sin conectar.
 - **Escritura apagada por defecto**, y encendida por capas independientes:
   credenciales `user_rw`, `ALLOWED_WRITE_PREFIXES`, `ALLOWED_WRITE_DATABASES`
   y, para dominio, `SIGRID_DOMAIN_WRITE_ENABLED` más `commit:true` explícito
