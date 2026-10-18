@@ -144,8 +144,10 @@ def test_f011_r9_el_rechazo_deja_un_warning(
     ]
     assert mensajes == [(
         logging.WARNING,
-        "BaseNoPermitidaError en documents/read: "
-        "La base de datos 'ruesma_rep' no está permitida. Permitidas: ruesma",
+        (
+            "BaseNoPermitidaError en documents/read: "
+            "La base de datos 'ruesma_rep' no está permitida. Permitidas: ruesma"
+        ),
     )]
 
 
