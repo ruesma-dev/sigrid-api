@@ -3,9 +3,7 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **11 features**, 4 abiertas, 7 terminadas.
-
-En curso: **F-011**.
+Resumen: **11 features**, 3 abiertas, 8 terminadas.
 
 ## Trabajo abierto
 
@@ -14,7 +12,6 @@ En curso: **F-011**.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-011 | documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API | 11 | en curso | critico | `feature/F-011-documents-read-valida-database` |
 
 ## Terminadas
 
@@ -27,6 +24,7 @@ En curso: **F-011**.
 | F-006 | Endpoint de dominio para crear partes de reclamación de Posventa, en lote | 6 | critico |
 | F-009 | Modo extendido de sigrid/albaran: alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053) | 7 | critico |
 | F-010 | documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad | 10 | critico |
+| F-011 | documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API | 11 | critico |
 
 ## Detalle
 
@@ -47,12 +45,6 @@ Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Esc
 estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
-
-### F-011 · documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API
-
-estado **en curso** · prioridad 11 · rigor `critico` · SDD sí · rama `feature/F-011-documents-read-valida-database`
-
-Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 
@@ -95,3 +87,9 @@ Alta del 2026-10-01 a petición del líder de albaranes: PRE-1 de albaranes F-05
 estado **terminada** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-010-documents-read-nombres-y-clave`
 
 Alta del 2026-10-16 a propuesta de datamart-seg-anual (F-139) y mcp-bbdd (F-023), que van a abrir adjuntos de Sigrid para la IA. (1) binary_file_response (interface_adapters/http/http_response_factory.py) manda X-Document-Filename sin codificar; el host de Functions rechaza la cabecera no ASCII y responde 500 con cuerpo vacío (fuera del try del handler). Reproducido por el líder el 2026-10-16 contra la API desplegada: ruesma_rep.dbo.gra ide 365617 con filename_columns [nomori] -> 500 vacío; con [cod] -> 200. Datamart midió 11.262 de 199.032 adjuntos de compras (5,7 %) afectados. sigrid-api-v2 tiene la misma línea (responses.py:62), fuera de este repo. (2) read_document hace SELECT TOP (1) ... WHERE [id_column] = ?: si la columna no es única sirve una fila cualquiera sin avisar. En gra los índices únicos son gra_indide (ide, PK) y gra_empcod (emp, cod); cod solo no tiene restricción (hoy 365.617 filas, 365.617 cod distintos, 25 emp). Propuesta del consumidor: clave compuesta opcional (key: {col: valor}, cada nombre por IdentifierGuard, AND) manteniendo id_column/id_value, y error si hay más de una fila. Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.
+
+### F-011 · documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API
+
+estado **terminada** · prioridad 11 · rigor `critico` · SDD sí · rama `feature/F-011-documents-read-valida-database`
+
+Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.

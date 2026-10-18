@@ -1,35 +1,11 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-011 en `in_progress` (2026-10-18): revisión aprobada por bloques; faltan revisión final, merge, T13 y T14
+## F-011 cerrada, desplegada y verificada (2026-10-18)
 
-Rama `feature/F-011-documents-read-valida-database`. Spec aprobada por el humano el 2026-10-18: D1 = `ALLOWED_DATABASES`
-tal cual; D2 = **A1** (`IdentifierGuard` en `_connect`, para toda la API); D3 = 400 `BaseNoPermitidaError` listando las
-bases; D4 = sensible a mayúsculas. Título ampliado. Autorizado el paso 5 de la verificación manual.
-
-- **Implementer:** T1-T11 y T15 hechas (`impl_F-011.md`; mutación `mutacion_F-011.md`). `azure-apps` `7bddfd4` (sin
-  push: no tiene remoto) con notas «PENDIENTE DE DESPLIEGUE».
-- **Revisión por bloques sobre `4d1c266`:** C3 (`review_F-011_C3.md`), C4 (`review_F-011_C4.md`), ROJO y cobertura
-  (`review_F-011_rojo.md`) y mutación (`review_F-011_mutacion.md`, 23 manuales + campaña, 0 supervivientes):
-  APROBADO. C1/C2/C5 (`review_F-011_C1C2C5.md`): CHANGES_REQUESTED solo por H1, este fichero desfasado;
-  corregido por el líder. Guía de T14 ajustada con las observaciones 1-4 de `review_F-011_C4.md`.
-- **T12 hecha** (líder, solo lectura, 2026-10-18): `ALLOWED_DATABASES` = `master`, `ruesma_rep`, `ruesma`;
-  `ALLOWED_WRITE_DATABASES` = `ruesma`; `SIGRID_DOCUMENT_WRITE_DATABASE` = `ruesma_rep`. Todas casan con el patrón
-  (`verificacion_F-011.md`).
-- **Lo que queda, en orden** (T13 y T14 bloquean el `done`, no el merge, como en F-010):
-  1. Revisión final consolidada → `review_F-011.md`.
-  2. Merge `--no-ff` a `dev` (líder) y push (humano: `! git -C C:/Users/pgris/PycharmProjects/sigrid-api push origin dev`).
-  3. **T13 (humano):** `! func azure functionapp publish func-sigridapi-dev-huyke --python`. Sin App Settings nuevas.
-  4. **T14 (líder, lecturas + el dry-run autorizado):** pasos 1-5 de design §Verificación manual, con un script
-     Python en el scratchpad que lee la function key del `.env` (nada al repo): `ruesma_rep` → 200 y 17865 bytes;
-     `base_inexistente_f011` → 400 `BaseNoPermitidaError` (si no, PARAR); `ruesma_rep;APP=f011` y `RUESMA_REP` →
-     400 `BaseNoPermitidaError`; `sql/read` sobre `ruesma_rep` y `ruesma` → 200; dry-run de `sigrid/contrato-lineas`
-     con `database:"ruesma;APP=f011"` → 400 `IdentifierValidationError`. Resultados en `verificacion_F-011.md`;
-     después quitar las notas «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` y pasar a `done`.
-- **Confirmado en el código:** `sigrid/contrato-lineas` (l. 38 frente a 171), el albarán clásico (l. 191 frente a
-  506), `albaran-directo` (l. 76 frente a 299) y el modo extendido de `sigrid/albaran` (l. 292-306) conectan en
-  dry-run con `request.database` sin lista blanca. Con A1 rechazan una base fuera del patrón. **Hueco residual**
-  (feature propia): en esos dry-run se puede leer una base que case con el patrón y a la que llegue `ro_user`.
+Resumen en `history.md`; verificación en [`verificacion_F-011.md`](verificacion_F-011.md). Lo que deja abierto está
+en «De configuración y de la base» (dry-run de dominio y el 500 del modo extendido de `sigrid/albaran`).
+`azure-apps` `7bddfd4` y `0a0a25f`, locales (no tiene remoto).
 
 ## F-009 cerrada, desplegada y verificada (2026-10-07) — llave ABIERTA; queda T24
 
@@ -105,8 +81,8 @@ ajeno; lo borra el humano si quiere.
 - **Hook `PostToolUse` y mutación**: encargado en `arnes-base` el 2026-10-18 a petición del humano
   (`ENCARGO_pendiente_hook_posttooluse_contamina_la_mutacion.md`, commit `9bdf828`, más la reincidencia F-010 en
   `ENCARGO_pendiente_falsos_supervivientes_con_cache_previa.md`). Propuesta: quitar el hook, una línea en los agentes
-  y reconfirmar supervivientes. `sigrid-api` va en el arnés 1.7.8 (base en 1.7.16): actualizar con el instalador tras
-  F-011. Mientras tanto, nada de Edit/Write durante una campaña.
+  y reconfirmar supervivientes. `sigrid-api` va en el arnés 1.7.8 (base en 1.7.16): actualizar con el instalador cuando
+  salga la versión del encargo. Mientras tanto, nada de Edit/Write durante una campaña.
 - **`harness/mutacion.py` no genera mutantes** para `not in`, literales de texto ni argumentos con nombre (F-011:
   2 mutantes en 43 líneas; los cubrieron 23 manuales). Para `arnes-base`.
 - **C4 y C5 de `CHECKPOINTS.md` chocan** con las tareas MANUAL posteriores al merge (F-010, `review_F-010.md`):
@@ -153,17 +129,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-F-010 cerrada el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real). **F-011 en
-`in_progress`**: revisión aprobada por bloques, faltan revisión final, merge, T13 y T14 (arriba). Después: F-007
-(proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001 (calentamiento); la feature
-propuesta para que `sql/read` fije el tope real de la consulta; y, como candidatas nuevas, el 500 del modo extendido
-de `sigrid/albaran` y el hueco residual del dry-run de dominio. Candidato del arnés: el diagnóstico de la mutación
-paralela.
+F-010 y F-011 cerradas el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real).
+Después: F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
+(calentamiento); la feature propuesta para que `sql/read` fije el tope real de la consulta; y, como candidatas
+nuevas, el 500 del modo extendido de `sigrid/albaran` y el hueco residual del dry-run de dominio. Del arnés:
+actualizar `sigrid-api` a la versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la
+mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. F-011 está `in_progress`: revisión por bloques aprobada; faltan la
-> revisión final, el merge a `dev`, el despliegue (T13, lo lanza el humano) y T14 (guion arriba). F-010 está cerrada
-> y desplegada. F-009 está desplegada con la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar
-> §2-§4 del contrato con albaranes, avisa a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, la
-> feature de `sql/read`): no arranques nada sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. F-010 y F-011 están cerradas y desplegadas. F-009 está desplegada con
+> la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar §2-§4 del contrato con albaranes, avisa
+> a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, la feature de `sql/read`, las dos candidatas de
+> F-011): no arranques nada sin preguntar.

@@ -291,3 +291,28 @@ datamart-seg-anual (F-139) y mcp-bbdd (F-023), verificada por el líder con lect
 - **Ecosistema:** `azure-apps` `0c4cbeb` y `bdc8ec0` (§8.3). Avisadas albaranes (antes del despliegue; lee la
   cabecera: decodificar con `unquote`), mcp-bbdd y datamart. `sigrid-api-v2` tiene el mismo fallo: aviso.
 - **Lección del arnés:** el hook `PostToolUse` puede falsear la mutación en serie (propuesta en `current.md`).
+
+---
+
+## F-011 · `documents/read` valida `database` y `_connect` valida el nombre de base para toda la API
+
+**Cerrada el 2026-10-18.** Rigor `critico`. Rama `feature/F-011-documents-read-valida-database`. Nace del D6 de F-010.
+
+- **El hueco:** `documents/read` no validaba `database` contra ninguna lista y `_connect` la interpolaba sin escapar
+  en `DATABASE=…;` de la cadena ODBC. La spec halló que el dry-run de `contrato-lineas`, el albarán clásico,
+  `albaran-directo` y el modo extendido de `sigrid/albaran` también conectan con la base de la petición sin lista
+  blanca (solo se mira con `commit`).
+- **Decisiones del humano:** D1 `ALLOWED_DATABASES` tal cual; D2 **A1** (`IdentifierGuard` en `_connect`, para toda la
+  API, sin tocar `infrastructure/security/`); D3 400 `BaseNoPermitidaError` listando las bases; D4 sensible a
+  mayúsculas. Autorizó el dry-run del paso 5 de T14.
+- **Verificación:** `init.sh` 2664 passed/1 skipped; cobertura 100 % de 16 líneas; mutación 0 supervivientes (la
+  herramienta solo generó 2; 23 manuales en la revisión). Revisión troceada en cinco bloques más la final: solo H1
+  (`current.md` desfasado), cerrado. T12 (App Settings casan con el patrón), T13 desde `dev` `93710c4` y T14 en
+  verde (`verificacion_F-011.md`).
+- **Ecosistema:** `azure-apps` `7bddfd4` y `0a0a25f`. Avisados mcp, datamart, albaranes, postventa y facturas: ninguno
+  cambia nada. Postventa retrasó su primera escritura de F-059 hasta T14 para no coincidir con el reinicio.
+- **Queda fuera** (en `current.md`): el dry-run de dominio lee cualquier base válida a la que llegue `ro_user`; el 500
+  del modo extendido de `sigrid/albaran` ante errores de `model_validator` (previo, de F-009).
+- **Lecciones del arnés:** encargado en `arnes-base` quitar el hook `PostToolUse` (`9bdf828`); `harness/mutacion.py`
+  apenas genera mutantes para este código (sin `not in`, literales ni argumentos con nombre). Un error del líder en
+  un aviso (la base de `concepto-grafico`) lo cazó el consumidor: los avisos se contrastan con §8 antes de mandarlos.
