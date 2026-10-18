@@ -212,3 +212,36 @@ def test_f011_r11_error_inesperado_sigue_en_500(monkeypatch: pytest.MonkeyPatch)
         "error": "Error interno ejecutando documents/read.",
         "details": {"type": "RuntimeError", "exception": "boom"},
     }
+
+
+# --- R13-R14 (A1): lista blanca mal configurada, la corta el adaptador --------
+
+
+def test_f011_r14_lista_mal_configurada_la_corta_el_adaptador_sin_conectar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si ALLOWED_DATABASES trajera `ruesma_rep;APP=x`, pasaría `_validar_base`;
+    `_connect` lo rechaza con el `except IdentifierValidationError` que ya existe."""
+
+    def prohibido(*_: Any, **__: Any) -> None:
+        raise AssertionError("un unit test no puede abrir una conexión real")
+
+    monkeypatch.setattr(adaptador.pyodbc, "connect", prohibido)
+    ajustes = SimpleNamespace(
+        allowed_databases=["ruesma_rep;APP=x"],
+        sql_server_username="lector",
+        sql_server_password="no-es-una-clave",
+        default_query_timeout_seconds=37,
+    )
+    repo = adaptador.SqlServerRepository(ajustes)
+    caso = ReadDocumentUseCase(repo, ajustes)
+    monkeypatch.setattr(
+        function_app, "build_dependencies", lambda: (ajustes, repo, None, caso, None, None, None, None)
+    )
+    respuesta = llamar({**_CUERPO, "database": "ruesma_rep;APP=x"})
+    assert respuesta.status_code == 400
+    assert cuerpo_de(respuesta) == {
+        "ok": False,
+        "error": "El identificador 'database' contiene caracteres no permitidos: ruesma_rep;APP=x",
+        "details": {"type": "IdentifierValidationError"},
+    }
