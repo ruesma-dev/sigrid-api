@@ -3,6 +3,12 @@
 
 ## F-011 en `in_progress` (2026-10-18): spec aprobada, implementer lanzado
 
+**Implementer (2026-10-18):** trabajando T1-T11 en orden (T12-T14 son MANUAL del líder/humano). Informe en
+`progress/impl_F-011.md`. Confirmado en el código: el albarán clásico (`locate_contract`, l. 191, frente a la lista en
+l. 506), `albaran-directo` (`_resolve_obra`, l. 76, frente a l. 299) y el modo extendido de `sigrid/albaran`
+(`_comprobar_guardas` solo mira la lista con `commit`, l. 292-306) conectan en dry-run con `request.database` sin lista
+blanca. Partes y concepto-gráfico la validan siempre antes de leer.
+
 **Aprobación del humano (2026-10-18):** D1 = `ALLOWED_DATABASES` tal cual; D2 = **A1** (`IdentifierGuard` en `_connect`);
 D3 = 400 `BaseNoPermitidaError` listando las bases; D4 = sensible a mayúsculas. Autorizado el paso 5 de la
 verificación manual (dry-run de `sigrid/contrato-lineas` con base inyectada, sin `commit`). Título ampliado.
