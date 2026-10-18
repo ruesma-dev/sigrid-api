@@ -34,7 +34,7 @@ from domain.models.concepto_grafico_models import (
     AttachConceptoGraficoRequest,
     ConceptoGraficoError,
 )
-from domain.models.document_models import DocumentoAmbiguoError
+from domain.models.document_models import BaseNoPermitidaError, DocumentoAmbiguoError
 from domain.models.parte_reclamacion_models import (
     CreatePartesReclamacionRequest,
     ParteReclamacionError,
@@ -479,6 +479,15 @@ def documents_read(req: func.HttpRequest) -> func.HttpResponse:
             str(exc),
             status_code=409,
             details={"type": "DocumentoAmbiguoError"},
+        )
+    except BaseNoPermitidaError as exc:
+        # Antes que ValueError, del que hereda: mcp-bbdd lee 400 + "ValueError"
+        # como «sin binario» y esto es «origen no disponible» (F-011 R8).
+        logger.warning("BaseNoPermitidaError en documents/read: %s", exc)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": "BaseNoPermitidaError"},
         )
     except IdentifierValidationError as exc:
         logger.warning("IdentifierValidationError en documents/read: %s", exc)
