@@ -3,7 +3,7 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **11 features**, 3 abiertas, 8 terminadas.
+Resumen: **14 features**, 6 abiertas, 8 terminadas.
 
 ## Trabajo abierto
 
@@ -12,6 +12,9 @@ Resumen: **11 features**, 3 abiertas, 8 terminadas.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
+| F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | pendiente | estandar | `feature/F-012-validacion-sin-500` |
+| F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
+| F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
 
 ## Terminadas
 
@@ -45,6 +48,24 @@ Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Esc
 estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
+
+### F-012 · Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx
+
+estado **pendiente** · prioridad 12 · rigor `estandar` · SDD sí · rama `feature/F-012-validacion-sin-500`
+
+Alta del 2026-10-18 a petición del humano (hallazgo de progress/review_F-011_C3.md, reproducido; previo, de F-009). En el modo extendido de sigrid/albaran un error de model_validator (p. ej. línea vinculada sin cod_contrato) deja un ValueError en `ctx` de exc.errors() y error_response falla con `TypeError: Object of type ValueError is not JSON serializable`: albaranes recibe un 500 mudo en vez del 400 con el detalle. function_app.py serializa `exc.errors()` tal cual en 9 rutas (l. 105, 143, 179, 237, 271, 330, 388, 443, 504): la spec mide en cuáles puede pasar y decide el arreglo común (exc.errors(include_context=False), un saneado único o equivalente) sin cambiar la forma de `details.validation` que leen los consumidores.
+
+### F-013 · sql/read aplica timeout_seconds como tope de la consulta, no solo del login
+
+estado **pendiente** · prioridad 13 · rigor `critico` · SDD sí · rama `feature/F-013-sql-read-timeout`
+
+Alta del 2026-10-18 a petición del humano (hallazgo del reviewer de F-009 T0a-bis, 2026-10-05). infrastructure/repositories/sql_server_repository.py pasa timeout_seconds a pyodbc.connect(timeout=…), que es el tiempo de login; los casos de uso de dominio sí fijan cursor.connection.timeout. Una lectura que el balanceador corta a los 230 s sigue corriendo en el SQL Server de producción (causa verosímil del 1205 y de los 121 s de M14 en F-009 T0b). Afecta a todos los consumidores de sql/read: la spec decide el tope por defecto y el máximo, y cómo responde la API cuando salta (error claro, sin filas a medias).
+
+### F-014 · Los dry-run de dominio validan la base contra ALLOWED_DATABASES
+
+estado **pendiente** · prioridad 14 · rigor `critico` · SDD sí · rama `feature/F-014-dry-run-valida-base`
+
+Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F-011_C3.md). En dry-run, sigrid/contrato-lineas, sigrid/albaran clásico y extendido y sigrid/albaran-directo conectan con request.database sin lista blanca (la de escritura solo se mira con commit). Desde F-011 un nombre fuera del patrón se rechaza en _connect, pero una base que case con él y a la que llegue ro_user (p. ej. master) se sigue leyendo con el SQL fijo de esas previas. Cambio de seguridad pequeño que toca a los consumidores de esos endpoints: avisarles antes del despliegue.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 

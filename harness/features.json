@@ -213,6 +213,56 @@
       "rigor": "critico",
       "priority": 11,
       "branch": "feature/F-011-documents-read-valida-database"
+    },
+    {
+      "id": "F-012",
+      "title": "Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx",
+      "description": "Alta del 2026-10-18 a petición del humano (hallazgo de progress/review_F-011_C3.md, reproducido; previo, de F-009). En el modo extendido de sigrid/albaran un error de model_validator (p. ej. línea vinculada sin cod_contrato) deja un ValueError en `ctx` de exc.errors() y error_response falla con `TypeError: Object of type ValueError is not JSON serializable`: albaranes recibe un 500 mudo en vez del 400 con el detalle. function_app.py serializa `exc.errors()` tal cual en 9 rutas (l. 105, 143, 179, 237, 271, 330, 388, 443, 504): la spec mide en cuáles puede pasar y decide el arreglo común (exc.errors(include_context=False), un saneado único o equivalente) sin cambiar la forma de `details.validation` que leen los consumidores.",
+      "acceptance": [
+        "Un error de model_validator en el modo extendido de sigrid/albaran responde 400 con details.type ValidationError, no 500",
+        "Las demás rutas con ValidationError mantienen el 400 y la forma de details.validation (loc, msg, type) que ya leen los consumidores",
+        "Las trazas no vuelcan textos ni precios de la petición (R32 de F-009)",
+        "azure-apps/sigrid_api.md actualizado si cambia lo que ven los consumidores",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "estandar",
+      "priority": 12,
+      "branch": "feature/F-012-validacion-sin-500"
+    },
+    {
+      "id": "F-013",
+      "title": "sql/read aplica timeout_seconds como tope de la consulta, no solo del login",
+      "description": "Alta del 2026-10-18 a petición del humano (hallazgo del reviewer de F-009 T0a-bis, 2026-10-05). infrastructure/repositories/sql_server_repository.py pasa timeout_seconds a pyodbc.connect(timeout=…), que es el tiempo de login; los casos de uso de dominio sí fijan cursor.connection.timeout. Una lectura que el balanceador corta a los 230 s sigue corriendo en el SQL Server de producción (causa verosímil del 1205 y de los 121 s de M14 en F-009 T0b). Afecta a todos los consumidores de sql/read: la spec decide el tope por defecto y el máximo, y cómo responde la API cuando salta (error claro, sin filas a medias).",
+      "acceptance": [
+        "execute_read_query fija el timeout de la consulta en la conexión, además del de login",
+        "Una consulta que supera el tope responde con un error claro y distinguible, no con un 500 genérico ni con filas a medias",
+        "El tope por defecto queda por debajo del corte de 230 s del balanceador",
+        "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 13,
+      "branch": "feature/F-013-sql-read-timeout"
+    },
+    {
+      "id": "F-014",
+      "title": "Los dry-run de dominio validan la base contra ALLOWED_DATABASES",
+      "description": "Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F-011_C3.md). En dry-run, sigrid/contrato-lineas, sigrid/albaran clásico y extendido y sigrid/albaran-directo conectan con request.database sin lista blanca (la de escritura solo se mira con commit). Desde F-011 un nombre fuera del patrón se rechaza en _connect, pero una base que case con él y a la que llegue ro_user (p. ej. master) se sigue leyendo con el SQL fijo de esas previas. Cambio de seguridad pequeño que toca a los consumidores de esos endpoints: avisarles antes del despliegue.",
+      "acceptance": [
+        "El dry-run de los cuatro endpoints rechaza con 400 una base fuera de ALLOWED_DATABASES sin abrir conexión",
+        "Con la base de siempre (ruesma) el dry-run responde igual que hoy",
+        "Consumidores avisados antes del despliegue y azure-apps/sigrid_api.md actualizado en el mismo trabajo",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 14,
+      "branch": "feature/F-014-dry-run-valida-base"
     }
   ]
 }
