@@ -99,8 +99,17 @@ mismo arreglo. **Verde tras T4**: `python -m pytest tests/test_f012_rutas.py tes
 
 ## Mutación (T6)
 
-`python -m harness.mutacion --feature F-012` → [`mutacion_F-012.md`](mutacion_F-012.md): 30 líneas en alcance,
-**1 mutante generado, 1 muerto, 0 supervivientes**, 175,2 s (HEAD `347ec24`). El generador solo encontró una
+`python -m harness.mutacion --feature F-012 --workers 1` (en serie, sobre el árbol propio, lanzada tras H1 y sin
+ningún Edit/Write mientras corría) → [`mutacion_F-012.md`](mutacion_F-012.md): 30 líneas en alcance, **1 mutante
+generado, 1 muerto, 0 supervivientes**, 104,2 s, línea base 97,0 s (HEAD `1676d09`).
+
+Corrección (H4): la primera campaña (HEAD `347ec24`, 175,2 s, mismo resultado 1/1/0) se lanzó **sin**
+`--workers`; su log decía «Campaña paralela: hasta 4 workers, uno por worktree», aunque la cabecera del informe
+generado ponía `--workers 1` y la fila «Workers 1» (con un solo mutante, el arnés registra los workers efectivos,
+no el modo). Por eso se repitió en serie; el informe de `progress/` es ya el de la campaña serie. La discrepancia
+cabecera/log es del arnés (genérica): la anoto para el líder por si procede llevarla a `arnes-base`.
+
+El generador solo encontró una
 constante entera (`status_code=400` → `401`, muerto): no muta llamadas, argumentos con nombre ni literales de
 texto, que es casi todo lo que cambia aquí. Para no quedarme con un 1/1 hueco, apliqué **a mano** seis mutantes
 sobre las líneas que sostienen la feature, ejecuté los tests de F-012 y restauré con `git checkout` (medido, no
@@ -146,13 +155,15 @@ regla de «una sola función común», y la protegen el espía y la fuente.
 | Tests ejecutados (`bash harness/init.sh`, T11) | **2702 passed, 1 skipped**, 1 warning (2664 antes de F-012 + 38 nuevos) |
 | Tests de F-012 | 38 (12 helper + 26 ruta), todos en verde; `test_f009_caracterizacion.py` sin tocar y en verde |
 | Cobertura de líneas cambiadas | `PUERTA COBERTURA: 100.0% de 14 líneas cambiadas cubiertas (14/14, umbral 80%, nivel estandar)` |
-| Mutación (herramienta) | 1 generado, 1 muerto, 0 supervivientes (`progress/mutacion_F-012.md`) |
+| Mutación (herramienta) | 1 generado, 1 muerto, 0 supervivientes, **1 worker (`--workers 1`, en serie)**, 104,2 s, HEAD `1676d09` (`progress/mutacion_F-012.md`) |
 | Mutación (manual, complemento) | 6 aplicados, 6 muertos, 0 supervivientes (tabla arriba) |
-| Tiempo de la suite | 75,63 s en el `init.sh` final de T11 (69,40 s en el anterior, 84,62 s en T5; línea base de la campaña, 92,7 s) |
+| Tiempo de la suite | 75,63 s en el `init.sh` final de T11 (69,40 s en el anterior, 84,62 s en T5; línea base de la campaña serie, 97,0 s) |
 | `bash harness/init.sh` (T11) | **ENTORNO LISTO**; ruff 79 avisos, los mismos que en `dev`; PUERTA TAMAÑO impl 158/220 |
 
 ## Commits
 
 `b0dd48f` T1 · `9c965d8` T2 · `b1f4a52` T3 · `40c417a` T4 · `347ec24` T5 · `99ef191` T6 · `829ee9e` T7 ·
-`d591897` T8 · T11 (informe, `current.md`, orden de importaciones del test) en el último commit de la rama.
+`d591897` T8 · `496bfeb` T11 (informe, `current.md`, orden de importaciones del test). Tras la revisión:
+`1676d09` H1 (líneas en blanco PEP 8 en `http_response_factory.py`: `ruff --preview --select E3` pasa de 2
+avisos a 0; `ruff check` del fichero, «All checks passed!») y el commit de H4 (este informe y la campaña serie).
 `azure-apps`: `4584469`.

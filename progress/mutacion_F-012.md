@@ -1,7 +1,7 @@
 <!-- progress/mutacion_F-012.md -->
 # F-012 · Campaña de mutación
 
-Generado por `python -m harness.mutacion --feature F-012 --workers 1` el 2026-10-18 23:29.
+Generado por `python -m harness.mutacion --feature F-012 --workers 1` el 2026-10-18 23:54.
 
 ## Alcance
 
@@ -24,11 +24,11 @@ Origen del diff: **rama** (`768e2e4c683b889f0a80084a82f11fcefd4b7f00` .. `featur
 | Timeouts | 0 |
 | Timeouts repasados en serie | 0: ningún mutante agotó el reloj |
 | Sin veredicto (base rota) | 0 |
-| Tiempo total | 175.2 s |
-| SHA de HEAD medido | `347ec248056285826a14315cf11e15273b9c911f` |
-| Línea base (s) — `.` | 92.7 |
-| Media por mutante evaluado (s) | 175.2 |
-| Timeout efectivo por mutante (s) | 186 — derivado de la línea base × 2.0 |
+| Tiempo total | 104.2 s |
+| SHA de HEAD medido | `1676d09b13a9706d6d21d84c5b73aa7eecbce6da` |
+| Línea base (s) — `.` | 97.0 |
+| Media por mutante evaluado (s) | 104.2 |
+| Timeout efectivo por mutante (s) | 194 — derivado de la línea base × 2.0 |
 | Suelo configurado (s) | 120 |
 | Workers | 1 |
 | Muestreo | no: campaña completa |
