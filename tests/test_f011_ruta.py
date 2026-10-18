@@ -245,3 +245,17 @@ def test_f011_r14_lista_mal_configurada_la_corta_el_adaptador_sin_conectar(
         "error": "El identificador 'database' contiene caracteres no permitidos: ruesma_rep;APP=x",
         "details": {"type": "IdentifierValidationError"},
     }
+
+
+def test_f011_r8_el_tipo_es_literal_tambien_para_una_subclase(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Design §Clases: `details.type` literal, como el 409 de F-010, no `type(exc).__name__`.
+    Una subclase futura no cambia el contrato que lee mcp-bbdd."""
+    from domain.models.document_models import BaseNoPermitidaError
+
+    class BaseNoPermitidaConMatiz(BaseNoPermitidaError):
+        pass
+
+    con_caso_real(monkeypatch, RepositorioDoble(lanza(BaseNoPermitidaConMatiz("x"))))
+    respuesta = llamar(_CUERPO)
+    assert respuesta.status_code == 400
+    assert cuerpo_de(respuesta) == {"ok": False, "error": "x", "details": {"type": "BaseNoPermitidaError"}}
