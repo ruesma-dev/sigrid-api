@@ -35,7 +35,6 @@ def error_response(message: str, *, status_code: int = 400, details: dict[str, A
     return json_response(payload, status_code=status_code)
 
 
-
 def _errores_serializables(exc: ValidationError) -> list[dict[str, Any]]:
     """`exc.errors()` con cada valor que `json` no sabe serializar pasado a `str`
     (F-012 R4: la excepcion de una regla con mensaje propio, en `ctx.error`). Lo
@@ -53,6 +52,7 @@ def validation_error_response(exc: ValidationError) -> func.HttpResponse:
         status_code=400,
         details={"type": type(exc).__name__, "validation": _errores_serializables(exc)},
     )
+
 
 #: ASCII imprimible (0x20-0x7E) salvo "%": lo que X-Document-Filename deja tal cual (F-010 R1-R3).
 _SEGUROS_EN_CABECERA = "".join(chr(c) for c in range(0x20, 0x7F) if chr(c) != "%")
