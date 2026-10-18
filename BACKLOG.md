@@ -5,6 +5,8 @@
 
 Resumen: **15 features**, 7 abiertas, 8 terminadas.
 
+En curso: **F-012**.
+
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
@@ -12,7 +14,7 @@ Resumen: **15 features**, 7 abiertas, 8 terminadas.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | pendiente | estandar | `feature/F-012-validacion-sin-500` |
+| F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | en curso | estandar | `feature/F-012-validacion-sin-500` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
 | F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | pendiente | critico | `feature/F-015-albaran-plantilla-y-retencion` |
@@ -52,7 +54,7 @@ Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Esc
 
 ### F-012 · Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx
 
-estado **pendiente** · prioridad 12 · rigor `estandar` · SDD sí · rama `feature/F-012-validacion-sin-500`
+estado **en curso** · prioridad 12 · rigor `estandar` · SDD sí · rama `feature/F-012-validacion-sin-500`
 
 Alta del 2026-10-18 a petición del humano (hallazgo de progress/review_F-011_C3.md, reproducido; previo, de F-009). En el modo extendido de sigrid/albaran un error de model_validator (p. ej. línea vinculada sin cod_contrato) deja un ValueError en `ctx` de exc.errors() y error_response falla con `TypeError: Object of type ValueError is not JSON serializable`: albaranes recibe un 500 mudo en vez del 400 con el detalle. function_app.py serializa `exc.errors()` tal cual en 9 rutas (l. 105, 143, 179, 237, 271, 330, 388, 443, 504): la spec mide en cuáles puede pasar y decide el arreglo común (exc.errors(include_context=False), un saneado único o equivalente) sin cambiar la forma de `details.validation` que leen los consumidores.
 

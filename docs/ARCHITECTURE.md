@@ -53,7 +53,12 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
 - **`interface_adapters/http/http_response_factory.py`** — construcción
-  uniforme de respuestas HTTP.
+  uniforme de respuestas HTTP. El 400 de Pydantic de las 9 rutas lo construye
+  `validation_error_response(exc)` (F-012): `details = {type, validation}`, con
+  `exc.errors()` pasado por `json.dumps(..., default=str)`, de modo que lo no
+  serializable (la excepción de una regla con mensaje propio, en `ctx.error`)
+  sale como texto en vez de un 500 y lo demás sale idéntico. No traza: la traza
+  de cada `except ValidationError` sigue en su ruta.
 - **`config/settings.py`** — `Settings` (pydantic-settings) leído de `.env` en
   local y de App Settings en Azure.
 

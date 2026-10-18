@@ -1,6 +1,38 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-012 en `in_progress` (2026-10-18): spec aprobada por el humano (D1 B, D2 9 rutas, D3 no, D4 avisar)
+
+Spec en `specs/F-012-validacion-sin-500/` (rama `feature/F-012-validacion-sin-500`). Medido con pydantic 2.11.3:
+el 500 sale hoy en tres rutas (`sigrid/albaran` extendido, 6 reglas; `sql/write`, `sql`+`statements` o ninguno;
+`concepto-grafico`, base64 mal formado) y, en teoría, en `albaran`/`partes` por un `ValidationError` interno. El
+dorado de F-009 fija `ctx` en 4 casos: descarta `include_context=False`. **Aprobado por el humano el 2026-10-18:**
+D1 = B (`default=str`: lo no serializable a texto, lo demás idéntico); D2 = helper único `validation_error_response`
+en las 9 rutas; D3 = sin red global en `json_response`; D4 = documentar en azure-apps y avisar a albaranes antes de
+desplegar (un error de regla en grabación pasa de `incierto` a `error`). Albaranes avisado el 2026-10-18: no cambia
+nada, pide aviso antes del despliegue. Fuera de alcance, propuesto como feature aparte: las trazas `str(exc)` de las
+demás rutas vuelcan `input`.
+
+**Implementación (2026-10-18, implementer): T1-T8 y T11 hechas**, informe en [`impl_F-012.md`](impl_F-012.md).
+`validation_error_response` en `interface_adapters/http/` y en las 9 rutas; trazas y orden de `except` intactos;
+dorado de F-009 sin regenerar; 2702 tests en verde, cobertura de líneas cambiadas 100 % (14/14). `azure-apps`
+`4584469` (local, notas «PENDIENTE DE DESPLIEGUE»). Sin desviaciones de la spec; una observación medida: en
+`sql/write`, `concepto-grafico` y los R5 el 500 de antes no lo daba el `except Exception` de la ruta sino el host
+(el `TypeError` salía de la función). **Siguiente: reviewer**; luego T9 (aviso a albaranes y despliegue, humano) y
+T10 (verificación de solo lectura, líder).
+
+**Revisión** (`review_F-012.md`): CHANGES_REQUESTED solo por H1 (PEP 8), H2-H3 (este fichero) y H4 (workers de la
+campaña en el informe); el código, fiel a la spec. **Lo que queda, en orden** (T9 y T10 bloquean el `done`, no el
+merge):
+1. Cerrar H1-H4, re-revisión y merge `--no-ff` a `dev` (líder); push (humano:
+   `! git -C C:/Users/pgris/PycharmProjects/sigrid-api push origin dev`).
+2. **T9:** avisar a la sesión de albaranes (líder) y desplegar (humano:
+   `! func azure functionapp publish func-sigridapi-dev-huyke --python`). Sin App Settings nuevas.
+3. **T10 (líder, solo lectura):** design §Verificación manual paso 1 (previa del extendido con una línea vinculada sin
+   `cod_contrato`, `commit: false` → 400 `ValidationError` con `ctx.error` en texto); el paso 2 (`sql/write` y
+   `concepto-grafico` mal formados → 400) solo con autorización del humano. Resultados en `verificacion_F-012.md`;
+   después quitar las notas «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md` (`4584469`) y pasar a `done`.
+
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
 Resumen en `history.md`; verificación en [`verificacion_F-011.md`](verificacion_F-011.md). Lo que deja abierto está
@@ -114,8 +146,8 @@ ajeno; lo borra el humano si quiere.
 - **500 en vez de 400 en el modo extendido de `sigrid/albaran`** (previo, de F-009; hallazgo de
   `review_F-011_C3.md`, reproducido): un error de `model_validator` (p. ej. línea vinculada sin `cod_contrato`) deja
   un `ValueError` en `ctx` de `exc.errors()` y `error_response` falla con `TypeError: Object of type ValueError is not
-  JSON serializable` (`function_app.py` l. 261-271). **F-012** en el backlog (`exc.errors(include_context=False)` o
-  equivalente, y mirar las demás rutas). Afecta a albaranes: recibe un 500 mudo.
+  JSON serializable` (`function_app.py` l. 261-271). Afecta a albaranes: recibe un 500 mudo. Lo arregla **F-012**
+  (`in_progress`, arriba) en las 9 rutas con `default=str`; `include_context=False` quedó descartado.
 - **Dry-run de dominio lee cualquier base que case con el patrón** y a la que llegue `ro_user` (residual de F-011):
   **F-014** en el backlog.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
@@ -132,8 +164,9 @@ ajeno; lo borra el humano si quiere.
 
 F-010 y F-011 cerradas el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real).
 Después: F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
-(calentamiento); F-012 (el 500 del modo extendido de `sigrid/albaran`), F-013 (`sql/read` fija el tope real de la
-consulta) y F-014 (el hueco residual del dry-run de dominio), dadas de alta el 2026-10-18. Del arnés:
+(calentamiento); F-013 (`sql/read` fija el tope real de la consulta), F-014 (el hueco residual del dry-run de
+dominio) y F-015 (O1 y O2 de F-009), dadas de alta el 2026-10-18. **F-012 en `in_progress`** (arriba). F-007 tiene
+spec en su rama (`spec_ready`): D1 resuelta (la llama la app de facturas); D2 espera la respuesta de facturas. Del arnés:
 actualizar `sigrid-api` a la versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la
 mutación paralela.
 
@@ -141,5 +174,5 @@ mutación paralela.
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-010 y F-011 están cerradas y desplegadas. F-009 está desplegada con
 > la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar §2-§4 del contrato con albaranes, avisa
-> a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, F-012, F-013, F-014): no arranques nada sin
-> preguntar.
+> a la sesión de albaranes. F-012 está `in_progress` (lo que queda, arriba). Lo siguiente del backlog (F-007,
+> F-008, F-013, F-014, F-015): no arranques nada sin preguntar.

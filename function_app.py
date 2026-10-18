@@ -49,6 +49,7 @@ from interface_adapters.http.http_response_factory import (
     binary_file_response,
     error_response,
     json_response,
+    validation_error_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,11 +100,7 @@ def sql_read(req: func.HttpRequest) -> func.HttpResponse:
         )
     except ValidationError as exc:
         logger.warning("ValidationError en sql/read: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sql/read: %s", exc)
         return error_response(
@@ -137,11 +134,7 @@ def sql_write(req: func.HttpRequest) -> func.HttpResponse:
         )
     except ValidationError as exc:
         logger.warning("ValidationError en sql/write: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sql/write: %s", exc)
         return error_response(
@@ -173,11 +166,7 @@ def sigrid_contrato_lineas(req: func.HttpRequest) -> func.HttpResponse:
         return json_response(response_model)
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/contrato-lineas: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sigrid/contrato-lineas: %s", exc)
         return error_response(
@@ -231,11 +220,7 @@ def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
         return _respuesta_albaran_compra_error(exc, "sigrid/albaran")
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/albaran: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sigrid/albaran: %s", exc)
         return error_response(
@@ -265,11 +250,7 @@ def _sigrid_albaran_extendido(
             "ValidationError en sigrid/albaran (extendido): %s",
             [(error["loc"], error["type"]) for error in exc.errors()],
         )
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     _exigir_escritura_de_albaranes(settings, request_model.commit)
     return json_response(use_case.run(request_model))
 
@@ -324,11 +305,7 @@ def sigrid_albaran_directo(req: func.HttpRequest) -> func.HttpResponse:
         return _respuesta_albaran_compra_error(exc, "sigrid/albaran-directo")
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/albaran-directo: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sigrid/albaran-directo: %s", exc)
         return error_response(
@@ -382,11 +359,7 @@ def sigrid_concepto_grafico(req: func.HttpRequest) -> func.HttpResponse:
         )
     except ValidationError as exc:
         logger.warning("ValidationError en sigrid/concepto-grafico: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sigrid/concepto-grafico: %s", exc)
         return error_response(
@@ -437,11 +410,7 @@ def sigrid_partes_reclamacion(req: func.HttpRequest) -> func.HttpResponse:
             "ValidationError en sigrid/partes-reclamacion: %s",
             [(error["loc"], error["type"]) for error in exc.errors()],
         )
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en sigrid/partes-reclamacion: %s", exc)
         return error_response(
@@ -498,11 +467,7 @@ def documents_read(req: func.HttpRequest) -> func.HttpResponse:
         )
     except ValidationError as exc:
         logger.warning("ValidationError en documents/read: %s", exc)
-        return error_response(
-            "Solicitud invalida.",
-            status_code=400,
-            details={"type": type(exc).__name__, "validation": exc.errors()},
-        )
+        return validation_error_response(exc)
     except ValueError as exc:
         logger.warning("ValueError en documents/read: %s", exc)
         return error_response(
