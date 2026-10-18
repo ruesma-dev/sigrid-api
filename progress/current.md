@@ -107,16 +107,17 @@ ajeno; lo borra el humano si quiere.
   que es el tiempo de *login*; los casos de uso de dominio sí fijan `cursor.connection.timeout`.
   Una lectura que el balanceador corta a 230 s **sigue corriendo en el SQL Server de producción**
   (verosímil causa del 1205 y de los 121 s de M14 en T0b). Afecta a todos los consumidores:
-  feature propia (fijar `connection.timeout` en `execute_read_query` y actualizar
+  **F-013** en el backlog (fijar `connection.timeout` en `execute_read_query` y actualizar
   `azure-apps/sigrid_api.md`). Mientras tanto, no relanzar una lectura justo después de un corte.
 - **`sigrid-api-v2`** tiene el mismo fallo de cabecera que arregló F-010 (`interface_adapters/http/responses.py:62`):
   aviso para ese repositorio, no tarea de este.
 - **500 en vez de 400 en el modo extendido de `sigrid/albaran`** (previo, de F-009; hallazgo de
   `review_F-011_C3.md`, reproducido): un error de `model_validator` (p. ej. línea vinculada sin `cod_contrato`) deja
   un `ValueError` en `ctx` de `exc.errors()` y `error_response` falla con `TypeError: Object of type ValueError is not
-  JSON serializable` (`function_app.py` l. 261-271). Feature propia (`exc.errors(include_context=False)` o
+  JSON serializable` (`function_app.py` l. 261-271). **F-012** en el backlog (`exc.errors(include_context=False)` o
   equivalente, y mirar las demás rutas). Afecta a albaranes: recibe un 500 mudo.
-- **Dry-run de dominio lee cualquier base que case con el patrón** y a la que llegue `ro_user` (residual de F-011).
+- **Dry-run de dominio lee cualquier base que case con el patrón** y a la que llegue `ro_user` (residual de F-011):
+  **F-014** en el backlog.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
 - **`user_rw` tiene `UPDATE`** sobre `ruesma_rep.dbo.gra`; no se probó `DELETE`.
 - El guard de `ALLOWED_WRITE_DATABASES` vacía **falla abierto** en los cuatro
@@ -131,8 +132,8 @@ ajeno; lo borra el humano si quiere.
 
 F-010 y F-011 cerradas el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real).
 Después: F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
-(calentamiento); la feature propuesta para que `sql/read` fije el tope real de la consulta; y, como candidatas
-nuevas, el 500 del modo extendido de `sigrid/albaran` y el hueco residual del dry-run de dominio. Del arnés:
+(calentamiento); F-012 (el 500 del modo extendido de `sigrid/albaran`), F-013 (`sql/read` fija el tope real de la
+consulta) y F-014 (el hueco residual del dry-run de dominio), dadas de alta el 2026-10-18. Del arnés:
 actualizar `sigrid-api` a la versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la
 mutación paralela.
 
@@ -140,5 +141,5 @@ mutación paralela.
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-010 y F-011 están cerradas y desplegadas. F-009 está desplegada con
 > la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar §2-§4 del contrato con albaranes, avisa
-> a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, la feature de `sql/read`, las dos candidatas de
-> F-011): no arranques nada sin preguntar.
+> a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, F-012, F-013, F-014): no arranques nada sin
+> preguntar.
