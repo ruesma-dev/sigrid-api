@@ -1,6 +1,36 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-007 · spec v2 escrita, pendiente de la PARADA 1 (2026-10-19)
+
+Rama `feature/F-007-registrar-proforma` (al día con `dev` `6faacd7`). Spec en `specs/F-007-registrar-proforma/`
+(requisitos 133/150, diseño 187/250, 24 tareas en lotes A-D); medición v2 (M16-M26, solo lecturas) en
+[`explore_F-007.md`](explore_F-007.md). **Se implementa después de F-015 cerrada** (usa su plantilla `AC` y su
+`dcarec`). Llamante: facturas F-063.
+
+**Qué cambia de la v1:** `cod_contrato` obligatorio y proveedor del contrato (sin CIF); `periodo` +
+`importe_anterior` + `importe_mes` en cabecera; **el endpoint resuelve la cadena** (casa el importe ANTERIOR total con
+las puntas del contrato: 745 de 773 únicas y correctas, 0 incorrectas, M25) y **arrastra todas las líneas de la
+anterior** (M23); detecta la PROF ya dada de alta a mano (`existente`, sin escribir, M26); las líneas las identifica
+el llamante por `ide` (`linea_anterior_ide`, `ctrpro_ide` o `producto`) con la ayuda de la previa, porque ninguna
+clave de texto sirve (M20); plantilla anterior → PROF → `AC`; V1 cerrada (`docoritip 1`, M17); caso de uso como
+subclase del de F-009 con costuras de solo nombres.
+
+**Decisiones para el humano (recomendación):**
+- **D2:** cadena dentro, por importe ANTERIOR ±0,05 € y cantidades ANTERIOR si vienen; `cod_proforma_anterior` como
+  salida manual. **D3:** retención de F-015. **D4:** `docoritip 1`, `ivadif` y forma de pago del contrato; sin
+  vencimiento (es de la factura). **D5:** plantilla anterior → PROF del proveedor → `AC`; sin nada, error (13 % de
+  las primeras). **D6:** subclase con costuras y dorados intactos. **D7:** `SB9999`/`SM9999`; `SM370001`, `MA9999`,
+  `XA9999` fuera hasta que negocio diga; tope 500 líneas. **D8:** fecha = último día del periodo, u hoy en el mes en
+  curso. **D9:** líneas por `ide` (previa con `lineas` vacía + consulta de `ctrpro` documentada). **D10:**
+  `existente` 200 sin escribir. **D11:** `entref` `PROF<MMAA>_<obra>`. **D12:** una feature en lotes, no partirla
+  (1.642 de 1.963 a origen son encadenadas).
+- **Para facturas (con su humano):** confirmar que pueden mandar `importe_mes`, `importe_anterior`, `periodo` y el
+  contrato resuelto (`cod_contrato`), y el flujo de dos pasos (previa → mapear líneas → alta). V4-V5 necesitan una
+  hoja real: ¿su TOTAL ANTERIOR es el Σ de Sigrid? ¿la hoja es una impresión de Sigrid? ¿qué es «Nº ORDEN»?
+- **Para el líder:** hay 354 `AC` a origen desde 2025 (M19): la plantilla `AC` de F-015 debería poner `docoritip`
+  y `docoriide` a 0.
+
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
 Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
@@ -12,8 +42,7 @@ Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas 
   la app de facturas (su F-063); la proforma puede estar ya en Sigrid o no, y **en el futuro todas se registrarán por
   la app vía la API**. Respuesta de facturas (2026-10-19, detalle en `facturas/progress/explore_alta_sigrid.md`): la
   hoja no trae CIF, fecha, retención ni contrato estructurado; trae MES, ORIGEN y ANTERIOR por partida; pide que el
-  endpoint resuelva la cadena a origen. **La spec v1 hay que rehacerla** (contrato exigido o identificable, cadena
-  dentro del endpoint, detectar una PROF ya dada de alta a mano). D3-D7 sin aprobar.
+  endpoint resuelva la cadena a origen. **Spec v2 escrita en su rama** (sección de arriba).
 - **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
   origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas para los dos: dry-run, idempotencia, `con.cod` e
   `ide` en la respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.

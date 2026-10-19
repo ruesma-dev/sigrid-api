@@ -1,169 +1,187 @@
 <!-- specs/F-007-registrar-proforma/design.md -->
-# F-007 · Diseño (v1, pendiente de la PARADA 1)
+# F-007 · Diseño (v2, pendiente de la PARADA 1)
 
-Medición: [`progress/explore_F-007.md`](../../progress/explore_F-007.md) (**Mn**). Diccionario de Sigrid:
-[`azure-apps/sigrid_tablas.md`](../../../azure-apps/sigrid_tablas.md). Base de todo: F-009
-([`requirements`](../F-009-alta-albaran-compra/requirements.md), [`design`](../F-009-alta-albaran-compra/design.md)).
+Medición: [`progress/explore_F-007.md`](../../progress/explore_F-007.md) (**Mn**). Diccionario:
+[`azure-apps/sigrid_tablas.md`](../../../azure-apps/sigrid_tablas.md). Núcleo: F-009
+([`requirements`](../F-009-alta-albaran-compra/requirements.md), [`design`](../F-009-alta-albaran-compra/design.md))
+tal como lo deje **F-015** (spec en curso). Llamante: app de facturas, F-063
+([`facturas/progress/explore_alta_sigrid.md`](../../../facturas/progress/explore_alta_sigrid.md)).
 
 ## La decisión de fondo
 
-**Una proforma es un albarán de compra con otra serie y otra clase** (M1): `con.tip 14` + `dca` + `dcapro`, serie
-`PROF<aa>/` (`sercon` 230, «Proforma subcontratista», 5 cifras, `xjsvar 'cla=141'`) y `dca.cla 141`. Mueve stock como
-el albarán (`mov` si `tipmov` = 1), sirve el contrato (`ctrprodes`, `canser`, M6) y nace en 1 `PDT` (M2). Lo que la
-hace distinta, medido: la **retención de garantía** del contrato en `dcarec` (56 %, M10), el **IVA de inversión del
-sujeto pasivo** (91,5 % de líneas a tasa 0, `ivadif` del contrato, M9), la **cantidad a origen** en `canoriori` y la
-**cadena** con la proforma anterior (M11).
+Una proforma es un albarán de compra de la serie `PROF<aa>/` (`sercon` 230) con `dca.cla 141` (M1): mueve stock si
+`tipmov` 1, sirve el contrato y nace en 1 `PDT`. La de la hoja de certificación es **a origen** (`docoritip 1`, M17)
+y forma una **cadena lineal** por contrato (M19): cada una arrastra todas las líneas de la anterior, con la cantidad
+del MES (o 0) y la acumulada en `canoriori` (M11, M23). Hoy las dan de alta a mano administrativos y jefes de obra;
+en adelante, **todas por la app vía este endpoint**, que convive con las manuales: detecta la que ya existe (R11) y
+encadena con la última, sea manual o suya (R12).
 
-Por eso **no se escribe un caso de uso nuevo desde cero**: se reutiliza el núcleo de F-009 (la parte probada en
-producción, con su campaña de mutación) con un **perfil de alta** que fija lo que cambia (D6). Ruta propia, segunda
-llave propia y listas propias: el contrato HTTP de `sigrid/albaran`, congelado con albaranes (§2-§4 de
-`contrato_albaranes.md`), no cambia.
+**El endpoint resuelve la cadena; el llamante identifica las líneas.** Ninguna clave de texto identifica la línea de
+contrato (M20: partida + descripción es única solo en el 75 % de los contratos), así que la API **no casa por
+texto**: devuelve en la previa la cadena con sus líneas (`cadena.lineas_anteriores`, R4) y el llamante, con su humano
+de revisión, manda `linea_anterior_ide`, `ctrpro_ide` o `producto` (D9).
 
-**Límite de microservicio: cabe.** Dar de alta un concepto del ERP con sus efectos (stock, contrato servido,
-retención y totales) es de la pasarela, y Sigrid no tiene triggers. Qué se certifica, a qué precio y cuándo lo decide
-el llamante (D1). Fuera, por ser de otros: la facturación (F-008), la contabilización (asiento `tip 20`, M1) y el
-vínculo incidencia ↔ coste, que es de `postventa-incidencias` F-047.
+**Límite de microservicio: cabe.** Dar de alta un documento del ERP con sus efectos (cadena, stock, servido,
+retención, totales) es de la pasarela, y Sigrid no tiene triggers. Leer la hoja, decidir qué línea es cuál y cuándo
+se registra es de facturas. Fuera: facturación (F-008), asiento (`tip 20`, M1), provisiones `PREV`/`ANUL` (M16).
 
-**Lo que dice la medición sobre posventa (M13), y por eso D1 bloquea:** el coste de posventa entra hoy en la obra
-**POSTV2 como albarán `AC`** (1.283 desde 2025) con la partida = capítulo = promoción, y solo 3 proformas en toda su
-historia; Sigrid no tiene ningún campo que una un parte (`rcp`) con un documento de compra. F-009 ya da de alta esos
-albaranes, y el vínculo con la incidencia puede viajar hoy en `referencia_linea` (`dcapro.refent`, 24 caracteres) o
-en `referencia_externa` (`synckey`). La proforma real es otra cosa: la **certificación mensual de un subcontratista**
-en una obra en construcción (0678, 0672, 0677…).
+**Tamaño: cabe en una feature** (requisitos 133/150). Partirla (F-007a primera de cadena, F-007b encadenamiento)
+no sirve al consumidor: 1.642 de las 1.963 a origen desde 2025 son encadenadas (M17). Se implementa **en lotes**
+(tasks.md), como F-009.
+
+## Dependencia de F-015
+
+F-015 cambia el núcleo que esto reutiliza: plantilla de cabecera **solo de la serie `AC`** y `dcarec` **desde
+`ctrrec`** (con su cálculo de `tot`/`totpag`). F-007 **se implementa después de F-015 cerrada**, sobre su rama
+fusionada en `dev`, y usa su constructor de `dcarec` tal cual (R23). Si F-015 cambia de forma (nombres, firmas,
+clases de retención admitidas), esta spec se revisa antes de `in_progress`.
 
 ## Ficheros a crear
 
 | Fichero | Capa | Qué contiene |
 |---|---|---|
-| `domain/models/proforma_models.py` | domain | `ProformaRequest(AlbaranCompraRequest)`: solo redefine `fecha_albaran` con `alias="fecha_proforma"` (mismo dominio; `extra="forbid"` rechaza `fecha_albaran`). La respuesta es `AlbaranCompraResponse` (su `filas` ya es un `dict`) |
-| `application/use_cases/proforma_statements.py` | application | SQL constante L5P, L16, E13-E15 (§Sentencias) y puras `retencion_soportada`, `construir_dcarec`, `totales_con_retencion`, `ajustar_dca_proforma`, `ajustar_dcapro_proforma`, `es_proforma`. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
-| `application/use_cases/create_proforma_use_case.py` | application | `CreateProformaUseCase(CreateAlbaranCompraUseCase)`: fija `perfil=PERFIL_PROFORMA`; no reimplementa el flujo |
-| `tests/test_f007_dorado_extendido.py` + `tests/fixtures/f007_dorado_extendido.json` | — | R22 (T1, sobre `dev`, antes de tocar nada) |
-| `tests/test_f007_settings.py`, `_models.py`, `_statements.py`, `_use_case.py`, `_route.py`, `_perfil.py` | — | Ver `tasks.md` |
+| `domain/models/proforma_models.py` | domain | `LineaProformaIn`, `ProformaRequest` (R1-R2), `LineaAnterior` y `CadenaProforma` (R4), `ProformaResponse(AlbaranCompraResponse)` con `estado` ampliado y `cadena`; `ProformaError(AlbaranCompraError)` y `FalloLineaProforma` con sus conjuntos cerrados (§Códigos) |
+| `application/use_cases/proforma_statements.py` | application | SQL constante LP1-LP8 (§Sentencias) y puras: `fecha_de_periodo`, `entref_por_defecto`, `buscar_existente`, `elegir_anterior`, `asignar_lineas`, `arrastrar_linea`, `ajustar_nueva_vinculada`, `ajustar_nueva_sin_vincular`, `ajustar_dca_proforma`, `es_proforma`. Sin E/S; se autovalida con `DatabaseReferenceGuard` |
+| `application/use_cases/create_proforma_use_case.py` | application | `CreateProformaUseCase(CreateAlbaranCompraUseCase)`: `perfil = PERFIL_PROFORMA` y las sobrescrituras de §Costuras |
+| `tests/test_f007_*.py` + `tests/fixtures/f007_*.json` | — | ver `tasks.md` |
 
 ## Ficheros a modificar
 
 | Fichero | Qué cambia |
 |---|---|
-| `application/use_cases/albaran_compra_statements.py` | `PerfilAlta` (dataclass congelada, §Perfil) y `PERFIL_ALBARAN` con los valores de hoy; `prefijo_de_serie(fecha, prefijo=PREFIJO_SERIE)`; `construir_dcapro_vinculada` y `_sin_vincular` reciben la regla de `canoriori`/`imporiori` (defecto: la de hoy). Ninguna constante SQL de F-009 cambia |
-| `application/use_cases/create_albaran_compra_use_case.py` | `__init__(…, perfil: PerfilAlta = PERFIL_ALBARAN)`. Lo que hoy lee de `settings.sigrid_albaran_*` y las constantes `_ENDPOINT`, `APPLOCKS` y prefijo, lo lee **del perfil**; cinco ganchos que con `PERFIL_ALBARAN` no hacen nada (§Ganchos) |
-| `domain/models/albaran_compra_models.py` | Los tres códigos nuevos de R4 en el conjunto cerrado de `AlbaranCompraError` (aditivo) |
-| `config/settings.py` | Los cinco campos de R2 con `parse_string_list` y `parse_string_dict` de F-009 |
-| `function_app.py` | Ruta `sigrid/proforma` (POST) con el esqueleto de `sigrid_albaran` extendido: `ProformaRequest.model_validate`, guarda R5 tras validar y antes del caso de uso (solo con `commit`), `CreateProformaUseCase(repository, settings)` construido en la ruta como F-006 (sin tocar la tupla de `build_dependencies`), `AlbaranCompraError` → 400 con `codigo`. Ninguna ruta existente cambia |
-| `local.settings.sample.json`, `docs/ARCHITECTURE.md`, `CLAUDE.md` (mapa de rutas) | Claves, ruta, perfil y caso de uso nuevos |
-| `azure-apps/sigrid_api.md` | R27, commit aparte en `azure-apps`; corrige también que `tip 20` es el asiento |
+| `application/use_cases/create_albaran_compra_use_case.py` | §Costuras: los literales de hoy (`_ENDPOINT`, prefijo `AC`, `APPLOCKS`, nombres de los campos `sigrid_albaran_*`, código de la llave) pasan a un `PerfilAlta` de clase con **los mismos valores**; métodos sobrescribibles ya existentes (`_leer_cabecera`, `_resolver_lineas`, `_construir`, `_respuesta`) y un gancho nuevo `_resolver_dentro(cursor, construido)` que en la base devuelve `construido` sin leer nada |
+| `application/use_cases/albaran_compra_statements.py` | `prefijo_de_serie(fecha, prefijo=PREFIJO_SERIE)`; ninguna constante SQL cambia |
+| `domain/models/albaran_compra_models.py` | `AlbaranCompraError` y `FalloLinea` validan contra un atributo de clase (`CODIGOS`), por defecto los conjuntos de hoy; nada más |
+| `config/settings.py`, `local.settings.sample.json` | las cinco claves de R3, con `parse_string_list`/`parse_string_dict` de F-009 |
+| `function_app.py` | ruta `sigrid/proforma` (POST) con el esqueleto de `sigrid_albaran` extendido: validar, llave R6 solo con `commit`, `CreateProformaUseCase(repository, settings)` construido en la ruta (sin tocar la tupla de `build_dependencies`), `AlbaranCompraError` → 400 con `codigo`, `ValidationError` → `validation_error_response` (F-012) |
+| `docs/ARCHITECTURE.md`, `CLAUDE.md`, `azure-apps/sigrid_api.md` | R35 (commit aparte en `azure-apps`) |
 
 ## Ficheros que NO se tocan
 
-`create_purchase_albaran_use_case.py`, `create_direct_albaran_use_case.py` y sus modelos; los tests y el dorado de
-F-009 (`test_f009_*`, `f009_caracterizacion.json`); `infrastructure/security/*`; `sql_server_repository.py` (bastan
-`execute_read_query`, `read_full_row`, `read_rows_by`, `locate_contract`, `peek_next_ide` y `run_in_write_transaction`);
-F-004 y F-006; `infra/`; `contrato_albaranes.md`. Sin ficheros `NN_nombre.sql`: SQL constante.
+Los casos de uso y modelos del clásico y de `albaran-directo`; los tests y dorados de F-009 y F-015;
+`infrastructure/security/*`; `sql_server_repository.py` (bastan `execute_read_query`, `read_full_row`,
+`read_rows_by`, `locate_contract`, `peek_next_ide`, `run_in_write_transaction`); F-004, F-006; `infra/`;
+`contrato_albaranes.md` (no cambia el contrato de albaranes). Sin ficheros `NN_nombre.sql`: SQL constante.
 
-## Perfil (D6)
+## Costuras (D6)
 
-```python
-@dataclass(frozen=True)
-class PerfilAlta:
-    endpoint: str                    # "sigrid/albaran" | "sigrid/proforma" (trazas)
-    prefijo_serie: str               # "AC" | "PROF"
-    applocks: tuple[str, ...]        # el de F-009 | el mismo con "SIGRID_IDE_dcarec" antes de "SIGRID_IDE_log"
-    llave: str                       # nombre del campo de Settings: sigrid_albaran_write_enabled | sigrid_proforma_write_enabled
-    codigo_llave: str                # "escritura_albaranes_deshabilitada" | "escritura_proformas_deshabilitada"
-    prefijos: str; productos: str; naturalezas: str; max_lineas: str   # nombres de campos de Settings (R2)
-    proforma: bool                   # activa los ganchos de §Ganchos
-```
+`PerfilAlta` (dataclass congelada) con `endpoint`, `prefijo_serie`, `applocks`, `llave`, `codigo_llave` y los
+nombres de los campos de `Settings` (prefijos, productos, naturalezas, máximo de líneas); `PERFIL_ALBARAN` reproduce
+los literales de hoy y `PERFIL_PROFORMA` los de R3. Un test comprueba que todos los nombres existen en `Settings`.
 
-`PERFIL_ALBARAN` reproduce **exactamente** lo de hoy (los literales que hoy están en el código pasan al perfil, sin
-cambiar valor). Los nombres de campos se resuelven con `getattr(settings, …)` en un único método del caso de uso; un
-test comprueba que todos existen en `Settings` (un error de nombre rompería al arrancar, no en producción).
+`CreateProformaUseCase` sobrescribe:
+1. `_leer_cabecera`: obra y contrato (R7), proveedor de `ctr.entide`, fecha (R8), idempotencia (R29), cadena
+   (LP1-LP2: R10-R14), plantilla (R9) y las columnas del contrato (LP7).
+2. `_resolver_lineas`: líneas de la anterior (LP3-LP5), `asignar_lineas` (R15-R16), las nuevas con el `_Catalogo` de
+   F-009 (lista y mapeo del perfil) y `anterior_no_casa` (R14); todos los fallos juntos.
+3. `_construir`: `super()` para lo común y después, puras: `arrastrar_linea`, `ajustar_nueva_*`,
+   `ajustar_dca_proforma`; la retención la pone ya el núcleo de F-015.
+4. `_resolver_dentro`: repite LP1-LP2 en la transacción (R27); si la anterior o la existente cambian, vuelve a
+   construir con lo leído (el `work` es reentrante en F-009).
+5. `_respuesta`: añade `cadena` y el estado `existente`.
 
-## Ganchos del núcleo (solo con `perfil.proforma`)
+## Cadena (R10-R14)
 
-1. **Plantilla de cabecera (R7)**: en lugar de L5, L5P; sin fila, `proveedor_sin_proforma_previa`.
-2. **Retenciones (R11, R12)**: tras resolver el contrato, L16; `retencion_soportada` rechaza `reccla` ≠ 5 antes de
-   las líneas. Sin contrato o sin filas, ninguna retención.
-3. **Construcción (R9, R10, R13)**: tras las funciones de F-009, `ajustar_dca_proforma` y `ajustar_dcapro_proforma`
-   (puras, sobre el `dict`); `totales_con_retencion` sustituye `tot`/`totpag` de la `dca` y `construir_dcarec` añade
-   `filas["dcarec"]` (en previa con `ide` provisional de `peek_next_ide("dcarec")`).
-4. **Transacción (R17, R18, R20)**: E13 reserva `dcarec.ide` tras `mov`, E14 inserta tras los `mov` y antes del `log`,
-   E15 cuenta en las relecturas. Todo dentro del mismo `work` reentrante (los reintentos lo reconstruyen).
-5. **Idempotencia (R21)**: L11P en lugar de L11, y también como E1 dentro de la transacción; `es_proforma` (con
-   `d.cla` y `c.cod`) decide entre `idempotente` y `referencia_en_conflicto`. Con `PERFIL_ALBARAN`, L11 y el
-   resultado de hoy (R22; ver Riesgos).
+- **LP1** da por cada a origen del contrato: `ide`, `cod`, `fec`, `docoriide`, `punta` (nadie la cita) y `ori` =
+  Σ round(`canoriori`·`pre`, 2) de todas sus líneas. **LP2**, por documento y `ctrpro` de la petición, Σ`can` y
+  Σ`canoriori`.
+- `buscar_existente` (R11): documentos con |`ori` − (`importe_anterior` + `importe_mes`)| ≤ 0,05 y, por `ctrpro`
+  pedido, `can` igual y, con `cantidad_anterior`, `canoriori` = esa + `cantidad` (±0,0001). Uno → `existente`;
+  varios → `proforma_existente_ambigua`.
+- `elegir_anterior` (R12-R13): con `importe_anterior` 0, ninguna; si no, puntas con |`ori` − `importe_anterior`| ≤
+  0,05 y sin `cantidad_anterior` en contradicción. Medido sobre 773 encadenadas: 745 única y correcta, 1 varias, 27
+  ninguna, 0 incorrectas (M25). Existente antes que anterior: si la hoja ya está en Sigrid, la punta es ella; por
+  eso el total del MES va en cabecera (`importe_mes`) y la previa con `lineas` vacía ya la detecta.
+- Una manual del mismo mes con otras cantidades **no** se duplica en silencio: su punta ya no casa con
+  `importe_anterior` y sale `anterior_no_encontrada` (salvo cadenas paralelas de igual importe, M26).
 
-## Filas que se escriben (las de F-009, salvo)
+## Filas que se escriben
 
-- **`con`** (R8): `cod` `PROF<aa>/NNNNN` (E2 de F-009 con el prefijo del perfil; 5 cifras como `AC`, M1); `res`, `est`
-  1 y `log` como F-009 (M2).
-- **`dca`** (R9): plantilla = la última proforma del proveedor (L5P); overrides de F-009; `cla` 141; `ivadif` =
-  `ctr.ivadif` (0 sin contrato); `docoritip` 1 con contrato, 0 sin él; `docoriide` 0; reseteo de facturación y cadena
-  (lista de R9; M4 y M15: si se clonaran, la proforma nacería «facturada» en la ficha). `tot`/`totpag` de R13.
-- **`dcapro`** (R10): las de F-009 con `canoriori` = `can` (con signo), `canorilin` y `canoriant` 0, `imporiori` =
-  `ctrpro.tot` (vinculadas; F-009 pone `canoriori` = `ctrpro.can`, que es la regla del albarán, M11) y 0 sin vincular.
-- **`dcarec`** (R11): una por `ctrrec`, columnas de R11; `bas` = `totbas`; `cuo` = `redondear_euros(bas·valpor)`
-  (`Decimal`, `ROUND_HALF_UP`, F-009 H33); `ivacuo`/`reqcuo` 0; `ide` de E13, consecutivos.
-- **`ctrprodes`, `mov`, `ctrpro`, `ctr`**: como F-009 (M6, M7); productos y naturalezas, de las listas de R2 (M8).
+- **`con`** (R21): F-009 con prefijo `PROF`; `log` como F-009.
+- **`dca`** (R22): plantilla R9 (anterior → última `PROF` del proveedor (LP6) → plantilla `AC` de F-015; M24: 88/48/20
+  de 156 primeras) con los overrides de F-009 y: `cla` 141, `docoritip` 1, `docoriide`, `ivadif` del contrato,
+  `pagide`/`pagtex`/`pagfor` del contrato si `pagide` > 0, `entref`, `fecdoc`, y a 0 `idefac`, `fecfac`, `horfac`,
+  `antestfac`, `antestser`, `antestped`, `estped`, `pasdeside`, `pasori`, `docrelide`, `facoriide` (M4, M15).
+- **`dcapro`**: arrastradas = copia de la línea de la anterior (es su plantilla) con R17 y el seguimiento a 0 de
+  F-009 (`_SEGUIMIENTO_A_CERO`); nuevas como F-009 con R18-R19. `pos` con `numerar` de F-009.
+- **`ctrprodes`**, **`mov`**, **`ctrpro`**, **`ctr`**, **`dcarec`**: R23. `E9_SERVIDO` solo con `can` ≠ 0.
 
 ## Sentencias nuevas (`proforma_statements`; todas con `?`)
 
-- **L5P** `SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND c.emp = ? AND
-  d.entide = ? AND d.cla = ? AND c.cod LIKE ? ORDER BY c.ide DESC` (`[14, emp, entide, 141, 'PROF%']`); sin contrato,
-  la variante con `d.entcif = ?` (como L5 de F-009).
-- **L16** `SELECT ide, recide, pos, valdef, valpor, valcan, valmod, valfij, reccla, cueide, ivaide, tex, resalt,
-  refide, frasupide, item FROM dbo.ctrrec WHERE docide = ? ORDER BY pos, ide`.
-- **L11P** = L11 de F-009 con `d.cla` añadida a la lista de columnas (solo en el perfil proforma; la de F-009 no cambia).
-- **E13** `SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcarec WITH (UPDLOCK, HOLDLOCK)`; **E14** `INSERT INTO dbo.dcarec
-  (<columnas>) VALUES (?, …)`; **E15** `SELECT COUNT(*) FROM dbo.dcarec WHERE docide = ?`.
+- **LP1** `SELECT d.ide, c.cod, c.fec, d.docoriide, CASE WHEN EXISTS (SELECT 1 FROM dbo.dca s WHERE s.docoriide =
+  d.ide) THEN 0 ELSE 1 END AS punta, (SELECT ISNULL(SUM(ROUND(p.canoriori * p.pre, 2)), 0) FROM dbo.dcapro p WHERE
+  p.docide = d.ide) AS ori FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.ctride = ? AND
+  d.docoritip = ?` (`[14, ctride, 1]`).
+- **LP2** `SELECT p.docide, p.linoriide, SUM(p.can), SUM(p.canoriori) FROM dbo.dcapro p JOIN dbo.dca d ON d.ide =
+  p.docide JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.ctride = ? AND d.docoritip = ? AND p.docoritip = ?
+  AND p.linoriide IN {marcadores} GROUP BY p.docide, p.linoriide` (`44` = contrato).
+- **LP3** `SELECT * FROM dbo.dcapro WHERE docide = ? ORDER BY pos, ide`; **LP4** `SELECT ide, cod FROM
+  dbo.obrparpar WHERE ide IN {marcadores}`; **LP5** `SELECT ide, cod FROM dbo.con WHERE ide IN {marcadores}`.
+- **LP6** `SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND c.emp = ? AND
+  d.entide = ? AND d.cla = ? AND c.cod LIKE ? ORDER BY c.ide DESC` (`[14, emp, entide, 141, 'PROF%']`).
+- **LP7** `SELECT entide, ivadif, pagide, pagtex, pagfor FROM dbo.ctr WHERE ide = ?`.
+- **LP8** = L11 de F-009 con `d.cla` y `d.ctride` en la lista de columnas (la de F-009 no cambia).
+
+## Applocks
+
+Orden fijo: `SIGRID_REFEXT_14`, **`SIGRID_PROFORMA_CADENA`**, y después los de F-009/F-015 en su orden
+(`SIGRID_SERIE_14`, `SIGRID_IDE_con`, `_dcapro`, `_ctrprodes`, `_mov`, `_dcarec`, `_log`). Solo este endpoint toma
+el de cadena: dos altas de la API sobre el mismo contrato se serializan; ninguno se toma en orden inverso.
+
+## Códigos (§R5)
+
+Cabecera nuevos: `escritura_proformas_deshabilitada`, `periodo_no_valido`, `proveedor_sin_documento_previo`,
+`proforma_existente_ambigua`, `anterior_no_encontrada`, `anterior_no_valida`, `cadena_ambigua`,
+`lineas_obligatorias`, `importe_mes_no_cuadra` (precio efectivo: el pedido, o el de la anterior o del `ctrpro`). Línea nuevos: `linea_anterior_no_valida`, `linea_ambigua`, `linea_repetida`,
+`anterior_no_casa`. Se heredan los de F-009/F-015 que aplican; `proveedor_sin_albaran_previo` no sale de aquí.
 
 ## Flujo
 
-1. Guardas sin leer la base (R16) con los campos del perfil; con `commit`, llaves, credenciales y base.
-2. `ahora` (Madrid) una vez; obra, contrato, **L16 y R12**, L5P, L11P (R21 sale ya si aparece), `conest` y `usu`.
-3. Líneas como F-009 (todos los fallos juntos), con la lista blanca y el mapeo del perfil.
-4. Construcción pura (F-009 + ganchos 3) → en dry-run, `previsto` con `cod` e `ide` provisionales (también `dcarec`).
-5. Con `commit`, `run_in_write_transaction(work)` con `perfil.applocks`; reintentos → `colision_de_clave`.
-6. Traza R24 (con `perfil.endpoint` y nº de retenciones) y respuesta.
+1. Guardas sin leer la base (R25, R6 en la ruta); `ahora` (Madrid) una vez; fecha (R8).
+2. Obra, contrato y LP7; LP8 (R29 sale ya); LP1-LP2 → existente (R11 sale ya) → anterior (R12-R13); plantilla.
+3. Líneas: LP3-LP5, asignación, nuevas con el catálogo de F-009 (todos los fallos juntos) y R20.
+4. Construcción pura → en dry-run, `previsto` con `cadena`, `cod` e `ide` provisionales.
+5. Con `commit`, `run_in_write_transaction(work)` con `perfil.applocks`; dentro, idempotencia y `_resolver_dentro`.
+6. Traza R32 y respuesta.
 
 ## Decisiones (abiertas para el humano; recomendación en negrita)
 
-- **D1 · Consumidor y propósito (bloquea la implementación).** ¿Quién llamará a `sigrid/proforma` y para qué? Si es
-  `postventa-incidencias` para el coste de posventa, la medición dice que ese coste es un **albarán en POSTV2** (M13) y
-  que F-009 ya lo cubre: **recomendación: confirmarlo con negocio; si no hay un llamante de proformas reales, aplazar
-  F-007 con esta spec congelada y resolver F-046/F-047 con F-009** (`referencia_linea` = código del parte).
-- **D2 · Encadenamiento a origen.** **Fuera de F-007** (cada proforma nace «primera de su cadena»: `docoriide` 0,
-  `canoriori` = `can`; estado medido en 442 de las 1.216 proformas de 2026) y, si el llamante lo necesita, F-007b con un campo
-  `proforma_anterior` (cadenas paralelas por partida, M11: la cadena no se puede deducir). Consecuencia: la columna
-  «a origen» de la impresión solo muestra el periodo; el servido del contrato y los importes son correctos.
-- **D3 · Retención.** **Copiar `ctrrec` a `dcarec` y descontarla de `tot`/`totpag`** (M10: 95 % de las proformas con
-  contrato y `ctrrec`); solo `reccla` 5; otra clase → `retencion_no_soportada` (RET5T e IRPF: 7 proformas en 2026).
-- **D4 · `ivadif` y `docoritip`.** **`ivadif` del contrato** (91,2 %); **`docoritip` 1 con contrato** — no sale de los
-  datos (140 frente a 232), se confirma con V1 antes del primer commit.
-- **D5 · Plantilla.** **Solo la última proforma del proveedor**, sin caer a un albarán (como H3 de F-009).
-- **D6 · Reutilización.** **Perfil en el núcleo de F-009** con dorado previo (R22). Alternativas descartadas abajo.
-- **D7 · Configuración.** **Listas propias** (R2), con `SB9999`/`SM9999` como productos sin contrato (M7-M8; los dos
-  con `tipmov` 1 y naturaleza única); `SM370001` (`tipmov` 0, varias naturalezas) queda fuera salvo decisión; **obra en
-  `SIGRID_ALBARAN_EMPRESAS_OBRA`**, que significa lo mismo.
+- **D1 · Consumidor: resuelta** (humano, 2026-10-19): la app de facturas, F-063. Volumen: decenas al día, tope ~50.
+- **D2 · Encadenamiento: dentro**, por **importe ANTERIOR total ±0,05 € + cantidades ANTERIOR por línea si vienen**
+  (M25: 96,4 % única y correcta, 0 incorrectas); `cod_proforma_anterior` opcional para deshacer `cadena_ambigua` o
+  `anterior_no_encontrada` con un humano. Descartado casar solo por cantidades de las líneas con MES (85 ambiguas).
+- **D3 · Retención: la de F-015**, sin reglas propias.
+- **D4 · Cabecera:** **`docoritip` 1 siempre** (cerrado por M17); **`ivadif` y forma de pago del contrato** (M22:
+  94 %); **sin vencimiento**: la `dca` no lo tiene, es de la factura (F-008).
+- **D5 · Plantilla: anterior → última `PROF` del proveedor → plantilla `AC` de F-015**; sin ninguna,
+  `proveedor_sin_documento_previo` (13 % de las primeras, M24: la primera la da de alta un humano).
+- **D6 · Reutilización: subclase del caso de uso de F-009 con costuras mínimas** y sus dorados intactos (R30).
+  Descartado: los cinco ganchos de la v1 dentro del núcleo (ahora serían más y en producción) y copiar el caso de uso.
+- **D7 · Configuración: listas propias** con `SB9999`/`SM9999` (M23: los nuevos más frecuentes con `tipmov` 1);
+  `SM370001` (`tipmov` 0, 246 líneas) y `MA9999`/`XA9999`, **fuera hasta que negocio diga**; tope 500 líneas.
+- **D8 · Fecha: último día del periodo si ya pasó, hoy si es el mes en curso**, o `fecha_proforma` dentro del
+  periodo (M16: 97,7 % en el mes certificado, sin día fijo). Alternativa: siempre la de recepción.
+- **D9 · Líneas: las identifica el llamante por `ide`** con la ayuda de la previa (`lineas` vacía → la cadena) y,
+  para una primera de cadena, una consulta de `ctrpro` por `sql/read` documentada en `sigrid_api.md`. Descartado
+  casar por texto en la API (M20) y un endpoint de lectura propio (si facturas lo pide, feature aparte).
+- **D10 · Ya dada de alta: `existente` (200, sin escribir)** si casa por ORIGEN (M26: 2 pares en 913); con dos,
+  `proforma_existente_ambigua`.
+- **D11 · `entref`: `PROF<MMAA>_<cod_obra>` por defecto** (M16: la forma más usada).
+- **D12 · Lotes:** una feature en lotes (A costuras y dorado, B primera y existente, C cadena y arrastre), no dos.
 
 ## Riesgos y decisiones
 
-- **Tocar el núcleo de F-009 (crítico, en producción con la llave abierta).** Mitigación: dorado del modo extendido en
-  T1 sobre `dev`; los tests de F-009 no se tocan; el perfil por defecto es literal al código de hoy; campaña de mutación
-  sobre todo lo cambiado. Avisar a la sesión de albaranes **antes** de mergear (no cambia su contrato, sí el código que
-  la sirve).
-- **Doble alta**: `synckey` re-comprobado dentro bajo `SIGRID_REFEXT_14`; los prefijos de referencia distintos
-  (`ALB-`/`PRF-`) separan albaranes y proformas. El modo extendido de `sigrid/albaran` seguiría devolviendo como
-  `idempotente` una proforma con su misma referencia (comportamiento de hoy, R22): lo evita la configuración.
-- **Colisión con el escritorio**: índice único `(emp, tip, cod)` + reintento, como F-009. Applocks en el orden de F-009
-  con `_dcarec` insertado antes de `_log`: ningún endpoint los toma en orden inverso.
-- **Retención mal calculada**: 93,9 % de coincidencia exacta de `cuo` medida (el resto, redondeos y signos de filas
-  antiguas); el humano lo revisa en la ficha en R26.
-- **O1 (F-009, fuera de alcance, para el líder):** la L5 de F-009 no filtra serie y en 17 de 831 proveedores el
-  último `dca` es una proforma (M14): el albarán nacería con `cla 141`, `docori*` y fechas de factura clonadas.
-- **O2 (F-009, fuera de alcance, para el líder):** F-009 no escribe `dcarec`; el 88,5 % de los albaranes de la UI de
-  contratos con `ctrrec` la llevan (M10), así que un albarán del pipeline de esos contratos nace sin retención y con
-  `tot` = `totdoc`. O1 y O2 merecen su feature antes de que F-053 de albaranes pase a real (`synckey` 0 % hoy).
-- **Descartado**: modo nuevo dentro de `sigrid/albaran` (reabre el contrato congelado con albaranes); copiar el caso de
-  uso de F-009 (~1.300 líneas duplicadas en una pieza crítica); plantilla de un albarán sin proforma previa (D5);
-  calcular la cadena por fecha o por contrato (M11: hay cadenas paralelas); escribir `med`/`canmed` (lo teclea el
-  usuario); la regla de `canoriori` del albarán (M11).
+- **Tocar el núcleo de F-009 (crítico, en producción con la llave abierta).** Costuras de solo nombres, dorados de
+  F-009 y F-015 intactos, campaña de mutación sobre todo lo cambiado; avisar a albaranes **antes** de fusionar.
+- **Carrera con el escritorio**: el escritorio no toma applocks; si un humano da de alta la misma PROF en el mismo
+  segundo, puede quedar duplicada (residual, como F-009). La API contra sí misma, serializada por contrato.
+- **Transacción grande**: una encadenada de 500 líneas son ~1.500 `INSERT` (Sigrid hace lo mismo: `ctrprodes` y
+  `mov` también con `can` 0, M6). Medir el tiempo en el dry-run real de T-manual frente al corte de 230 s.
+- **TOTAL ANTERIOR de la hoja distinto del de Sigrid** (V4): sale `anterior_no_encontrada` con mensaje claro y
+  `cod_proforma_anterior` como salida.
+- **Para el líder (fuera de F-007):** hay 354 `AC` a origen desde 2025 (M19): la plantilla `AC` de F-015 puede ser
+  una de ellas y clonar `docoritip`/`docoriide`; F-015 debería ponerlos a 0. La memoria del arnés sigue llamando al
+  `tip 20` «documento de compra»: es el asiento (M1).
+- **Descartado**: modo nuevo en `sigrid/albaran` (reabre el contrato con albaranes); `cif_proveedor` (la hoja no lo
+  trae y el contrato lo fija); (contrato, mes) como clave de duplicada (M18: 18 cadenas con dos en un mes); escribir
+  `med`/`canmed`; la regla de `canoriori` del albarán.

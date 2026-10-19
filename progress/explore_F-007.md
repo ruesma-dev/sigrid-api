@@ -7,7 +7,8 @@ repositorio. «PROF26» = `con.tip 14`, `emp 1`, `cod LIKE 'PROF26/%'` (1.216 do
 «AC26» = lo mismo con `AC26/%` (29.476). Diccionario: [`azure-apps/sigrid_tablas.md`](../../azure-apps/sigrid_tablas.md)
 (`dca`, `dcapro`, `dcarec`, `ctrrec`, `sercon`); no se duplica aquí. Sin nombres de personas ni de proveedores.
 
-Sirve también a **F-008** (factura de compra): §M15 recoge cómo enlaza la factura con la proforma.
+Sirve también a **F-008** (factura de compra): §M15 recoge cómo enlaza la factura con la proforma. La v2
+(M16-M26, 2026-10-19) mide lo que necesita la app de facturas: fecha, cadenas, identificación de líneas y duplicadas.
 
 ## M1 · Qué es una proforma en Sigrid
 
@@ -151,8 +152,100 @@ proveedor, sin filtrar serie) clonaría `cla 141`, `docoritip`/`docoriide`, `iva
 - `dcfpro` tiene `docoritip`, `docoricod`, `docoriide`, `linoriide`, `canorilin`, `canoriant`, `canoriori`,
   `imporiant`, `imporiori`, `canmed`, `canser`, `canfac`, `cancan`, `candes` (nombres leídos de `sys.columns`).
 
-## Lo que solo se sabe dando de alta desde la UI (verificación del humano)
 
-- V1: `dca.docoritip` de una proforma **primera de su cadena** con contrato (M11: 140 con 1 frente a 232 con 0).
-- V2: si el escritorio copia `ctrrec` a `dcarec` al crear o al grabar, y con qué `cueide` cuando difiere (M10: 4,6 %).
-- V3: qué columnas de `dca` toma el escritorio del contrato y cuáles de la última proforma del proveedor.
+## v2 · Medición del 2026-10-19 para la app de facturas (M16-M26)
+
+Mismo método (solo lecturas, `sql/read`, script fuera del repositorio). «Desde 2025» = PROF con `c.fec >= 20250101`
+(2.470); «a origen» = `dca.docoritip 1`. Motivo: el llamante es la app de facturas (F-063), que lee la **hoja de
+certificación** del buzón (sin CIF ni fecha; MES, ORIGEN y ANTERIOR por partida y en totales; nº de orden).
+
+### M16 · `entref` y fecha
+
+- `dca.entref` desde 2025: `PROF<MMAA>_<obra>` 1.266, `PROF_<MMAA>_<obra>[_sufijo]` 824, `PREV<MMAA>_<obra>` 134,
+  `PREV… ANUL` 64, otros 182 (números del proveedor, ajustes). El mes del `entref` es el de `con.fec` en 1.237 de
+  1.266 (97,7 %); el sufijo es el `cod` de la obra en 1.248. **No es el nº de orden de la hoja**: ese no consta en Sigrid.
+- `dca.mes` 0 y `dca.periodo` vacío en el 100 %; `dca.fecdoc` = `con.fec` en 2.454 de 2.470; `fecrec` 0 siempre.
+- Días de `con.fec` hasta fin de mes (a origen, 1.963): 0 → 187, 1-10 → 1.609, más de 10 → 167. No hay una regla
+  fija de día: la proforma se fecha **dentro del mes certificado**, casi siempre en sus últimos diez días.
+- `PREV` (positiva) y `PREV… ANUL` (negativa, el mes siguiente) son **provisiones de coste**, `docoritip 0`, fuera
+  de toda cadena: no son lo que llega del buzón.
+
+### M17 · `docoritip` (cierra V1)
+
+`docoritip 0` ⇒ sin anterior en el 100 %. A origen desde 2025: 1.963 de 2.470, de ellas **321 primeras de cadena**
+(`docoritip 1`, `docoriide 0`). Una proforma a origen **lleva `docoritip 1` también cuando es la primera**; las de 0
+son provisiones, ajustes y proformas sueltas sin ORIGEN/ANTERIOR.
+
+### M18 · (contrato, mes) no es clave
+
+A origen con contrato desde 2025 por (contrato, mes de `con.fec`): 1.522 grupos con una, 188 con dos y 5 con 3-5.
+De los pares: 158 son **cadenas paralelas** (sin líneas de contrato comunes), 43 comparten `ctrpro` sin estar
+encadenados y 18 son **dos certificaciones del mismo mes en la misma cadena**.
+
+### M19 · Cadenas
+
+- Ningún documento tiene dos sucesores (1.630 anteriores, uno cada uno): la cadena es **lineal**.
+- Puntas (a origen sin sucesor) de 2026 por contrato: 203 contratos con una y 34 con dos (31 pares sin líneas
+  comunes, 3 con alguna). Por mes de la punta: septiembre 100, el resto 12-35 (cadenas cerradas o liquidadas).
+- La cadena **mezcla series**: anteriores de una PROF desde 2025, 1.550 PROF y 92 `AC`; sucesores, 1.489 y 103.
+  Hay 354 `AC` a origen desde 2025. Anterior del mismo contrato 766, de otro 9 (siempre el mismo proveedor).
+
+### M20 · Ninguna clave de texto identifica la línea de contrato
+
+243 contratos con PROF a origen en 2026, 8.707 `ctrpro` (máx. 416 por contrato). Contratos donde la clave es única:
+`paride` 43, `cod2` 25 (20 sin `cod2`), `res` 98, (`paride`, `res`) 182, (código de partida, `res`) 182 (75 %).
+Una proforma puede tener 2-3 líneas del mismo `ctrpro` (283 pares de 13.315). **La línea se identifica por `ide`.**
+Tamaño (929 a origen de 2026): media 22 líneas (máx. 197), media 6 con MES (máx. 80); 633 llevan sin vincular.
+
+### M21 · Vinculadas frente a su `ctrpro`
+
+En PROF26 a origen: `paride` = el del `ctrpro` en 13.302 de 13.609 (97,7 %; nuevas 98,7 %), `pre` en 98 %, `res` en
+99 %. **La partida de la vinculada sale del `ctrpro`** (en F-009, R16, no se hereda: allí es otra semántica).
+
+### M22 · Cabecera: pago y anterior
+
+- PROF26 con contrato (1.145): `dca.pagide` = `ctr.pagide` en 1.077 (94,1 %), y entonces `pagtex` también; = el
+  del proveedor en 785. La `dca` no tiene vencimiento (es de la factura y su cartera: F-008).
+- Encadenada frente a su anterior (775): `entide`, `almide`, `cenide` y `obride` iguales en el 100 %, `pagide` 92 %,
+  `ivadif` 91 %, `cla` 93 % (el resto, anteriores `AC`).
+
+### M23 · Arrastre de líneas
+
+- 746 de 775 encadenadas arrastran **todas** las líneas de la anterior, 15 todas salvo las vacías, 14 no. Las
+  nuevas van al final en 375, intercaladas en 84 (316 sin nuevas).
+- Arrastradas (16.963): `canoriant` y `imporiant` 0 en el 100 %; `canoriori` = el de la anterior + `can` en el
+  99,9 %; `imporiori` = el de la anterior en el 100 %; `pre`, `paride`, `res`, `proide`, `ivaide` iguales en el
+  98-100 %; `pos` igual en el 84 %. `canorilin` = la línea de la anterior (también en las sin vincular).
+- Sin vincular de cadenas: arrastradas con MES 678, nuevas con MES 892; `imporiori` 0 en el 99 %. Productos de las
+  nuevas con MES: `SB9999` 412, `SM9999` 378, `SM370001` 246 (`tipmov` 0), `MA9999` 54, `XA9999` 20, otros 14.
+
+### M24 · Plantilla de una primera de cadena
+
+PROF26 primeras (156): el proveedor tenía ya alguna PROF en 88, solo `AC` en 48 y nada en 20 (13 %).
+
+### M25 · Simulación: elegir la anterior con los datos de la hoja
+
+Para cada PROF26 encadenada con contrato (773), candidatas = puntas a origen del contrato en ese momento:
+
+| Regla | Única y correcta | Varias | Ninguna | Incorrecta |
+|---|---|---|---|---|
+| Cantidad ANTERIOR de las líneas con MES | 677 | 85 | 9 | 2 |
+| Lo mismo, exigiendo una línea común | 523 | 0 | 250 | 0 |
+| **Importe ANTERIOR total (Σ round(`canoriori`·`pre`, 2), ±0,05 €) y ninguna línea en contradicción** | **745 (96,4 %)** | 1 | 27 | 0 |
+
+Con la tercera regla, de 140 primeras de cadena con contrato, 139 no casan con ninguna punta y 1 casa con una punta
+de total 0.
+
+### M26 · Detectar la PROF ya dada de alta
+
+Regla: otra a origen del contrato con Σ round(`canoriori`·`pre`, 2) = ORIGEN (±0,05 €) y, por cada `ctrpro` con MES,
+la misma `can` y `canoriori`. Sobre 913 PROF26 a origen con contrato, solo 4 tienen otra que case (2 pares): uno de
+dos proformas con total 0 y otro de dos proformas distintas de la misma obra con importes idénticos.
+
+## Lo que solo se sabe con la UI o con una hoja real (verificación del humano)
+
+- ~~V1~~: cerrada por M17 (`docoritip 1` en la primera a origen).
+- V2: pasa a F-015 (copia de `ctrrec` a `dcarec`).
+- V3: qué columnas de `dca` toma el escritorio del contrato y cuáles de la anterior o de la última proforma.
+- V4: si el TOTAL ANTERIOR de una hoja real es el Σ round(`canoriori`·`pre`, 2) de su anterior en Sigrid (M25).
+- V5: si la hoja es una impresión de Sigrid (mismas líneas y orden que la anterior) y qué es su «Nº ORDEN».
