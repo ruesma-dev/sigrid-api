@@ -1,6 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-015 con spec v1 en su rama (2026-10-19)
+
+Spec en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en `dev`);
+medidas en [`explore_F-015.md`](explore_F-015.md) (solo lecturas por `sql/read`). Hallazgos que cambian el alcance: la
+plantilla AC también arrastra facturación (`fecfac`, `idefac`…) y F-009 escribe totales en divisa que el escritorio deja
+a 0 (M5, M6); la factura hereda la retención del albarán, no del contrato (M16: 95,9 % frente a 14,3 %). **Decisiones
+abiertas** (design §Decisiones; recomendación entre paréntesis): D1 plantilla por prefijo `AC__/%` y `cla 0` (sí); D1b
+sin AC, error como hoy (sí); D2 limpiar facturación y cadena (sí); D3 divisa a 0 (sí); D4 clásico sin tocar, dorado
+intacto (sí); D5 retención con contrato aunque no haya vinculadas o sea devolución (sí); D6 sin contrato, ninguna (sí);
+D7 `ctrrec` no soportado → error `retencion_no_soportada` (sí; 15 de 651 contratos); D8 aviso `retencion_del_contrato`
+informativo, **no** bloqueante en sv9 (sí); D9 sin aviso de plantilla vieja; D10 sin App Setting nueva; D11 `cueide`
+del `ctrrec`. **T0 antes de implementar**: contrato con albaranes v8.3 y aviso a su sesión (design §Contrato).
+
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
 Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
