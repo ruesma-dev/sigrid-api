@@ -1,27 +1,24 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-007 · spec v1 escrita, pendiente de la PARADA 1 (2026-10-18)
+## F-012 cerrada, desplegada y verificada (2026-10-19)
 
-Rama `feature/F-007-registrar-proforma` (desde `dev` `fd28679`). Spec en `specs/F-007-registrar-proforma/`; medición
-solo lectura en [`explore_F-007.md`](explore_F-007.md) (M1-M15, sirve también a F-008 en §M15). **Hallazgo central:**
-una proforma es un albarán `tip 14` de la serie `PROF<aa>/` (`sercon` 230) con `dca.cla 141`, retención de garantía
-del contrato en `dcarec` (56 %), IVA de inversión del sujeto pasivo y cadena «a origen» con la anterior. La spec
-reutiliza el núcleo de F-009 con un **perfil de alta** y ruta propia `sigrid/proforma`.
+Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
+Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas vuelcan `input` de la petición.
 
-**Decisiones para el humano (recomendación):**
-- **D1 (bloquea):** ¿quién la llama? El coste de posventa entra hoy en POSTV2 como **albarán** (1.283 desde 2025, 3
-  proformas en su historia) y Sigrid no une parte y coste: **confirmar con negocio; sin llamante de proformas reales,
-  aplazar F-007 y resolver F-046/F-047 con F-009** (`referencia_linea` = código del parte).
-- **D2:** encadenamiento a origen **fuera** (F-007b si hace falta). **D3:** retención de `ctrrec` **sí**, solo clase 5.
-- **D4:** `ivadif` del contrato; `docoritip` 1 con contrato, a confirmar en la UI (V1). **D5:** plantilla solo de una
-  proforma previa del proveedor. **D6:** perfil en el núcleo de F-009 con dorado previo. **D7:** listas propias
-  (`SB9999`, `SM9999`), obra en `SIGRID_ALBARAN_EMPRESAS_OBRA`.
+## F-007 con spec v1 en su rama; F-008 y F-015 esperan (2026-10-19)
 
-**Para el líder, fuera de F-007 (afectan a F-009, antes de que F-053 pase a real):** O1, la plantilla de cabecera de
-F-009 puede ser una proforma (17 de 831 proveedores) y el albarán nacería con `cla 141`; O2, F-009 no escribe `dcarec`
-y el 88,5 % de los albaranes de contratos con retención la llevan. La memoria del arnés llama a `con.tip 20` «otra
-familia de documentos de compra»: es el **asiento contable** (`asi`), medido en M1.
+- **F-007** (`spec_ready` en `feature/F-007-registrar-proforma`, no en `dev`): D1 resuelta por el humano: la llamará
+  la app de facturas (su F-063); la proforma puede estar ya en Sigrid o no, y **en el futuro todas se registrarán por
+  la app vía la API**. Respuesta de facturas (2026-10-19, detalle en `facturas/progress/explore_alta_sigrid.md`): la
+  hoja no trae CIF, fecha, retención ni contrato estructurado; trae MES, ORIGEN y ANTERIOR por partida; pide que el
+  endpoint resuelva la cadena a origen. **La spec v1 hay que rehacerla** (contrato exigido o identificable, cadena
+  dentro del endpoint, detectar una PROF ya dada de alta a mano). D3-D7 sin aprobar.
+- **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
+  origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas para los dos: dry-run, idempotencia, `con.cod` e
+  `ide` en la respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
+- **F-015** (O1 y O2 de F-009): albaranes avisado; su grabación real sigue apagada y sin fecha, y pide aviso antes de
+  tocar §2-§4 (sv9 tiene `avisos_bloqueantes` configurables).
 
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
@@ -136,8 +133,7 @@ ajeno; lo borra el humano si quiere.
 - **500 en vez de 400 en el modo extendido de `sigrid/albaran`** (previo, de F-009; hallazgo de
   `review_F-011_C3.md`, reproducido): un error de `model_validator` (p. ej. línea vinculada sin `cod_contrato`) deja
   un `ValueError` en `ctx` de `exc.errors()` y `error_response` falla con `TypeError: Object of type ValueError is not
-  JSON serializable` (`function_app.py` l. 261-271). **F-012** en el backlog (`exc.errors(include_context=False)` o
-  equivalente, y mirar las demás rutas). Afecta a albaranes: recibe un 500 mudo.
+  JSON serializable` (`function_app.py` l. 261-271). **Cerrado por F-012** (2026-10-19).
 - **Dry-run de dominio lee cualquier base que case con el patrón** y a la que llegue `ro_user` (residual de F-011):
   **F-014** en el backlog.
 - **`ALLOWED_DATABASES` incluye `master`** y ningún consumidor lo necesita.
@@ -152,10 +148,11 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-F-010 y F-011 cerradas el 2026-10-18 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real).
+F-010 y F-011 cerradas el 2026-10-18 y F-012 el 2026-10-19 (resumen en `history.md`). F-009 solo espera T24 (con F-053 en real).
 Después: F-007 (proformas) y F-008 (facturas de compra), `pending` con `sdd` y rigor `critico`; F-001
-(calentamiento); F-012 (el 500 del modo extendido de `sigrid/albaran`), F-013 (`sql/read` fija el tope real de la
-consulta) y F-014 (el hueco residual del dry-run de dominio), dadas de alta el 2026-10-18. Del arnés:
+(calentamiento); F-013 (`sql/read` fija el tope real de la consulta), F-014 (el hueco residual del dry-run de
+dominio) y F-015 (O1 y O2 de F-009), dadas de alta el 2026-10-18. F-012 cerrada el 2026-10-19. F-007, F-008 y
+F-015: estado arriba. Del arnés:
 actualizar `sigrid-api` a la versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la
 mutación paralela.
 
@@ -163,5 +160,5 @@ mutación paralela.
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-010 y F-011 están cerradas y desplegadas. F-009 está desplegada con
 > la llave abierta; solo queda T24 cuando F-053 esté en real. Antes de tocar §2-§4 del contrato con albaranes, avisa
-> a la sesión de albaranes. Lo siguiente del backlog (F-007, F-008, F-012, F-013, F-014): no arranques nada sin
-> preguntar.
+> a la sesión de albaranes. F-012 cerrada. F-007 tiene spec v1 en su rama que hay que rehacer con la respuesta de
+> facturas (arriba). Lo siguiente del backlog (F-007, F-008, F-013, F-014, F-015): no arranques nada sin preguntar.

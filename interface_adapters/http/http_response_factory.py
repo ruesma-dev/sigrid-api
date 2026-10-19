@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import quote
 
 import azure.functions as func
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 
 def json_response(payload: Any, *, status_code: int = 200) -> func.HttpResponse:
@@ -33,6 +33,25 @@ def error_response(message: str, *, status_code: int = 400, details: dict[str, A
     if details:
         payload["details"] = details
     return json_response(payload, status_code=status_code)
+
+
+def _errores_serializables(exc: ValidationError) -> list[dict[str, Any]]:
+    """`exc.errors()` con cada valor que `json` no sabe serializar pasado a `str`
+    (F-012 R4: la excepcion de una regla con mensaje propio, en `ctx.error`). Lo
+    serializable sale identico a la lista de siempre (R6): `default` solo se
+    invoca para lo que `json` rechaza."""
+    return json.loads(json.dumps(exc.errors(), default=str))
+
+
+def validation_error_response(exc: ValidationError) -> func.HttpResponse:
+    """400 «Solicitud invalida.» con `details` = `{type, validation}`, el de las
+    9 rutas (F-012 R8). `validation` es `exc.errors()` serializable siempre (R4,
+    R6). No traza nada: cada ruta conserva su propia traza (R11)."""
+    return error_response(
+        "Solicitud invalida.",
+        status_code=400,
+        details={"type": type(exc).__name__, "validation": _errores_serializables(exc)},
+    )
 
 
 #: ASCII imprimible (0x20-0x7E) salvo "%": lo que X-Document-Filename deja tal cual (F-010 R1-R3).

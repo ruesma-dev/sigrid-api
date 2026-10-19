@@ -225,7 +225,7 @@
         "azure-apps/sigrid_api.md actualizado si cambia lo que ven los consumidores",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "pending",
+      "status": "done",
       "sdd": true,
       "rigor": "estandar",
       "priority": 12,
@@ -263,6 +263,24 @@
       "rigor": "critico",
       "priority": 14,
       "branch": "feature/F-014-dry-run-valida-base"
+    },
+    {
+      "id": "F-015",
+      "title": "El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato",
+      "description": "Alta del 2026-10-18 a petición del humano: O1 y O2 medidos por la spec de F-007 (progress/explore_F-007.md §M10 y §M14, en la rama feature/F-007-registrar-proforma). F-009 está desplegada con SIGRID_ALBARAN_WRITE_ENABLED=true y la usará F-053 de albaranes en real: conviene cerrarla antes. O1: la plantilla de cabecera (L5 de F-009, último dca del proveedor sin filtrar serie) es una proforma PROF<aa>/ en 17 de 831 proveedores con AC26; el albarán nacería con dca.cla 141, docoritip/docoriide, ivadif y campos de facturación de la proforma. O2: F-009 no escribe dcarec; el 88,5 % de los AC26 de contratos con ctrrec la llevan (RET5: bas = totbas, cuo = round(bas·valpor, 2), dca.tot = totdoc − cuo). La spec decide de dónde sale la plantilla (solo serie AC, sercon 87) y cómo se copia la retención del contrato (ctrrec → dcarec, cueide/valpor/pos), mide los casos raros (4,6 % con cueide distinto, retenciones sobre total) y deja a verificación del humano lo que solo se ve en la UI. Toca el contrato con albaranes (§2-§4 congelado): avisar a la sesión de albaranes ANTES de cambiarlo.",
+      "acceptance": [
+        "La plantilla de cabecera del modo extendido nunca es una proforma ni otro documento que no sea de la serie de albaranes",
+        "Un albarán de un contrato con retención lleva su dcarec y su total neto como los que deja Sigrid (medido en producción, solo lectura)",
+        "Dorado de F-009 actualizado con el cambio justificado; los albaranes sin retención salen idénticos",
+        "Albaranes avisado y contrato_albaranes.md y azure-apps/sigrid_api.md actualizados en el mismo trabajo",
+        "Dry-run por defecto; ninguna grabación de prueba sin autorización expresa del humano",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 15,
+      "branch": "feature/F-015-albaran-plantilla-y-retencion"
     }
   ]
 }

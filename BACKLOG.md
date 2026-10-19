@@ -3,7 +3,7 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **14 features**, 6 abiertas, 8 terminadas.
+Resumen: **15 features**, 6 abiertas, 9 terminadas.
 
 ## Trabajo abierto
 
@@ -12,9 +12,9 @@ Resumen: **14 features**, 6 abiertas, 8 terminadas.
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | spec lista | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
-| F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | pendiente | estandar | `feature/F-012-validacion-sin-500` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
+| F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | pendiente | critico | `feature/F-015-albaran-plantilla-y-retencion` |
 
 ## Terminadas
 
@@ -28,6 +28,7 @@ Resumen: **14 features**, 6 abiertas, 8 terminadas.
 | F-009 | Modo extendido de sigrid/albaran: alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053) | 7 | critico |
 | F-010 | documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad | 10 | critico |
 | F-011 | documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API | 11 | critico |
+| F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | estandar |
 
 ## Detalle
 
@@ -49,12 +50,6 @@ estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `featu
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
-### F-012 · Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx
-
-estado **pendiente** · prioridad 12 · rigor `estandar` · SDD sí · rama `feature/F-012-validacion-sin-500`
-
-Alta del 2026-10-18 a petición del humano (hallazgo de progress/review_F-011_C3.md, reproducido; previo, de F-009). En el modo extendido de sigrid/albaran un error de model_validator (p. ej. línea vinculada sin cod_contrato) deja un ValueError en `ctx` de exc.errors() y error_response falla con `TypeError: Object of type ValueError is not JSON serializable`: albaranes recibe un 500 mudo en vez del 400 con el detalle. function_app.py serializa `exc.errors()` tal cual en 9 rutas (l. 105, 143, 179, 237, 271, 330, 388, 443, 504): la spec mide en cuáles puede pasar y decide el arreglo común (exc.errors(include_context=False), un saneado único o equivalente) sin cambiar la forma de `details.validation` que leen los consumidores.
-
 ### F-013 · sql/read aplica timeout_seconds como tope de la consulta, no solo del login
 
 estado **pendiente** · prioridad 13 · rigor `critico` · SDD sí · rama `feature/F-013-sql-read-timeout`
@@ -66,6 +61,12 @@ Alta del 2026-10-18 a petición del humano (hallazgo del reviewer de F-009 T0a-b
 estado **pendiente** · prioridad 14 · rigor `critico` · SDD sí · rama `feature/F-014-dry-run-valida-base`
 
 Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F-011_C3.md). En dry-run, sigrid/contrato-lineas, sigrid/albaran clásico y extendido y sigrid/albaran-directo conectan con request.database sin lista blanca (la de escritura solo se mira con commit). Desde F-011 un nombre fuera del patrón se rechaza en _connect, pero una base que case con él y a la que llegue ro_user (p. ej. master) se sigue leyendo con el SQL fijo de esas previas. Cambio de seguridad pequeño que toca a los consumidores de esos endpoints: avisarles antes del despliegue.
+
+### F-015 · El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato
+
+estado **pendiente** · prioridad 15 · rigor `critico` · SDD sí · rama `feature/F-015-albaran-plantilla-y-retencion`
+
+Alta del 2026-10-18 a petición del humano: O1 y O2 medidos por la spec de F-007 (progress/explore_F-007.md §M10 y §M14, en la rama feature/F-007-registrar-proforma). F-009 está desplegada con SIGRID_ALBARAN_WRITE_ENABLED=true y la usará F-053 de albaranes en real: conviene cerrarla antes. O1: la plantilla de cabecera (L5 de F-009, último dca del proveedor sin filtrar serie) es una proforma PROF<aa>/ en 17 de 831 proveedores con AC26; el albarán nacería con dca.cla 141, docoritip/docoriide, ivadif y campos de facturación de la proforma. O2: F-009 no escribe dcarec; el 88,5 % de los AC26 de contratos con ctrrec la llevan (RET5: bas = totbas, cuo = round(bas·valpor, 2), dca.tot = totdoc − cuo). La spec decide de dónde sale la plantilla (solo serie AC, sercon 87) y cómo se copia la retención del contrato (ctrrec → dcarec, cueide/valpor/pos), mide los casos raros (4,6 % con cueide distinto, retenciones sobre total) y deja a verificación del humano lo que solo se ve en la UI. Toca el contrato con albaranes (§2-§4 congelado): avisar a la sesión de albaranes ANTES de cambiarlo.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 
@@ -114,3 +115,9 @@ Alta del 2026-10-16 a propuesta de datamart-seg-anual (F-139) y mcp-bbdd (F-023)
 estado **terminada** · prioridad 11 · rigor `critico` · SDD sí · rama `feature/F-011-documents-read-valida-database`
 
 Alta del 2026-10-18 a petición del humano: D6 de F-010 (progress/spec_F-010.md), confirmado por el líder en el código. POST documents/read no valida `database` contra ALLOWED_DATABASES (ni DocumentReadRequest en domain/models/sql_models.py, que solo hace strip; ni ReadDocumentUseCase; ni la ruta en function_app.py), mientras que sql/read sí lo hace con SqlQueryGuard. Además infrastructure/repositories/sql_server_repository.py _connect interpola `database` sin escapar en la cadena de conexión (DATABASE={database};), así que un valor con ';' o '=' podría añadir atributos a la cadena ODBC. Hace falta la function key para explotarlo. Consumidores conocidos (mcp-bbdd F-023, datamart F-139, albaranes-persistencia) mandan la constante ruesma_rep, ya permitida: no se rompe ninguno. Decisiones para la spec: dónde validar (modelo, caso de uso o guardia reutilizado) y si además se blinda _connect para TODOS los endpoints, lo que tocaría infraestructura compartida y quizá infrastructure/security/ (cambio de seguridad explícito). Actualizar azure-apps/sigrid_api.md §8.3 en el mismo trabajo.
+
+### F-012 · Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx
+
+estado **terminada** · prioridad 12 · rigor `estandar` · SDD sí · rama `feature/F-012-validacion-sin-500`
+
+Alta del 2026-10-18 a petición del humano (hallazgo de progress/review_F-011_C3.md, reproducido; previo, de F-009). En el modo extendido de sigrid/albaran un error de model_validator (p. ej. línea vinculada sin cod_contrato) deja un ValueError en `ctx` de exc.errors() y error_response falla con `TypeError: Object of type ValueError is not JSON serializable`: albaranes recibe un 500 mudo en vez del 400 con el detalle. function_app.py serializa `exc.errors()` tal cual en 9 rutas (l. 105, 143, 179, 237, 271, 330, 388, 443, 504): la spec mide en cuáles puede pasar y decide el arreglo común (exc.errors(include_context=False), un saneado único o equivalente) sin cambiar la forma de `details.validation` que leen los consumidores.

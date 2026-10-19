@@ -316,3 +316,23 @@ datamart-seg-anual (F-139) y mcp-bbdd (F-023), verificada por el líder con lect
 - **Lecciones del arnés:** encargado en `arnes-base` quitar el hook `PostToolUse` (`9bdf828`); `harness/mutacion.py`
   apenas genera mutantes para este código (sin `not in`, literales ni argumentos con nombre). Un error del líder en
   un aviso (la base de `concepto-grafico`) lo cazó el consumidor: los avisos se contrastan con §8 antes de mandarlos.
+
+---
+
+## F-012 · Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en `ctx`
+
+**Cerrada el 2026-10-19.** Rigor `estandar`. Rama `feature/F-012-validacion-sin-500`. Nace de `review_F-011_C3.md`.
+
+- **El fallo:** `function_app.py` metía `exc.errors()` tal cual en `details.validation`; un `ValueError` en `ctx`
+  (validadores de modelo) no se serializa y la petición acababa en 500: `sigrid/albaran` extendido (6 reglas, lo
+  recoge el `except Exception`), `sql/write` y `concepto-grafico` (lo pone el host de Functions, sin cuerpo JSON).
+- **Decisiones del humano:** D1 = B (`json.dumps(..., default=str)`: lo no serializable a texto, lo demás
+  idéntico; `include_context=False` descartado porque quitaba `ctx` a todos y rompía el dorado de F-009); D2 =
+  `validation_error_response` único en las 9 rutas; D3 = sin red global en `json_response`; D4 = documentar y avisar.
+- **Verificación:** `init.sh` 2702 passed/1 skipped; cobertura 100 % (14/14); mutación serie 1/1/0 (la herramienta
+  solo generó uno). Revisión: CHANGES_REQUESTED por H1-H4 (PEP 8, `current.md`, T9-T10, workers) y APROBADO en la
+  pasada 2. T10: 400 `ValidationError` con `ctx.error` en texto en producción (`verificacion_F-012.md`).
+- **Ecosistema:** `azure-apps` `4584469` y el commit de cierre. Albaranes avisado antes del despliegue: no cambia nada
+  (en grabación el caso pasa de `incierto` a `error`, como ya prometía su contrato §3.4).
+- **Lecciones:** la primera campaña corrió en paralelo con un informe que decía `--workers 1` (a `arnes-base`,
+  `35b2749`). Un `!` al inicio de la segunda línea de un `! …` multilínea niega el código de salida en bash.
