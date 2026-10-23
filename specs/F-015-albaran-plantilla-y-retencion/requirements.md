@@ -1,33 +1,38 @@
 # F-015 · Requisitos (v2)
 
 **El modo extendido de `POST /api/sigrid/albaran` (F-009) construye `con` y `dca` columna a columna con una lista blanca
-(petición, contrato, obra, respaldo, cálculo o valor fijo), toma la forma de pago del contrato y escribe la retención del
-contrato (`ctrrec` → `dcarec`) con su total neto.** La v2 (2026-10-23) sustituye a la v1 (2026-10-19, commit `05b3b24`)
-por decisión del humano: la cabecera ya no se clona de una plantilla. Medidas **Mn**:
-[`progress/explore_F-015.md`](../../progress/explore_F-015.md) (M1-M16 de la v1, M17-M25 de la v2). F-009 sigue mandando
+(petición, obra, cálculo, valor fijo o, por este orden, contrato → proveedor → albarán anterior), toma la forma de pago
+del contrato y escribe la retención del contrato (`ctrrec` → `dcarec`) con su total neto.** La v2 (2026-10-23) sustituye
+a la v1 (2026-10-19, commit `05b3b24`) por decisión del humano, y recoge sus respuestas del mismo día (orden de fuentes,
+respaldo opcional): la cabecera ya no se clona de una plantilla. Medidas **Mn**:
+[`progress/explore_F-015.md`](../../progress/explore_F-015.md) (M1-M16 de la v1, M17-M27 de la v2). F-009 sigue mandando
 en lo que esta spec no cambia («F-009 Rn»). Decisiones **Dn** y la lista columna a columna: design §Decisiones y §Lista
-blanca. «Respaldo» = el albarán anterior del proveedor que define R6.
+blanca. «Respaldo» = el albarán anterior del proveedor que define R6, último recurso tras el contrato y el proveedor.
 
 ## Cabecera por lista blanca (O1)
 
 - **R1.** El sistema debe construir `con` con exactamente las columnas de `CON_COLUMNAS` (F-006) y `dca` con exactamente
   las 145 de `DCA_COLUMNAS` (esquema vivo, M17), en ese orden, cada una con **un único origen** de design §Lista blanca; el
   `INSERT` de las dos lleva esas columnas fijas, nunca las de una fila leída (D6).
-- **R2.** El sistema no debe escribir en `con` ni en `dca` un valor leído del contrato o del respaldo en una columna cuyo
-  origen en la lista no sea esa fila (D6).
-- **R3.** CUANDO el albarán tenga contrato, el sistema debe tomar del `ctr` las columnas de origen **contrato**: `entide`,
-  `entcod`, `entres`, `entcif`, `entciftip`, `entcifpai`, `pagide`, `pagtex`, `pagfor`, `efeide`, `eioide`, `ivadif` y
-  `cueide` (M20, M21; D1, D5).
-- **R4.** CUANDO el albarán no tenga contrato, el sistema debe tomar del respaldo las columnas de R3; y CUANDO tenga
-  contrato con `ctr.cueide` = 0, la `cueide` del respaldo (M20: 95 de 864; D2, D3).
-- **R5.** El sistema debe tomar siempre del respaldo `banban`, `bansuc`, `bandig`, `bancue`, `ban`, `bantipide`,
-  `dirdir1` y `dircon1`: el contrato casi nunca trae banco y su dirección es la de la firma (M20, M22; D5).
-- **R6.** El respaldo (L5) debe ser el último `con.tip 14` del proveedor (por `entide` con contrato, por `entcif` sin él)
-  en la empresa de la obra con `con.cod LIKE 'AC__/%'`, `dca.cla = 0` y `ISNULL(dca.entref, '')` que no empiece por
-  `PROF`: nunca una proforma (por serie o por referencia), una nota de cargo ni un `AC` de otra clase (M1, M25; D2).
-- **R7.** SI el proveedor no tiene respaldo en la empresa de la obra, ENTONCES el sistema debe responder 400
-  `proveedor_sin_albaran_previo` (con contrato o sin él), con un mensaje que nombre la serie `AC` y la exclusión de
-  proformas, sin *fallback* a otra serie, proveedor ni empresa (M25: 50 de 865 proveedores; D4).
+- **R2.** El sistema no debe escribir en `con` ni en `dca` un valor leído del contrato, del proveedor o del respaldo en una
+  columna cuyo origen en la lista no lo admita (D6).
+- **R3.** El sistema debe tomar cada columna de origen **cascada** (design §Lista blanca) del primer origen que la traiga
+  con valor (≠ 0, no vacío) en este orden: **contrato** (`ctr`), **proveedor** (`prv` del `entide`) y **respaldo**. El
+  grupo pago (`pagide`, `pagtex`, `pagfor`, `efeide`) sale entero del origen del primer `pagide` ≠ 0 (del `prv`, los
+  textos de su `auxpag`) y el grupo banco (`banban`, `bansuc`, `bandig`, `bancue`, `ban`, `bantipide`), del primero con
+  banco; `ivadif` del `ctr` si hay contrato y, si no, del respaldo (M26; D2, D5).
+- **R4.** El sistema debe tomar `entide`, `entcod`, `entres`, `entcif`, `entciftip` y `entcifpai` del `ctr` CUANDO haya
+  contrato y, sin él, del proveedor de R7 (`con.cod`, `raz`, `cif`, `tipcif`, `cifpai`) (M20, M27; D3).
+- **R5.** SI ningún origen trae una columna de cascada, ENTONCES el sistema debe escribir el valor que deja el alta a mano
+  (0 o `''`), sin error ni parada; y, si es del pago o del banco con efecto de confirming o transferencia, añadir el aviso
+  de cabecera informativo `cabecera_sin_dato` con las columnas que faltan (M26; D12, **para validar**).
+- **R6.** El respaldo (L5) debe ser el último `con.tip 14` del proveedor (por `entide`) en la empresa de la obra con
+  `con.cod LIKE 'AC__/%'`, `dca.cla = 0` y `ISNULL(dca.entref, '')` que no empiece por `PROF`: nunca una proforma (por
+  serie o por referencia), una nota de cargo ni un `AC` de otra clase (M1, M25). **Es opcional**: sin él, el alta sigue con
+  el contrato y el proveedor, y `proveedor_sin_albaran_previo` se retira (D4).
+- **R7.** CUANDO el albarán no tenga contrato, el sistema debe resolver el proveedor (L17) entre los `prv` con `con.tip 5`,
+  la empresa de la obra, `fecbaj` 0 y `cif` = `cif_proveedor`: uno, ese; ninguno, 400 `proveedor_no_encontrado`; varios, el
+  del último respaldo por CIF si es uno de ellos y, si no, 400 `proveedor_ambiguo` (M27: uno en 422 de 429; D3).
 - **R8.** El sistema debe escribir de la petición, la obra o un cálculo, como F-009: en `dca`, `ide`, `entref`, `fecdoc`,
   `hor`, `obride`, `ctride`, `almide`, `cenide`, `empide`, `synckey` y los totales (R13), y `diremp1` = la `entres`
   escrita (M20: 100 %); en `con`, `ide`, `emp`, `tip`, `cod`, `res`, `fec` y `est`, y **`tiemod` = fecha OLE en UTC del
@@ -37,7 +42,7 @@ blanca. «Respaldo» = el albarán anterior del proveedor que define R6.
   `idefac`, `antestfac`, `estfac`), cadena (`docoritip`, `docoriide`, `pasdeside`, `pasori`, `docrelide`, `fecpag`),
   divisa (`totbasdiv`, `totivadiv`, `totdocdiv`, `totdiv`, `totpagdiv`), `fecent`, `feclim`, `cocide`, `dtumID`, `estser`,
   `impdes` e `imprec` (M19; D7).
-- **R10.** SI a la fila del contrato o del respaldo le falta una columna que la lista toma de ella, ENTONCES el sistema
+- **R10.** SI a la fila del contrato, del proveedor o del respaldo le falta una columna que la lista toma de ella, ENTONCES el sistema
   debe fallar con `ValueError` (500) sin escribir nada: un cambio de esquema no se rellena a ciegas.
 - **R11.** El modo clásico y `sigrid/albaran-directo` no deben cambiar: ni modelo, ni caso de uso, ni sentencias, ni el
   dorado `tests/fixtures/f009_caracterizacion.json`, que sigue pasando sin tocarlo (D9).
@@ -63,7 +68,7 @@ blanca. «Respaldo» = el albarán anterior del proveedor que define R6.
 
 - **R17.** El sistema debe añadir a `totales` `tot` (= `dca.tot`), `retenciones` (= `cuo`, 0 sin `dcarec`) y
   `n_retenciones` (0 o 1), en previa y en `creado`, y `filas.dcarec` (0 o 1 filas). `cabecera` y `filas.dca` llevan las
-  columnas de R1 sin las bancarias (F-009 H16); `contrato.template_ide` pasa a ser el `ide` del respaldo.
+  columnas de R1 sin las bancarias (F-009 H16); `contrato.template_ide` pasa a ser el `ide` del respaldo (0 sin él).
 - **R18.** En `idempotente`, el sistema debe leer `dca.tot` (L11) y devolver `totales.tot` y `totales.retenciones` =
   `totdoc` − `tot` del albarán existente, sin leer su `dcarec`.
 - **R19.** El sistema debe trazar (F-009 R32) además `n_retenciones`; nunca `bas`, `cuo`, `valpor`, ni la forma de pago.
@@ -78,27 +83,28 @@ blanca. «Respaldo» = el albarán anterior del proveedor que define R6.
 - **R22.** El reintento por clave duplicada (F-009 R27) debe recalcular también el `ide` de la `dcarec`.
 - **R23.** SI antes del `COMMIT` la relectura (E12) no da tantas `dcarec` del albarán como se insertaron (0 o 1),
   ENTONCES `ROLLBACK` y 400 `filas_afectadas_inesperadas`.
-- **R24.** Todo el SQL nuevo o cambiado (L5, L11, L16, E6b, los `INSERT` de `con`, `dca` y `dcarec`, E12) debe ser
+- **R24.** Todo el SQL nuevo o cambiado (L5, L11, L16, L17, E6b, los `INSERT` de `con`, `dca` y `dcarec`, E12) debe ser
   constante con `?` y validado con `DatabaseReferenceGuard`; ningún `UPDATE`, `DELETE`, `MERGE` ni DDL nuevo (control
   negativo de F-009 R31).
 
 ## Equivalencia, pruebas y documentación
 
-- **R25.** El sistema debe tener un test **centinela**: con contrato y respaldo cuyas columnas valen todas un valor
-  distinto y reconocible, cada columna de `con` y `dca` lleva un centinela solo si la lista le da como origen esa fila, y
-  la lista cubre `CON_COLUMNAS` y `DCA_COLUMNAS` sin dejar ni repetir ninguna. Con y sin contrato.
+- **R25.** El sistema debe tener un test **centinela**: con contrato, proveedor y respaldo cuyas columnas valen todas un
+  valor distinto y reconocible, cada columna de `con` y `dca` lleva un centinela solo si la lista le da como origen esa
+  fila, y la lista cubre `CON_COLUMNAS` y `DCA_COLUMNAS` sin dejar ni repetir ninguna; con y sin contrato, con y sin
+  respaldo, y vaciando un origen para ver que la columna pasa al siguiente (R3) o al valor de R5.
 - **R26.** El test de equivalencia con el clásico (F-009 R33) debe seguir pasando con estas diferencias **declaradas**, y
   ninguna más: en `con` y `dca`, las columnas cuyo origen no es el respaldo (el clásico las clona); con `ctrrec`, `dcarec`
   y el aviso R16. Las columnas de origen respaldo deben salir **iguales** a las del clásico; `dcapro`, `ctrprodes` y `mov`
   como en `dev`.
 - **R27.** El sistema debe cubrir R1-R26 con tests sin red ni BBDD (`test_f015_rN_*`), SQL comparado carácter a carácter,
-  con fase RED en R1, R2, R3, R5, R6, R9, R12, R14, R15, R21 y R23. Los tests de F-009 que fijan L5, L11, los applocks,
+  con fase RED en R1, R2, R3, R5, R6, R7, R9, R12, R14, R15, R21 y R23. Los tests de F-009 que fijan L5, L11, los applocks,
   `construir_con`, `construir_dca`, `totales` o la `dca` se cambian solo en lo que R1-R24 cambian, cada uno con su R.
 - **R28.** El sistema debe actualizar **antes de implementar** `contrato_albaranes.md` a la v8.3 (design §Contrato) y
   avisar a albaranes, y en el mismo trabajo `azure-apps/sigrid_api.md` (§7.5, §7.6, §8.6, §8.7, §13),
   `docs/ARCHITECTURE.md` (lista blanca, applocks, `dcarec`) y el docstring de `sigrid_albaran`.
-- **R29.** MANUAL (humano), tras desplegar: dry-run de un albarán de un contrato con `RET5`, de uno sin `ctrrec` y de uno
-  sin contrato, revisando `filas.dca` (forma de pago del contrato, facturación y fechas a 0), `filas.dcarec` y `totales`;
+- **R29.** MANUAL (humano), tras desplegar: dry-run de un albarán de un contrato con `RET5`, de uno sin `ctrrec`, de uno
+  sin contrato y de un proveedor sin respaldo, revisando `filas.dca` (forma de pago del contrato, facturación y fechas a 0), `filas.dcarec` y `totales`;
   una grabación solo con autorización expresa para esa escritura, revisada en la UI (V1), repetida (`idempotente`) y
   anulada desde la UI (nunca `DELETE`).
 
@@ -111,7 +117,7 @@ blanca. «Respaldo» = el albarán anterior del proveedor que define R6.
 
 ## Fuera de alcance
 
-Interpretar el texto o el PDF del contrato (D1; límite de microservicio); deducir `empide` del `usu` (M24: no hay clave;
-D10); la plantilla de línea `dcapro` (sigue clonada de L8/L8b, F-009); retención sin contrato (M9) y `ctrrec` no
+Interpretar el texto o el PDF del contrato (D1; límite de microservicio); deducir `empide` del `usu` (M24; D10: lo
+resuelve albaranes en su F-069); la plantilla de línea `dcapro` (sigue clonada de L8/L8b, F-009); retención sin contrato (M9) y `ctrrec` no
 soportados (R14: alta a mano); recalcular la `dcarec` si el escritorio cambia el albarán; IRPF y cartera (los genera la
 factura, F-008); cambiar el clásico o `albaran-directo` (D9).

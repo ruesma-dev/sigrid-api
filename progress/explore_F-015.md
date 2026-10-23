@@ -163,3 +163,30 @@ con `empide` 2425207 (59 con contrato, 9 sin él). **«Respaldo»** = el último
 - **M25 · Respaldo sin proformas**: de 838 proveedores con AC26 de `cla 0`, el último es una proforma por `entref` en
   **210**; de 865 con `tip 14` en 2026, **50** no tienen ningún respaldo (AC de `cla 0` sin `PROF`, cualquier año), frente
   a 6 con el filtro de la v1 (M4).
+
+## v2.1 · Orden contrato → proveedor → albarán anterior (2026-10-23, tras las respuestas del humano)
+
+Mismas 1.293 altas a mano y mismo respaldo que M17-M25. «Cascada» = cada columna (o grupo) del primer origen que la trae
+con valor ≠ 0 / no vacío, en el orden del humano; «sin respaldo» = la misma cascada sin el tercer origen.
+
+- **M26 · Cobertura de la cascada** (% de altas en que coincide con el alta a mano; entre paréntesis, la v2 con el
+  respaldo primero en esas columnas):
+
+| Columna o grupo | Con contrato (864): cascada · sin respaldo | Sin contrato (429): cascada · sin respaldo | Ninguna fuente |
+|---|---|---|---|
+| pago (`pagide`, `pagtex`, `pagfor` del mismo origen; de `prv`, textos de su `auxpag`) | 83,9 · 83,9 | **99,3** · 96,5 | 0 · **13** sin contrato (`prv.pagide` 0) |
+| `efeide` (del origen del pago) | 93,4 · 93,4 | 99,5 · 96,7 | igual que el pago |
+| banco (`banban`…`ban`, `bantipide`, del primer origen con banco) | `ban` **77,8**, `bantipide` 45,8 (96,2) | `ban` 76,2 (94,4) | 285 y 126: Sigrid también lo deja vacío casi siempre (pagaré, recibo) |
+| `cueide` | 99,9 · 99,9 | 100 · 100 | 1 y 2 (el alta a mano también a 0) |
+| `eioide` | 98,3 · 98,1 | 97,9 · 98,1 | — |
+| `ivadif` (`ctr`; sin contrato, respaldo; si no, 0) | 89,0 · 89,0 | 97,0 · **100** con 0 fijo | — |
+| `dirdir1` (`ctr` → `prv.dir` → respaldo) | **95,4** (99,2) | 100 | — |
+| `dircon1` (`ctr` → respaldo) | 99,4 | 99,8 | — |
+
+  **El banco empeora claramente** con el orden del humano: el `prv` tiene banco y el escritorio no lo pone en los pagarés
+  (M22). Por efecto del pago elegido: pagaré 409 con contrato (12 con banco en el alta; la cascada pondría banco en 156),
+  recibo 28 (0); confirming `CC` 261 y `CT` 156, transferencia 9: **sin banco en ninguna fuente 4 de 426** con contrato y
+  **5 de 231** sin él (sin respaldo, 6); el propio escritorio deja sin banco 12 de 261 `CC`.
+- **M27 · Proveedor sin contrato por CIF** (`prv` cuyo `con` es `tip 5`, empresa de la obra y `fecbaj` 0, `cif` = el del
+  albarán): uno en **422 de 429** (98,4 %, siempre el `entide` del alta) y dos en 7 (4 CIF repetidos en la empresa 1). Sin
+  filtrar por empresa ni baja, uno solo en 297. De las 9 altas sin contrato de la API, 7 con un único `prv`.
