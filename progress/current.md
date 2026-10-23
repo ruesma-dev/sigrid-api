@@ -1,18 +1,31 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-015 con spec v1 en su rama (2026-10-19)
+## F-015 con spec v2 en su rama, `spec_ready` pendiente de aprobación (2026-10-23)
 
-Spec en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en `dev`);
-medidas en [`explore_F-015.md`](explore_F-015.md) (solo lecturas por `sql/read`). Hallazgos que cambian el alcance: la
-plantilla AC también arrastra facturación (`fecfac`, `idefac`…) y F-009 escribe totales en divisa que el escritorio deja
-a 0 (M5, M6); la factura hereda la retención del albarán, no del contrato (M16: 95,9 % frente a 14,3 %). **Decisiones
-abiertas** (design §Decisiones; recomendación entre paréntesis): D1 plantilla por prefijo `AC__/%` y `cla 0` (sí); D1b
-sin AC, error como hoy (sí); D2 limpiar facturación y cadena (sí); D3 divisa a 0 (sí); D4 clásico sin tocar, dorado
-intacto (sí); D5 retención con contrato aunque no haya vinculadas o sea devolución (sí); D6 sin contrato, ninguna (sí);
-D7 `ctrrec` no soportado → error `retencion_no_soportada` (sí; 15 de 651 contratos); D8 aviso `retencion_del_contrato`
-informativo, **no** bloqueante en sv9 (sí); D9 sin aviso de plantilla vieja; D10 sin App Setting nueva; D11 `cueide`
-del `ctrrec`. **T0 antes de implementar**: contrato con albaranes v8.3 y aviso a su sesión (design §Contrato).
+Spec v2 en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en `dev`);
+sustituye a la v1 por la decisión del humano del 2026-10-23. Medidas nuevas M17-M25 en [`explore_F-015.md`](explore_F-015.md)
+(solo lecturas por `sql/read` y una muestra de 12 documentos de contrato por `documents/read`, ya borrados). Lo que cambia:
+`con` y `dca` se construyen **columna a columna** (lista blanca de 145 + 19 columnas, `INSERT` fijo, test centinela); la
+forma de pago sale del contrato; el albarán anterior (respaldo: serie `AC`, `cla 0`, sin proformas por `entref`) solo
+aporta banco y dirección, o todo lo del contrato si no hay contrato. La retención de la v1 se mantiene.
+
+**Hallazgos**: la forma de pago **está estructurada** en `ctr.pagide` (548 de 548 contratos) y casa con el texto del `.doc`
+en 9 de 11 contratos muestreados (2 ambiguos), así que no hace falta interpretar texto (M21); el escritorio la toma del
+contrato en el 84 % y del proveedor en el resto (M23). Sin proformas en el respaldo, **50 de 865** proveedores se quedan
+sin él (antes 6). **60 de las 68** altas de la API llevan columnas que el escritorio no pone (facturación, fechas,
+`cocide`, divisa, `dtumID`, `tipgar`), y siguen entrando (~1 al día, la última del 2026-10-23); ninguna facturada ni de un
+contrato con `ctrrec`. `empide` desde el `usu`: no hay clave fiable (M24).
+
+**Decisiones abiertas** (design §Decisiones; recomendación entre paréntesis): D1 forma de pago (campos del `ctr`, sin leer
+el documento: interpretarlo no cabe en este microservicio); D2 respaldo (solo lo que el contrato no trae; **interpretación
+del líder anotada**: «solo en caso de encontrar» = «de no encontrar»); D3 sin contrato (admitidas, todo del respaldo);
+D4 sin respaldo (error `proveedor_sin_albaran_previo`); D5 excepciones (dirección del respaldo, `cueide` 0 → respaldo,
+`eioide` e `ivadif` del contrato); D6 `INSERT` fijo; D7 fijos (`tipgar` −1, `fecent`/`feclim`/`cocide` 0); D8 retención
+como la v1; D9 clásico intacto; D10 `empide` fuera de alcance; D11 limpieza por `sql/write` tras desplegar, con
+autorización expresa (design §Limpieza; ni `DELETE` ni escritura hecha). **T0 antes de implementar**: contrato con
+albaranes v8.3 (incluye la corrección de `ALTA_SIGRID_USUARIO` → `ALTA_SIGRID_USUARIO_RESPALDO` o el `usu` de quien
+aprueba, l. 189, 254 y 485, y l. 1079 a confirmar) y aviso a su sesión.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
@@ -30,7 +43,7 @@ Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas 
 - **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
   origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas para los dos: dry-run, idempotencia, `con.cod` e
   `ide` en la respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
-- **F-015** (O1 y O2 de F-009): albaranes avisado; su grabación real sigue apagada y sin fecha, y pide aviso antes de
+- **F-015** (O1 y O2 de F-009): spec v2 arriba. Albaranes graba ya en real con el modo extendido; pide aviso antes de
   tocar §2-§4 (sv9 tiene `avisos_bloqueantes` configurables).
 
 ## F-011 cerrada, desplegada y verificada (2026-10-18)

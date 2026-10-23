@@ -97,3 +97,69 @@ Medido el 2026-10-19 por `POST /api/sql/read` de la API desplegada (base `ruesma
   recalcula distinto (redondeo, `cueide`).
 - V2: que la factura hecha desde un albarán de la API hereda su `dcarec` (M16), con F-053 en real.
 - V3: con qué `cueide` deja el escritorio la `dcarec` cuando el `ctrrec` tiene otro (M11: 4,0 %).
+
+## v2 · Lista blanca de la cabecera, fuente de la forma de pago y limpieza (2026-10-23)
+
+Medido el 2026-10-23 por `POST /api/sql/read` y `POST /api/documents/read` (solo lecturas, SQL parametrizado) para la spec
+v2. Scripts en el scratchpad, fuera del repositorio. **«Manuales»** = AC26 de `cla 0`, emp 1, `fec` ≥ 2026-09-01, `estfac
+0`, `entref` que no empieza por `PROF` y `empide` ≠ 2425207: **1.293** (864 con contrato, 429 sin él). **«API»** = las 68
+con `empide` 2425207 (59 con contrato, 9 sin él). **«Respaldo»** = el último `tip 14` del mismo `entide` en la emp 1 con
+`cod LIKE 'AC__/%'`, `cla 0`, `entref` sin `PROF` e `ide` menor (existe en 860 de 864 y 426 de 429).
+
+- **M17 · Esquema vivo** (`sys.columns`): `dca` **145 columnas** (orden físico en el script `c1.py`; incluye `cocide`,
+  `fecrec`, `caddir1-4` y `synckey`, que el diccionario no trae o trae distintas); `con` 19, **las de
+  `parte_reclamacion_statements.CON_COLUMNAS`** (F-006); `ctr` comparte con `dca` 128 columnas (las 17 propias de `dca`: `fecrec`, `cveide`, `alqide`, `alqfec`, `ctdide`, `ano`,
+  `mes`, `eg3w`, `dtumID`, `tipisp`, `clabieser`, `facoriide`, `duaide`, `numregcon`, `fas`, `periodo`, `synckey`).
+- **M18 · Qué deja Sigrid en un alta a mano** (columnas con valor ≠ 0 / no vacío, sobre 1.293): siempre `entide`, `entcod`,
+  `entres`, `entref`, `entcif`, `entciftip`, `entcifpai`, `fecdoc`, `hor`, `pagide`, `pagtex`, `pagfor`, `efeide`, `cueide`
+  (1.290), totales, `cenide`, `almide`, `empide`, `obride`, `diremp1`, `dirdir1` (1.285), `tipgar` (**−1 en el 100 %**);
+  a veces `eioide` 336, `ban*` 593-604, `bantipide` 701, `dircon1` 181, `ivadif` 107, `fecent` 62, `feclim` 47, `cocide`
+  55, `ctride` 864; `antestfac`, `fecfac`, `horfac` y `banide`, 1. **Las otras 99 columnas, a 0 o vacías en las 1.293.** NULL: `emptex` y
+  `con.tex` en todas; `eiotex`, `eittra`, `tex`, `texent` en 343 (vacías en las demás). `con`: `subtip`, `cee`, `fecbaj`,
+  `serie`, `hor` 0, `delo`/`del`/`obr`/`doc` vacíos, `tiemod` siempre (fecha OLE), `ico` en 307 (marcas de color
+  posteriores). Es la fila que F-006 ya construye para `con`.
+- **M19 · Las 68 de la API** frente a eso: `idefac` 32, `fecfac`/`horfac` 34, `antestfac` 38 (valor 3), `fecent`/`feclim`
+  38, `cocide` 39, totales en divisa 55, `dtumID` (identificador Documentum) **4**, `tipgar` 0 en 4, `eioide` 1 en 60
+  (F-009 lo fija a 1; Sigrid copia el del proveedor y deja 0 en el 74 %). **60 de 68** con alguna columna fuera de M18,
+  por fecha del albarán del 2026-10-01 al **2026-10-23** (siguen entrando). `idefac` apunta a facturas (`tip 15`) de
+  otros albaranes en 32; `estfac` 0 y **ninguna línea en `dcfpro`** en las 68; ninguna de un contrato con `ctrrec`.
+- **M20 · ¿De dónde sale cada columna en el alta a mano?** (% de altas en que la columna es igual a la del contrato, del
+  `prv` del proveedor o del respaldo):
+
+| Columna | Con contrato (864): `ctr` · `prv` · respaldo | Sin contrato (429): `prv` · respaldo | Nota |
+|---|---|---|---|
+| `pagide` | **83,9** · 85,9 · 88,5 | 96,5 · 96,0 | `ctr.pagide` ≠ 0 en el 100 % de los contratos |
+| `pagtex`, `pagfor` | 83,9 / 85,2 · — · 88,5 / 89,0 | — · 96,0 / 96,3 | = `auxpag.res` / `auxpag.formul` del `pagide` en el 100 % |
+| `efeide` | **93,4** · 92,7 · 94,9 | 97,4 · 97,9 | = `auxpag.efeide` en el 97,1 % |
+| `cueide` | 89,0 (100 % cuando `ctr.cueide` ≠ 0; 0 en 95) · **100** · 99,5 | **100** · 99,3 | |
+| `eioide` | 97,7 · 99,1 · 98,8 | 98,1 · 97,0 | |
+| `entcod`, `entres`, `entcif`, `entciftip`, `entcifpai` | 99,9 / 98,3 / 99,9 / 100 / 100 · — · 99,5 | — · 99,3 | sin contrato `entres` = `prv.raz` 100 % |
+| `diremp1` | 90,7 · — · 99,5 | — · 99,3 | **= `entres` en el 100 %** |
+| `dirdir1`, `dircon1` | 88,5 / 97,3 · — · **99,2 / 99,5** | — · 99,1 / 99,3 | `dirdir1` = `prv.dir` 99,1 % |
+| `ivadif` | 89,0 · — · 91,3 | — · 96,3 | `ctr.ivadif` 1 y alta 0 en 93 de 198 |
+| `ban*`, `bantipide` | 56,1 (`ctr` casi sin banco: 12) · 79,9 · **96,2** | 76,2 · 94,4 | ver M22 |
+| `fecent`, `feclim`, `cocide` | 21,4 / 49,1 / 58,3 · — · 96,1 | — · 95,6-97,2 | Sigrid deja 0 en el 95-96 %: **no** del contrato |
+| `cenide`, `almide` | 99,9 · — · 77,3 | — · 49,4 | los de la obra (F-009) |
+| `empide` | 58,8 · — · 74,9 | — · 52,7 | el empleado, no el proveedor (M24) |
+
+- **M21 · La forma de pago en el contrato**: estructurada en `ctr.pagide` (≠ 0 en **548 de 548** contratos de los AC26
+  desde septiembre y en 2.451 de 2.451 de 2025-2026), con `pagtex` = `auxpag.res` y `pagfor` = `auxpag.formul` en el 100 %.
+  Ni `ctr.tex`, `texent`, `diapag`, `emptex` ni `cntnot` la traen (vacíos; `con.tex` en 57, 8 mencionan «pag»); `conext`
+  del contrato solo tiene `C02` (retención/garantía en texto libre: «SIN RETENCION», «UN AÑO») y `C03` (penalización).
+  **Documento**: 493 de 548 contratos con adjunto (476 `.doc`/`.docx`, 480 `.pdf`). Muestra de **12 `.doc` de 11 contratos
+  en que `ctr.pagide` ≠ `prv.pagide`**, leída solo la cláusula «FORMA DE PAGO»: el texto casa con `ctr.pagide` en **9**, con
+  `prv.pagide` en 1, es ambiguo en 2 (la plantilla enumera varias opciones sin elegir, o «pagarés a 120 o confirming a
+  150»). El texto no distingue confirming TR de CH ni la variante «+ ret» de `auxpag`. Documentos borrados tras leerlos.
+- **M22 · Banco del albarán por tipo de efecto** (`auxefp` del `efeide`): pagaré `P` 608 (banco en 1), recibo `R` 37 (en
+  1); confirming `CC` 383 (359) y `CT` 241 (229); transferencia `TR` 20 (14). Copiar el del `prv` solo con `CC`, `CT` o
+  `TR` acertaría ~96 %, como el respaldo.
+- **M23 · `pagide` del alta a mano ≠ el del contrato** (139 de 864): en casi todos es el del `prv` (p. ej. contrato `P120`,
+  alta y `prv` `P180`: 24). El escritorio toma unas veces el del contrato y otras el del proveedor; la API, el del
+  contrato en 58 de 59 (vía plantilla).
+- **M24 · `usu` → `emp`** (pregunta de albaranes; 4.472 AC26 a mano desde septiembre con su `log` de alta, 24 usuarios):
+  `usu.dni` y `usu.ele` vacíos; `usu.codemp` = `emp.tarseg` en **6 de 24** usuarios (1.330 altas); `usu.res` = `emp.res` en
+  5. 23 de 24 usuarios dejan siempre el mismo `empide` desde septiembre, pero **desde enero solo 20 de 34**: `empide` no es
+  función del usuario. No hay clave fiable.
+- **M25 · Respaldo sin proformas**: de 838 proveedores con AC26 de `cla 0`, el último es una proforma por `entref` en
+  **210**; de 865 con `tip 14` en 2026, **50** no tienen ningún respaldo (AC de `cla 0` sin `PROF`, cualquier año), frente
+  a 6 con el filtro de la v1 (M4).
