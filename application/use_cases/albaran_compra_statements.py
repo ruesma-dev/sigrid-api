@@ -58,7 +58,8 @@ EST_INICIAL = 1
 
 #: Applocks de la transaccion, SIEMPRE en este orden (design §Applocks): los
 #: cuatro del medio, como el clasico y `albaran-directo`; F-006 toma `_con` y
-#: `_log` en el mismo orden, asi que no hay orden inverso posible.
+#: `_log` en el mismo orden, asi que no hay orden inverso posible. F-015 R21:
+#: `SIGRID_IDE_dcarec` entre `_mov` y `_log`; nadie mas lo toma.
 APPLOCKS: tuple[str, ...] = (
     "SIGRID_REFEXT_14",
     "SIGRID_SERIE_14",
@@ -66,6 +67,7 @@ APPLOCKS: tuple[str, ...] = (
     "SIGRID_IDE_dcapro",
     "SIGRID_IDE_ctrprodes",
     "SIGRID_IDE_mov",
+    "SIGRID_IDE_dcarec",
     "SIGRID_IDE_log",
 )
 
@@ -273,6 +275,8 @@ E3_IDE_CON = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.con WITH (UPDLOCK, HOLDLOC
 E4_IDE_DCAPRO = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcapro WITH (UPDLOCK, HOLDLOCK)"
 E5_IDE_CTRPRODES = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.ctrprodes WITH (UPDLOCK, HOLDLOCK)"
 E6_IDE_MOV = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.mov WITH (UPDLOCK, HOLDLOCK)"
+#: F-015 R21: el `ide` de la `dcarec`, solo si el albaran la lleva.
+E6B_IDE_DCAREC = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcarec WITH (UPDLOCK, HOLDLOCK)"
 E7_BALANCE = (
     "SELECT TOP 1 almcan, almpma FROM dbo.mov WITH (UPDLOCK, HOLDLOCK) "
     "WHERE proide = ? AND almide = ? ORDER BY fechor DESC, ide DESC"
@@ -287,6 +291,8 @@ E12_DCAPRO = "SELECT COUNT(*) FROM dbo.dcapro WHERE docide = ?"
 E12_CTRPRODES = "SELECT COUNT(*) FROM dbo.ctrprodes WHERE docdeside = ? AND docdestip = ?"
 E12_MOV = "SELECT COUNT(*) FROM dbo.mov WHERE docide = ? AND doctip = ?"
 E12_LOG = "SELECT COUNT(*) FROM dbo.log WHERE ide = ?"
+#: F-015 R23: las `dcarec` del albaran (0 o 1).
+E12_DCAREC = "SELECT COUNT(*) FROM dbo.dcarec WHERE docide = ?"
 
 
 def _marcadores(n: int) -> str:
@@ -1222,11 +1228,13 @@ class AlbaranCompraStatements:
             E4_IDE_DCAPRO,
             E5_IDE_CTRPRODES,
             E6_IDE_MOV,
+            E6B_IDE_DCAREC,
             E7_BALANCE,
             _insert_fijo("con", CON_COLUMNAS),
             _insert_fijo("dca", DCA_COLUMNAS),
             _insert_fijo("ctrprodes", CTRPRODES_COLUMNAS),
             _insert_fijo("mov", MOV_COLUMNAS),
+            _insert_fijo("dcarec", DCAREC_COLUMNAS),
             E9_SERVIDO,
             E10_SUMAS_CONTRATO,
             E11_ESTADOS_CONTRATO,
@@ -1237,6 +1245,7 @@ class AlbaranCompraStatements:
             E12_DCAPRO,
             E12_CTRPRODES,
             E12_MOV,
+            E12_DCAREC,
             E12_LOG,
         )
 
@@ -1345,6 +1354,10 @@ class AlbaranCompraStatements:
     def reservar_ide_mov(self) -> tuple[str, list[Any]]:
         return E6_IDE_MOV, []
 
+    def reservar_ide_dcarec(self) -> tuple[str, list[Any]]:
+        """E6b (F-015 R21)."""
+        return E6B_IDE_DCAREC, []
+
     def reservar_balance(self, proide: int, almide: int) -> tuple[str, list[Any]]:
         return E7_BALANCE, [proide, almide]
 
@@ -1405,6 +1418,10 @@ class AlbaranCompraStatements:
     def insertar_log(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self._insertar_fija("log", LOG_COLUMNAS, fila)
 
+    def insertar_dcarec(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R13, R21: la retencion del contrato, con las 21 de `DCAREC_COLUMNAS`."""
+        return self._insertar_fija("dcarec", DCAREC_COLUMNAS, fila)
+
     # --- Medicion del contrato (E9-E11; solo con vinculadas, H31) -------------------
 
     def sumar_servido(self, ctrpro_ide: int, cantidad: float) -> tuple[str, list[Any]]:
@@ -1438,3 +1455,7 @@ class AlbaranCompraStatements:
 
     def releer_log(self, ide: int) -> tuple[str, list[Any]]:
         return E12_LOG, [ide]
+
+    def releer_dcarec(self, docide: int) -> tuple[str, list[Any]]:
+        """E12 (F-015 R23)."""
+        return E12_DCAREC, [docide]

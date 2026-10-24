@@ -22,6 +22,8 @@ from f009_dobles import (
     OBRA,
     PEEK,
     PLANTILLA_CABECERA,
+    RESERVAS,
+    IntegrityError,
     RepositorioDoble,
     SettingsDoble,
     ctr,
@@ -30,6 +32,7 @@ from f009_dobles import (
 )
 
 from application.use_cases.albaran_compra_statements import (
+    APPLOCKS,
     GRUPO_BANCO,
     GRUPO_PAGO,
     L16_COLUMNAS,
@@ -563,3 +566,73 @@ def test_f015_r20_previa_numera_la_dcarec_con_peek_sin_reservar() -> None:
     assert [(d["ide"], d["docide"]) for d in respuesta.filas["dcarec"]] == [
         (PEEK_DCAREC, respuesta.con_ide)]
     assert "transaccion" not in [t for t, _ in repo.llamadas]
+
+
+# =====================================================================================
+# T13 · R21-R23: la `dcarec` en el commit
+# =====================================================================================
+
+#: `ide` que el doble reserva para la `dcarec` (E6b) y el de `con` (E3).
+IDE_DCAREC = RESERVAS["ide_dcarec"][0]
+IDE_CON = RESERVAS["ide_con"][0]
+
+
+def test_f015_r21_con_retencion_e6b_tras_e6_e_insert_tras_los_mov() -> None:
+    respuesta, repo = ejecutar(repo=_con_retencion(), commit=True)
+    assert respuesta.estado == "creado"
+    assert repo.sentencias() == [
+        "referencia", "reservar_cod", "ide_con", "ide_dcapro", "ide_ctrprodes", "ide_mov",
+        "ide_dcarec", "balance_bajo_bloqueo",
+        "insert_con", "insert_dca", "insert_dcapro", "insert_ctrprodes", "insert_mov",
+        "insert_dcarec",
+        "servido", "sumas_contrato", "estados_contrato",
+        "ide_log", "insert_log",
+        "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes",
+        "releer_dcarec", "releer_log",
+    ]
+    assert repo.transacciones[0]["applock_resources"] == list(APPLOCKS)
+
+
+def test_f015_r21_lo_insertado_es_lo_que_se_devuelve() -> None:
+    respuesta, repo = ejecutar(repo=_con_retencion(), commit=True)
+    (dcarec,) = respuesta.filas["dcarec"]
+    assert dcarec == {**_DCAREC_RET5, "ide": IDE_DCAREC, "docide": IDE_CON}
+    assert repo.parametros_en_transaccion("insert_dcarec") == [list(dcarec.values())]
+    assert repo.parametros_en_transaccion("releer_dcarec") == [[IDE_CON]]
+    assert respuesta.filas["dca"]["tot"] == 24.36
+    assert respuesta.totales["retenciones"] == 1.05 and respuesta.totales["n_retenciones"] == 1
+
+
+def test_f015_r21_aviso_de_la_retencion_en_el_alta() -> None:
+    respuesta, _ = ejecutar(repo=_con_retencion(), commit=True)
+    assert [a.codigo for a in respuesta.avisos] == ["retencion_del_contrato"]
+
+
+def test_f015_r21_sin_retencion_ni_reserva_ni_insert() -> None:
+    respuesta, repo = ejecutar(commit=True)
+    assert respuesta.estado == "creado"
+    assert "ide_dcarec" not in repo.sentencias() and "insert_dcarec" not in repo.sentencias()
+    assert repo.parametros_en_transaccion("releer_dcarec") == [[IDE_CON]]  # R23: se esperan 0
+    assert repo.transacciones[0]["applock_resources"] == list(APPLOCKS)
+
+
+def test_f015_r22_el_reintento_recalcula_el_ide_de_la_dcarec() -> None:
+    repo = _con_retencion()
+    repo.fallos["insert_dcarec"] = lambda intento: IntegrityError("2627") if intento == 1 else None
+    repo.reservas["ide_dcarec"] = lambda intento, _p: (44100 + intento,)
+    repo.reservas["ide_con"] = lambda intento, _p: (2900100 + intento,)
+    respuesta, repo = ejecutar(repo=repo, commit=True)
+    assert len(repo.cursores) == 2
+    assert [p[:2] for p in repo.parametros_en_transaccion("insert_dcarec")] == [
+        [44101, 2900101], [44102, 2900102]]
+    assert [(d["ide"], d["docide"]) for d in respuesta.filas["dcarec"]] == [(44102, 2900102)]
+
+
+@pytest.mark.parametrize(("retencion", "leidas"), [(True, 0), (True, 2), (False, 1)])
+def test_f015_r23_relectura_de_dcarec_distinta_revierte(retencion: bool, leidas: int) -> None:
+    repo = _con_retencion() if retencion else RepositorioDoble()
+    repo.forzar["releer_dcarec"] = (leidas,)
+    with pytest.raises(AlbaranCompraError, match="dcarec") as excinfo:
+        ejecutar(repo=repo, commit=True)
+    assert excinfo.value.codigo == "filas_afectadas_inesperadas"
+    assert "releer_log" not in repo.sentencias()  # corta ahí: nada llega al COMMIT

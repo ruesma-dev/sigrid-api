@@ -788,3 +788,90 @@ def test_f015_r18_sql_l11_con_el_tot(sentencias: modulo.AlbaranCompraStatements)
         ),
         [14, "ALB-1"],
     )
+
+
+# =====================================================================================
+# T13 · R21, R23, R24: applock, E6b, `INSERT` de `dcarec`, E12 y control negativo
+# =====================================================================================
+
+
+def test_f015_r21_applock_de_dcarec_entre_mov_y_log() -> None:
+    assert modulo.APPLOCKS == (
+        "SIGRID_REFEXT_14", "SIGRID_SERIE_14", "SIGRID_IDE_con", "SIGRID_IDE_dcapro",
+        "SIGRID_IDE_ctrprodes", "SIGRID_IDE_mov", "SIGRID_IDE_dcarec", "SIGRID_IDE_log",
+    )
+
+
+def test_f015_r21_sql_e6b_reserva_del_ide_de_dcarec(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    assert sentencias.reservar_ide_dcarec() == (
+        "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcarec WITH (UPDLOCK, HOLDLOCK)", [])
+
+
+def test_f015_r21_sql_insert_de_dcarec_con_sus_21_columnas(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    fila = {columna: f"v_{columna}" for columna in reversed(modulo.DCAREC_COLUMNAS)}
+    sql, parametros = sentencias.insertar_dcarec(fila)
+    assert sql == (
+        "INSERT INTO dbo.dcarec (ide, docide, recide, pos, bas, valdef, valpor, valcan, valmod, "
+        "valfij, cuo, tex, reccla, cueide, ivaide, ivacuo, reqcuo, refide, resalt, frasupide, item) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    assert parametros == [f"v_{columna}" for columna in modulo.DCAREC_COLUMNAS]
+
+
+@pytest.mark.parametrize("cambio", ["sobra", "falta"])
+def test_f015_r21_insert_de_dcarec_con_otras_columnas_no_se_construye(
+    sentencias: modulo.AlbaranCompraStatements, cambio: str
+) -> None:
+    fila = dict.fromkeys(modulo.DCAREC_COLUMNAS, 0)
+    if cambio == "sobra":
+        fila["frasupide2"] = 0
+    else:
+        del fila["item"]
+    with pytest.raises(ValueError, match="dcarec"):
+        sentencias.insertar_dcarec(fila)
+
+
+def test_f015_r23_sql_e12_relectura_de_dcarec(sentencias: modulo.AlbaranCompraStatements) -> None:
+    assert sentencias.releer_dcarec(2900011) == (
+        "SELECT COUNT(*) FROM dbo.dcarec WHERE docide = ?", [2900011])
+
+
+def test_f015_r24_las_sentencias_nuevas_estan_validadas(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
+    for sql in (
+        sentencias.reservar_ide_dcarec()[0],
+        sentencias.insertar_dcarec(dict.fromkeys(modulo.DCAREC_COLUMNAS))[0],
+        sentencias.releer_dcarec(1)[0],
+        sentencias.leer_retenciones(1)[0],
+        sentencias.leer_proveedor_por_cif(1, "x")[0],
+        sentencias.leer_plantilla_cabecera(1, 1)[0],
+        sentencias.leer_plantilla_cabecera_por_cif(1, "x")[0],
+        sentencias.buscar_referencia("x")[0],
+        sentencias.insertar_con(dict.fromkeys(modulo.CON_COLUMNAS))[0],
+        sentencias.insertar_dca(dict.fromkeys(modulo.DCA_COLUMNAS))[0],
+    ):
+        assert sql in todas, sql
+
+
+def test_f015_r24_control_negativo_ningun_update_delete_merge_ni_ddl_nuevo() -> None:
+    import re
+
+    todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
+    assert len(todas) == len(set(todas)) == 47  # 40 de F-009 + L16, L17, E6b, E12 y 3 INSERT fijos
+    updates = [sql for sql in todas if "UPDATE" in sql.upper().replace("UPDLOCK", "")]
+    assert updates == [modulo.E9_SERVIDO, modulo.E11_ESTADOS_CONTRATO]
+    prohibidos = re.compile(r"\b(DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC)\b", re.IGNORECASE)
+    for sql in todas:
+        assert not prohibidos.search(sql), sql
+        # El unico literal es el `''` de L5 que fija la spec (design §Sentencias): una
+        # constante del SQL, no un valor de la peticion.
+        assert "'" not in sql.replace("ISNULL(d.entref, '')", "") and ";" not in sql, sql
+    insertadas = {re.match(r"INSERT INTO dbo\.(\w+) ", sql).group(1)
+                  for sql in todas if sql.startswith("INSERT")}
+    assert insertadas == {"con", "dca", "ctrprodes", "mov", "dcarec", "log"}  # `dcapro`, clonada

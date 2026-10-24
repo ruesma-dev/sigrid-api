@@ -687,6 +687,11 @@ class CreateAlbaranCompraUseCase:
             ide_dcapro = _reservar(cursor, sentencias.reservar_ide_dcapro())
             ide_ctrprodes = _reservar(cursor, sentencias.reservar_ide_ctrprodes()) if vinculadas else None
             ide_mov = _reservar(cursor, sentencias.reservar_ide_mov()) if pares else None
+            # E6b (F-015 R21, R22): solo con retencion; cada intento, el suyo.
+            ide_dcarec = (
+                _reservar(cursor, sentencias.reservar_ide_dcarec())
+                if cabecera.retencion is not None else None
+            )
             vigentes: dict[tuple[int, int], tuple[float, float]] = {}
             for proide, almide in pares:
                 _ejecutar(cursor, sentencias.reservar_balance(proide, almide))
@@ -697,9 +702,11 @@ class CreateAlbaranCompraUseCase:
             filas = numerar(
                 construido.filas, cod=cod, ide_con=ide_con, ide_dcapro=ide_dcapro,
                 ide_ctrprodes=ide_ctrprodes, ide_mov=ide_mov, ide_log=None,
+                ide_dcarec=ide_dcarec,
             )
 
-            # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K.
+            # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K y, tras los
+            # `mov`, la `dcarec` (F-015 R21; 0 o 1).
             _ejecutar(cursor, sentencias.insertar_con(filas.con))
             _ejecutar(cursor, sentencias.insertar_dca(filas.dca))
             for fila_dcapro in filas.dcapro:
@@ -708,6 +715,8 @@ class CreateAlbaranCompraUseCase:
                 _ejecutar(cursor, sentencias.insertar_ctrprodes(fila_ctrprodes))
             for _i, fila_mov in filas.mov:
                 _ejecutar(cursor, sentencias.insertar_mov(fila_mov))
+            for fila_dcarec in filas.dcarec:
+                _ejecutar(cursor, sentencias.insertar_dcarec(fila_dcarec))
 
             # E9-E11 (R20): solo con vinculadas; sin ellas, ningun UPDATE (H31).
             estados: dict[str, Any] = {}
@@ -738,6 +747,8 @@ class CreateAlbaranCompraUseCase:
                 (sentencias.releer_dcapro(ide_con), len(filas.dcapro), "dcapro"),
                 (sentencias.releer_mov(ide_con), len(filas.mov), "mov"),
                 (sentencias.releer_ctrprodes(ide_con), len(filas.ctrprodes), "ctrprodes"),
+                # F-015 R23: tantas `dcarec` como se insertaron, tambien 0.
+                (sentencias.releer_dcarec(ide_con), len(filas.dcarec), "dcarec"),
                 (sentencias.releer_log(ide_log), 1, "log"),
             ):
                 cuantas = _reservar(cursor, sentencia)

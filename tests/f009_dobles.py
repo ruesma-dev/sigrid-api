@@ -28,6 +28,7 @@ from application.use_cases.albaran_compra_statements import (
     _DCA_TEXTO,
     CTRPRODES_COLUMNAS,
     DCA_COLUMNAS,
+    DCAREC_COLUMNAS,
     LOG_COLUMNAS,
     MOV_COLUMNAS,
     AlbaranCompraStatements,
@@ -77,6 +78,7 @@ NOMBRES: dict[str, str] = {
     _S.reservar_ide_dcapro()[0]: "ide_dcapro",
     _S.reservar_ide_ctrprodes()[0]: "ide_ctrprodes",
     _S.reservar_ide_mov()[0]: "ide_mov",
+    _S.reservar_ide_dcarec()[0]: "ide_dcarec",
     _S.reservar_balance(1, 1)[0]: "balance_bajo_bloqueo",
     _S.reservar_ide_log()[0]: "ide_log",
     # F-015 R1: `con` y `dca`, columnas fijas.
@@ -85,6 +87,7 @@ NOMBRES: dict[str, str] = {
     _S.insertar_ctrprodes(dict.fromkeys(CTRPRODES_COLUMNAS))[0]: "insert_ctrprodes",
     _S.insertar_mov(dict.fromkeys(MOV_COLUMNAS))[0]: "insert_mov",
     _S.insertar_log(dict.fromkeys(LOG_COLUMNAS))[0]: "insert_log",
+    _S.insertar_dcarec(dict.fromkeys(DCAREC_COLUMNAS))[0]: "insert_dcarec",
     _S.sumar_servido(1, 1.0)[0]: "servido",
     _S.leer_sumas_contrato(1)[0]: "sumas_contrato",
     _S.actualizar_estados_contrato(1, 0, 0)[0]: "estados_contrato",
@@ -94,6 +97,7 @@ NOMBRES: dict[str, str] = {
     _S.releer_ctrprodes(1)[0]: "releer_ctrprodes",
     _S.releer_mov(1)[0]: "releer_mov",
     _S.releer_log(1)[0]: "releer_log",
+    _S.releer_dcarec(1)[0]: "releer_dcarec",
 }
 
 _IN = re.compile(r"IN \(\?(?:, \?)*\)")
@@ -290,6 +294,7 @@ RESERVAS: dict[str, Any] = {
     "ide_dcapro": (8000011,),
     "ide_ctrprodes": (400011,),
     "ide_mov": (9000011,),
+    "ide_dcarec": (44011,),
     "ide_log": (8488899,),
     "sumas_contrato": (111.0, 33.0, 0.0),
 }
