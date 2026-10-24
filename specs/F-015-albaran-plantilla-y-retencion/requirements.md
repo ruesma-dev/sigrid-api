@@ -66,7 +66,7 @@ proveedor.
   `dca.totpag` = `tot`; sin ella, `tot` = `totpag` = `totdoc`. `totbas`, `totiva`, `totdoc`, `impbru` e `impnet` son los
   de F-009 (M13).
 - **R14.** SI el contrato tiene más de un `ctrrec`, o el suyo tiene `recide` sin fila en `dbo.rec`, clase de `rec` fuera de
-  {3, 4, 5}, `valfij` ≠ 0 o `ivaide` ≠ 0, ENTONCES el sistema debe responder 400 `retencion_no_soportada` (cabecera),
+  {3, 4, 5}, `valfij` ≠ 0, `ivaide` ≠ 0 o `valpor` NULL (pasada 2), ENTONCES el sistema debe responder 400 `retencion_no_soportada` (cabecera),
   también en dry-run, después de la idempotencia (F-009 R30) y antes de validar las líneas (M11: 15 de 651; D8).
 - **R15.** El sistema debe calcular `bas` = `totbas` (clases 3 y 5) o `totdoc` (clase 4) y `cuo` =
   `redondear_euros(bas · valpor)` (`Decimal`, `ROUND_HALF_UP`, lejos del cero también en negativo) (M12).
