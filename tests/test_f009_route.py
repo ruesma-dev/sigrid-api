@@ -205,7 +205,7 @@ def test_f009_r7_previa_extendida_200_superconjunto_sin_bancarias(
     assert cuerpo["warnings"][0] == cuerpo["avisos"][0]["mensaje"]
     assert [(l["indice"], l["referencia_linea"], l["tipo"]) for l in cuerpo["lineas"]] == [
         (0, "L1", "vinculada")]
-    assert set(cuerpo["filas"]) == {"con", "dca", "dcapro", "ctrprodes", "mov", "log"}
+    assert set(cuerpo["filas"]) == {"con", "dca", "dcapro", "ctrprodes", "mov", "dcarec", "log"}  # F-015 R17
     assert not set(COLUMNAS_BANCARIAS) & set(cuerpo["cabecera"])
     assert not set(COLUMNAS_BANCARIAS) & set(cuerpo["filas"]["dca"])
     assert "ES12" not in json.dumps(cuerpo) and "ES34" not in json.dumps(cuerpo)

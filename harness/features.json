@@ -276,7 +276,7 @@
         "Dry-run por defecto; ninguna grabación de prueba sin autorización expresa del humano",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "critico",
       "priority": 15,

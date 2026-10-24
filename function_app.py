@@ -198,9 +198,15 @@ def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
       estados estser/estfac del contrato. Sin cambios respecto a antes de F-009.
     - extendido (con `lineas` o `referencia_externa`): alta idempotente por
       `referencia_externa` con lineas vinculadas a un contrato y sin vincular,
-      con o sin partida y con devoluciones (CreateAlbaranCompraUseCase). Los
-      fallos de negocio son 400 con `details.codigo` (y `details.lineas` en
-      `lineas_no_validas`). `lineas_recibidas` junto a esas claves es
+      con o sin partida y con devoluciones (CreateAlbaranCompraUseCase). La
+      cabecera (con + dca) se construye por lista blanca, sin clonar ninguna
+      fila: identidad del contrato (o del proveedor por CIF), pago y banco en
+      cascada contrato -> ultimo albaran del proveedor (respaldo, opcional) ->
+      ficha del proveedor, y el resto calculado o fijo (F-015). Con contrato,
+      su retencion (ctrrec) se escribe como UNA dcarec y dca.tot es el neto;
+      una retencion que no se sabe calcular es 400 `retencion_no_soportada`.
+      Los fallos de negocio son 400 con `details.codigo` (y `details.lineas`
+      en `lineas_no_validas`). `lineas_recibidas` junto a esas claves es
       `peticion_mixta`.
 
     DRY-RUN por defecto (commit=false) en los dos modos: no escribe, solo

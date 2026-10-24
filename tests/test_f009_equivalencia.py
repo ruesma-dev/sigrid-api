@@ -25,20 +25,25 @@ from f009_dobles import AHORA, CTR, RepositorioDoble, SettingsDoble
 
 from application.use_cases import create_albaran_compra_use_case as modulo_extendido
 from application.use_cases import create_purchase_albaran_use_case as modulo_clasico
+from application.use_cases.albaran_compra_statements import ORIGEN_DCA
 from application.use_cases.create_albaran_compra_use_case import (
     CreateAlbaranCompraUseCase,
 )
 from application.use_cases.create_purchase_albaran_use_case import (
     CreatePurchaseAlbaranUseCase,
 )
+from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
 from domain.models import sql_models
 from domain.models.albaran_compra_models import AlbaranCompraRequest
 from domain.models.albaran_domain_models import AddPurchaseAlbaranRequest
 
 #: design §Equivalencia (v8.2): las ÚNICAS columnas en que pueden diferir.
+#: F-015 R26: en `con` y `dca`, las que no salen del respaldo ni de la cascada
+#: (`con` ya no se clona: todas; `dca`, las de identidad, calculadas y fijas). Las
+#: de cascada salen del respaldo, como el clon, y tienen que coincidir.
 DECLARADAS: dict[str, set[str]] = {
-    "con": {"est", "res"},
-    "dca": {"synckey", "hor"},
+    "con": set(CON_COLUMNAS),
+    "dca": {columna for columna, origen in ORIGEN_DCA.items() if origen != "cascada"},
     "dcapro": {"prepma", "ivacuo", "tot", "refent", "cod2", "dncide", "dncproide"},
     "ctrprodes": set(),
     "mov": {"hor", "fec", "fechor", "prepma", "almpma"},
@@ -103,7 +108,10 @@ def _filas_del_clasico(monkeypatch: pytest.MonkeyPatch, **cambios: Any) -> dict[
     return capturadas
 
 
-def _filas_del_extendido(monkeypatch: pytest.MonkeyPatch, **cambios: Any) -> dict[str, Any]:
+def _filas_del_extendido(
+    monkeypatch: pytest.MonkeyPatch, *, lecturas: dict[str, Any] | None = None,
+    avisos: list[str] | None = None, **cambios: Any,
+) -> dict[str, Any]:
     capturadas: dict[str, Any] = {}
     original = modulo_extendido.numerar
 
@@ -124,8 +132,11 @@ def _filas_del_extendido(monkeypatch: pytest.MonkeyPatch, **cambios: Any) -> dic
         ],
         **cambios,
     })
-    caso = CreateAlbaranCompraUseCase(RepositorioDoble(), SettingsDoble(), ahora_utc=lambda: AHORA)
-    assert caso.run(peticion).estado == "previsto"
+    caso = CreateAlbaranCompraUseCase(RepositorioDoble(lecturas), SettingsDoble(), ahora_utc=lambda: AHORA)
+    respuesta = caso.run(peticion)
+    assert respuesta.estado == "previsto"
+    if avisos is not None:  # los de cabecera, por su codigo
+        avisos.extend(aviso.codigo for aviso in respuesta.avisos)
     return capturadas
 
 
@@ -146,14 +157,21 @@ def _comparar(clasico: dict[str, Any], extendido: dict[str, Any]) -> dict[str, l
     return diferencias
 
 
+#: F-015 R9 (M19): lo que el clon arrastraba del albaran anterior (facturacion,
+#: divisa, `dtumID`, `cpacue1`, `tipgar` 0) y el alta a mano deja vacio, y el
+#: `synckey` (R30c). Todas fijas o calculadas: ninguna de cascada.
+_DCA_DISTINTAS = {"synckey", "cpacue1", "dtumID", "fecfac", "idefac", "tipgar", "totbasdiv",
+                  "totivadiv", "totdocdiv"}
+
+
 def test_f009_r33_mismas_filas_que_el_clasico_salvo_las_declaradas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clasico = _filas_del_clasico(monkeypatch)
     extendido = _filas_del_extendido(monkeypatch)
     assert _comparar(clasico, extendido) == {
-        "con": [set()],
-        "dca": [{"synckey"}],
+        "con": [{"tiemod"}],  # F-015 R8: el del alta
+        "dca": [_DCA_DISTINTAS],
         "dcapro": [{"prepma", "refent", "cod2", "dncide", "dncproide"}] * 2,
         "ctrprodes": [set(), set()],
         "mov": [{"fec", "fechor", "prepma"}] * 2,
@@ -183,5 +201,24 @@ def test_f009_r33_con_la_fecha_de_hoy_el_mov_coincide_salvo_prepma(
     extendido = _filas_del_extendido(monkeypatch, fecha_albaran=None)
     diferencias = _comparar(clasico, extendido)
     assert diferencias["mov"] == [{"prepma"}] * 2
-    assert diferencias["con"] == [set()] and diferencias["dca"] == [{"synckey"}]
+    assert diferencias["con"] == [{"tiemod"}] and diferencias["dca"] == [_DCA_DISTINTAS]
     assert extendido["con"]["fec"] == clasico["con"]["fec"] == 20261006
+
+
+def test_f015_r26_con_ctrrec_solo_cambian_el_neto_y_la_dcarec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-015 R26: con un `ctrrec` de RET5, el extendido escribe ademas la `dcarec`,
+    el neto (`tot`, `totpag`) y el aviso R16; el resto, como sin retencion."""
+    ret5 = (7001, 6005, 64, 1, 0.05, 0.0, 0, 0, 5, 4705, 0, "", "", 0, 5, "RET5")
+    clasico = _filas_del_clasico(monkeypatch)
+    avisos: list[str] = []
+    extendido = _filas_del_extendido(monkeypatch, lecturas={"retenciones": [ret5]}, avisos=avisos)
+    diferencias = _comparar(clasico, extendido)
+    assert diferencias["dca"] == [_DCA_DISTINTAS | {"tot", "totpag"}]
+    assert diferencias["con"] == [{"tiemod"}]
+    assert (clasico["dca"]["totdoc"], extendido["dca"]["totdoc"]) == (39.93, 39.93)
+    assert (extendido["dca"]["tot"], extendido["dca"]["totpag"]) == (38.28, 38.28)
+    assert [(f["recide"], f["bas"], f["cuo"]) for f in extendido["dcarec"]] == [(6005, 33.0, 1.65)]
+    assert "dcarec" not in clasico
+    assert avisos.count("retencion_del_contrato") == 1
