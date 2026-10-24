@@ -361,7 +361,7 @@ cabecera cortan antes de mirar las líneas.
 | ~~`proveedor_sin_albaran_previo`~~ | — | **retirado en la v8.3**: sin albarán anterior el alta sigue con el contrato y el proveedor | quitar su mapeo | — |
 | `proveedor_no_encontrado` (v8.3) | cab. | sin contrato: ni albarán anterior por CIF ni ningún proveedor vivo con ese CIF en la empresa de la obra | propuesta: `no_admitido` | — |
 | `proveedor_ambiguo` (v8.3) | cab. | sin contrato ni albarán anterior por CIF: varios proveedores vivos con ese CIF en la empresa de la obra (4 CIF medidos) | propuesta: `no_admitido` | — |
-| `retencion_no_soportada` (v8.3) | cab. | el contrato tiene más de un recargo, o uno sin catálogo, de clase fuera de {3, 4, 5}, con valor fijo o con IVA (también en previa; 15 de 651 contratos) | propuesta: `no_admitido` («la retención del contrato no se puede calcular: alta a mano»); sin mapear, H25 la lleva a `error` | — |
+| `retencion_no_soportada` (v8.3) | cab. | el contrato tiene más de un recargo, o uno sin catálogo, de clase fuera de {3, 4, 5}, con valor fijo, con IVA o sin porcentaje (`valpor` vacío) (también en previa; 15 de 651 contratos) | propuesta: `no_admitido` («la retención del contrato no se puede calcular: alta a mano»); sin mapear, H25 la lleva a `error` | — |
 | `estado_inicial_no_encontrado` | cab. | `conest` sin `tip 14, est 1` | `error` | — |
 | `almacen_de_obra_no_resuelto` | cab. | línea sin vincular (con o sin partida), sin contrato, sin `obr.almide` y con 0 o 2 `alm` en la obra | `no_admitido` («alta a mano») | H13 cerrado |
 | `colision_de_clave` | cab. | alta simultánea del escritorio; reintentos agotados; ERP intacto | `error` (reintentable) | — |
