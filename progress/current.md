@@ -31,11 +31,12 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
   `resolver_cascada` (la parte de `construir_dca` que lee filas), fuera de la transacción.
 - **Revisión troceada**: pasada 1 en `5da4e85` (seis informes `review_F-015_*.md`; retención y transacción
   aprobadas). Arreglos de la pasada 1 hechos por el implementer (sección «Pasada 2» del informe), uno por commit.
-  **Lo siguiente es la pasada 2 de la revisión.**
+  **Pasada 2: APROBADO** (`review_F-015.md`, `e5eb1f9`). Lo siguiente: merge a `dev`, aviso a albaranes, despliegue
+  y T19-T21.
 - **Ampliación de R14 ordenada por el líder (pasada 2, retencion O2)**: un `ctrrec` con `valpor` NULL da 400
   `retencion_no_soportada` en vez de un 500 (`InvalidOperation`). R14 no lo listaba; no contradice nada de la spec
   (mismo código, mismo mapeo en sv9). Recogido en el contrato con albaranes §3.3 y en la nota de la v8.3, y en
-  `azure-apps/sigrid_api.md` §8.6. **Para el líder:** decidir si R14 de `requirements.md` lo nombra.
+  `azure-apps/sigrid_api.md` §8.6. R14 lo nombra desde `87abd53`. Se le dice a albaranes en el aviso previo al despliegue.
 - **Verificación manual**: comandos literales de T19-T21 (dry-runs V1-V4, grabación V5, limpieza V6) en
   [`verificacion_manual.md`](../specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md) (anexo de design
   §Verificación manual, aparte por el tope de 250 líneas de design).
