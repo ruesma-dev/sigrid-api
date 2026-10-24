@@ -169,7 +169,7 @@ Un commit por punto, de `915e226` a `70dbed9`; trazas completas en [`red_F-015.m
 | retención O3, O4 | dobles de L11 con 8 columnas; R26 comprueba el aviso R16 | `2e7ced4`, `b67de1f` |
 
 **Desviaciones de la pasada 2.** (1) R14 no listaba `valpor` NULL: lo ordenó el líder; no contradice la spec (mismo
-código, mismo mapeo); queda para el líder si R14 lo nombra. (2) La §Verificación manual de design es un resumen y
+código, mismo mapeo); R14 lo nombra desde `87abd53` (líder). (2) La §Verificación manual de design es un resumen y
 enlaza el anexo `verificacion_manual.md`: con los comandos dentro, design pasaba a 373 líneas (tope 250). (3) La
 campaña de las líneas nuevas generó un solo mutante; uno a mano (`not valpor`, rechazaría el 0 %) sobrevivió y lo
 mata `test_f015_r14_valpor_0_es_soportado_solo_none_no` ([`mutacion_F-015_pasada2.md`](mutacion_F-015_pasada2.md)).
@@ -198,7 +198,6 @@ F-069); interpretar el documento de forma de pago (D1). No se corrige el `empide
 - **T19-T21 MANUALES**, con los comandos de `verificacion_manual.md`: despliegue (`func publish`, el humano),
   dry-runs R29 V1-V4 (el líder, con autorización), la grabación V5 solo con autorización expresa, revisada en la UI,
   repetida y anulada desde la UI, y la limpieza V6 (design §Limpieza) con su autorización.
-- Decidir si R14 de `requirements.md` nombra el `valpor` NULL (pasada 2).
 - Tras desplegar: quitar las notas «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md`.
 - Pasada 2 de la revisión contra `CHECKPOINTS.md`.
 
