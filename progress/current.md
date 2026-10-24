@@ -65,6 +65,10 @@ Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas 
     proponen enlazar a `ctrpro.ide` (377 de 510 por código y precio). Facturas localiza y enlaza las ya dadas de alta
     (su F-063); F-007 queda como respaldo. Abierto: si se aparca, la serie (PROF o la AC de la obra) y quién resuelve
     el contrato (una hoja puede abarcar dos). F-015 (cabecera y retención), ya desplegada, se reutiliza.
+  - **Dos procesos en facturas (humano, 2026-10-24):**
+    1. Cotejar la proforma firmada que envía el proveedor con lo que hay en Sigrid. Es lectura y no necesita F-007.
+    2. Registrar en Sigrid la proforma que prepara el jefe de obra, con origen en un xlsx o un pdf. **Esto es F-007**,
+       y no un simple respaldo: la proforma del jefe de obra es la que se da de alta.
   - **Decisión del humano (2026-10-24): las proformas se registran en Sigrid POR MES, no a origen.** El origen se
     calcula a partir de los meses. La v3 tiene que partir de aquí: cada proforma lleva lo del mes y el acumulado sale
     de sumar las del contrato.
