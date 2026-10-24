@@ -638,3 +638,71 @@ def test_f015_r14_ctrrec_no_soportado(filas: list, motivo: str) -> None:
 
 def test_f015_r14_clases_soportadas_y_su_base() -> None:
     assert modulo.CLASES_RETENCION_BASE == {5: "totbas", 3: "totbas", 4: "totdoc"}
+
+
+# =====================================================================================
+# T10 · R13, R15: `calcular_retencion` y `construir_dcarec`
+# =====================================================================================
+
+
+@pytest.mark.parametrize(
+    ("cla", "esperado"),
+    [(5, (Decimal("1000.00"), Decimal("50.00"))), (3, (Decimal("1000.00"), Decimal("50.00"))),
+     (4, (Decimal("1210.00"), Decimal("60.50")))],
+)
+def test_f015_r15_base_por_clase_del_recargo(cla: int, esperado: tuple) -> None:
+    """M12: clases 5 y 3 sobre `totbas`; la 4, sobre `totdoc`."""
+    totales = {"totbas": 1000.0, "totiva": 210.0, "totdoc": 1210.0}
+    assert modulo.calcular_retencion(ctrrec(cla=cla), totales) == esperado
+
+
+def test_f015_r15_empate_a_medio_centimo_lejos_del_cero() -> None:
+    """M12: 3.775,30 · 0,05 = 188,765 -> 188,77, en `Decimal` y no en binario (el
+    `float` de SQL da 188,76 en los 45 empates de M12)."""
+    totales = {"totbas": 3775.30, "totiva": 792.81, "totdoc": 4568.11}
+    assert modulo.calcular_retencion(ctrrec(), totales) == (Decimal("3775.30"), Decimal("188.77"))
+    negativos = {"totbas": -3775.30, "totiva": -792.81, "totdoc": -4568.11}
+    assert modulo.calcular_retencion(ctrrec(), negativos) == (
+        Decimal("-3775.30"), Decimal("-188.77"))
+
+
+def test_f015_r15_en_decimal_no_en_binario() -> None:
+    """21,50 · 0,05 = 1,075 -> 1,08; en `float`, `round` daría 1,07."""
+    assert round(21.5 * 0.05, 2) == 1.07  # el error que se evita
+    totales = {"totbas": 21.5, "totiva": 0.0, "totdoc": 21.5}
+    assert modulo.calcular_retencion(ctrrec(), totales) == (Decimal("21.50"), Decimal("1.08"))
+
+
+def test_f015_r15_totbas_0_retencion_0() -> None:
+    totales = {"totbas": 0.0, "totiva": 0.0, "totdoc": 0.0}
+    assert modulo.calcular_retencion(ctrrec(), totales) == (Decimal("0.00"), Decimal("0.00"))
+
+
+def test_f015_r15_otro_porcentaje() -> None:
+    totales = {"totbas": 1234.56, "totiva": 0.0, "totdoc": 1234.56}
+    assert modulo.calcular_retencion(ctrrec(valpor=0.015), totales) == (
+        Decimal("1234.56"), Decimal("18.52"))
+
+
+def test_f015_r13_dcarec_copia_del_ctrrec_con_bas_y_cuo() -> None:
+    fila = modulo.construir_dcarec(
+        ctrrec(tex="RETENCION 5%", resalt="R5", item=3), bas=Decimal("1000.00"),
+        cuo=Decimal("50.00"),
+    )
+    assert tuple(fila) == modulo.DCAREC_COLUMNAS
+    assert fila == {
+        "ide": None, "docide": None, "recide": 6005, "pos": 64, "bas": 1000.0, "valdef": 1,
+        "valpor": 0.05, "valcan": 0.0, "valmod": 0, "valfij": 0, "cuo": 50.0,
+        "tex": "RETENCION 5%", "reccla": 5, "cueide": 4705, "ivaide": 0, "ivacuo": 0,
+        "reqcuo": 0, "refide": 0, "resalt": "R5", "item": 3, "frasupide": 0,
+    }
+    assert (type(fila["bas"]), type(fila["cuo"])) == (float, float)
+
+
+def test_f015_r13_dcarec_columnas_del_esquema_vivo() -> None:
+    """M14: las 21 columnas de `dbo.dcarec`."""
+    assert modulo.DCAREC_COLUMNAS == (
+        "ide", "docide", "recide", "pos", "bas", "valdef", "valpor", "valcan", "valmod", "valfij",
+        "cuo", "tex", "reccla", "cueide", "ivaide", "ivacuo", "reqcuo", "refide", "resalt",
+        "frasupide", "item",
+    )

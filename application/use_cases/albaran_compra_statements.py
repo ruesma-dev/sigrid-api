@@ -412,6 +412,50 @@ def resolver_retencion(filas_ctrrec: Sequence[Mapping[str, Any]]) -> Mapping[str
     return fila
 
 
+#: Las 21 columnas de `dbo.dcarec`, en su orden fisico (M14).
+DCAREC_COLUMNAS: tuple[str, ...] = (
+    "ide", "docide", "recide", "pos", "bas", "valdef", "valpor", "valcan", "valmod", "valfij",
+    "cuo", "tex", "reccla", "cueide", "ivaide", "ivacuo", "reqcuo", "refide", "resalt",
+    "frasupide", "item",
+)
+
+#: Lo que la `dcarec` copia del `ctrrec` (M11).
+_DCAREC_DEL_CTRREC: tuple[str, ...] = (
+    "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla", "cueide",
+    "ivaide", "tex", "resalt", "item",
+)
+
+
+def calcular_retencion(
+    ctrrec: Mapping[str, Any], totales: Mapping[str, float]
+) -> tuple[Decimal, Decimal]:
+    """R15 (M12): `bas` = `totbas` (clases 5 y 3) o `totdoc` (clase 4) y `cuo` =
+    `redondear_euros(bas * valpor)`, en `Decimal` y lejos del cero tambien en
+    negativo (devoluciones). Solo para un `ctrrec` ya resuelto (R14)."""
+    bas = redondear_euros(totales[CLASES_RETENCION_BASE[int(ctrrec["cla"])]])
+    return bas, redondear_euros(bas * _decimal(ctrrec["valpor"]))
+
+
+def construir_dcarec(ctrrec: Mapping[str, Any], *, bas: Decimal, cuo: Decimal) -> dict[str, Any]:
+    """R13: la `dcarec` del albaran, copia del `ctrrec` (M11) con `bas` y `cuo`
+    de R15 y lo propio de la factura a 0 (M13). Sin `ide` ni `docide`: los pone
+    `numerar`."""
+    fila: dict[str, Any] = {columna: ctrrec[columna] for columna in _DCAREC_DEL_CTRREC}
+    fila.update(
+        {
+            "ide": None,
+            "docide": None,
+            "bas": float(bas),
+            "cuo": float(cuo),
+            "ivacuo": 0,
+            "reqcuo": 0,
+            "refide": 0,
+            "frasupide": 0,
+        }
+    )
+    return {columna: fila[columna] for columna in DCAREC_COLUMNAS}
+
+
 @dataclass(frozen=True)
 class Balance:
     """Balance de UN `mov`: stock y PMP de partida y resultantes (R19)."""
