@@ -18,7 +18,7 @@ de la fila, cada una validada como identificador y entre corchetes; `mov`,
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -499,15 +499,6 @@ _RESETEO_SIN_VINCULAR: dict[str, Any] = {
     **dict.fromkeys(("tex", "texcom", "desesp", "cod2", "pac"), ""),
 }
 
-#: Totales de la cabecera que se pisan si la plantilla los trae: columna -> cual
-#: de `sumar_importes`. En compra nacional la divisa coincide con la base.
-_TOTALES_DCA = {
-    "impbru": "totbas", "impnet": "totbas", "totbas": "totbas", "totiva": "totiva",
-    "totdoc": "totdoc", "tot": "totdoc", "totpag": "totdoc",
-    "totbasdiv": "totbas", "totivadiv": "totiva", "totdocdiv": "totdoc",
-}
-
-
 @dataclass(frozen=True)
 class SellosAlbaran:
     """Los sellos de tiempo de UNA peticion, calculados una vez y fuera de la
@@ -567,51 +558,185 @@ def construir_con(
     return {columna: fila[columna] for columna in CON_COLUMNAS}
 
 
+def _tiene_valor(valor: Any) -> bool:
+    """R3: «trae la columna» = ni NULL, ni 0, ni texto vacio (o de espacios)."""
+    if valor is None:
+        return False
+    if isinstance(valor, str):
+        return valor.strip() != ""
+    return valor != 0
+
+
+def _exigir(fila: Mapping[str, Any], columnas: Sequence[str], que: str) -> None:
+    """R10: a la fila le falta una columna que la lista toma de ella -> no se
+    construye nada (un cambio de esquema no se rellena a ciegas)."""
+    faltan = [columna for columna in columnas if columna not in fila]
+    if faltan:
+        raise ValueError(
+            f"A la fila de {que} le faltan columnas que la lista blanca toma de ella: "
+            f"{', '.join(faltan)}."
+        )
+
+
+#: Columnas que la lista toma del `prv` en la cascada (con su nombre en el `prv`).
+_CASCADA_DEL_PROVEEDOR: tuple[str, ...] = tuple(n for n in DCA_CASCADA.values() if n)
+
+
+def _origenes(
+    contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+) -> list[tuple[str, Mapping[str, Any]]]:
+    """La cascada en el orden del humano (D2): contrato -> respaldo -> proveedor."""
+    filas = (("contrato", contrato), ("respaldo", respaldo), ("proveedor", proveedor))
+    return [(nombre, fila) for nombre, fila in filas if fila is not None]
+
+
+def _en_el_origen(nombre: str, fila: Mapping[str, Any], columna: str) -> Any:
+    """La columna de `dca` en una fila de la cascada; del `prv`, con su nombre
+    (`None` si el `prv` no la tiene)."""
+    if nombre != "proveedor":
+        return fila[columna]
+    en_prv = DCA_CASCADA[columna]
+    return fila[en_prv] if en_prv else None
+
+
+def pago_del_proveedor(
+    contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+) -> bool:
+    """R3: el grupo pago sale del `prv` (y hay que leer su `auxpag`) si ni el
+    contrato ni el respaldo traen `pagide` y el `prv` si."""
+    for nombre, fila in _origenes(contrato, respaldo, proveedor):
+        _exigir(fila, ("pagide",), nombre)
+        if _tiene_valor(fila["pagide"]):
+            return nombre == "proveedor"
+    return False
+
+
 def construir_dca(
-    plantilla: Mapping[str, Any],
     *,
+    contrato: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+    pago_proveedor: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
     fec: int,
     hor: int,
     su_referencia: str,
-    entidad: Mapping[str, Any],
-    ctride: int,
     obride: int,
+    ctride: int,
     almide: int,
     cenide: int,
     empide: int,
     totales: Mapping[str, float],
+    cuo: Decimal,
     referencia_externa: str,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], tuple[str, ...]]:
     """
-    `dca` del albaran: clon de la plantilla (forma de pago, efecto y direccion
-    del proveedor, M14b) con los overrides del clasico, que solo pisan columnas
-    que la plantilla trae, mas `ctride` (0 sin contrato) y `synckey` (R21).
-    `entidad` lleva `entide` y, si no son `None`, `entcod`/`entres`/`entcif`.
-    Las columnas bancarias se escriben tal cual (H16).
+    `dca` del albaran por lista blanca (F-015 R1-R10): recorre `DCA_COLUMNAS` y
+    da a cada una el valor de su UNICO origen (`ORIGEN_DCA`), nunca una plantilla.
+
+    - identidad (R4): del `contrato`; sin el, del `respaldo` y, sin el, del
+      `proveedor` (`prv` mas el `cod` de L17) con los nombres de `DCA_IDENTIDAD`;
+    - cascada (R3): del primer origen con valor en el orden contrato -> respaldo
+      -> proveedor; el pago y el banco en grupo; del `prv`, `pagtex`/`pagfor` de
+      su `auxpag` (`pago_proveedor`); `ivadif` del contrato aunque sea 0;
+    - calculadas (R8, R13): de la peticion, la obra y los totales, con `tot` =
+      `totpag` = `totdoc` - `cuo`; `diremp1` = la `entres` escrita;
+    - fijas (R9): `DCA_FIJAS`.
+
+    Devuelve la fila y las columnas de cascada que ningun origen trae (R5), que
+    se escriben con el vacio del alta a mano. Una columna que la lista toma de
+    una fila y no esta en ella -> `ValueError` (R10).
     """
-    dca = dict(plantilla)
-    dca["ide"] = None
-    propios = {
-        "fecdoc": fec,
-        "hor": hor,
-        "entref": su_referencia,
-        "eioide": 1,
-        "entide": entidad["entide"],
-        "obride": obride,
-        "almide": almide,
-        "cenide": cenide,
-        "empide": empide,
-        **{columna: entidad[columna] for columna in ("entcod", "entres", "entcif")
-           if entidad.get(columna) is not None},
-        **{columna: totales[origen] for columna, origen in _TOTALES_DCA.items()},
-        **dict.fromkeys(("impdes", "imprec", "impdesdiv", "imprecdiv", "estser", "estfac"), 0),
-    }
-    for columna, valor in propios.items():
-        if columna in dca:
-            dca[columna] = valor
-    dca["ctride"] = ctride
-    dca["synckey"] = referencia_externa
-    return dca
+    origenes = _origenes(contrato, respaldo, proveedor)
+    for nombre, fila in origenes:
+        if nombre == "proveedor":
+            _exigir(fila, _CASCADA_DEL_PROVEEDOR, "proveedor")
+        else:
+            _exigir(fila, tuple(DCA_CASCADA), nombre)
+
+    # Identidad (R4).
+    if contrato is not None or respaldo is not None:
+        fuente, que = (contrato, "contrato") if contrato is not None else (respaldo, "respaldo")
+        _exigir(fuente, tuple(DCA_IDENTIDAD), que)
+        valores: dict[str, Any] = {columna: fuente[columna] for columna in DCA_IDENTIDAD}
+    else:
+        _exigir(proveedor, tuple(DCA_IDENTIDAD.values()), "proveedor")
+        valores = {columna: proveedor[en_prv] for columna, en_prv in DCA_IDENTIDAD.items()}
+
+    # Cascada (R3, R5).
+    sin_fuente: list[str] = []
+
+    def de_un_grupo(columnas: tuple[str, ...], trae: Callable[[str, Mapping[str, Any]], bool]) -> None:
+        for nombre, fila in origenes:
+            if trae(nombre, fila):
+                for columna in columnas:
+                    valores[columna] = _de_la_cascada(nombre, fila, columna, pago_proveedor)
+                return
+        valores.update({columna: _valor_fijo(columna) for columna in columnas})
+        sin_fuente.extend(columnas)
+
+    de_un_grupo(GRUPO_PAGO, lambda nombre, fila: _tiene_valor(fila["pagide"]))
+    de_un_grupo(
+        GRUPO_BANCO,
+        lambda nombre, fila: _tiene_valor(fila["banban"]) or _tiene_valor(fila["ban"]),
+    )
+    for columna in DCA_CASCADA:
+        if columna in GRUPO_PAGO or columna in GRUPO_BANCO or columna == "ivadif":
+            continue
+        de_un_grupo(
+            (columna,),
+            lambda nombre, fila, columna=columna: _tiene_valor(_en_el_origen(nombre, fila, columna)),
+        )
+    # `ivadif` es una marca (D5): del contrato aunque sea 0; si no, del respaldo.
+    if contrato is not None or respaldo is not None:
+        valores["ivadif"] = (contrato if contrato is not None else respaldo)["ivadif"]
+    else:
+        valores["ivadif"] = _valor_fijo("ivadif")
+        sin_fuente.append("ivadif")
+
+    # Calculadas (R8, R13).
+    tot = float(_decimal(totales["totdoc"]) - cuo)
+    valores.update(
+        {
+            "ide": None,
+            "entref": su_referencia,
+            "fecdoc": fec,
+            "hor": hor,
+            "obride": obride,
+            "ctride": ctride,
+            "almide": almide,
+            "cenide": cenide,
+            "empide": empide,
+            "synckey": referencia_externa,
+            "impbru": totales["totbas"],
+            "impnet": totales["totbas"],
+            "totbas": totales["totbas"],
+            "totiva": totales["totiva"],
+            "totdoc": totales["totdoc"],
+            "tot": tot,
+            "totpag": tot,
+            "diremp1": valores["entres"],
+        }
+    )
+    valores.update(DCA_FIJAS)
+    sin_fuente_en_orden = tuple(columna for columna in DCA_CASCADA if columna in sin_fuente)
+    return {columna: valores[columna] for columna in DCA_COLUMNAS}, sin_fuente_en_orden
+
+
+def _de_la_cascada(
+    nombre: str, fila: Mapping[str, Any], columna: str, pago_proveedor: Mapping[str, Any] | None
+) -> Any:
+    """El valor de `columna` en el origen elegido; del `prv`, `pagtex`/`pagfor`
+    salen del `auxpag` de su `pagide`."""
+    if nombre == "proveedor" and columna in PAGO_DEL_AUXPAG:
+        if pago_proveedor is None:
+            raise ValueError("El pago sale del proveedor y no se ha leido su auxpag.")
+        _exigir(pago_proveedor, tuple(PAGO_DEL_AUXPAG.values()), "auxpag")
+        return pago_proveedor[PAGO_DEL_AUXPAG[columna]]
+    return _en_el_origen(nombre, fila, columna)
 
 
 def _base_de_linea(plantilla: Mapping[str, Any] | None, indice: int) -> dict[str, Any]:

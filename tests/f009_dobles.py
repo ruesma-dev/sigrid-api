@@ -25,10 +25,10 @@ from types import SimpleNamespace
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    _DCA_TEXTO,
     CTRPRODES_COLUMNAS,
     DCA_COLUMNAS,
     LOG_COLUMNAS,
-    _DCA_TEXTO,
     MOV_COLUMNAS,
     AlbaranCompraStatements,
 )
@@ -126,7 +126,7 @@ def fila_completa(
     de la tabla hace fallar el test: así el doble no inventa columnas."""
     sobran = set(valores) - set(columnas)
     assert not sobran, f"columnas que no son de la tabla: {sorted(sobran)}"
-    return {c: valores[c] if c in valores else ("" if c in texto else 0) for c in columnas}
+    return {c: valores.get(c, "" if c in texto else 0) for c in columnas}
 
 
 #: Las columnas de cascada de F-015 (contrato -> respaldo -> proveedor), vacías.
