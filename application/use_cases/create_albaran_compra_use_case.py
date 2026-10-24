@@ -6,8 +6,12 @@ vincular (producto de la lista blanca), con o sin partida y con devoluciones.
 
 Flujo (design §Flujo):
 1. Guardas sin leer la base (tope de lineas, prefijo, llaves de escritura).
-2. Cabecera con lecturas: obra en las empresas admitidas -> contrato -> plantilla
-   de cabecera del mismo proveedor y empresa -> idempotencia -> `conest` y `usu`.
+2. Cabecera con lecturas: obra en las empresas admitidas -> contrato -> albaran
+   anterior del proveedor (respaldo, opcional; F-015 R6) -> sin contrato ni
+   respaldo, el `prv` por CIF (R7) -> `prv` del `entide` -> idempotencia ->
+   `conest` y `usu` -> con contrato, su retencion (L16, F-015 R12, R14) ->
+   `auxpag` si el pago sale del `prv`. La cabecera se construye por lista
+   blanca (F-015 R1-R10), sin clonar ninguna fila.
 3. Lineas, TODAS, acumulando los fallos (`lineas_no_validas`).
 4. Construccion pura de las filas (`albaran_compra_statements`) y, en previa,
    numeracion provisional; en commit, UNA transaccion reentrante.
@@ -24,27 +28,39 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
     APPLOCKS,
+    EFECTOS_CON_BANCO,
+    GRUPO_BANCO,
+    GRUPO_PAGO,
+    L16_COLUMNAS,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
     FilasAlbaran,
+    RetencionNoSoportada,
     SellosAlbaran,
+    calcular_retencion,
     codigo_analitica,
     construir_con,
     construir_ctrprodes,
     construir_dca,
     construir_dcapro_sin_vincular,
     construir_dcapro_vinculada,
+    construir_dcarec,
     construir_log,
     construir_mov,
     encadenar_balances,
     estados_contrato,
     importe_linea,
     numerar,
+    pago_del_proveedor,
+    redondear_euros,
+    resolver_cascada,
+    resolver_retencion,
     sellos_del_alta,
     siguiente_cod,
     sumar_importes,
@@ -115,20 +131,31 @@ class _Contrato:
 
 @dataclass
 class _Cabecera:
+    """Lo leido para la cabecera (F-015): obra, contrato, respaldo (la `dca` del
+    albaran anterior, o `None`), el `prv` del `entide` (con el `cod` de L17 si la
+    identidad sale de el) y, si el pago sale del `prv`, su `auxpag`."""
+
     obra: _Obra
     contrato: _Contrato | None
     entide: int
-    entidad: dict[str, Any]
-    entres: str | None
     template_ide: int
-    con_plantilla: dict[str, Any]
-    dca_plantilla: dict[str, Any]
+    respaldo: dict[str, Any] | None
+    proveedor: dict[str, Any]
+    pago_proveedor: dict[str, Any] | None = None
+    # El `ctrrec` del contrato ya resuelto (F-015 R12, R14), o `None`.
+    retencion: dict[str, Any] | None = None
+    # Avisos de cabecera (R5): se deciden una vez, fuera de la transaccion.
+    avisos: list[AvisoAlbaran] = field(default_factory=list)
     # Almacen y centro de las sin vincular (R15), resuelto una vez si hace falta.
     almacen_sin_vincular: tuple[int, int] | None = None
 
     @property
     def ctride(self) -> int:
         return self.contrato.ide if self.contrato else 0
+
+    @property
+    def fila_contrato(self) -> dict[str, Any] | None:
+        return self.contrato.fila if self.contrato else None
 
     @property
     def almacen_cabecera(self) -> tuple[int, int]:
@@ -181,11 +208,13 @@ class _Linea:
 
 @dataclass(frozen=True)
 class _Construido:
-    """Las filas de un intento y el balance de cada linea con `mov`."""
+    """Las filas de un intento, el balance de cada linea con `mov` y el aviso de
+    la retencion (F-015 R16), que cita `bas` y `cuo` y por eso sale de aqui."""
 
     filas: FilasAlbaran
     balances: dict[int, Balance]
     totales: dict[str, float]
+    avisos: list[AvisoAlbaran] = field(default_factory=list)
 
 
 class CreateAlbaranCompraUseCase:
@@ -240,6 +269,9 @@ class CreateAlbaranCompraUseCase:
             codigos=[aviso.codigo for aviso in respuesta.avisos]
             + [aviso.codigo for linea in respuesta.lineas for aviso in linea.avisos],
         )
+        if "n_retenciones" in respuesta.totales:
+            # F-015 R19: cuantas, nunca `bas`, `cuo` ni `valpor` (no en `idempotente`).
+            traza["n_retenciones"] = respuesta.totales["n_retenciones"]
         self._trazar(traza, arranque)
         return respuesta
 
@@ -264,6 +296,8 @@ class CreateAlbaranCompraUseCase:
             )
             return self._respuesta_idempotente(request, existente, lineas_existentes)
         self._comprobar_estado_y_usuario(request, sentencias)
+        self._leer_retencion(request, sentencias, cabecera)
+        self._completar_cabecera(request, cabecera)
 
         # 3-5. Lineas, construccion y previa o commit.
         lineas = self._resolver_lineas(request, sentencias, cabecera)
@@ -351,6 +385,8 @@ class CreateAlbaranCompraUseCase:
     def _leer_cabecera(
         self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
     ) -> _Cabecera:
+        """F-015 R4, R6, R7: contrato -> respaldo (opcional) -> sin ambos, el `prv`
+        por CIF -> el `prv` del `entide`. Nada de la `con` del albaran anterior."""
         obra = self._resolver_obra(request, sentencias)
         contrato = self._resolver_contrato(request, obra) if request.cod_contrato else None
 
@@ -360,37 +396,115 @@ class CreateAlbaranCompraUseCase:
         else:
             sentencia = sentencias.leer_plantilla_cabecera_por_cif(obra.emp, request.cif_proveedor)
         _columnas, filas = self._leer(request, sentencia)
-        if not filas:
-            raise AlbaranCompraError(
-                "El proveedor no tiene ningun albaran previo en la empresa de la obra del "
-                "que copiar la cabecera (forma de pago, efecto, direccion): alta a mano.",
-                codigo="proveedor_sin_albaran_previo",
-            )
-        template_ide = int(filas[0][0])
-        con_plantilla = self._fila_completa(request, "con", template_ide)
-        dca_plantilla = self._fila_completa(request, "dca", template_ide)
-        if con_plantilla is None or dca_plantilla is None:
-            raise ValueError(f"No se pudo leer la plantilla de cabecera (con/dca) ide={template_ide}.")
+        template_ide = int(filas[0][0]) if filas else 0
+        respaldo = None
+        if template_ide:
+            respaldo = self._fila_completa(request, "dca", template_ide)
+            if respaldo is None:
+                raise ValueError(
+                    f"No se pudo leer la plantilla de cabecera (dca del respaldo) ide={template_ide}."
+                )
 
-        if contrato is not None:
-            entidad = {c: contrato.fila.get(c) for c in ("entide", "entcod", "entres", "entcif")}
-            entidad["entide"] = entide
-            entres = contrato.fila.get("entres")
-        else:
-            entide = _entero(dca_plantilla.get("entide"))
-            entidad = {"entide": entide, "entcod": None, "entres": None, "entcif": None}
-            entres = dca_plantilla.get("entres")
+        cod_proveedor = None
+        if contrato is None:
+            if respaldo is not None:
+                entide = _entero(respaldo.get("entide"))
+            else:
+                entide, cod_proveedor = self._proveedor_por_cif(request, sentencias, obra)
+        proveedor = self._fila_completa(request, "prv", entide)
+        if proveedor is None:
+            raise ValueError(f"No se pudo leer el proveedor (prv) ide={entide}.")
+        if cod_proveedor is not None:
+            # R4: sin contrato ni respaldo, `entcod` es el `con.cod` del `prv` (L17).
+            proveedor = {**proveedor, "cod": cod_proveedor}
 
         return _Cabecera(
             obra=obra,
             contrato=contrato,
             entide=entide,
-            entidad=entidad,
-            entres=entres,
             template_ide=template_ide,
-            con_plantilla=con_plantilla,
-            dca_plantilla=dca_plantilla,
+            respaldo=respaldo,
+            proveedor=proveedor,
         )
+
+    def _proveedor_por_cif(
+        self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements, obra: _Obra
+    ) -> tuple[int, str]:
+        """R7 (L17): sin contrato ni respaldo por CIF, el UNICO `prv` vivo con ese
+        CIF en la empresa de la obra."""
+        _c, filas = self._leer(
+            request, sentencias.leer_proveedor_por_cif(obra.emp, request.cif_proveedor)
+        )
+        if not filas:
+            raise AlbaranCompraError(
+                "Sin contrato ni albaran anterior del CIF, y ningun proveedor vivo con ese CIF "
+                "en la empresa de la obra: alta a mano.",
+                codigo="proveedor_no_encontrado",
+            )
+        if len(filas) > 1:
+            raise AlbaranCompraError(
+                f"Sin contrato ni albaran anterior del CIF, hay {len(filas)} proveedores vivos con "
+                "ese CIF en la empresa de la obra: alta a mano.",
+                codigo="proveedor_ambiguo",
+            )
+        return int(filas[0][0]), str(filas[0][1] or "").strip()
+
+    def _completar_cabecera(self, request: AlbaranCompraRequest, cabecera: _Cabecera) -> None:
+        """Tras `conest` y `usu`: el `auxpag` si el pago sale del `prv` (R3) y el
+        aviso `cabecera_sin_dato` (R5, D12). `resolver_cascada` comprueba ya aqui
+        las columnas de las filas leidas (R10): sin ellas no se sigue."""
+        contrato = cabecera.fila_contrato
+        if pago_del_proveedor(contrato, cabecera.respaldo, cabecera.proveedor):
+            pagide = _entero(cabecera.proveedor.get("pagide"))
+            cabecera.pago_proveedor = self._fila_completa(request, "auxpag", pagide)
+            if cabecera.pago_proveedor is None:
+                raise ValueError(
+                    f"No se pudo leer la forma de pago del proveedor (auxpag) ide={pagide}."
+                )
+        valores, sin_fuente = resolver_cascada(
+            contrato=contrato, respaldo=cabecera.respaldo, proveedor=cabecera.proveedor,
+            pago_proveedor=cabecera.pago_proveedor,
+        )
+        faltan = [columna for columna in GRUPO_PAGO if columna in sin_fuente]
+        if (
+            not faltan
+            and all(columna in sin_fuente for columna in GRUPO_BANCO)
+            and self._efecto_con_banco(request, _entero(valores["efeide"]))
+        ):
+            faltan = list(GRUPO_BANCO)
+        if faltan:
+            cabecera.avisos.append(_aviso(
+                "cabecera_sin_dato",
+                "Ni el contrato, ni el albaran anterior, ni el proveedor traen "
+                f"{', '.join(faltan)}: se escriben vacias, como el alta a mano.",
+            ))
+
+    def _leer_retencion(
+        self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements,
+        cabecera: _Cabecera,
+    ) -> None:
+        """F-015 R12, R14 (L16): con contrato, su `ctrrec`; si no se sabe calcular,
+        400 `retencion_no_soportada` tambien en dry-run, antes de las lineas."""
+        if cabecera.contrato is None:
+            return
+        _c, filas = self._leer(request, sentencias.leer_retenciones(cabecera.ctride), muchas=True)
+        try:
+            retencion = resolver_retencion([dict(zip(L16_COLUMNAS, fila)) for fila in filas])
+        except RetencionNoSoportada as exc:
+            raise AlbaranCompraError(
+                f"{exc} El albaran no se puede dar de alta con la retencion del contrato: alta a mano.",
+                codigo="retencion_no_soportada",
+            ) from exc
+        cabecera.retencion = dict(retencion) if retencion is not None else None
+
+    def _efecto_con_banco(self, request: AlbaranCompraRequest, efeide: int) -> bool:
+        """R5: el efecto escrito es de confirming o transferencia (`auxefp.cod`)."""
+        if not efeide:
+            return False
+        efecto = self._fila_completa(request, "auxefp", efeide)
+        if efecto is None or "cod" not in efecto:
+            raise ValueError(f"No se pudo leer el efecto (auxefp) ide={efeide}.")
+        return str(efecto["cod"] or "").strip().upper() in EFECTOS_CON_BANCO
 
     def _comprobar_estado_y_usuario(
         self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
@@ -497,7 +611,7 @@ class CreateAlbaranCompraUseCase:
     ) -> AlbaranCompraResponse:
         """H18: lo LEIDO de Sigrid; `committed` false, `dry_run` = not commit,
         lineas por `pos` con `indice` desde 0 y `referencia_linea` de `refent`."""
-        ide, cod, fec, _entide, _obride, totbas, totdoc = existente
+        ide, cod, fec, _entide, _obride, totbas, totdoc, tot = existente
         return AlbaranCompraResponse(
             database=request.database,
             committed=False,
@@ -523,8 +637,16 @@ class CreateAlbaranCompraUseCase:
                 )
                 for indice, (pos, proide, can, pre, tot, paride, almide, refent) in enumerate(lineas)
             ],
-            totales={"totbas": float(totbas or 0), "totdoc": float(totdoc or 0),
-                     "n_lineas": len(lineas)},
+            # F-015 R18: `retenciones` = totdoc - tot, sin leer su `dcarec`.
+            totales={
+                "totbas": float(totbas or 0),
+                "totdoc": float(totdoc or 0),
+                "tot": float(tot or 0),
+                "retenciones": float(
+                    redondear_euros(float(totdoc or 0)) - redondear_euros(float(tot or 0))
+                ),
+                "n_lineas": len(lineas),
+            },
             estado="idempotente",
             referencia_externa=request.referencia_externa,
         )
@@ -565,6 +687,11 @@ class CreateAlbaranCompraUseCase:
             ide_dcapro = _reservar(cursor, sentencias.reservar_ide_dcapro())
             ide_ctrprodes = _reservar(cursor, sentencias.reservar_ide_ctrprodes()) if vinculadas else None
             ide_mov = _reservar(cursor, sentencias.reservar_ide_mov()) if pares else None
+            # E6b (F-015 R21, R22): solo con retencion; cada intento, el suyo.
+            ide_dcarec = (
+                _reservar(cursor, sentencias.reservar_ide_dcarec())
+                if cabecera.retencion is not None else None
+            )
             vigentes: dict[tuple[int, int], tuple[float, float]] = {}
             for proide, almide in pares:
                 _ejecutar(cursor, sentencias.reservar_balance(proide, almide))
@@ -575,9 +702,11 @@ class CreateAlbaranCompraUseCase:
             filas = numerar(
                 construido.filas, cod=cod, ide_con=ide_con, ide_dcapro=ide_dcapro,
                 ide_ctrprodes=ide_ctrprodes, ide_mov=ide_mov, ide_log=None,
+                ide_dcarec=ide_dcarec,
             )
 
-            # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K.
+            # E8 (R25): con, dca, dcapro x N, ctrprodes x M, mov x K y, tras los
+            # `mov`, la `dcarec` (F-015 R21; 0 o 1).
             _ejecutar(cursor, sentencias.insertar_con(filas.con))
             _ejecutar(cursor, sentencias.insertar_dca(filas.dca))
             for fila_dcapro in filas.dcapro:
@@ -586,6 +715,8 @@ class CreateAlbaranCompraUseCase:
                 _ejecutar(cursor, sentencias.insertar_ctrprodes(fila_ctrprodes))
             for _i, fila_mov in filas.mov:
                 _ejecutar(cursor, sentencias.insertar_mov(fila_mov))
+            for fila_dcarec in filas.dcarec:
+                _ejecutar(cursor, sentencias.insertar_dcarec(fila_dcarec))
 
             # E9-E11 (R20): solo con vinculadas; sin ellas, ningun UPDATE (H31).
             estados: dict[str, Any] = {}
@@ -616,6 +747,8 @@ class CreateAlbaranCompraUseCase:
                 (sentencias.releer_dcapro(ide_con), len(filas.dcapro), "dcapro"),
                 (sentencias.releer_mov(ide_con), len(filas.mov), "mov"),
                 (sentencias.releer_ctrprodes(ide_con), len(filas.ctrprodes), "ctrprodes"),
+                # F-015 R23: tantas `dcarec` como se insertaron, tambien 0.
+                (sentencias.releer_dcarec(ide_con), len(filas.dcarec), "dcarec"),
                 (sentencias.releer_log(ide_log), 1, "log"),
             ):
                 cuantas = _reservar(cursor, sentencia)
@@ -625,11 +758,7 @@ class CreateAlbaranCompraUseCase:
                         "el albaran entero.",
                         codigo="filas_afectadas_inesperadas",
                     )
-            return {
-                "construido": _Construido(filas=filas, balances=construido.balances,
-                                          totales=construido.totales),
-                "estados": estados,
-            }
+            return {"construido": replace(construido, filas=filas), "estados": estados}
 
         try:
             resultado = self._repo.run_in_write_transaction(
@@ -657,7 +786,7 @@ class CreateAlbaranCompraUseCase:
             resultado["construido"],
             estado="creado",
             estados=resultado["estados"],
-            avisos=[],
+            avisos=[*cabecera.avisos, *resultado["construido"].avisos],
         )
 
     # ------------------------------------------------------------------ #
@@ -826,31 +955,45 @@ class CreateAlbaranCompraUseCase:
             ))
 
         totales = sumar_importes(importes)
+        # F-015 R13, R15, R16: la retencion del contrato, sobre los totales escritos.
+        dcarec: list[dict[str, Any]] = []
+        avisos: list[AvisoAlbaran] = []
+        cuo = Decimal(0)
+        if cabecera.retencion is not None:
+            bas, cuo = calcular_retencion(cabecera.retencion, totales)
+            dcarec.append(construir_dcarec(cabecera.retencion, bas=bas, cuo=cuo))
+            avisos.append(_aviso_retencion(cabecera.retencion, bas, cuo))
         almide, cenide = cabecera.almacen_cabecera
-        con = construir_con(
-            cabecera.con_plantilla, emp=cabecera.obra.emp, fec=sellos.fec,
-            entres=cabecera.entres, su_referencia=request.su_referencia,
-        )
-        dca = construir_dca(
-            cabecera.dca_plantilla,
+        dca, _sin_fuente = construir_dca(
+            contrato=cabecera.fila_contrato,
+            proveedor=cabecera.proveedor,
+            pago_proveedor=cabecera.pago_proveedor,
+            respaldo=cabecera.respaldo,
             fec=sellos.fec,
             hor=sellos.hor,
             su_referencia=request.su_referencia,
-            entidad=cabecera.entidad,
-            ctride=cabecera.ctride,
             obride=cabecera.obra.ide,
+            ctride=cabecera.ctride,
             almide=almide,
             cenide=cenide,
             empide=request.empide or self._settings.sigrid_albaran_empide,
             totales=totales,
+            cuo=cuo,
             referencia_externa=request.referencia_externa,
+        )
+        con = construir_con(
+            emp=cabecera.obra.emp, fec=sellos.fec, entres=dca["entres"],
+            su_referencia=request.su_referencia, tiemod=sellos.tiemod,
         )
         log = construir_log(emp=cabecera.obra.emp, usu=request.usu, res=con["res"], sellos=sellos)
         return _Construido(
             filas=FilasAlbaran(con=con, dca=dca, dcapro=dcapro, ctrprodes=ctrprodes,
-                               mov=movimientos, log=log),
+                               mov=movimientos, log=log, dcarec=dcarec),
             balances={linea.indice: b for linea, b in zip(con_mov, balances)},
-            totales=totales,
+            # F-015 R17: el neto (`dca.tot`) y la retencion, 0 sin `dcarec`.
+            totales={**totales, "tot": dca["tot"], "retenciones": float(cuo),
+                     "n_retenciones": len(dcarec)},
+            avisos=avisos,
         )
 
     @staticmethod
@@ -878,9 +1021,13 @@ class CreateAlbaranCompraUseCase:
 
         # L14: el cod y los ide de la previa, sin reservar.
         _c, maximo = self._leer(request, sentencias.ultimo_cod(cabecera.obra.emp, sellos.prefijo))
+        # F-015 R20: la `dcarec`, solo si la hay.
+        tablas = ("con", "dcapro", "ctrprodes", "mov", "log") + (
+            ("dcarec",) if construido.filas.dcarec else ()
+        )
         peek = {
             tabla: self._repo.peek_next_ide(database=request.database, table=tabla)
-            for tabla in ("con", "dcapro", "ctrprodes", "mov", "log")
+            for tabla in tablas
         }
         filas = numerar(
             construido.filas,
@@ -890,15 +1037,19 @@ class CreateAlbaranCompraUseCase:
             ide_ctrprodes=peek["ctrprodes"],
             ide_mov=peek["mov"],
             ide_log=peek["log"],
+            ide_dcarec=peek.get("dcarec"),
         )
         return self._respuesta(
             request,
             cabecera,
             lineas,
-            _Construido(filas=filas, balances=construido.balances, totales=construido.totales),
+            replace(construido, filas=filas),
             estado="previsto",
             estados=self._estados_previstos(cabecera, lineas),
-            avisos=[_aviso("cod_provisional", _AVISO_PROVISIONAL)],
+            avisos=[
+                _aviso("cod_provisional", _AVISO_PROVISIONAL), *cabecera.avisos,
+                *construido.avisos,
+            ],
         )
 
     @staticmethod
@@ -1000,6 +1151,16 @@ class CreateAlbaranCompraUseCase:
             avisos=avisos,
             filas=filas.como_dict(),
         )
+
+
+def _aviso_retencion(ctrrec: Mapping[str, Any], bas: Decimal, cuo: Decimal) -> AvisoAlbaran:
+    """F-015 R16: informativo, con el codigo del recargo, el porcentaje, `bas` y `cuo`."""
+    porcentaje = format((Decimal(repr(float(ctrrec["valpor"]))) * 100).normalize(), "f")
+    return _aviso(
+        "retencion_del_contrato",
+        f"El contrato lleva el recargo {str(ctrrec['cod'] or '').strip()} ({porcentaje} %): "
+        f"se retienen {cuo:.2f} sobre {bas:.2f} y el neto (tot) es totdoc menos la retencion.",
+    )
 
 
 def _ejecutar(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:

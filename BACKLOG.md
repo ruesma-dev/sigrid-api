@@ -5,6 +5,8 @@
 
 Resumen: **15 features**, 6 abiertas, 9 terminadas.
 
+En curso: **F-015**.
+
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
@@ -14,7 +16,7 @@ Resumen: **15 features**, 6 abiertas, 9 terminadas.
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
-| F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | pendiente | critico | `feature/F-015-albaran-plantilla-y-retencion` |
+| F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | en curso | critico | `feature/F-015-albaran-plantilla-y-retencion` |
 
 ## Terminadas
 
@@ -64,7 +66,7 @@ Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F
 
 ### F-015 · El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato
 
-estado **pendiente** · prioridad 15 · rigor `critico` · SDD sí · rama `feature/F-015-albaran-plantilla-y-retencion`
+estado **en curso** · prioridad 15 · rigor `critico` · SDD sí · rama `feature/F-015-albaran-plantilla-y-retencion`
 
 Alta del 2026-10-18 a petición del humano: O1 y O2 medidos por la spec de F-007 (progress/explore_F-007.md §M10 y §M14, en la rama feature/F-007-registrar-proforma). F-009 está desplegada con SIGRID_ALBARAN_WRITE_ENABLED=true y la usará F-053 de albaranes en real: conviene cerrarla antes. O1: la plantilla de cabecera (L5 de F-009, último dca del proveedor sin filtrar serie) es una proforma PROF<aa>/ en 17 de 831 proveedores con AC26; el albarán nacería con dca.cla 141, docoritip/docoriide, ivadif y campos de facturación de la proforma. O2: F-009 no escribe dcarec; el 88,5 % de los AC26 de contratos con ctrrec la llevan (RET5: bas = totbas, cuo = round(bas·valpor, 2), dca.tot = totdoc − cuo). La spec decide de dónde sale la plantilla (solo serie AC, sercon 87) y cómo se copia la retención del contrato (ctrrec → dcarec, cueide/valpor/pos), mide los casos raros (4,6 % con cueide distinto, retenciones sobre total) y deja a verificación del humano lo que solo se ve en la UI. Toca el contrato con albaranes (§2-§4 congelado): avisar a la sesión de albaranes ANTES de cambiarlo.
 

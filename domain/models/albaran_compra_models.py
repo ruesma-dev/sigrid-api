@@ -45,7 +45,11 @@ CODIGOS_CABECERA: frozenset[str] = frozenset(
         "contrato_no_encontrado",
         "contrato_ambiguo",
         "usuario_no_valido",
-        "proveedor_sin_albaran_previo",
+        # F-015: sin contrato ni albaran anterior por CIF, el `prv` (R7); el
+        # recargo del contrato que no se sabe calcular (R14).
+        "proveedor_no_encontrado",
+        "proveedor_ambiguo",
+        "retencion_no_soportada",
         "estado_inicial_no_encontrado",
         "almacen_de_obra_no_resuelto",
         "colision_de_clave",
@@ -82,6 +86,10 @@ CODIGOS_AVISO: frozenset[str] = frozenset(
         "servido_negativo",
         "stock_negativo",
         "cod_provisional",
+        # F-015, de cabecera e informativos: pago o banco sin fuente (R5, D12) y
+        # la retencion del contrato escrita (R16).
+        "cabecera_sin_dato",
+        "retencion_del_contrato",
     }
 )
 

@@ -11,21 +11,30 @@ como `?` (R31); al construirse la clase valida TODAS las constantes con
 generarse.
 
 Las sentencias son las de `specs/F-009-alta-albaran-compra/design.md`
-§Sentencias en su v8.1 (sin L12b, L12c ni E7b). `con`, `dca` y `dcapro` se
-CLONAN de su plantilla (`SELECT *`, como el modo clasico): sus columnas son las
-de la fila, cada una validada como identificador y entre corchetes; `mov`,
-`ctrprodes` y `log` tienen columnas fijas (las del clasico y las de F-006).
+§Sentencias (sin L12b, L12c ni E7b) con los cambios de F-015 (contrato con
+albaranes v8.3): L5 pasa a respaldo opcional y hay sentencias nuevas, L16
+(`ctrrec` del contrato), L17 (`prv` por CIF), E6b (`ide` de la `dcarec`) y
+E12_DCAREC (su relectura). Solo `dcapro` se CLONA de su plantilla
+(`_TABLAS_CLONADAS`, `SELECT *` como el modo clasico: sus columnas son las de
+la fila, cada una validada como identificador y entre corchetes). `con` y
+`dca` se construyen por lista blanca, columna a columna, con columnas fijas
+(`CON_COLUMNAS`, `DCA_COLUMNAS`), igual que la `dcarec` (`DCAREC_COLUMNAS`),
+`mov`, `ctrprodes` y `log` (las del clasico y las de F-006).
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from application.use_cases.concepto_grafico_statements import hora_local_de_madrid
-from application.use_cases.parte_reclamacion_statements import LOG_COLUMNAS
+from application.use_cases.parte_reclamacion_statements import (
+    CON_COLUMNAS,
+    LOG_COLUMNAS,
+    fecha_ole_utc,
+)
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 from infrastructure.security.identifier_guard import IdentifierGuard
 
@@ -34,6 +43,13 @@ TIP_ALBARAN = 14
 TIP_CONTRATO = 44
 TIP_OBRA = 42
 TIP_PRODUCTO = 3
+TIP_PROVEEDOR = 5
+
+#: Respaldo de la cabecera (F-015 R6, M1, M25): un `AC<aa>/` de clase 0 cuya
+#: referencia no empieza por `PROF`. Nunca una proforma ni una nota de cargo.
+PATRON_SERIE_RESPALDO = "AC__/%"
+CLA_ALBARAN = 0
+PATRON_PROFORMA = "PROF%"
 
 #: Prefijo de la serie del albaran de compra: `AC<aa>/` del anio de la fecha.
 PREFIJO_SERIE = "AC"
@@ -47,7 +63,8 @@ EST_INICIAL = 1
 
 #: Applocks de la transaccion, SIEMPRE en este orden (design §Applocks): los
 #: cuatro del medio, como el clasico y `albaran-directo`; F-006 toma `_con` y
-#: `_log` en el mismo orden, asi que no hay orden inverso posible.
+#: `_log` en el mismo orden, asi que no hay orden inverso posible. F-015 R21:
+#: `SIGRID_IDE_dcarec` entre `_mov` y `_log`; nadie mas lo toma.
 APPLOCKS: tuple[str, ...] = (
     "SIGRID_REFEXT_14",
     "SIGRID_SERIE_14",
@@ -55,6 +72,7 @@ APPLOCKS: tuple[str, ...] = (
     "SIGRID_IDE_dcapro",
     "SIGRID_IDE_ctrprodes",
     "SIGRID_IDE_mov",
+    "SIGRID_IDE_dcarec",
     "SIGRID_IDE_log",
 )
 
@@ -71,21 +89,124 @@ CTRPRODES_COLUMNAS: tuple[str, ...] = (
     "lindeside", "ctrproactide",
 )
 
+# --- Lista blanca de la cabecera `dca` (F-015 R1-R9, design §Lista blanca) ----------
+
+#: Las 145 columnas de `dca`, en el orden fisico del esquema vivo (F-015 M17).
+#: El `INSERT` lleva estas y solo estas: una columna nueva de Sigrid no se copia
+#: de ninguna fila leida (D6).
+DCA_COLUMNAS: tuple[str, ...] = (
+    "ide", "cla", "entide", "entcod", "entres", "entref", "entcif", "ivareq", "facper", "fecdoc",
+    "fecpag", "hor", "eioide", "eiotex", "eitide", "eittra", "pagide", "pagtex", "pagfor", "efeide",
+    "cueide", "impbru", "impnet", "impdes", "imprec", "totbas", "totiva", "totdoc", "tot", "totpag",
+    "cenide", "caaide", "almide", "ivaide", "tex", "bul", "pes", "volum", "empide", "ageide",
+    "ageimp", "obride", "ctride", "fecent", "feclim", "fecrec", "diremp1", "dircon1", "dirdir1",
+    "diremp2", "dircon2", "dirdir2", "diremp3", "dircon3", "dirdir3", "estser", "estfac",
+    "antestser", "antestfac", "ivadif", "docoritip", "docoriide", "comide", "pasdeside", "pasori",
+    "divcod", "divcam", "emppreide", "empconide", "docrelide", "cocide", "paclis", "tipsininv",
+    "prmide", "estped", "antestped", "empcif", "cveide", "alqide", "alqfec", "pexide", "divcamfec",
+    "ctdide", "totbasdiv", "totivadiv", "totdocdiv", "totdiv", "totpagdiv", "cypnatide", "refarc",
+    "emptex", "horlim", "pdpide", "ano", "mes", "texent", "refcom", "emnet", "eg3w", "dtumID",
+    "cptide", "eleenvio", "tipisp", "delide", "banide", "banban", "bansuc", "bandig", "bancue",
+    "ban", "bantipide", "entciftip", "entcifpai", "aoside", "PFID", "cadcod1", "caddir1",
+    "cadcod2", "caddir2", "cadcod3", "caddir3", "cadcod4", "caddir4", "cpapai", "cpaban", "cpasuc",
+    "cpaswi", "cpatip", "cpadiv", "cpacue1", "cpacue2", "ppoide", "fecfac", "horfac", "idefac",
+    "clabieser", "facoriide", "duaide", "numregcon", "fas", "periodo", "tipctr", "tipgar",
+    "impavr", "synckey",
+)
+
+#: Las de texto (`varchar`/`text`, M17): su vacio es `''`; el de las demas, 0.
+_DCA_TEXTO: frozenset[str] = frozenset({
+    "entcod", "entres", "entref", "entcif", "eiotex", "eittra", "pagtex", "pagfor", "tex",
+    "diremp1", "diremp2", "diremp3", "dircon1", "dircon2", "dircon3", "dirdir1", "dirdir2",
+    "dirdir3", "divcod", "paclis", "empcif", "refarc", "emptex", "texent", "refcom", "dtumID",
+    "eleenvio", "bandig", "bancue", "ban", "entciftip", "entcifpai", "PFID", "cadcod1", "cadcod2",
+    "cadcod3", "cadcod4", "cpapai", "cpaban", "cpasuc", "cpaswi", "cpatip", "cpadiv", "cpacue1",
+    "cpacue2", "numregcon", "periodo", "synckey",
+})
+
+#: Identidad del proveedor (R4): del `ctr` con contrato; sin el, del respaldo
+#: (mismo nombre) y, sin respaldo, del `prv` de L17 con ESTE nombre (`cod` es el
+#: `con.cod` del proveedor, que da L17).
+DCA_IDENTIDAD: dict[str, str] = {
+    "entide": "ide", "entcod": "cod", "entres": "raz", "entcif": "cif",
+    "entciftip": "tipcif", "entcifpai": "cifpai",
+}
+
+#: Grupos de la cascada que salen enteros de un mismo origen (R3).
+GRUPO_PAGO: tuple[str, ...] = ("pagide", "pagtex", "pagfor", "efeide")
+GRUPO_BANCO: tuple[str, ...] = ("banban", "bansuc", "bandig", "bancue", "ban", "bantipide")
+
+#: Cascada contrato -> respaldo -> proveedor (R3, D2): columna de `dca` -> la del
+#: `prv` que la trae (`None`: el `prv` no la tiene; `pagtex`/`pagfor` salen del
+#: `auxpag` de su `pagide`, `PAGO_DEL_AUXPAG`).
+DCA_CASCADA: dict[str, str | None] = {
+    "pagide": "pagide", "pagtex": None, "pagfor": None, "efeide": "efeide",
+    "banban": "banban", "bansuc": "bansuc", "bandig": "bandig", "bancue": "bancue",
+    "ban": "ban", "bantipide": "bantipide",
+    "cueide": "cueide", "eioide": "eioide", "dirdir1": "dir", "dircon1": None, "ivadif": None,
+}
+PAGO_DEL_AUXPAG: dict[str, str] = {"pagtex": "res", "pagfor": "formul"}
+
+#: Efectos (`auxefp.cod`) en los que el banco es imprescindible: confirming y
+#: transferencia (F-015 R5, M22, D12). Sin banco de ningun origen, aviso.
+EFECTOS_CON_BANCO: frozenset[str] = frozenset({"CC", "CT", "TR"})
+
+#: De la peticion, la obra o un calculo (R8, R13), nunca de una fila leida.
+DCA_CALCULADAS: tuple[str, ...] = (
+    "ide", "entref", "fecdoc", "hor", "obride", "ctride", "almide", "cenide", "empide",
+    "synckey", "impbru", "impnet", "totbas", "totiva", "totdoc", "tot", "totpag", "diremp1",
+)
+
+
+def _valor_fijo(columna: str) -> Any:
+    """R9 (M18, D7): lo que deja el alta a mano en una columna que nadie trae."""
+    if columna == "tipgar":
+        return -1
+    if columna == "emptex":
+        return None
+    return "" if columna in _DCA_TEXTO else 0
+
+
+#: Las demas columnas, con el valor fijo del alta a mano (R9).
+DCA_FIJAS: dict[str, Any] = {
+    columna: _valor_fijo(columna)
+    for columna in DCA_COLUMNAS
+    if columna not in DCA_IDENTIDAD and columna not in DCA_CASCADA and columna not in DCA_CALCULADAS
+}
+
+#: Columna -> origen, derivado de los cuatro grupos y en el orden de `DCA_COLUMNAS`.
+ORIGEN_DCA: dict[str, str] = {
+    columna: (
+        "identidad" if columna in DCA_IDENTIDAD
+        else "cascada" if columna in DCA_CASCADA
+        else "calculada" if columna in DCA_CALCULADAS
+        else "fija"
+    )
+    for columna in DCA_COLUMNAS
+}
+
 #: Tablas que se clonan de una plantilla y cuyo `INSERT` lleva las columnas de
-#: la fila. Ninguna otra se escribe asi.
-_TABLAS_CLONADAS = frozenset({"con", "dca", "dcapro"})
+#: la fila. Ninguna otra se escribe asi: desde F-015, `con` y `dca` van por lista
+#: blanca con columnas fijas (D6).
+_TABLAS_CLONADAS = frozenset({"dcapro"})
 
 # --- Lecturas (con credenciales de lectura) -------------------------------------
 # `{marcadores}` es la lista `(?, ?, ...)` de un `IN`; nunca lleva valores.
 
 L1_OBRA = "SELECT ide, emp, cod FROM dbo.con WHERE tip = ? AND cod = ?"
-L5_PLANTILLA_POR_ENTIDE = (
+L5_RESPALDO_POR_ENTIDE = (
     "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-    "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? ORDER BY c.ide DESC"
+    "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? AND c.cod LIKE ? AND d.cla = ? "
+    "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
 )
-L5_PLANTILLA_POR_CIF = (
+L5_RESPALDO_POR_CIF = (
     "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-    "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? ORDER BY c.ide DESC"
+    "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? AND c.cod LIKE ? AND d.cla = ? "
+    "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
+)
+L17_PROVEEDOR_POR_CIF = (
+    "SELECT v.ide, c.cod FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.fecbaj = ? AND v.cif = ?"
 )
 L6_PARTIDAS = (
     "SELECT ide, cod, tip, tipdes, tipvis FROM dbo.obrparpar WHERE obride = ? AND cod IN {marcadores}"
@@ -104,13 +225,27 @@ L9_TASAS_IVA = "SELECT ide, iva FROM dbo.iva WHERE ide IN {marcadores}"
 L10_ALMACEN_DE_OBRA = "SELECT almide, cenide FROM dbo.obr WHERE ide = ?"
 L10_ALMACENES = "SELECT ide, obride, cenide FROM dbo.alm WHERE obride = ?"
 L10_ALMACENES_RESUELTOS = " OR ide IN {marcadores}"
+#: F-015 R18: con el `tot` (neto de la retencion) al final.
 L11_REFERENCIA = (
-    "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc FROM dbo.dca d "
-    "JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
+    "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc, d.tot "
+    "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
 )
 L11_LINEAS = (
     "SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro "
     "WHERE docide = ? ORDER BY pos"
+)
+#: L16 (F-015 R12, R14): los recargos del contrato con la clase de su `rec` (NULL
+#: si el `recide` no esta en `dbo.rec`) y el `cod` del recargo, para el aviso.
+L16_RETENCIONES = (
+    "SELECT r.ide, r.recide, r.pos, r.valdef, r.valpor, r.valcan, r.valmod, r.valfij, "
+    "r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item, x.cla, c.cod FROM dbo.ctrrec r "
+    "LEFT JOIN dbo.rec x ON x.ide = r.recide LEFT JOIN dbo.con c ON c.ide = r.recide "
+    "WHERE r.docide = ? ORDER BY r.pos, r.ide"
+)
+#: Nombres de las columnas de L16, en su orden.
+L16_COLUMNAS: tuple[str, ...] = (
+    "ide", "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla",
+    "cueide", "ivaide", "tex", "resalt", "item", "cla", "cod",
 )
 L12_BALANCE = (
     "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? "
@@ -145,6 +280,8 @@ E3_IDE_CON = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.con WITH (UPDLOCK, HOLDLOC
 E4_IDE_DCAPRO = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcapro WITH (UPDLOCK, HOLDLOCK)"
 E5_IDE_CTRPRODES = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.ctrprodes WITH (UPDLOCK, HOLDLOCK)"
 E6_IDE_MOV = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.mov WITH (UPDLOCK, HOLDLOCK)"
+#: F-015 R21: el `ide` de la `dcarec`, solo si el albaran la lleva.
+E6B_IDE_DCAREC = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.dcarec WITH (UPDLOCK, HOLDLOCK)"
 E7_BALANCE = (
     "SELECT TOP 1 almcan, almpma FROM dbo.mov WITH (UPDLOCK, HOLDLOCK) "
     "WHERE proide = ? AND almide = ? ORDER BY fechor DESC, ide DESC"
@@ -159,6 +296,8 @@ E12_DCAPRO = "SELECT COUNT(*) FROM dbo.dcapro WHERE docide = ?"
 E12_CTRPRODES = "SELECT COUNT(*) FROM dbo.ctrprodes WHERE docdeside = ? AND docdestip = ?"
 E12_MOV = "SELECT COUNT(*) FROM dbo.mov WHERE docide = ? AND doctip = ?"
 E12_LOG = "SELECT COUNT(*) FROM dbo.log WHERE ide = ?"
+#: F-015 R23: las `dcarec` del albaran (0 o 1).
+E12_DCAREC = "SELECT COUNT(*) FROM dbo.dcarec WHERE docide = ?"
 
 
 def _marcadores(n: int) -> str:
@@ -247,6 +386,89 @@ def usa_precio_del_contrato(cantidad: float, precio: float, pre_contrato: float)
 #: cualquier cantidad real de Sigrid (se manejan con 2-3 decimales) y muy por
 #: encima del residuo binario de sumar cantidades decimales (~1e-16 a 1e-12).
 EPSILON_STOCK = 1e-6
+
+
+# --- Retencion del contrato (F-015 O2, R12-R16) -------------------------------------
+
+#: Clase del `rec` -> total de la cabecera que es la base de la retencion (M12):
+#: retencion (5) e IRPF (3) sobre la base; la de clase 4, sobre el total.
+CLASES_RETENCION_BASE: dict[int, str] = {5: "totbas", 3: "totbas", 4: "totdoc"}
+
+
+class RetencionNoSoportada(ValueError):
+    """R14: el recargo del contrato no se sabe calcular; el motivo, en el texto."""
+
+
+def resolver_retencion(filas_ctrrec: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    """
+    R12, R14 (M11): el UNICO `ctrrec` del contrato, si se sabe calcular, o
+    `None` sin ninguno. Mas de uno, uno sin recargo (`recide` 0) o con un
+    `recide` que no esta en `dbo.rec`, de una clase fuera de
+    `CLASES_RETENCION_BASE`, con `valfij`, con `ivaide` o sin porcentaje (`valpor`
+    NULL, que R15 no sabe multiplicar) -> `RetencionNoSoportada`.
+    """
+    if not filas_ctrrec:
+        return None
+    if len(filas_ctrrec) > 1:
+        raise RetencionNoSoportada(f"El contrato tiene {len(filas_ctrrec)} recargos.")
+    fila = filas_ctrrec[0]
+    if not fila["recide"]:
+        raise RetencionNoSoportada("El recargo del contrato esta vacio (sin recargo).")
+    if fila["cla"] is None:
+        raise RetencionNoSoportada(f"El recargo {fila['recide']} no esta en dbo.rec.")
+    if int(fila["cla"]) not in CLASES_RETENCION_BASE:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} es de clase {fila['cla']}.")
+    if fila["valfij"]:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva valfij {fila['valfij']}.")
+    if fila["ivaide"]:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva ivaide {fila['ivaide']}.")
+    if fila["valpor"] is None:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} no lleva valpor (sin porcentaje).")
+    return fila
+
+
+#: Las 21 columnas de `dbo.dcarec`, en su orden fisico (M14).
+DCAREC_COLUMNAS: tuple[str, ...] = (
+    "ide", "docide", "recide", "pos", "bas", "valdef", "valpor", "valcan", "valmod", "valfij",
+    "cuo", "tex", "reccla", "cueide", "ivaide", "ivacuo", "reqcuo", "refide", "resalt",
+    "frasupide", "item",
+)
+
+#: Lo que la `dcarec` copia del `ctrrec` (M11).
+_DCAREC_DEL_CTRREC: tuple[str, ...] = (
+    "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla", "cueide",
+    "ivaide", "tex", "resalt", "item",
+)
+
+
+def calcular_retencion(
+    ctrrec: Mapping[str, Any], totales: Mapping[str, float]
+) -> tuple[Decimal, Decimal]:
+    """R15 (M12): `bas` = `totbas` (clases 5 y 3) o `totdoc` (clase 4) y `cuo` =
+    `redondear_euros(bas * valpor)`, en `Decimal` y lejos del cero tambien en
+    negativo (devoluciones). Solo para un `ctrrec` ya resuelto (R14)."""
+    bas = redondear_euros(totales[CLASES_RETENCION_BASE[int(ctrrec["cla"])]])
+    return bas, redondear_euros(bas * _decimal(ctrrec["valpor"]))
+
+
+def construir_dcarec(ctrrec: Mapping[str, Any], *, bas: Decimal, cuo: Decimal) -> dict[str, Any]:
+    """R13: la `dcarec` del albaran, copia del `ctrrec` (M11) con `bas` y `cuo`
+    de R15 y lo propio de la factura a 0 (M13). Sin `ide` ni `docide`: los pone
+    `numerar`."""
+    fila: dict[str, Any] = {columna: ctrrec[columna] for columna in _DCAREC_DEL_CTRREC}
+    fila.update(
+        {
+            "ide": None,
+            "docide": None,
+            "bas": float(bas),
+            "cuo": float(cuo),
+            "ivacuo": 0,
+            "reqcuo": 0,
+            "refide": 0,
+            "frasupide": 0,
+        }
+    )
+    return {columna: fila[columna] for columna in DCAREC_COLUMNAS}
 
 
 @dataclass(frozen=True)
@@ -390,15 +612,6 @@ _RESETEO_SIN_VINCULAR: dict[str, Any] = {
     **dict.fromkeys(("tex", "texcom", "desesp", "cod2", "pac"), ""),
 }
 
-#: Totales de la cabecera que se pisan si la plantilla los trae: columna -> cual
-#: de `sumar_importes`. En compra nacional la divisa coincide con la base.
-_TOTALES_DCA = {
-    "impbru": "totbas", "impnet": "totbas", "totbas": "totbas", "totiva": "totiva",
-    "totdoc": "totdoc", "tot": "totdoc", "totpag": "totdoc",
-    "totbasdiv": "totbas", "totivadiv": "totiva", "totdocdiv": "totdoc",
-}
-
-
 @dataclass(frozen=True)
 class SellosAlbaran:
     """Los sellos de tiempo de UNA peticion, calculados una vez y fuera de la
@@ -409,6 +622,7 @@ class SellosAlbaran:
     fec_alta: int   # AAAAMMDD del alta en Madrid: mov.fec (N1), log.fec
     fechor: float   # fec_alta.hor del alta: mov.fechor (N1)
     prefijo: str    # AC<aa>/ del anio de `fec`
+    tiemod: float   # fecha OLE en UTC del alta: con.tiemod (F-015 R8, F-006)
 
 
 def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> SellosAlbaran:
@@ -422,72 +636,240 @@ def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> Sellos
         fec_alta=fec_alta,
         fechor=float(f"{fec_alta}.{hor:06d}"),
         prefijo=prefijo_de_serie(fec),
+        tiemod=fecha_ole_utc(instante_utc),
     )
 
 
 def construir_con(
-    plantilla: Mapping[str, Any], *, emp: int, fec: int, entres: str | None, su_referencia: str
+    *, emp: int, fec: int, entres: str | None, su_referencia: str, tiemod: float
 ) -> dict[str, Any]:
-    """`con` del albaran: clon de la plantilla de cabecera (L5) con `tip` 14,
-    `emp` de la obra, `res` = "<entres>. (<su_referencia>)" recortado, `fec` y
-    `est` 1 (R11, R22)."""
-    return {
-        **plantilla,
+    """`con` del albaran (F-015 R8): exactamente `CON_COLUMNAS` (F-006), sin
+    plantilla. `tip` 14, `emp` de la obra, `res` = "<entres>. (<su_referencia>)"
+    recortado, `fec`, `est` 1, `tiemod` del alta y el resto lo que deja el alta a
+    mano (M18): `tex` NULL, textos vacios y numeros a 0."""
+    fila: dict[str, Any] = {
         "ide": None,
         "emp": emp,
         "tip": TIP_ALBARAN,
+        "subtip": 0,
         "cod": None,
         "res": f"{entres or ''}. ({su_referencia})".strip()[:_LARGO_RES],
         "fec": fec,
+        "tex": None,
+        "cee": 0,
         "est": EST_INICIAL,
+        "fecbaj": 0,
+        "tiemod": tiemod,
+        "ico": "",
+        "delo": "",
+        "del": "",
+        "obr": "",
+        "doc": "",
+        "serie": 0,
+        "hor": 0,
     }
+    return {columna: fila[columna] for columna in CON_COLUMNAS}
+
+
+def _tiene_valor(valor: Any) -> bool:
+    """R3: «trae la columna» = ni NULL, ni 0, ni texto vacio (o de espacios)."""
+    if valor is None:
+        return False
+    if isinstance(valor, str):
+        return valor.strip() != ""
+    return valor != 0
+
+
+def _exigir(fila: Mapping[str, Any], columnas: Sequence[str], que: str) -> None:
+    """R10: a la fila le falta una columna que la lista toma de ella -> no se
+    construye nada (un cambio de esquema no se rellena a ciegas)."""
+    faltan = [columna for columna in columnas if columna not in fila]
+    if faltan:
+        raise ValueError(
+            f"A la fila de {que} le faltan columnas que la lista blanca toma de ella: "
+            f"{', '.join(faltan)}."
+        )
+
+
+#: Columnas que la lista toma del `prv` en la cascada (con su nombre en el `prv`).
+_CASCADA_DEL_PROVEEDOR: tuple[str, ...] = tuple(n for n in DCA_CASCADA.values() if n)
+
+
+def _origenes(
+    contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+) -> list[tuple[str, Mapping[str, Any]]]:
+    """La cascada en el orden del humano (D2): contrato -> respaldo -> proveedor."""
+    filas = (("contrato", contrato), ("respaldo", respaldo), ("proveedor", proveedor))
+    return [(nombre, fila) for nombre, fila in filas if fila is not None]
+
+
+def _en_el_origen(nombre: str, fila: Mapping[str, Any], columna: str) -> Any:
+    """La columna de `dca` en una fila de la cascada; del `prv`, con su nombre
+    (`None` si el `prv` no la tiene)."""
+    if nombre != "proveedor":
+        return fila[columna]
+    en_prv = DCA_CASCADA[columna]
+    return fila[en_prv] if en_prv else None
+
+
+def pago_del_proveedor(
+    contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+) -> bool:
+    """R3: el grupo pago sale del `prv` (y hay que leer su `auxpag`) si ni el
+    contrato ni el respaldo traen `pagide` y el `prv` si."""
+    for nombre, fila in _origenes(contrato, respaldo, proveedor):
+        _exigir(fila, ("pagide",), nombre)
+        if _tiene_valor(fila["pagide"]):
+            return nombre == "proveedor"
+    return False
+
+
+def resolver_cascada(
+    *,
+    contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+    pago_proveedor: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """
+    Las columnas de `dca` que salen de una fila leida (F-015 R3-R5, R10): la
+    identidad y la cascada, y las de cascada que ningun origen trae.
+
+    - identidad (R4): del `contrato`; sin el, del `respaldo` y, sin el, del
+      `proveedor` (`prv` mas el `cod` de L17) con los nombres de `DCA_IDENTIDAD`;
+    - cascada (R3): del primer origen con valor en el orden contrato -> respaldo
+      -> proveedor; el pago y el banco en grupo; del `prv`, `pagtex`/`pagfor` de
+      su `auxpag` (`pago_proveedor`); `ivadif` del contrato aunque sea 0;
+    - sin fuente (R5): el vacio del alta a mano, y la columna en la lista.
+
+    Una columna que la lista toma de una fila y no esta en ella -> `ValueError`
+    (R10): se comprueban todas, se usen o no.
+    """
+    origenes = _origenes(contrato, respaldo, proveedor)
+    for nombre, fila in origenes:
+        if nombre == "proveedor":
+            _exigir(fila, _CASCADA_DEL_PROVEEDOR, "proveedor")
+        else:
+            _exigir(fila, tuple(DCA_CASCADA), nombre)
+
+    # Identidad (R4).
+    if contrato is not None or respaldo is not None:
+        fuente, que = (contrato, "contrato") if contrato is not None else (respaldo, "respaldo")
+        _exigir(fuente, tuple(DCA_IDENTIDAD), que)
+        valores: dict[str, Any] = {columna: fuente[columna] for columna in DCA_IDENTIDAD}
+    else:
+        _exigir(proveedor, tuple(DCA_IDENTIDAD.values()), "proveedor")
+        valores = {columna: proveedor[en_prv] for columna, en_prv in DCA_IDENTIDAD.items()}
+
+    # Cascada (R3, R5).
+    sin_fuente: list[str] = []
+
+    def de_un_grupo(
+        columnas: tuple[str, ...], trae: Callable[[str, Mapping[str, Any]], bool]
+    ) -> None:
+        for nombre, fila in origenes:
+            if trae(nombre, fila):
+                for columna in columnas:
+                    valores[columna] = _de_la_cascada(nombre, fila, columna, pago_proveedor)
+                return
+        valores.update({columna: _valor_fijo(columna) for columna in columnas})
+        sin_fuente.extend(columnas)
+
+    de_un_grupo(GRUPO_PAGO, lambda nombre, fila: _tiene_valor(fila["pagide"]))
+    de_un_grupo(
+        GRUPO_BANCO,
+        lambda nombre, fila: _tiene_valor(fila["banban"]) or _tiene_valor(fila["ban"]),
+    )
+    for columna in DCA_CASCADA:
+        if columna in GRUPO_PAGO or columna in GRUPO_BANCO or columna == "ivadif":
+            continue
+        de_un_grupo(
+            (columna,),
+            lambda nombre, fila, columna=columna: _tiene_valor(_en_el_origen(nombre, fila, columna)),
+        )
+    # `ivadif` es una marca (D5): del contrato aunque sea 0; si no, del respaldo.
+    if contrato is not None or respaldo is not None:
+        valores["ivadif"] = (contrato if contrato is not None else respaldo)["ivadif"]
+    else:
+        valores["ivadif"] = _valor_fijo("ivadif")
+        sin_fuente.append("ivadif")
+    return valores, tuple(columna for columna in DCA_CASCADA if columna in sin_fuente)
 
 
 def construir_dca(
-    plantilla: Mapping[str, Any],
     *,
+    contrato: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+    pago_proveedor: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
     fec: int,
     hor: int,
     su_referencia: str,
-    entidad: Mapping[str, Any],
-    ctride: int,
     obride: int,
+    ctride: int,
     almide: int,
     cenide: int,
     empide: int,
     totales: Mapping[str, float],
+    cuo: Decimal,
     referencia_externa: str,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], tuple[str, ...]]:
     """
-    `dca` del albaran: clon de la plantilla (forma de pago, efecto y direccion
-    del proveedor, M14b) con los overrides del clasico, que solo pisan columnas
-    que la plantilla trae, mas `ctride` (0 sin contrato) y `synckey` (R21).
-    `entidad` lleva `entide` y, si no son `None`, `entcod`/`entres`/`entcif`.
-    Las columnas bancarias se escriben tal cual (H16).
+    `dca` del albaran por lista blanca (F-015 R1-R10): recorre `DCA_COLUMNAS` y
+    da a cada una el valor de su UNICO origen (`ORIGEN_DCA`), nunca una plantilla:
+    identidad y cascada de `resolver_cascada`; calculadas de la peticion, la obra
+    y los totales (R8, R13), con `tot` = `totpag` = `totdoc` - `cuo` y `diremp1` =
+    la `entres` escrita; y las fijas de `DCA_FIJAS` (R9).
+
+    Devuelve la fila y las columnas de cascada que ningun origen trae (R5).
     """
-    dca = dict(plantilla)
-    dca["ide"] = None
-    propios = {
-        "fecdoc": fec,
-        "hor": hor,
-        "entref": su_referencia,
-        "eioide": 1,
-        "entide": entidad["entide"],
-        "obride": obride,
-        "almide": almide,
-        "cenide": cenide,
-        "empide": empide,
-        **{columna: entidad[columna] for columna in ("entcod", "entres", "entcif")
-           if entidad.get(columna) is not None},
-        **{columna: totales[origen] for columna, origen in _TOTALES_DCA.items()},
-        **dict.fromkeys(("impdes", "imprec", "impdesdiv", "imprecdiv", "estser", "estfac"), 0),
-    }
-    for columna, valor in propios.items():
-        if columna in dca:
-            dca[columna] = valor
-    dca["ctride"] = ctride
-    dca["synckey"] = referencia_externa
-    return dca
+    valores, sin_fuente = resolver_cascada(
+        contrato=contrato, respaldo=respaldo, proveedor=proveedor, pago_proveedor=pago_proveedor
+    )
+
+    # Calculadas (R8, R13).
+    tot = float(_decimal(totales["totdoc"]) - cuo)
+    valores.update(
+        {
+            "ide": None,
+            "entref": su_referencia,
+            "fecdoc": fec,
+            "hor": hor,
+            "obride": obride,
+            "ctride": ctride,
+            "almide": almide,
+            "cenide": cenide,
+            "empide": empide,
+            "synckey": referencia_externa,
+            "impbru": totales["totbas"],
+            "impnet": totales["totbas"],
+            "totbas": totales["totbas"],
+            "totiva": totales["totiva"],
+            "totdoc": totales["totdoc"],
+            "tot": tot,
+            "totpag": tot,
+            "diremp1": valores["entres"],
+        }
+    )
+    valores.update(DCA_FIJAS)
+    return {columna: valores[columna] for columna in DCA_COLUMNAS}, sin_fuente
+
+
+def _de_la_cascada(
+    nombre: str, fila: Mapping[str, Any], columna: str, pago_proveedor: Mapping[str, Any] | None
+) -> Any:
+    """El valor de `columna` en el origen elegido; del `prv`, `pagtex`/`pagfor`
+    salen del `auxpag` de su `pagide`."""
+    if nombre == "proveedor" and columna in PAGO_DEL_AUXPAG:
+        if pago_proveedor is None:
+            raise ValueError("El pago sale del proveedor y no se ha leido su auxpag.")
+        _exigir(pago_proveedor, tuple(PAGO_DEL_AUXPAG.values()), "auxpag")
+        return pago_proveedor[PAGO_DEL_AUXPAG[columna]]
+    return _en_el_origen(nombre, fila, columna)
 
 
 def _base_de_linea(plantilla: Mapping[str, Any] | None, indice: int) -> dict[str, Any]:
@@ -722,7 +1104,8 @@ class FilasAlbaran:
     """
     Las filas de UN albaran. `ctrprodes` y `mov` van como `(i, fila)`, con `i`
     el indice de su `dcapro` en `dcapro`: de ahi salen `lindeside` y `linide`
-    al numerar (no todas las lineas tienen `ctrprodes` ni `mov`).
+    al numerar (no todas las lineas tienen `ctrprodes` ni `mov`). `dcarec`
+    (F-015 R13) es la retencion del contrato: vacia o una fila.
     """
 
     con: dict[str, Any]
@@ -731,6 +1114,7 @@ class FilasAlbaran:
     ctrprodes: list[tuple[int, dict[str, Any]]]
     mov: list[tuple[int, dict[str, Any]]]
     log: dict[str, Any]
+    dcarec: list[dict[str, Any]] = field(default_factory=list)
 
     def como_dict(self) -> dict[str, Any]:
         """`filas` de la respuesta (R23)."""
@@ -740,6 +1124,7 @@ class FilasAlbaran:
             "dcapro": self.dcapro,
             "ctrprodes": [fila for _, fila in self.ctrprodes],
             "mov": [fila for _, fila in self.mov],
+            "dcarec": self.dcarec,
             "log": self.log,
         }
 
@@ -753,6 +1138,7 @@ def numerar(
     ide_ctrprodes: int | None,
     ide_mov: int | None,
     ide_log: int | None,
+    ide_dcarec: int | None = None,
 ) -> FilasAlbaran:
     """
     Copia de `filas` con `cod`, los `ide` reservados y los enlaces puestos. No
@@ -760,11 +1146,16 @@ def numerar(
     `ide` de cada tabla son consecutivos desde el reservado; sin `ctrprodes` o
     sin `mov` no hace falta reservar (`None`). El commit numera `log` con
     `None` y le pone su `ide` al reservarlo, al final (E11b, como F-006).
+    La `dcarec` (F-015 R20) lleva el `ide` reservado y `docide` = `ide_con`.
     """
     if filas.ctrprodes and ide_ctrprodes is None:
         raise ValueError("Hay ctrprodes y no se ha reservado ide_ctrprodes.")
     if filas.mov and ide_mov is None:
         raise ValueError("Hay mov y no se ha reservado ide_mov.")
+    if filas.dcarec and ide_dcarec is None:
+        raise ValueError("Hay dcarec y no se ha reservado ide_dcarec.")
+    if len(filas.dcarec) > 1:
+        raise ValueError("Un albaran lleva como mucho una dcarec (F-015 R12).")
     ides_dcapro = [ide_dcapro + i for i in range(len(filas.dcapro))]
     return FilasAlbaran(
         con={**filas.con, "ide": ide_con, "cod": cod},
@@ -791,6 +1182,7 @@ def numerar(
             for k, (i, fila) in enumerate(filas.mov)
         ],
         log={**filas.log, "ide": ide_log, "cod": cod},
+        dcarec=[{**fila, "ide": ide_dcarec, "docide": ide_con} for fila in filas.dcarec],
     )
 
 
@@ -816,8 +1208,9 @@ class AlbaranCompraStatements:
         uno = _marcadores(1)
         return (
             L1_OBRA,
-            L5_PLANTILLA_POR_ENTIDE,
-            L5_PLANTILLA_POR_CIF,
+            L5_RESPALDO_POR_ENTIDE,
+            L5_RESPALDO_POR_CIF,
+            L17_PROVEEDOR_POR_CIF,
             L6_PARTIDAS.format(marcadores=uno),
             L7_PRODUCTOS.format(marcadores=uno),
             L7B_TIPMOV.format(marcadores=uno),
@@ -830,6 +1223,7 @@ class AlbaranCompraStatements:
             L11_REFERENCIA,
             L11_LINEAS,
             L12_BALANCE,
+            L16_RETENCIONES,
             L13A_ESTADO,
             L13B_USUARIO,
             L14_ULTIMO_COD,
@@ -841,9 +1235,13 @@ class AlbaranCompraStatements:
             E4_IDE_DCAPRO,
             E5_IDE_CTRPRODES,
             E6_IDE_MOV,
+            E6B_IDE_DCAREC,
             E7_BALANCE,
+            _insert_fijo("con", CON_COLUMNAS),
+            _insert_fijo("dca", DCA_COLUMNAS),
             _insert_fijo("ctrprodes", CTRPRODES_COLUMNAS),
             _insert_fijo("mov", MOV_COLUMNAS),
+            _insert_fijo("dcarec", DCAREC_COLUMNAS),
             E9_SERVIDO,
             E10_SUMAS_CONTRATO,
             E11_ESTADOS_CONTRATO,
@@ -854,6 +1252,7 @@ class AlbaranCompraStatements:
             E12_DCAPRO,
             E12_CTRPRODES,
             E12_MOV,
+            E12_DCAREC,
             E12_LOG,
         )
 
@@ -863,12 +1262,23 @@ class AlbaranCompraStatements:
         return L1_OBRA, [TIP_OBRA, cod]
 
     def leer_plantilla_cabecera(self, emp: int, entide: int) -> tuple[str, list[Any]]:
-        """L5: ultimo albaran del MISMO proveedor en la empresa de la obra (H3)."""
-        return L5_PLANTILLA_POR_ENTIDE, [TIP_ALBARAN, emp, entide]
+        """L5: el respaldo (F-015 R6), el ultimo albaran `AC` de clase 0 y sin
+        referencia de proforma del MISMO proveedor en la empresa de la obra (H3).
+        Opcional: sin filas no hay respaldo, ni error."""
+        return L5_RESPALDO_POR_ENTIDE, [
+            TIP_ALBARAN, emp, entide, PATRON_SERIE_RESPALDO, CLA_ALBARAN, PATRON_PROFORMA,
+        ]
 
     def leer_plantilla_cabecera_por_cif(self, emp: int, cif: str) -> tuple[str, list[Any]]:
         """L5 sin contrato: el proveedor se reconoce por `dca.entcif`."""
-        return L5_PLANTILLA_POR_CIF, [TIP_ALBARAN, emp, cif]
+        return L5_RESPALDO_POR_CIF, [
+            TIP_ALBARAN, emp, cif, PATRON_SERIE_RESPALDO, CLA_ALBARAN, PATRON_PROFORMA,
+        ]
+
+    def leer_proveedor_por_cif(self, emp: int, cif: str) -> tuple[str, list[Any]]:
+        """L17 (F-015 R7): los `prv` vivos con ese CIF en la empresa de la obra,
+        solo sin contrato ni respaldo por CIF."""
+        return L17_PROVEEDOR_POR_CIF, [TIP_PROVEEDOR, emp, 0, cif]
 
     def buscar_referencia(self, referencia: str) -> tuple[str, list[Any]]:
         """L11 (previa) y E1 (bajo el applock de referencias): la MISMA sentencia."""
@@ -876,6 +1286,10 @@ class AlbaranCompraStatements:
 
     def leer_lineas_de_albaran(self, docide: int) -> tuple[str, list[Any]]:
         return L11_LINEAS, [docide]
+
+    def leer_retenciones(self, ctride: int) -> tuple[str, list[Any]]:
+        """L16 (F-015 R12): los `ctrrec` del contrato, con o sin vinculadas."""
+        return L16_RETENCIONES, [ctride]
 
     def leer_estado_inicial(self) -> tuple[str, list[Any]]:
         return L13A_ESTADO, [TIP_ALBARAN, EST_INICIAL]
@@ -947,6 +1361,10 @@ class AlbaranCompraStatements:
     def reservar_ide_mov(self) -> tuple[str, list[Any]]:
         return E6_IDE_MOV, []
 
+    def reservar_ide_dcarec(self) -> tuple[str, list[Any]]:
+        """E6b (F-015 R21)."""
+        return E6B_IDE_DCAREC, []
+
     def reservar_balance(self, proide: int, almide: int) -> tuple[str, list[Any]]:
         return E7_BALANCE, [proide, almide]
 
@@ -976,12 +1394,6 @@ class AlbaranCompraStatements:
         )
         return self._validar(sql), list(fila.values())
 
-    def insertar_con(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
-        return self.insertar_clonada("con", fila)
-
-    def insertar_dca(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
-        return self.insertar_clonada("dca", fila)
-
     def insertar_dcapro(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self.insertar_clonada("dcapro", fila)
 
@@ -996,6 +1408,14 @@ class AlbaranCompraStatements:
             )
         return _insert_fijo(tabla, columnas), [fila[c] for c in columnas]
 
+    def insertar_con(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R1: `con` con `CON_COLUMNAS` (F-006), nunca las de una fila leida."""
+        return self._insertar_fija("con", CON_COLUMNAS, fila)
+
+    def insertar_dca(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R1: `dca` con las 145 de `DCA_COLUMNAS`."""
+        return self._insertar_fija("dca", DCA_COLUMNAS, fila)
+
     def insertar_ctrprodes(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self._insertar_fija("ctrprodes", CTRPRODES_COLUMNAS, fila)
 
@@ -1004,6 +1424,10 @@ class AlbaranCompraStatements:
 
     def insertar_log(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self._insertar_fija("log", LOG_COLUMNAS, fila)
+
+    def insertar_dcarec(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R13, R21: la retencion del contrato, con las 21 de `DCAREC_COLUMNAS`."""
+        return self._insertar_fija("dcarec", DCAREC_COLUMNAS, fila)
 
     # --- Medicion del contrato (E9-E11; solo con vinculadas, H31) -------------------
 
@@ -1038,3 +1462,7 @@ class AlbaranCompraStatements:
 
     def releer_log(self, ide: int) -> tuple[str, list[Any]]:
         return E12_LOG, [ide]
+
+    def releer_dcarec(self, docide: int) -> tuple[str, list[Any]]:
+        """E12 (F-015 R23)."""
+        return E12_DCAREC, [docide]

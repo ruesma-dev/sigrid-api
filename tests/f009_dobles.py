@@ -25,17 +25,23 @@ from types import SimpleNamespace
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    _DCA_TEXTO,
     CTRPRODES_COLUMNAS,
+    DCA_COLUMNAS,
+    DCAREC_COLUMNAS,
     LOG_COLUMNAS,
     MOV_COLUMNAS,
     AlbaranCompraStatements,
 )
+from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
 
 BD = "ruesma"
 OBRA = 5000
 CTR = 300
 ENTIDE = 77
 PLANTILLA_CABECERA = 15950
+#: `auxpag` de la forma de pago del proveedor (F-015: el pago sale del `prv`).
+AUXPAG_PRV = 31
 #: 08:15:30 UTC del 6 de octubre de 2026 = 10:15:30 en Madrid (CEST).
 AHORA = datetime(2026, 10, 6, 8, 15, 30, tzinfo=timezone.utc)
 
@@ -47,8 +53,10 @@ NOMBRES: dict[str, str] = {
     _S.leer_obra("x")[0]: "obra",
     _S.leer_plantilla_cabecera(1, 1)[0]: "plantilla_por_entide",
     _S.leer_plantilla_cabecera_por_cif(1, "x")[0]: "plantilla_por_cif",
+    _S.leer_proveedor_por_cif(1, "x")[0]: "proveedor_por_cif",
     _S.buscar_referencia("x")[0]: "referencia",
     _S.leer_lineas_de_albaran(1)[0]: "lineas_del_existente",
+    _S.leer_retenciones(1)[0]: "retenciones",
     _S.leer_estado_inicial()[0]: "conest",
     _S.leer_usuario("x")[0]: "usuario",
     _S.ultimo_cod(1, "x")[0]: "ultimo_cod",
@@ -70,11 +78,16 @@ NOMBRES: dict[str, str] = {
     _S.reservar_ide_dcapro()[0]: "ide_dcapro",
     _S.reservar_ide_ctrprodes()[0]: "ide_ctrprodes",
     _S.reservar_ide_mov()[0]: "ide_mov",
+    _S.reservar_ide_dcarec()[0]: "ide_dcarec",
     _S.reservar_balance(1, 1)[0]: "balance_bajo_bloqueo",
     _S.reservar_ide_log()[0]: "ide_log",
+    # F-015 R1: `con` y `dca`, columnas fijas.
+    _S.insertar_con(dict.fromkeys(CON_COLUMNAS))[0]: "insert_con",
+    _S.insertar_dca(dict.fromkeys(DCA_COLUMNAS))[0]: "insert_dca",
     _S.insertar_ctrprodes(dict.fromkeys(CTRPRODES_COLUMNAS))[0]: "insert_ctrprodes",
     _S.insertar_mov(dict.fromkeys(MOV_COLUMNAS))[0]: "insert_mov",
     _S.insertar_log(dict.fromkeys(LOG_COLUMNAS))[0]: "insert_log",
+    _S.insertar_dcarec(dict.fromkeys(DCAREC_COLUMNAS))[0]: "insert_dcarec",
     _S.sumar_servido(1, 1.0)[0]: "servido",
     _S.leer_sumas_contrato(1)[0]: "sumas_contrato",
     _S.actualizar_estados_contrato(1, 0, 0)[0]: "estados_contrato",
@@ -84,23 +97,23 @@ NOMBRES: dict[str, str] = {
     _S.releer_ctrprodes(1)[0]: "releer_ctrprodes",
     _S.releer_mov(1)[0]: "releer_mov",
     _S.releer_log(1)[0]: "releer_log",
+    _S.releer_dcarec(1)[0]: "releer_dcarec",
 }
 
 _IN = re.compile(r"IN \(\?(?:, \?)*\)")
 
 
 def nombre(sql: str) -> str:
-    """Nombre corto de una sentencia del constructor, o `AssertionError`. Los
-    `INSERT` de las tablas clonadas se reconocen por su cabecera; su SQL
-    completo lo fija carácter a carácter `test_f009_statements.py`."""
+    """Nombre corto de una sentencia del constructor, o `AssertionError`. El
+    `INSERT` de `dcapro`, la única tabla clonada desde F-015, se reconoce por su
+    cabecera; su SQL completo lo fija carácter a carácter `test_f009_statements.py`."""
     normalizado = _IN.sub("IN (?)", sql)
     if normalizado in NOMBRES:
         return NOMBRES[normalizado]
-    for tabla in ("dcapro", "dca", "con"):
-        if sql.startswith(f"INSERT INTO dbo.{tabla} ([") and sql == _S.insertar_clonada(
-            tabla, dict.fromkeys(_columnas_del_insert(sql))
-        )[0]:
-            return f"insert_{tabla}"
+    if sql.startswith("INSERT INTO dbo.dcapro ([") and sql == _S.insertar_clonada(
+        "dcapro", dict.fromkeys(_columnas_del_insert(sql))
+    )[0]:
+        return "insert_dcapro"
     raise AssertionError(f"sentencia inesperada: {sql}")
 
 
@@ -112,12 +125,51 @@ def _columnas_del_insert(sql: str) -> list[str]:
 # --- El ERP de mentira -------------------------------------------------------------
 
 
+def fila_completa(
+    columnas: tuple[str, ...], texto: frozenset[str] = frozenset(), **valores: Any
+) -> dict[str, Any]:
+    """F-015 T1: una fila con TODAS las `columnas`, los `valores` dados y el resto
+    vacías (`''` las de `texto`, 0 las demás). Un valor de una columna que no es
+    de la tabla hace fallar el test: así el doble no inventa columnas."""
+    sobran = set(valores) - set(columnas)
+    assert not sobran, f"columnas que no son de la tabla: {sorted(sobran)}"
+    return {c: valores.get(c, "" if c in texto else 0) for c in columnas}
+
+
+#: Las columnas de cascada de F-015 (contrato -> respaldo -> proveedor), vacías.
+_CASCADA_VACIA: dict[str, Any] = {
+    "pagide": 0, "pagtex": "", "pagfor": "", "efeide": 0, "banban": 0, "bansuc": 0,
+    "bandig": "", "bancue": "", "ban": "", "bantipide": 0, "cueide": 0, "eioide": 0,
+    "dirdir1": "", "dircon1": "", "ivadif": 0,
+}
+
+
 def ctr() -> dict[str, Any]:
+    """El contrato. F-015: trae la identidad y las columnas de cascada VACÍAS, así
+    que pago, banco, cuenta, envío y dirección salen del respaldo, como el clon de
+    F-009 y del clásico (R26)."""
     return {
         "ide": CTR, "obride": OBRA, "entide": ENTIDE, "entcod": "P0077",
-        "entres": "PROVEEDOR PRUEBA SL", "entcif": "B12345678", "almide": 70,
-        "cenide": 80, "estser": 0, "estfac": 0,
+        "entres": "PROVEEDOR PRUEBA SL", "entcif": "B12345678", "entciftip": "",
+        "entcifpai": "ES", "almide": 70, "cenide": 80, "estser": 0, "estfac": 0,
+        **_CASCADA_VACIA,
     }
+
+
+def prv(**valores: Any) -> dict[str, Any]:
+    """El `prv` del `entide` (F-015). Sus columnas de cascada, vacías por defecto:
+    la cascada no llega a él mientras el respaldo las traiga."""
+    return {
+        "ide": ENTIDE, "raz": "PROVEEDOR PRUEBA SL", "cif": "B12345678", "tipcif": "",
+        "cifpai": "ES", "pagide": 0, "efeide": 0, "banban": 0, "bansuc": 0, "bandig": "",
+        "bancue": "", "ban": "", "bantipide": 0, "cueide": 0, "eioide": 0, "dir": "",
+        **valores,
+    }
+
+
+def auxpag() -> dict[str, Any]:
+    return {"ide": AUXPAG_PRV, "cod": "P120", "res": "PAGARE 120 DIAS", "formul": "120",
+            "efeide": 13}
 
 
 def ctrpro() -> list[dict[str, Any]]:
@@ -138,19 +190,37 @@ def ctrpro() -> list[dict[str, Any]]:
 
 
 def con_plantilla() -> dict[str, Any]:
-    return {"ide": PLANTILLA_CABECERA, "emp": 1, "tip": 14, "cod": "AC26/15950",
-            "res": "PLANTILLA", "fec": 20260601, "est": 3, "usu": "viejo"}
+    """La `con` del albarán anterior, con sus 19 columnas (F-015: solo la lee el
+    clásico; el extendido construye la suya, R1)."""
+    return fila_completa(
+        CON_COLUMNAS, ide=PLANTILLA_CABECERA, emp=1, tip=14, cod="AC26/15950",
+        res="PLANTILLA", fec=20260601, tex=None, est=3, tiemod=46000.5, ico="", delo="",
+        **{"del": ""}, obr="", doc="",
+    )
 
 
-def dca_plantilla() -> dict[str, Any]:
-    return {
-        "ide": PLANTILLA_CABECERA, "fecdoc": 20260601, "hor": 101010, "entref": "vieja",
-        "eioide": 3, "entide": ENTIDE, "entcod": "P0077", "entres": "PROVEEDOR PRUEBA SL",
-        "entcif": "B12345678", "ctride": 999, "obride": 1, "almide": 1, "cenide": 1,
-        "empide": 1, "pagide": 12, "efeide": 13, "totbas": 5.0, "totiva": 1.0,
-        "totdoc": 6.0, "impdes": 1.0, "estser": 1, "estfac": 1, "synckey": "ALB-viejo",
-        "bancue": "ES12", "cpacue1": "ES34",
-    }
+def dca_plantilla(**valores: Any) -> dict[str, Any]:
+    """La `dca` del albarán anterior (el respaldo de F-015, la plantilla del
+    clásico), con sus 145 columnas: lo que debe heredarse (pago, efecto, banco,
+    `eioide` 1, el que fuerza el clásico) y lo que no (facturación, divisa,
+    `dtumID`, `tipgar` 0, M19)."""
+    return fila_completa(
+        DCA_COLUMNAS,
+        _DCA_TEXTO,
+        **{
+            "ide": PLANTILLA_CABECERA, "fecdoc": 20260601, "hor": 101010, "entref": "vieja",
+            "eioide": 1, "entide": ENTIDE, "entcod": "P0077", "entres": "PROVEEDOR PRUEBA SL",
+            "entcif": "B12345678", "entciftip": "", "entcifpai": "ES", "ctride": 999,
+            "obride": 1, "almide": 1, "cenide": 1, "empide": 1, "pagide": 12,
+            "pagtex": "PAGARE 90 DIAS", "pagfor": "90", "efeide": 13, "cueide": 14,
+            "dirdir1": "CALLE PRUEBA 1", "dircon1": "", "diremp1": "PROVEEDOR PRUEBA SL",
+            "totbas": 5.0, "totiva": 1.0, "totdoc": 6.0, "tot": 6.0, "totpag": 6.0,
+            "impdes": 1.0, "estser": 1, "estfac": 1, "synckey": "ALB-viejo", "banban": 21,
+            "bancue": "ES12", "cpacue1": "ES34", "fecfac": 20260615, "idefac": 123,
+            "totbasdiv": 5.0, "dtumID": "DOC-VIEJO", "tipgar": 0, "emptex": None, "tex": "",
+            **valores,
+        },
+    )
 
 
 def plantilla_dcapro(proide: int, **extra: Any) -> dict[str, Any]:
@@ -177,8 +247,12 @@ def lecturas_base() -> dict[str, Any]:
         "obra": [(OBRA, 1, "0404")],
         "plantilla_por_entide": [(PLANTILLA_CABECERA,)],
         "plantilla_por_cif": [(PLANTILLA_CABECERA,)],
+        # F-015 L17: el `prv` vivo del CIF (solo sin contrato ni respaldo por CIF).
+        "proveedor_por_cif": [(ENTIDE, "P0077")],
         "referencia": [],
         "lineas_del_existente": [],
+        # F-015 L16: el contrato del doble no tiene `ctrrec` (sin retención).
+        "retenciones": [],
         "conest": [(1,)],
         "usuario": [("prueba",)],
         "ultimo_cod": [(15952,)],
@@ -211,7 +285,8 @@ def lecturas_base() -> dict[str, Any]:
     }
 
 
-PEEK = {"con": 2900001, "dcapro": 8000001, "ctrprodes": 400001, "mov": 9000001, "log": 8488889}
+PEEK = {"con": 2900001, "dcapro": 8000001, "ctrprodes": 400001, "mov": 9000001, "log": 8488889,
+        "dcarec": 44001}
 
 RESERVAS: dict[str, Any] = {
     "reservar_cod": (15952,),
@@ -219,6 +294,7 @@ RESERVAS: dict[str, Any] = {
     "ide_dcapro": (8000011,),
     "ide_ctrprodes": (400011,),
     "ide_mov": (9000011,),
+    "ide_dcarec": (44011,),
     "ide_log": (8488899,),
     "sumas_contrato": (111.0, 33.0, 0.0),
 }
@@ -321,6 +397,8 @@ class RepositorioDoble:
             ("ctr", CTR): ctr(),
             ("con", PLANTILLA_CABECERA): con_plantilla(),
             ("dca", PLANTILLA_CABECERA): dca_plantilla(),
+            ("prv", ENTIDE): prv(),
+            ("auxpag", AUXPAG_PRV): auxpag(),
             **(filas or {}),
         }
         self.ctrpro_filas = ctrpro_filas if ctrpro_filas is not None else ctrpro()

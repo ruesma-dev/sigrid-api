@@ -37,6 +37,20 @@ vinculada (§2.2, §3.1, §3.2 y H14): `pre`, `tar` y `dto` del `ctrpro` solo si
 `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`; si no, `pre` = `tar` = `precio` y aviso
 `precio_distinto_del_contrato`; `tot` = `round(cantidad·pre, 2)`, que es siempre el importe aprobado. Sin cambios de
 forma, campos, códigos de error o aviso ni estados.
+**v8.3** (2026-10-24, **F-015 v2** de sigrid-api, aprobada por el humano; **acusada por albaranes el 2026-10-24**): la cabecera
+deja de clonarse de una plantilla. `con` y `dca` se construyen **columna a columna** (lista blanca: petición, obra,
+cálculo, valor fijo o la cascada **contrato → albarán anterior → proveedor**); el albarán anterior (respaldo) es
+**opcional** y nunca una proforma; facturación, cadena, divisa, fechas previstas y Documentum a 0. **Errores**: se retira
+`proveedor_sin_albaran_previo`; nuevos `proveedor_no_encontrado`, `proveedor_ambiguo` (sin contrato) y
+`retencion_no_soportada`. **Avisos** nuevos `cabecera_sin_dato` y `retencion_del_contrato`. **Retención del contrato**:
+una `dcarec` y el total neto (`totales.tot`, `retenciones`, `n_retenciones`; `filas.dcarec`). §2 sin cambios de forma;
+se corrige el origen de `usu`: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`; el adjunto (§7) usa el mismo `usu`. Detalle en
+`specs/F-015-albaran-plantilla-y-retencion/` y en el resumen `progress/t0_F-015_albaranes.md` de sigrid-api.
+Corrección de redacción de la v8.3 (2026-10-24, revisión de F-015; sin cambio de forma ni de códigos, no pide nuevo
+acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del proveedor por CIF, como ya decía §3.3) y
+§4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía). §3.3 añade a
+`retencion_no_soportada` el recargo sin porcentaje (`valpor` vacío), que antes acababa en un 500: mismo código,
+mismo mapeo.
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -60,6 +74,7 @@ estados (columnas «Origen en albaranes», «Qué hace sv9», «Estado en F-053�
 | Medición del líder en Sigrid (solo lectura, 2026-10-05): analítica de `dcapro` por vínculo y por (obra, producto genérico) | resultados en H10 |
 | Medición del líder en Sigrid (solo lectura, 2026-10-05/06) y correo del director de Administración y Control de Costes (2026-10-05): analítica por naturaleza, naturaleza de las sin vincular, `cod2` y enlace DNC | resultados en H10, H34 y H35 (v7.1) |
 | albaranes F-049 `specs/F-049-partida-de-la-lista/` y `progress/spec_F-049.md` | v4 (2026-10-03) |
+| sigrid-api `specs/F-015-albaran-plantilla-y-retencion/` y `progress/explore_F-015.md` | **v2** (2026-10-24, aprobada; v8.3 de este contrato) |
 | `azure-apps/sigrid_api.md` y `azure-apps/sigrid_tablas.md` (`con`, `dca`, `dcapro`, `ctrpro`, `ctrprodes`, `obrparpar`, `alm`, `obr`; en la v7.1 también `auxpronat`, `caa`, `dnc`, `dncpro`) | `f7da7cd` (v7.1: `02b647a`) |
 
 ---
@@ -186,9 +201,9 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 | `cod_contrato` | str \| null | no | ≤24 | `albaran_valuations.contrato_codigo` **siempre que la valoración tenga contrato**, también sin vinculadas (F-053 v6 R12; N4) | `dca.ctride` (0 sin contrato), `dcapro.docoricod` | Obligatorio si alguna línea trae `ctrpro_ide` (F-009 R6). **H31** cerrado: F-009 lo admite **sin** vinculadas (enlaza `dca.ctride`, plantilla y almacén del contrato, ningún `UPDATE` de medición) |
 | `referencia_externa` | str | sí | 1-128; prefijo `ALB-` | `"ALB-" + albaran_documents_merge.id` (document_id, 36) | `dca.synckey` (128) | Clave de idempotencia (F-009 R30). **H9** |
 | `su_referencia` | str | no (defecto `""`) | ≤128 | `albaran_documents_merge.numero_albaran` (VARCHAR 128) | `dca.entref` (128); `con.res` = `"<entres>. (<su_referencia>)"` recortado a 128 | F-053 R10: falta → `falta_numero_albaran` |
-| `usu` | str | **sí** (v3) | 1-24 | `ALTA_SIGRID_USUARIO` de sv9 (fijado en F-053 T0c, debe existir en `dbo.usu`) | `log.usu` de la fila de alta | **H1 cerrado**: F-053 v6 lo manda (R12) |
+| `usu` | str | **sí** (v3) | 1-24 | v8.3, lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`; sigrid-api solo recibe `usu` (debe existir en `dbo.usu`) | `log.usu` de la fila de alta | **H1 cerrado**: F-053 v6 lo manda (R12) |
 | `fecha_albaran` | int `AAAAMMDD` \| null | no (null = hoy, Madrid) | 19000101-29991231 | `albaran_documents_merge.fecha` (`AAAA-MM-DD`) → entero | `con.fec`, `dca.fecdoc`; prefijo de serie `AC<aa>/` | El `mov` se fecha en el alta, no aquí (N1). F-053 la manda siempre. Solo formato y rango: una fecha futura **no** se rechaza (v5.1: lo hace la app; **H19**) |
-| `empide` | int \| null | no | ≥1 | `ALTA_SIGRID_EMPIDE` o `null` | `dca.empide` | `null` ⇒ `SIGRID_ALBARAN_EMPIDE` (2425207 por defecto del código) |
+| `empide` | int \| null | no | ≥1 | `ALTA_SIGRID_EMPIDE` o `null` | `dca.empide` | `null` ⇒ `SIGRID_ALBARAN_EMPIDE` (2425207 por defecto del código). sigrid-api **no** lo deduce del `usu` (v8.3: no hay clave en Sigrid; lo resuelve albaranes en su F-069) |
 | `commit` | bool | no (`false`) | — | `false` en la previa; `true` en la grabación (solo modo real) | — | |
 | `lineas` | lista | sí | 1..`SIGRID_ALBARAN_MAX_LINEAS` | una por línea a registrar (§2.2) | `dcapro` ×N, `ctrprodes`, `mov` | Orden = `dcapro.pos` (64, 128…). **H22, H26** |
 
@@ -251,7 +266,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 8. Las decisiones de F-051 D3 (el botón «Almacén a todas» pisa también las líneas con partida), D5
    (el almacén elegido se pierde al revalorar; también el producto elegido, F-053 R42) y D7 (re-alcance
    de F-007) no cambian este contrato: sv9 manda lo que esté aprobado en el momento del alta.
-9. **Cabecera** (F-053 v6): `usu` = `ALTA_SIGRID_USUARIO` (H1); CIF normalizado (H21); `cod_contrato`
+9. **Cabecera** (F-053 v6; v8.3): `usu`: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO` (H1); CIF normalizado (H21); `cod_contrato`
    siempre que haya contrato (H31); fecha futura o de hace más de 365 días ⇒ `revisar` local
    (`fecha_no_plausible`, H19), sin llamar a sigrid-api.
 
@@ -276,12 +291,12 @@ Cabecera:
 | `referencia_externa` | str | eco de la petición | — |
 | `avisos` | `[{codigo, mensaje}]` | avisos de cabecera (§3.2) | por **código**, nunca por texto |
 | `warnings` | `[str]` | los `mensaje` de los avisos, en orden (cada texto tiene su código; **H27**, v5) | se ignoran |
-| `contrato` | obj | `ctride`, `obride`, `entide`, `almide`, `template_ide`… | informativo |
-| `cabecera` | obj | fila `dca` resultante **sin** columnas bancarias (`ban*`, `cpa*`; **H16**, v5) | no se guarda (F-053 v6 R16: solo `estado`, `con_ide`, `cod`, `avisos`, `lineas`, `totales`) |
-| `totales` | obj | `totbas`, `totiva`, `totdoc`, `n_lineas`… | panel de sv4 |
+| `contrato` | obj | `ctride`, `obride`, `entide`, `almide`, `template_ide` (v8.3: el `ide` del albarán anterior usado como respaldo, 0 sin él)… | informativo |
+| `cabecera` | obj | fila `dca` resultante **sin** columnas bancarias (`ban*`, `cpa*`; **H16**, v5). v8.3: las columnas de la lista blanca de F-015 | no se guarda (F-053 v6 R16: solo `estado`, `con_ide`, `cod`, `avisos`, `lineas`, `totales`) |
+| `totales` | obj | `totbas`, `totiva`, `totdoc`, `n_lineas`… v8.3: `tot` (neto: `totdoc` − retención), `retenciones` y `n_retenciones` (0 o 1); en `idempotente`, `tot` y `retenciones` | panel de sv4. `totdoc` sigue sin retención; el neto a pagar es `tot`; la comparación de la previa es por línea y no cambia |
 | `estados_contrato` | obj | `estser`/`estfac` antes y después, sumas | panel |
 | `movimientos` | `[obj]` | filas `mov` | — |
-| `filas` | obj | `con`, `dca` (sin bancarias), `dcapro[]`, `ctrprodes[]`, `mov[]`, `log` completas | no se guarda (F-053 v6 R16); **H16** |
+| `filas` | obj | `con`, `dca` (sin bancarias), `dcapro[]`, `ctrprodes[]`, `mov[]`, `log` completas; v8.3: `dcarec[]` (0 o 1) | no se guarda (F-053 v6 R16); **H16** |
 
 Cada elemento de `lineas[]`:
 
@@ -321,6 +336,8 @@ código en `ALTA_SIGRID_AVISOS_BLOQUEANTES` ⇒ `aviso_bloqueante`. Cualquiera �
 | `producto_sin_historico` | línea | producto sin `dcapro` previa en la empresa: cuenta/IVA a 0 | **bloqueante** (defecto de F-053) |
 | `sin_partida_en_linea_con_partida` | línea | vinculada sin `partida` cuyo `ctrpro` tiene partida (`paride` ≠ 0; v5.1) | informativo (**H12**, F-053 v6) |
 | `iva_de_otro_proveedor` | línea | sin vincular sin `dcapro` previa del producto con ese proveedor: cuenta e IVA de la última de otro (v5) | informativo (N8, aprobada; **H15**) |
+| `retencion_del_contrato` (v8.3) | cabecera | se escribe la `dcarec` del contrato: código del recargo, porcentaje, base y cuota en el mensaje | propuesta: informativo, **fuera** de `ALTA_SIGRID_AVISOS_BLOQUEANTES` (~89 % de los albaranes de contratos con retención) |
+| `cabecera_sin_dato` (v8.3) | cabecera | ni el contrato, ni el albarán anterior, ni el proveedor traen el pago, o el banco con efecto de confirming o transferencia: se escribe el vacío que deja el alta a mano y el mensaje nombra las columnas | propuesta: informativo; sv9 decide si lo hace bloqueante |
 | ~~`plantilla_de_otro_proveedor`~~ | — | **ya no existe** desde F-009 v3: es el error `proveedor_sin_albaran_previo` | **H25**: fuera del defecto de `ALTA_SIGRID_AVISOS_BLOQUEANTES` (F-053 v6: `["producto_sin_historico"]`) |
 
 ### 3.3. Errores: HTTP 400 con código
@@ -343,7 +360,10 @@ cabecera cortan antes de mirar las líneas.
 | `obra_ambigua` | cab. | >1 obra con ese código entre las empresas admitidas (con `[1]` no puede darse: índice único `(emp, tip, cod)`) | `no_admitido` | H2 resuelto |
 | `contrato_no_encontrado`, `contrato_ambiguo` | cab. | localizador `con.tip 44 + cod + obra + entcif` sin fila o con varias, o de otra obra | `no_admitido` | — |
 | `usuario_no_valido` | cab. | `usu` no está en `dbo.usu` | `error` | H1, H25 cerrados |
-| `proveedor_sin_albaran_previo` | cab. | el proveedor no tiene ningún albarán previo del que copiar la cabecera (sin *fallback*) | `no_admitido` (alta a mano) | — |
+| ~~`proveedor_sin_albaran_previo`~~ | — | **retirado en la v8.3**: sin albarán anterior el alta sigue con el contrato y el proveedor | quitar su mapeo | — |
+| `proveedor_no_encontrado` (v8.3) | cab. | sin contrato: ni albarán anterior por CIF ni ningún proveedor vivo con ese CIF en la empresa de la obra | propuesta: `no_admitido` | — |
+| `proveedor_ambiguo` (v8.3) | cab. | sin contrato ni albarán anterior por CIF: varios proveedores vivos con ese CIF en la empresa de la obra (4 CIF medidos) | propuesta: `no_admitido` | — |
+| `retencion_no_soportada` (v8.3) | cab. | el contrato tiene más de un recargo, o uno sin catálogo, de clase fuera de {3, 4, 5}, con valor fijo, con IVA o sin porcentaje (`valpor` vacío) (también en previa; 15 de 651 contratos) | propuesta: `no_admitido` («la retención del contrato no se puede calcular: alta a mano»); sin mapear, H25 la lleva a `error` | — |
 | `estado_inicial_no_encontrado` | cab. | `conest` sin `tip 14, est 1` | `error` | — |
 | `almacen_de_obra_no_resuelto` | cab. | línea sin vincular (con o sin partida), sin contrato, sin `obr.almide` y con 0 o 2 `alm` en la obra | `no_admitido` («alta a mano») | H13 cerrado |
 | `colision_de_clave` | cab. | alta simultánea del escritorio; reintentos agotados; ERP intacto | `error` (reintentable) | — |
@@ -383,22 +403,27 @@ código que va a `error`, gana `error`.
    líneas (`demasiadas_lineas`); prefijo (`referencia_no_permitida`). Con `commit:true`: llaves,
    credenciales y base (`escritura_albaranes_deshabilitada`, `base_de_datos_no_permitida`).
 2. **Cabecera** (lecturas): obra por `(tip 42, cod)` en las
-   empresas admitidas → contrato (localizador + esa obra) → plantilla de cabecera (último albarán **del
-   mismo proveedor en la empresa de la obra**) → idempotencia por `synckey` (sale ya con `idempotente`)
-   → `conest` y `usu`.
+   empresas admitidas → contrato (localizador + esa obra) → albarán anterior **opcional** (último `AC` de `cla 0`
+   en la empresa de la obra que no sea proforma: con contrato, del `entide` del contrato; sin él, por CIF) → solo
+   sin contrato ni albarán anterior, el proveedor por CIF (v8.3; `proveedor_no_encontrado`, `proveedor_ambiguo`) →
+   idempotencia por `synckey` (sale ya con `idempotente`) → `conest` y `usu` → con contrato, su
+   retención (`retencion_no_soportada`, v8.3).
 3. **Líneas**, todas, acumulando fallos: `ctrpro` del contrato; producto por `(emp, cod)` y lista
    blanca; partida entre las imputables de la obra, por `paride` si viene (o `paride` 0 sin partida);
    naturaleza (`naturaleza_no_valida`) y su cuenta analítica (`analitica_no_resuelta`); precio no negativo;
    almacén físico de toda sin vincular.
 4. Construcción y, si `commit`, transacción única bajo applocks (`SIGRID_REFEXT_14`,
-   `SIGRID_SERIE_14`, `SIGRID_IDE_con`, `_dcapro`, `_ctrprodes`, `_mov`, `_log`) con la idempotencia
+   `SIGRID_SERIE_14`, `SIGRID_IDE_con`, `_dcapro`, `_ctrprodes`, `_mov`, `_dcarec` (v8.3), `_log`) con la idempotencia
    **re-comprobada dentro**, `cod` e `ide` reservados con `UPDLOCK, HOLDLOCK`, reintento ante clave
    duplicada y relecturas antes del COMMIT.
 
 ### 4.2. Qué escribe (y nada más; F-009 R25, R31)
 
-`INSERT` de `con` (`tip 14`, `cod AC<aa>/n`, `est 1 PDT`, `res`, `fec`), `dca` (`synckey`, `entref`,
-`obride`, `ctride`, `almide`, `cenide`, `empide`, totales, descuentos a 0, `estser/estfac` 0),
+`INSERT` de `con` (`tip 14`, `cod AC<aa>/n`, `est 1 PDT`, `res`, `fec`, `tiemod`), `dca` (v8.3: columna a columna;
+`synckey`, `entref`, `obride`, `ctride`, `almide`, `cenide`, `empide`, totales y `tot` neto; la identidad entera del
+contrato, aunque venga vacía (sin él, del albarán anterior y, sin él, del proveedor); pago, efecto,
+banco, cuenta, condición de envío y dirección por contrato → albarán anterior → proveedor; facturación, cadena, divisa y
+fechas previstas a 0), `dcarec` ×0-1 (v8.3, la retención del contrato),
 `dcapro` ×N (con `refent` = `referencia_linea`), `ctrprodes` ×M (vinculadas), `mov` ×K (productos con
 `pro.tipmov` = 1, M9; fechados en el alta, N1) y la fila de alta de `log` (`usu`, `est` 1, `ori` 0; M13). Solo si hay vinculadas (H31), `UPDATE` relativo de
 `ctrpro.canser` por vinculada y de `ctr.estser/estfac`. Sin `DELETE`, `MERGE` ni DDL; nunca `dcapropar` (M7: el escritorio no lo escribe, 0 de 272.235).
@@ -425,6 +450,9 @@ código que va a `error`, gana `error`.
 - **No adjunta el PDF** (es `concepto-grafico`, §7), no modifica ni anula albaranes (anular es desde
   la UI de Sigrid), no registra varios albaranes por petición, no recalcula `mov` posteriores.
 - **No busca altas a mano** con otra referencia: eso lo hace sv9 por `sql/read` (F-053 R14).
+- **No interpreta el texto ni el PDF del contrato** (v8.3): la forma de pago es la estructurada del contrato. **No deduce
+  `empide` del `usu`** (sin clave en Sigrid; F-069 de albaranes). **No pone retención sin contrato** ni la de un recargo no
+  soportado (`retencion_no_soportada`).
 - **No** valida la plausibilidad de la fecha (solo formato y rango: una futura **no** se rechaza, v5.1)
   y **solo** normaliza mayúsculas y espacios del CIF; fechas plausibles y formato del CIF son de
   albaranes (H19, H21).
@@ -483,7 +511,8 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 obligatorio para la fila de alta de `log`; F-053 v5 (R12, design §2) se alineó con la v2 y no lo
 manda. Con `extra="forbid"` y campo obligatorio, **todas** las altas darían 400 sin código ⇒ `error`.
 **Propuesta**: F-053 R12 añade `usu` = `ALTA_SIGRID_USUARIO` (el mismo del adjunto, ya fijado en su
-T0c contra `dbo.usu`, ≤24) y su tabla mapea `usuario_no_valido` → `error`. *F-053.*
+T0c contra `dbo.usu`, ≤24) y su tabla mapea `usuario_no_valido` → `error`. *F-053.* **v8.3**: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`.
+sigrid-api solo recibe `usu`.
 
 **H2. Obra por código sin empresa.** F-009 L1 resuelve `con WHERE tip = 42 AND cod = ?` sin
 `emp`; F-049 midió (2026-10-03) que el código de obra **se repite entre empresas** (la emp 28 tiene
@@ -1076,7 +1105,7 @@ lo lleva), así que `CDXA01` vale (con la regla de la v7, «lo que sigue al prim
 |---|---|---|
 | `POST /api/sql/read` | R14: ¿alta a mano del mismo albarán? | `SELECT c.ide, c.cod, c.fec FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = 14 AND d.entcif = ? AND d.entref = ? AND ISNULL(d.synckey, '') <> ?` (`[cif, numero, "ALB-{document_id}"]`); comprobar `truncated`. H9 si anular no borra |
 | `POST /api/sql/read` | R28: ¿se anuló en Sigrid? | `SELECT ide FROM dbo.con WHERE ide = ? AND tip = 14` |
-| `POST /api/sigrid/concepto-grafico` | R22: adjuntar el PDF al albarán registrado | `contip` 14, `gratipide` 0, `usu` = `ALTA_SIGRID_USUARIO`, `sha256`. En `dev`, `SIGRID_DOCUMENT_ALLOWED_CONTIP` ya incluye 14 y `_GRATIPIDE` incluye 0 (`sigrid_api.md` §4.1) |
+| `POST /api/sigrid/concepto-grafico` | R22: adjuntar el PDF al albarán registrado | `contip` 14, `gratipide` 0, `usu` = el mismo de la petición de alta (v8.3, confirmado por albaranes: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`), `sha256`. En `dev`, `SIGRID_DOCUMENT_ALLOWED_CONTIP` ya incluye 14 y `_GRATIPIDE` incluye 0 (`sigrid_api.md` §4.1) |
 
 sv9 no llama a `sql/write`, ni a `sigrid/albaran` en modo clásico, ni a `albaran-directo`
 (F-053 R33). Cuando F-053 esté en real, el modo clásico y `albaran-directo` quedan obsoletos

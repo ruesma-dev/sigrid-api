@@ -96,7 +96,8 @@ def test_f009_r11_lecturas_de_cabecera_en_orden_y_con_sus_parametros() -> None:
     cabecera = [c for c in repo.lecturas_hechas() if c != "referencia"][:4]
     assert cabecera == ["obra", "plantilla_por_entide", "conest", "usuario"]
     assert repo.parametros_de("obra") == [[42, "0404"]]
-    assert repo.parametros_de("plantilla_por_entide") == [[14, 1, 77]]
+    # F-015 R6: serie `AC`, clase 0 y sin proformas.
+    assert repo.parametros_de("plantilla_por_entide") == [[14, 1, 77, "AC__/%", 0, "PROF%"]]
     assert repo.parametros_de("usuario") == [["prueba"]]
     assert repo.parametros_de("conest") == [[14, 1]]
     llamadas = [tipo for tipo, _ in repo.llamadas[:6]]
@@ -108,8 +109,10 @@ def test_f009_r11_lecturas_de_cabecera_en_orden_y_con_sus_parametros() -> None:
     }
     assert repo.llamadas[2][1] == ("ctr", CTR)
     assert repo.llamadas[3][1] == ("ctrpro", "docide", CTR, "pos")
-    assert ("read_full_row", ("con", 15950)) in repo.llamadas
+    # F-015 R6: la `con` del albaran anterior ya no se lee; el `prv`, si (R3, R4).
+    assert ("read_full_row", ("con", 15950)) not in repo.llamadas
     assert ("read_full_row", ("dca", 15950)) in repo.llamadas
+    assert ("read_full_row", ("prv", 77)) in repo.llamadas
 
 
 def test_f009_r11_obra_solo_entre_las_empresas_admitidas() -> None:
@@ -127,7 +130,7 @@ def test_f009_r11_con_emp_es_la_empresa_de_la_obra() -> None:
     assert respuesta.filas["con"]["emp"] == 2
     assert {m["emp"] for m in respuesta.filas["mov"]} == {2}
     assert respuesta.filas["log"]["emp"] == 2
-    assert repo.parametros_de("plantilla_por_entide") == [[14, 2, 77]]
+    assert repo.parametros_de("plantilla_por_entide") == [[14, 2, 77, "AC__/%", 0, "PROF%"]]  # F-015 R6
     assert repo.parametros_de("productos") == [[2, 3, "MA9999"]]
     assert repo.parametros_de("cuentas") == [[2, "6000001"]]
 
@@ -172,8 +175,9 @@ def test_f009_r11_contrato_sin_fila_ctr() -> None:
 
 
 def test_f009_r11_proveedor_sin_albaran_previo_en_la_empresa() -> None:
-    repo = RepositorioDoble({"plantilla_por_entide": []})
-    assert codigo(repo=repo) == "proveedor_sin_albaran_previo"
+    # F-015 R6 (D4): sin albaran anterior el alta sigue, con `template_ide` 0.
+    respuesta, _ = ejecutar(repo=RepositorioDoble({"plantilla_por_entide": []}))
+    assert (respuesta.estado, respuesta.contrato["template_ide"]) == ("previsto", 0)
 
 
 def test_f009_r11_sin_contrato_la_plantilla_es_por_cif_normalizado() -> None:
@@ -181,7 +185,7 @@ def test_f009_r11_sin_contrato_la_plantilla_es_por_cif_normalizado() -> None:
     respuesta, repo = ejecutar(
         [sin_vincular()], repo=repo, cod_contrato=None, cif_proveedor=" b12 345678 "
     )
-    assert repo.parametros_de("plantilla_por_cif") == [[14, 1, "B12345678"]]
+    assert repo.parametros_de("plantilla_por_cif") == [[14, 1, "B12345678", "AC__/%", 0, "PROF%"]]  # F-015 R6
     assert not any(t in ("locate_contract", "read_rows_by") for t, _ in repo.llamadas)
     assert respuesta.filas["dca"]["ctride"] == 0
     assert respuesta.filas["dca"]["entide"] == 77
@@ -189,8 +193,11 @@ def test_f009_r11_sin_contrato_la_plantilla_es_por_cif_normalizado() -> None:
 
 
 def test_f009_r11_sin_contrato_y_sin_albaran_previo_del_cif() -> None:
-    repo = RepositorioDoble({"plantilla_por_cif": []})
-    assert codigo([sin_vincular()], repo=repo, cod_contrato=None) == "proveedor_sin_albaran_previo"
+    # F-015 R7: sin contrato ni respaldo, el `prv` unico del CIF (L17); el alta sigue.
+    repo = RepositorioDoble({"plantilla_por_cif": [], "analiticas": [(721, "0404.CDSB37", 82)]})
+    respuesta, repo = ejecutar([sin_vincular()], repo=repo, cod_contrato=None)
+    assert (respuesta.estado, respuesta.contrato["template_ide"]) == ("previsto", 0)
+    assert repo.parametros_de("proveedor_por_cif") == [[5, 1, 0, "B12345678"]]
 
 
 def test_f009_r11_plantilla_de_cabecera_ilegible() -> None:
@@ -646,7 +653,8 @@ def test_f009_r29_vale_cualquiera_de_los_prefijos() -> None:
 # T8 · R30 y R30c: idempotencia por dca.synckey
 # =====================================================================================
 
-_EXISTENTE = (2800001, "AC26/15000 ", 20261001, 77, OBRA, 29.03, 35.13)
+#: F-015 R18: L11 trae tambien el `tot` (aqui sin retencion: = totdoc).
+_EXISTENTE = (2800001, "AC26/15000 ", 20261001, 77, OBRA, 29.03, 35.13, 35.13)
 _LINEAS_EXISTENTE = [
     (64, 55, 2.0, 10.5, 21.0, 5, 70, "L1"),
     (128, 66, 3.0, 2.675, 8.03, 0, 70, "L2    "),
@@ -658,7 +666,9 @@ def _comprobar_idempotente(respuesta: Any, *, dry_run: bool) -> None:
     assert (respuesta.committed, respuesta.dry_run) == (False, dry_run)
     assert (respuesta.con_ide, respuesta.cod) == (2800001, "AC26/15000")
     assert respuesta.cabecera == {"fec": 20261001}
-    assert respuesta.totales == {"totbas": 29.03, "totdoc": 35.13, "n_lineas": 2}
+    # F-015 R18: y `tot` y `retenciones` (= totdoc - tot) del albaran existente.
+    assert respuesta.totales == {"totbas": 29.03, "totdoc": 35.13, "tot": 35.13,
+                                 "retenciones": 0.0, "n_lineas": 2}
     assert (respuesta.contrato, respuesta.filas, respuesta.movimientos) == ({}, {}, [])
     assert (respuesta.estados_contrato, respuesta.avisos, respuesta.warnings) == ({}, [], [])
     assert [
@@ -699,9 +709,9 @@ def test_f009_r30_idempotente_aunque_las_lineas_de_ahora_no_valgan() -> None:
 @pytest.mark.parametrize(
     "filas",
     [
-        [_EXISTENTE, (2800002, "AC26/15001", 20261001, 77, OBRA, 1.0, 1.0)],
-        [(2800001, "AC26/15000", 20261001, 78, OBRA, 1.0, 1.0)],
-        [(2800001, "AC26/15000", 20261001, 77, 6000, 1.0, 1.0)],
+        [_EXISTENTE, (2800002, "AC26/15001", 20261001, 77, OBRA, 1.0, 1.0, 1.0)],
+        [(2800001, "AC26/15000", 20261001, 78, OBRA, 1.0, 1.0, 1.0)],
+        [(2800001, "AC26/15000", 20261001, 77, 6000, 1.0, 1.0, 1.0)],
     ],
     ids=["dos", "otro_proveedor", "otra_obra"],
 )
@@ -786,7 +796,7 @@ def test_f009_r23_sin_albaranes_en_la_serie_empieza_en_1_y_por_el_anio_del_albar
 def test_f009_r23_las_seis_filas_numeradas_y_enlazadas() -> None:
     respuesta, _ = ejecutar([vinculada(), sin_vincular()])
     filas = respuesta.filas
-    assert set(filas) == {"con", "dca", "dcapro", "ctrprodes", "mov", "log"}
+    assert set(filas) == {"con", "dca", "dcapro", "ctrprodes", "mov", "dcarec", "log"}  # F-015 R17
     assert (filas["con"]["ide"], filas["con"]["cod"], filas["con"]["tip"], filas["con"]["est"]) == (
         2900001, "AC26/15953", 14, 1)
     assert filas["con"]["res"] == "PROVEEDOR PRUEBA SL. (A-77)"
@@ -833,7 +843,9 @@ def test_f009_r7_superconjunto_de_la_respuesta_clasica() -> None:
         "ctride": CTR, "obride": OBRA, "cod_contrato": "CTSU16/0206", "cod_obra": "0404",
         "cif_proveedor": "B12345678", "entide": 77, "almide": 70, "template_ide": 15950,
     }
-    assert respuesta.totales == {"totbas": 29.03, "totiva": 6.1, "totdoc": 35.13, "n_lineas": 2,
+    # F-015 R17: y `tot`, `retenciones` y `n_retenciones` (sin `ctrrec`: 35.13, 0 y 0).
+    assert respuesta.totales == {"totbas": 29.03, "totiva": 6.1, "totdoc": 35.13, "tot": 35.13,
+                                 "retenciones": 0.0, "n_retenciones": 0, "n_lineas": 2,
                                  "n_vinculadas": 1, "n_movimientos": 2}
     assert respuesta.estados_contrato == {
         "estser_before": 0, "estfac_before": 0, "estser_after": 0, "estfac_after": 0,
@@ -917,7 +929,9 @@ _SECUENCIA_COMPLETA = [
     "insert_mov", "insert_mov",
     "servido", "sumas_contrato", "estados_contrato",
     "ide_log", "insert_log",
-    "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes", "releer_log",
+    "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes",
+    "releer_dcarec",  # F-015 R23: tambien sin `dcarec` (se esperan 0)
+    "releer_log",
 ]
 
 
@@ -927,7 +941,7 @@ def test_f009_r25_el_albaran_entero_en_una_transaccion() -> None:
         "database": "ruesma", "timeout_seconds": 30,
         "applock_resources": ["SIGRID_REFEXT_14", "SIGRID_SERIE_14", "SIGRID_IDE_con",
                               "SIGRID_IDE_dcapro", "SIGRID_IDE_ctrprodes", "SIGRID_IDE_mov",
-                              "SIGRID_IDE_log"],
+                              "SIGRID_IDE_dcarec", "SIGRID_IDE_log"],  # F-015 R21
         "applock_timeout_ms": 10000, "max_retries": 3,
     }]
     assert repo.sentencias() == _SECUENCIA_COMPLETA
@@ -954,9 +968,10 @@ def test_f009_r25_lo_insertado_es_lo_que_se_devuelve() -> None:
 def test_f009_r25_la_fila_dca_escrita_lleva_las_bancarias() -> None:
     respuesta, repo = ejecutar([vinculada()], commit=True)
     ((sql, params),) = [(s, p) for _i, c, s, p in repo.en_transaccion if c == "insert_dca"]
-    columnas = [c.strip()[1:-1] for c in sql[sql.index("(") + 1 : sql.index(")")].split(",")]
+    # F-015 R1: columnas fijas, sin corchetes; `cpacue1` es fija (R9) y `bancue`, de cascada.
+    columnas = [c.strip() for c in sql[sql.index("(") + 1 : sql.index(")")].split(",")]
     escrita = dict(zip(columnas, params, strict=True))
-    assert (escrita["bancue"], escrita["cpacue1"]) == ("ES12", "ES34")
+    assert (escrita["bancue"], escrita["cpacue1"]) == ("ES12", "")
     assert "bancue" not in respuesta.filas["dca"]
 
 
@@ -1008,7 +1023,8 @@ def test_f009_r26_sin_vinculadas_ni_mov_no_se_reservan_sus_ide() -> None:
         "referencia", "reservar_cod", "ide_con", "ide_dcapro",
         "insert_con", "insert_dca", "insert_dcapro",
         "ide_log", "insert_log",
-        "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes", "releer_log",
+        "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes",
+        "releer_dcarec", "releer_log",  # F-015 R23
     ]
     assert (respuesta.filas["mov"], respuesta.filas["ctrprodes"]) == ([], [])
 
@@ -1352,7 +1368,8 @@ def test_f009_r32_traza_de_una_previa(caplog: pytest.LogCaptureFixture) -> None:
     assert trazas == [{
         **_BASE_TRAZA, "commit": False, "n_lineas": 2, "resultado": "ok", "estado": "previsto",
         "cod": respuesta.cod, "con_ide": respuesta.con_ide,
-        "codigos": ["cod_provisional", "stock_negativo"], "duracion_ms": 250.0,
+        "codigos": ["cod_provisional", "stock_negativo"], "n_retenciones": 0,  # F-015 R19
+        "duracion_ms": 250.0,
     }]
     assert respuesta.cod.startswith("AC26/")
 
@@ -1362,7 +1379,8 @@ def test_f009_r32_traza_de_un_commit(caplog: pytest.LogCaptureFixture) -> None:
     assert respuesta.estado == "creado"
     assert trazas == [{
         **_BASE_TRAZA, "commit": True, "n_lineas": 1, "resultado": "ok", "estado": "creado",
-        "cod": respuesta.cod, "con_ide": 2900011, "codigos": [], "duracion_ms": 250.0,
+        "cod": respuesta.cod, "con_ide": 2900011, "codigos": [], "n_retenciones": 0,  # F-015 R19
+        "duracion_ms": 250.0,
     }]
 
 

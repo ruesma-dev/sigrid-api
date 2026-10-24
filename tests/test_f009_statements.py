@@ -17,6 +17,7 @@ import re
 from decimal import Decimal
 
 import pytest
+from f009_dobles import ctr, dca_plantilla, prv
 
 import application.use_cases.albaran_compra_statements as modulo
 from application.use_cases.albaran_compra_statements import (
@@ -54,32 +55,37 @@ def test_f009_sql_l1_obra_por_tipo_y_codigo(
 def test_f009_sql_l5_plantilla_de_cabecera_del_proveedor_en_la_empresa(
     sentencias: AlbaranCompraStatements,
 ) -> None:
+    # F-015 R6: serie `AC`, clase 0 y sin proformas (lo fija `test_f015_statements.py`).
     assert sentencias.leer_plantilla_cabecera(1, 77) == (
         (
             "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-            "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? ORDER BY c.ide DESC"
+            "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? AND c.cod LIKE ? AND d.cla = ? "
+            "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
         ),
-        [14, 1, 77],
+        [14, 1, 77, "AC__/%", 0, "PROF%"],
     )
 
 
 def test_f009_sql_l5_sin_contrato_por_cif(sentencias: AlbaranCompraStatements) -> None:
+    # F-015 R6: los mismos filtros que por `entide`.
     assert sentencias.leer_plantilla_cabecera_por_cif(1, "B12345678") == (
         (
             "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-            "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? ORDER BY c.ide DESC"
+            "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? AND c.cod LIKE ? AND d.cla = ? "
+            "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
         ),
-        [14, 1, "B12345678"],
+        [14, 1, "B12345678", "AC__/%", 0, "PROF%"],
     )
 
 
 def test_f009_sql_l11_idempotencia_por_synckey(
     sentencias: AlbaranCompraStatements,
 ) -> None:
+    # F-015 R18: y el `tot` al final.
     assert sentencias.buscar_referencia("ALB-123") == (
         (
-            "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc FROM dbo.dca d "
-            "JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
+            "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc, d.tot "
+            "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
         ),
         [14, "ALB-123"],
     )
@@ -369,6 +375,7 @@ def test_f009_r26_sql_applocks_en_su_orden() -> None:
         "SIGRID_IDE_dcapro",
         "SIGRID_IDE_ctrprodes",
         "SIGRID_IDE_mov",
+        "SIGRID_IDE_dcarec",  # F-015 R21
         "SIGRID_IDE_log",
     )
 
@@ -488,17 +495,17 @@ def test_f009_r25_sql_una_fila_de_columnas_fijas_que_no_cuadra_no_se_inserta(
 def test_f009_r25_sql_insert_de_las_tablas_clonadas_con_las_columnas_de_la_fila(
     sentencias: AlbaranCompraStatements,
 ) -> None:
-    """`con`, `dca` y `dcapro` se clonan de su plantilla (`SELECT *`): las
-    columnas son las de la fila, en su orden, entre corchetes y validadas."""
+    """`dcapro` se clona de su plantilla (`SELECT *`): las columnas son las de
+    la fila, en su orden, entre corchetes y validadas. F-015 R1: `con` y `dca`
+    ya no se clonan; una fila que no trae sus columnas fijas no se inserta."""
     fila = {"ide": 100, "tip": 14, "cod": "AC26/1", "del": "", "res": "x"}
-    assert sentencias.insertar_con(fila) == (
-        "INSERT INTO dbo.con ([ide], [tip], [cod], [del], [res]) VALUES (?, ?, ?, ?, ?)",
-        [100, 14, "AC26/1", "", "x"],
-    )
-    assert sentencias.insertar_dca({"ide": 100, "synckey": "ALB-1"}) == (
-        "INSERT INTO dbo.dca ([ide], [synckey]) VALUES (?, ?)",
-        [100, "ALB-1"],
-    )
+    with pytest.raises(ValueError, match="columnas"):
+        sentencias.insertar_con(fila)
+    with pytest.raises(ValueError, match="columnas"):
+        sentencias.insertar_dca({"ide": 100, "synckey": "ALB-1"})
+    for tabla in ("con", "dca"):
+        with pytest.raises(ValueError, match="tabla"):
+            sentencias.insertar_clonada(tabla, {"ide": 100})
     assert sentencias.insertar_dcapro({"ide": 7, "refent": "L1", "prepma": 1.5}) == (
         "INSERT INTO dbo.dcapro ([ide], [refent], [prepma]) VALUES (?, ?, ?)",
         [7, "L1", 1.5],
@@ -537,7 +544,7 @@ def test_f009_r31_una_fila_clonada_vacia_no_se_inserta(
     sentencias: AlbaranCompraStatements,
 ) -> None:
     with pytest.raises(ValueError, match="vacia"):
-        sentencias.insertar_dca({})
+        sentencias.insertar_dcapro({})  # F-015 R1: la unica clonada
 
 
 # --- R31: SQL constante, con `?`, sin verbos prohibidos ni otra base ------------------
@@ -552,12 +559,14 @@ _PROHIBIDOS = re.compile(
 
 def test_f009_r31_sin_delete_merge_ni_ddl(sentencias: AlbaranCompraStatements) -> None:
     todas = sentencias.todas_las_sentencias()
-    assert len(todas) == len(set(todas)) == 40
+    # F-015 R24: + L16, L17, E6b, E12 de `dcarec` y los INSERT fijos de con, dca y dcarec.
+    assert len(todas) == len(set(todas)) == 47
     for sql in todas:
         assert not _PROHIBIDOS.search(sql), sql
         assert sql.startswith(("SELECT ", "INSERT INTO dbo.", "UPDATE dbo.")), sql
         assert ";" not in sql, sql
-        assert "'" not in sql, sql  # ningún literal: todo valor va como ?
+        # Ningún literal: todo valor va como ?. F-015 R6: salvo el `''` de L5 (spec).
+        assert "'" not in sql.replace("ISNULL(d.entref, '')", ""), sql
         assert "--" not in sql and "/*" not in sql, sql
 
 
@@ -578,10 +587,11 @@ def test_f009_r31_sin_mas_update_que_los_de_r25(
 def test_f009_r31_solo_se_inserta_en_las_seis_tablas_del_albaran(
     sentencias: AlbaranCompraStatements,
 ) -> None:
-    """R25: ni `dcapropar`, ni `dcaproana`, ni `pro`."""
+    """R25: ni `dcapropar`, ni `dcaproana`, ni `pro`. F-015 R1, R21: `con` y
+    `dca` pasan a columnas fijas y entra `dcarec` (`dcapro` sigue clonada)."""
     for sql in sentencias.todas_las_sentencias():
         if sql.startswith("INSERT"):
-            assert re.match(r"INSERT INTO dbo\.(mov|ctrprodes|log) \(", sql), sql
+            assert re.match(r"INSERT INTO dbo\.(con|dca|mov|ctrprodes|dcarec|log) \(", sql), sql
         assert "dcapropar" not in sql and "dcaproana" not in sql, sql
     with pytest.raises(ValueError, match="tabla"):
         sentencias.insertar_clonada("dcapropar", {"ide": 1})
@@ -1137,15 +1147,15 @@ def _sin_vincular(**extra):
 def test_f009_r22_sellos_con_fecha_del_albaran() -> None:
     from datetime import datetime, timezone
 
-    sellos = modulo.sellos_del_alta(
-        datetime(2026, 10, 6, 12, 30, 5, tzinfo=timezone.utc), 20260930
-    )
+    instante = datetime(2026, 10, 6, 12, 30, 5, tzinfo=timezone.utc)
+    sellos = modulo.sellos_del_alta(instante, 20260930)
     assert sellos == modulo.SellosAlbaran(
         fec=20260930,
         hor=143005,
         fec_alta=20261006,
         fechor=20261006.143005,
         prefijo="AC26/",
+        tiemod=modulo.fecha_ole_utc(instante),  # F-015 R8 (su valor, en test_f015_statements)
     )
 
 
@@ -1189,22 +1199,11 @@ def test_f009_r22_los_sellos_no_se_pueden_cambiar() -> None:
 # --- R11, R22: con -----------------------------------------------------------------------------
 
 
-def test_f009_r11_con_clon_de_la_plantilla_con_lo_del_albaran() -> None:
-    plantilla = {
-        "ide": 15950,
-        "emp": 2,
-        "tip": 14,
-        "subtip": 0,
-        "cod": "AC26/15950",
-        "res": "viejo",
-        "fec": 20260601,
-        "est": 10,
-        "fecbaj": 0,
-        "tiemod": 46000.5,
-        "hor": 0,
-    }
+def test_f009_r11_con_con_lo_del_albaran() -> None:
+    """F-015 R1, R8: ya no se clona la `con` del albaran anterior; lleva
+    exactamente `CON_COLUMNAS` con lo del albaran y el `tiemod` del alta."""
     con = modulo.construir_con(
-        plantilla, emp=1, fec=20261006, entres="HORMIGONES SA", su_referencia="77/2026"
+        emp=1, fec=20261006, entres="HORMIGONES SA", su_referencia="77/2026", tiemod=46301.5
     )
     assert con == {
         "ide": None,
@@ -1214,91 +1213,70 @@ def test_f009_r11_con_clon_de_la_plantilla_con_lo_del_albaran() -> None:
         "cod": None,
         "res": "HORMIGONES SA. (77/2026)",
         "fec": 20261006,
+        "tex": None,
+        "cee": 0,
         "est": 1,
         "fecbaj": 0,
-        "tiemod": 46000.5,
+        "tiemod": 46301.5,
+        "ico": "",
+        "delo": "",
+        "del": "",
+        "obr": "",
+        "doc": "",
+        "serie": 0,
         "hor": 0,
     }
-    assert plantilla["ide"] == 15950  # la plantilla no se toca
 
 
 def test_f009_r11_res_del_con_recortado_a_128() -> None:
+    # F-015 R8: misma regla, sin plantilla.
     con = modulo.construir_con(
-        {"ide": 1}, emp=1, fec=20261006, entres="  " + "P" * 200, su_referencia="x"
+        emp=1, fec=20261006, entres="  " + "P" * 200, su_referencia="x", tiemod=0.0
     )
     assert con["res"] == "P" * 128
-    con = modulo.construir_con(
-        {"ide": 1}, emp=1, fec=20261006, entres=None, su_referencia=""
-    )
+    con = modulo.construir_con(emp=1, fec=20261006, entres=None, su_referencia="", tiemod=0.0)
     assert con["res"] == ". ()"
 
 
 # --- R21: dca ----------------------------------------------------------------------------------
 
 
-def _plantilla_dca() -> dict:
-    return {
-        "ide": 15950,
-        "fecdoc": 20260601,
-        "hor": 101010,
-        "entref": "vieja",
-        "eioide": 3,
-        "entide": 77,
-        "entcod": "P0077",
-        "entres": "VIEJA SA",
-        "entcif": "B00000000",
-        "ctride": 999,
-        "obride": 1,
-        "almide": 1,
-        "cenide": 1,
-        "empide": 1,
-        "pagide": 12,
-        "efeide": 13,
-        "dirent": "Calle del proveedor",
-        "impbru": 5.0,
-        "impnet": 5.0,
-        "totbas": 5.0,
-        "totiva": 1.0,
-        "totdoc": 6.0,
-        "tot": 6.0,
-        "totpag": 6.0,
-        "totbasdiv": 5.0,
-        "totivadiv": 1.0,
-        "totdocdiv": 6.0,
-        "impdes": 1.0,
-        "imprec": 1.0,
-        "impdesdiv": 1.0,
-        "imprecdiv": 1.0,
-        "estser": 1,
-        "estfac": 1,
-        "synckey": "ALB-viejo",
-        "bancue": "ES12",
-        "cpacue1": "ES34",
+def _dca_por_lista(**cambios) -> dict:
+    """F-015 R1-R10: la `dca` por lista blanca, con el contrato, el `prv` y el
+    respaldo (la `dca` del albaran anterior) de `f009_dobles`."""
+    argumentos = {
+        "contrato": ctr(),
+        "proveedor": prv(),
+        "pago_proveedor": None,
+        "respaldo": dca_plantilla(),
+        "fec": 20261006,
+        "hor": 143005,
+        "su_referencia": "77/2026",
+        "obride": 5000,
+        "ctride": 300,
+        "almide": 70,
+        "cenide": 80,
+        "empide": 2425207,
+        "totales": {"totbas": 21.0, "totiva": 4.41, "totdoc": 25.41},
+        "cuo": Decimal(0),
+        "referencia_externa": "ALB-123",
+        **cambios,
     }
+    return modulo.construir_dca(**argumentos)[0]
 
 
-def test_f009_r21_dca_clon_con_pago_y_efecto_de_la_plantilla_y_sus_overrides() -> None:
-    plantilla = _plantilla_dca()
-    dca = modulo.construir_dca(
-        plantilla,
-        fec=20261006,
-        hor=143005,
-        su_referencia="77/2026",
-        entidad={
-            "entide": 77,
-            "entcod": "P0077",
-            "entres": "HORMIGONES SA",
-            "entcif": "B12345678",
-        },
-        ctride=300,
-        obride=5000,
-        almide=70,
-        cenide=80,
-        empide=2425207,
-        totales={"totbas": 21.0, "totiva": 4.41, "totdoc": 25.41},
-        referencia_externa="ALB-123",
-    )
-    assert dca == {
+def test_f009_r21_dca_con_pago_y_efecto_del_respaldo_y_lo_del_albaran() -> None:
+    """F-015: la `dca` ya no se clona del albaran anterior. El pago, el efecto y
+    el banco salen de el (el contrato del doble no los trae, R3); lo demas, del
+    albaran (R8) o fijo (R9: facturacion, divisa y estados a 0, `cpacue1` vacio)."""
+    respaldo = dca_plantilla()
+    dca = _dca_por_lista(respaldo=respaldo)
+    assert {columna: dca[columna] for columna in (
+        "ide", "fecdoc", "hor", "entref", "eioide", "entide", "entcod", "entres", "entcif",
+        "ctride", "obride", "almide", "cenide", "empide", "pagide", "efeide", "impbru",
+        "impnet", "totbas", "totiva", "totdoc", "tot", "totpag", "totbasdiv", "totivadiv",
+        "totdocdiv", "impdes", "imprec", "estser", "estfac", "synckey", "bancue", "cpacue1",
+    )} == {
         "ide": None,
         "fecdoc": 20261006,
         "hor": 143005,
@@ -1306,7 +1284,7 @@ def test_f009_r21_dca_clon_con_pago_y_efecto_de_la_plantilla_y_sus_overrides() -
         "eioide": 1,
         "entide": 77,
         "entcod": "P0077",
-        "entres": "HORMIGONES SA",
+        "entres": "PROVEEDOR PRUEBA SL",
         "entcif": "B12345678",
         "ctride": 300,
         "obride": 5000,
@@ -1315,7 +1293,6 @@ def test_f009_r21_dca_clon_con_pago_y_efecto_de_la_plantilla_y_sus_overrides() -
         "empide": 2425207,
         "pagide": 12,
         "efeide": 13,
-        "dirent": "Calle del proveedor",  # M14b
         "impbru": 21.0,
         "impnet": 21.0,
         "totbas": 21.0,
@@ -1323,68 +1300,33 @@ def test_f009_r21_dca_clon_con_pago_y_efecto_de_la_plantilla_y_sus_overrides() -
         "totdoc": 25.41,
         "tot": 25.41,
         "totpag": 25.41,
-        "totbasdiv": 21.0,
-        "totivadiv": 4.41,
-        "totdocdiv": 25.41,
+        "totbasdiv": 0,
+        "totivadiv": 0,
+        "totdocdiv": 0,
         "impdes": 0,
         "imprec": 0,
-        "impdesdiv": 0,
-        "imprecdiv": 0,
         "estser": 0,
         "estfac": 0,
         "synckey": "ALB-123",
-        "bancue": "ES12",
-        "cpacue1": "ES34",  # se escriben (H16); la respuesta las quita
+        "bancue": "ES12",  # se escribe (H16); la respuesta la quita
+        "cpacue1": "",
     }
-    assert plantilla["synckey"] == "ALB-viejo"
+    assert respaldo["synckey"] == "ALB-viejo"
 
 
-def test_f009_r21_dca_sin_contrato_ctride_0_y_entidad_de_la_plantilla() -> None:
-    dca = modulo.construir_dca(
-        _plantilla_dca(),
-        fec=20261006,
-        hor=1,
-        su_referencia="",
-        entidad={"entide": 77, "entcod": None, "entres": None, "entcif": None},
-        ctride=0,
-        obride=5000,
-        almide=70,
-        cenide=80,
-        empide=5,
-        totales={"totbas": 0.0, "totiva": 0.0, "totdoc": 0.0},
-        referencia_externa="ALB-9",
-    )
-    assert (
-        dca["ctride"],
-        dca["entide"],
-        dca["entcod"],
-        dca["entres"],
-        dca["entcif"],
-    ) == (
-        0,
-        77,
-        "P0077",
-        "VIEJA SA",
-        "B00000000",
+def test_f009_r21_dca_sin_contrato_ctride_0_y_entidad_del_respaldo() -> None:
+    """F-015 R4: sin contrato, la identidad del respaldo por CIF."""
+    respaldo = dca_plantilla(entcod="P0099", entres="VIEJA SA", entcif="B00000000")
+    dca = _dca_por_lista(contrato=None, respaldo=respaldo, ctride=0)
+    assert (dca["ctride"], dca["entide"], dca["entcod"], dca["entres"], dca["entcif"]) == (
+        0, 77, "P0099", "VIEJA SA", "B00000000",
     )
 
 
-def test_f009_r21_dca_no_anade_columnas_que_la_plantilla_no_tiene() -> None:
-    dca = modulo.construir_dca(
-        {"ide": 1, "synckey": "", "ctride": 0},
-        fec=1,
-        hor=1,
-        su_referencia="r",
-        entidad={"entide": 77, "entcod": "c", "entres": "r", "entcif": "x"},
-        ctride=300,
-        obride=5000,
-        almide=70,
-        cenide=80,
-        empide=5,
-        totales={"totbas": 1.0, "totiva": 0.0, "totdoc": 1.0},
-        referencia_externa="ALB-1",
-    )
-    assert dca == {"ide": None, "synckey": "ALB-1", "ctride": 300}
+def test_f009_r21_dca_lleva_exactamente_sus_columnas() -> None:
+    """F-015 R1: ni una de mas ni de menos, sea cual sea la fila del respaldo."""
+    assert tuple(_dca_por_lista()) == modulo.DCA_COLUMNAS
+    assert tuple(_dca_por_lista(respaldo=None)) == modulo.DCA_COLUMNAS
 
 
 # --- R12, R16, R17, H35: dcapro vinculada --------------------------------------------------------
@@ -1679,6 +1621,7 @@ def _sellos():
         fec_alta=20261006,
         fechor=20261006.143005,
         prefijo="AC26/",
+        tiemod=46301.5,  # F-015 R8: solo lo usa `con`
     )
 
 
@@ -1911,8 +1854,14 @@ def test_f009_r25_sin_ctrprodes_ni_mov_no_hace_falta_reservar() -> None:
 def test_f009_r25_las_filas_numeradas_se_insertan_tal_cual(
     sentencias: AlbaranCompraStatements,
 ) -> None:
-    numeradas = modulo.numerar(
+    # F-015 R1: `con` y `dca` con sus columnas fijas, como las construye el alta.
+    filas = dataclasses.replace(
         _filas(),
+        con=modulo.construir_con(emp=1, fec=1, entres="X", su_referencia="", tiemod=0.0),
+        dca=_dca_por_lista(referencia_externa="ALB-1"),
+    )
+    numeradas = modulo.numerar(
+        filas,
         cod="AC26/1",
         ide_con=1,
         ide_dcapro=10,
@@ -1942,7 +1891,7 @@ def test_f009_r23_filas_como_diccionario_para_la_respuesta() -> None:
         ide_log=40,
     )
     volcado = numeradas.como_dict()
-    assert set(volcado) == {"con", "dca", "dcapro", "ctrprodes", "mov", "log"}
+    assert set(volcado) == {"con", "dca", "dcapro", "ctrprodes", "mov", "dcarec", "log"}  # F-015 R17
     assert volcado["ctrprodes"] == [fila for _, fila in numeradas.ctrprodes]
     assert volcado["mov"] == [fila for _, fila in numeradas.mov]
     assert volcado["dcapro"] == numeradas.dcapro
