@@ -37,7 +37,8 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
   (mismo código, mismo mapeo en sv9). Recogido en el contrato con albaranes §3.3 y en la nota de la v8.3, y en
   `azure-apps/sigrid_api.md` §8.6. **Para el líder:** decidir si R14 de `requirements.md` lo nombra.
 - **Verificación manual**: comandos literales de T19-T21 (dry-runs V1-V4, grabación V5, limpieza V6) en
-  [design §Verificación manual](../specs/F-015-albaran-plantilla-y-retencion/design.md#verificación-manual-r29-r30-t19-t21).
+  [`verificacion_manual.md`](../specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md) (anexo de design
+  §Verificación manual, aparte por el tope de 250 líneas de design).
 - **F-009 que cambian** (T14): lista viva en el informe.
 - **Desviación de orden**: T2 antes que T1, porque las filas completas del doble (T1) se construyen con
   `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
@@ -190,7 +191,7 @@ ajeno; lo borra el humano si quiere.
 
 **F-015 está `in_progress`** (arriba): implementación y arreglos de la pasada 1 hechos; sigue la **pasada 2 de la
 revisión**; después, **avisar a albaranes** (lo hace el líder), el **despliegue** (el humano) y las MANUALES T19-T21
-(design §Verificación manual). Hasta cerrarla no se arranca otra feature (máximo una `in_progress`).
+(`specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md`). Hasta cerrarla no se arranca otra feature (máximo una `in_progress`).
 
 F-009 solo espera T24 (con F-053 en real). Después de F-015: F-007 (proformas) y F-008 (facturas de compra),
 `pending` con `sdd` y rigor `critico`; F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la consulta)
@@ -203,7 +204,7 @@ mutación paralela.
 > Lee `CLAUDE.md` y `progress/current.md`. **F-015 está `in_progress`** en `feature/F-015-albaran-plantilla-y-retencion`:
 > implementada (`impl_F-015.md`) y con los arreglos de la pasada 1 de la revisión hechos; toca la **pasada 2 de la
 > revisión** troceada. Después: avisar a albaranes antes de desplegar, el despliegue (lo lanza el humano) y T19-T21
-> con los comandos de design §Verificación manual (dry-runs el líder con autorización; grabación y limpieza el
+> con los comandos de `verificacion_manual.md` de su spec (dry-runs el líder con autorización; grabación y limpieza el
 > humano, con autorización expresa para cada escritura). F-009 está desplegada con la llave abierta; solo queda T24
 > cuando F-053 esté en real. F-007 tiene spec v1 en su rama que hay que rehacer con la respuesta de facturas. No
 > arranques otra feature sin cerrar F-015 ni sin preguntar.
