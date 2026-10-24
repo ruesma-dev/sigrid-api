@@ -11,10 +11,15 @@ como `?` (R31); al construirse la clase valida TODAS las constantes con
 generarse.
 
 Las sentencias son las de `specs/F-009-alta-albaran-compra/design.md`
-§Sentencias en su v8.1 (sin L12b, L12c ni E7b). `con`, `dca` y `dcapro` se
-CLONAN de su plantilla (`SELECT *`, como el modo clasico): sus columnas son las
-de la fila, cada una validada como identificador y entre corchetes; `mov`,
-`ctrprodes` y `log` tienen columnas fijas (las del clasico y las de F-006).
+§Sentencias (sin L12b, L12c ni E7b) con los cambios de F-015 (contrato con
+albaranes v8.3): L5 pasa a respaldo opcional y hay sentencias nuevas, L16
+(`ctrrec` del contrato), L17 (`prv` por CIF), E6b (`ide` de la `dcarec`) y
+E12_DCAREC (su relectura). Solo `dcapro` se CLONA de su plantilla
+(`_TABLAS_CLONADAS`, `SELECT *` como el modo clasico: sus columnas son las de
+la fila, cada una validada como identificador y entre corchetes). `con` y
+`dca` se construyen por lista blanca, columna a columna, con columnas fijas
+(`CON_COLUMNAS`, `DCA_COLUMNAS`), igual que la `dcarec` (`DCAREC_COLUMNAS`),
+`mov`, `ctrprodes` y `log` (las del clasico y las de F-006).
 """
 from __future__ import annotations
 
