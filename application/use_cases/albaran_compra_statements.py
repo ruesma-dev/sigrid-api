@@ -34,6 +34,13 @@ TIP_ALBARAN = 14
 TIP_CONTRATO = 44
 TIP_OBRA = 42
 TIP_PRODUCTO = 3
+TIP_PROVEEDOR = 5
+
+#: Respaldo de la cabecera (F-015 R6, M1, M25): un `AC<aa>/` de clase 0 cuya
+#: referencia no empieza por `PROF`. Nunca una proforma ni una nota de cargo.
+PATRON_SERIE_RESPALDO = "AC__/%"
+CLA_ALBARAN = 0
+PATRON_PROFORMA = "PROF%"
 
 #: Prefijo de la serie del albaran de compra: `AC<aa>/` del anio de la fecha.
 PREFIJO_SERIE = "AC"
@@ -171,13 +178,19 @@ _TABLAS_CLONADAS = frozenset({"con", "dca", "dcapro"})
 # `{marcadores}` es la lista `(?, ?, ...)` de un `IN`; nunca lleva valores.
 
 L1_OBRA = "SELECT ide, emp, cod FROM dbo.con WHERE tip = ? AND cod = ?"
-L5_PLANTILLA_POR_ENTIDE = (
+L5_RESPALDO_POR_ENTIDE = (
     "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-    "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? ORDER BY c.ide DESC"
+    "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? AND c.cod LIKE ? AND d.cla = ? "
+    "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
 )
-L5_PLANTILLA_POR_CIF = (
+L5_RESPALDO_POR_CIF = (
     "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
-    "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? ORDER BY c.ide DESC"
+    "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? AND c.cod LIKE ? AND d.cla = ? "
+    "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC"
+)
+L17_PROVEEDOR_POR_CIF = (
+    "SELECT v.ide, c.cod FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.fecbaj = ? AND v.cif = ?"
 )
 L6_PARTIDAS = (
     "SELECT ide, cod, tip, tipdes, tipvis FROM dbo.obrparpar WHERE obride = ? AND cod IN {marcadores}"
@@ -908,8 +921,9 @@ class AlbaranCompraStatements:
         uno = _marcadores(1)
         return (
             L1_OBRA,
-            L5_PLANTILLA_POR_ENTIDE,
-            L5_PLANTILLA_POR_CIF,
+            L5_RESPALDO_POR_ENTIDE,
+            L5_RESPALDO_POR_CIF,
+            L17_PROVEEDOR_POR_CIF,
             L6_PARTIDAS.format(marcadores=uno),
             L7_PRODUCTOS.format(marcadores=uno),
             L7B_TIPMOV.format(marcadores=uno),
@@ -955,12 +969,23 @@ class AlbaranCompraStatements:
         return L1_OBRA, [TIP_OBRA, cod]
 
     def leer_plantilla_cabecera(self, emp: int, entide: int) -> tuple[str, list[Any]]:
-        """L5: ultimo albaran del MISMO proveedor en la empresa de la obra (H3)."""
-        return L5_PLANTILLA_POR_ENTIDE, [TIP_ALBARAN, emp, entide]
+        """L5: el respaldo (F-015 R6), el ultimo albaran `AC` de clase 0 y sin
+        referencia de proforma del MISMO proveedor en la empresa de la obra (H3).
+        Opcional: sin filas no hay respaldo, ni error."""
+        return L5_RESPALDO_POR_ENTIDE, [
+            TIP_ALBARAN, emp, entide, PATRON_SERIE_RESPALDO, CLA_ALBARAN, PATRON_PROFORMA,
+        ]
 
     def leer_plantilla_cabecera_por_cif(self, emp: int, cif: str) -> tuple[str, list[Any]]:
         """L5 sin contrato: el proveedor se reconoce por `dca.entcif`."""
-        return L5_PLANTILLA_POR_CIF, [TIP_ALBARAN, emp, cif]
+        return L5_RESPALDO_POR_CIF, [
+            TIP_ALBARAN, emp, cif, PATRON_SERIE_RESPALDO, CLA_ALBARAN, PATRON_PROFORMA,
+        ]
+
+    def leer_proveedor_por_cif(self, emp: int, cif: str) -> tuple[str, list[Any]]:
+        """L17 (F-015 R7): los `prv` vivos con ese CIF en la empresa de la obra,
+        solo sin contrato ni respaldo por CIF."""
+        return L17_PROVEEDOR_POR_CIF, [TIP_PROVEEDOR, emp, 0, cif]
 
     def buscar_referencia(self, referencia: str) -> tuple[str, list[Any]]:
         """L11 (previa) y E1 (bajo el applock de referencias): la MISMA sentencia."""

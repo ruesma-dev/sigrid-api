@@ -52,6 +52,7 @@ NOMBRES: dict[str, str] = {
     _S.leer_obra("x")[0]: "obra",
     _S.leer_plantilla_cabecera(1, 1)[0]: "plantilla_por_entide",
     _S.leer_plantilla_cabecera_por_cif(1, "x")[0]: "plantilla_por_cif",
+    _S.leer_proveedor_por_cif(1, "x")[0]: "proveedor_por_cif",
     _S.buscar_referencia("x")[0]: "referencia",
     _S.leer_lineas_de_albaran(1)[0]: "lineas_del_existente",
     _S.leer_estado_inicial()[0]: "conest",
@@ -239,6 +240,8 @@ def lecturas_base() -> dict[str, Any]:
         "obra": [(OBRA, 1, "0404")],
         "plantilla_por_entide": [(PLANTILLA_CABECERA,)],
         "plantilla_por_cif": [(PLANTILLA_CABECERA,)],
+        # F-015 L17: el `prv` vivo del CIF (solo sin contrato ni respaldo por CIF).
+        "proveedor_por_cif": [(ENTIDE, "P0077")],
         "referencia": [],
         "lineas_del_existente": [],
         "conest": [(1,)],

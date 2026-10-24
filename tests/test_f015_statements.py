@@ -120,3 +120,62 @@ def test_f015_r9_fijas_valor_del_alta_a_mano() -> None:
         "banide", "cpacue1",
     ):
         assert columna in fijas, columna
+
+
+# =====================================================================================
+# T3 · R6 y R7: el respaldo (L5) y el proveedor por CIF (L17)
+# =====================================================================================
+
+
+@pytest.fixture
+def sentencias() -> modulo.AlbaranCompraStatements:
+    return modulo.AlbaranCompraStatements(database="ruesma")
+
+
+def test_f015_r6_sql_l5_respaldo_por_entide_sin_proformas(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    """R6 (M1, M25): serie `AC__/`, clase 0 y referencia que no empieza por `PROF`."""
+    assert sentencias.leer_plantilla_cabecera(1, 77) == (
+        "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND d.entide = ? AND c.cod LIKE ? AND d.cla = ? "
+        "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC",
+        [14, 1, 77, "AC__/%", 0, "PROF%"],
+    )
+
+
+def test_f015_r6_sql_l5_respaldo_por_cif_sin_contrato(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    assert sentencias.leer_plantilla_cabecera_por_cif(2, "B12345678") == (
+        "SELECT TOP 1 c.ide FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND d.entcif = ? AND c.cod LIKE ? AND d.cla = ? "
+        "AND ISNULL(d.entref, '') NOT LIKE ? ORDER BY c.ide DESC",
+        [14, 2, "B12345678", "AC__/%", 0, "PROF%"],
+    )
+
+
+def test_f015_r6_constantes_del_respaldo() -> None:
+    assert (modulo.PATRON_SERIE_RESPALDO, modulo.CLA_ALBARAN, modulo.PATRON_PROFORMA) == (
+        "AC__/%", 0, "PROF%")
+
+
+def test_f015_r7_sql_l17_proveedor_por_cif_vivo_en_la_empresa(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    """R7 (M27): `prv` de `con.tip 5`, la empresa de la obra y sin baja."""
+    assert modulo.TIP_PROVEEDOR == 5
+    assert sentencias.leer_proveedor_por_cif(1, "B12345678") == (
+        "SELECT v.ide, c.cod FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND c.fecbaj = ? AND v.cif = ?",
+        [5, 1, 0, "B12345678"],
+    )
+
+
+def test_f015_r6_r7_las_sentencias_nuevas_se_validan_al_construir() -> None:
+    todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
+    assert modulo.L5_RESPALDO_POR_ENTIDE in todas
+    assert modulo.L5_RESPALDO_POR_CIF in todas
+    assert modulo.L17_PROVEEDOR_POR_CIF in todas
+    assert not hasattr(modulo, "L5_PLANTILLA_POR_ENTIDE")
+    assert not hasattr(modulo, "L5_PLANTILLA_POR_CIF")
