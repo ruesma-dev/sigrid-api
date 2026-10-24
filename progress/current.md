@@ -7,8 +7,15 @@ Spec v2 aprobada por el humano (D1-D12; orden contrato → albarán anterior →
 albaranes acusa la v8.3 el 2026-10-24 ([`t0_F-015_albaranes.md`](t0_F-015_albaranes.md) §Acuse). **Antes de desplegar:
 avisar a albaranes** (sv9 y sv4 con los mapeos nuevos van antes o a la vez). Redactados (commit sin código): la
 resolución del `usu` que confirma albaranes (contrato §2.1, §2.4.9, H1, §7) y, en design §Limpieza, el filtro por
-`synckey LIKE 'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Implementación: T1 en curso. Mientras no se despliegue, las altas
-reales siguen copiando columnas de la plantilla (~4 al día); el humano no ha pedido pausarlas.
+`synckey LIKE 'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Mientras no se
+despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al día); el humano no ha pedido pausarlas.
+
+### Implementación (implementer, 2026-10-24)
+
+- **En curso**: T2 hecha; T1 a continuación.
+- **Desviación de orden**: T2 antes que T1, porque las filas completas del doble (T1) se construyen con
+  `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
+  `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 

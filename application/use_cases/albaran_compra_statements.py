@@ -71,6 +71,98 @@ CTRPRODES_COLUMNAS: tuple[str, ...] = (
     "lindeside", "ctrproactide",
 )
 
+# --- Lista blanca de la cabecera `dca` (F-015 R1-R9, design §Lista blanca) ----------
+
+#: Las 145 columnas de `dca`, en el orden fisico del esquema vivo (F-015 M17).
+#: El `INSERT` lleva estas y solo estas: una columna nueva de Sigrid no se copia
+#: de ninguna fila leida (D6).
+DCA_COLUMNAS: tuple[str, ...] = (
+    "ide", "cla", "entide", "entcod", "entres", "entref", "entcif", "ivareq", "facper", "fecdoc",
+    "fecpag", "hor", "eioide", "eiotex", "eitide", "eittra", "pagide", "pagtex", "pagfor", "efeide",
+    "cueide", "impbru", "impnet", "impdes", "imprec", "totbas", "totiva", "totdoc", "tot", "totpag",
+    "cenide", "caaide", "almide", "ivaide", "tex", "bul", "pes", "volum", "empide", "ageide",
+    "ageimp", "obride", "ctride", "fecent", "feclim", "fecrec", "diremp1", "dircon1", "dirdir1",
+    "diremp2", "dircon2", "dirdir2", "diremp3", "dircon3", "dirdir3", "estser", "estfac",
+    "antestser", "antestfac", "ivadif", "docoritip", "docoriide", "comide", "pasdeside", "pasori",
+    "divcod", "divcam", "emppreide", "empconide", "docrelide", "cocide", "paclis", "tipsininv",
+    "prmide", "estped", "antestped", "empcif", "cveide", "alqide", "alqfec", "pexide", "divcamfec",
+    "ctdide", "totbasdiv", "totivadiv", "totdocdiv", "totdiv", "totpagdiv", "cypnatide", "refarc",
+    "emptex", "horlim", "pdpide", "ano", "mes", "texent", "refcom", "emnet", "eg3w", "dtumID",
+    "cptide", "eleenvio", "tipisp", "delide", "banide", "banban", "bansuc", "bandig", "bancue",
+    "ban", "bantipide", "entciftip", "entcifpai", "aoside", "PFID", "cadcod1", "caddir1",
+    "cadcod2", "caddir2", "cadcod3", "caddir3", "cadcod4", "caddir4", "cpapai", "cpaban", "cpasuc",
+    "cpaswi", "cpatip", "cpadiv", "cpacue1", "cpacue2", "ppoide", "fecfac", "horfac", "idefac",
+    "clabieser", "facoriide", "duaide", "numregcon", "fas", "periodo", "tipctr", "tipgar",
+    "impavr", "synckey",
+)
+
+#: Las de texto (`varchar`/`text`, M17): su vacio es `''`; el de las demas, 0.
+_DCA_TEXTO: frozenset[str] = frozenset({
+    "entcod", "entres", "entref", "entcif", "eiotex", "eittra", "pagtex", "pagfor", "tex",
+    "diremp1", "diremp2", "diremp3", "dircon1", "dircon2", "dircon3", "dirdir1", "dirdir2",
+    "dirdir3", "divcod", "paclis", "empcif", "refarc", "emptex", "texent", "refcom", "dtumID",
+    "eleenvio", "bandig", "bancue", "ban", "entciftip", "entcifpai", "PFID", "cadcod1", "cadcod2",
+    "cadcod3", "cadcod4", "cpapai", "cpaban", "cpasuc", "cpaswi", "cpatip", "cpadiv", "cpacue1",
+    "cpacue2", "numregcon", "periodo", "synckey",
+})
+
+#: Identidad del proveedor (R4): del `ctr` con contrato; sin el, del respaldo
+#: (mismo nombre) y, sin respaldo, del `prv` de L17 con ESTE nombre (`cod` es el
+#: `con.cod` del proveedor, que da L17).
+DCA_IDENTIDAD: dict[str, str] = {
+    "entide": "ide", "entcod": "cod", "entres": "raz", "entcif": "cif",
+    "entciftip": "tipcif", "entcifpai": "cifpai",
+}
+
+#: Grupos de la cascada que salen enteros de un mismo origen (R3).
+GRUPO_PAGO: tuple[str, ...] = ("pagide", "pagtex", "pagfor", "efeide")
+GRUPO_BANCO: tuple[str, ...] = ("banban", "bansuc", "bandig", "bancue", "ban", "bantipide")
+
+#: Cascada contrato -> respaldo -> proveedor (R3, D2): columna de `dca` -> la del
+#: `prv` que la trae (`None`: el `prv` no la tiene; `pagtex`/`pagfor` salen del
+#: `auxpag` de su `pagide`, `PAGO_DEL_AUXPAG`).
+DCA_CASCADA: dict[str, str | None] = {
+    "pagide": "pagide", "pagtex": None, "pagfor": None, "efeide": "efeide",
+    "banban": "banban", "bansuc": "bansuc", "bandig": "bandig", "bancue": "bancue",
+    "ban": "ban", "bantipide": "bantipide",
+    "cueide": "cueide", "eioide": "eioide", "dirdir1": "dir", "dircon1": None, "ivadif": None,
+}
+PAGO_DEL_AUXPAG: dict[str, str] = {"pagtex": "res", "pagfor": "formul"}
+
+#: De la peticion, la obra o un calculo (R8, R13), nunca de una fila leida.
+DCA_CALCULADAS: tuple[str, ...] = (
+    "ide", "entref", "fecdoc", "hor", "obride", "ctride", "almide", "cenide", "empide",
+    "synckey", "impbru", "impnet", "totbas", "totiva", "totdoc", "tot", "totpag", "diremp1",
+)
+
+
+def _valor_fijo(columna: str) -> Any:
+    """R9 (M18, D7): lo que deja el alta a mano en una columna que nadie trae."""
+    if columna == "tipgar":
+        return -1
+    if columna == "emptex":
+        return None
+    return "" if columna in _DCA_TEXTO else 0
+
+
+#: Las demas columnas, con el valor fijo del alta a mano (R9).
+DCA_FIJAS: dict[str, Any] = {
+    columna: _valor_fijo(columna)
+    for columna in DCA_COLUMNAS
+    if columna not in DCA_IDENTIDAD and columna not in DCA_CASCADA and columna not in DCA_CALCULADAS
+}
+
+#: Columna -> origen, derivado de los cuatro grupos y en el orden de `DCA_COLUMNAS`.
+ORIGEN_DCA: dict[str, str] = {
+    columna: (
+        "identidad" if columna in DCA_IDENTIDAD
+        else "cascada" if columna in DCA_CASCADA
+        else "calculada" if columna in DCA_CALCULADAS
+        else "fija"
+    )
+    for columna in DCA_COLUMNAS
+}
+
 #: Tablas que se clonan de una plantilla y cuyo `INSERT` lleva las columnas de
 #: la fila. Ninguna otra se escribe asi.
 _TABLAS_CLONADAS = frozenset({"con", "dca", "dcapro"})
