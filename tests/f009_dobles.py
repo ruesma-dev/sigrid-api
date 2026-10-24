@@ -78,6 +78,9 @@ NOMBRES: dict[str, str] = {
     _S.reservar_ide_mov()[0]: "ide_mov",
     _S.reservar_balance(1, 1)[0]: "balance_bajo_bloqueo",
     _S.reservar_ide_log()[0]: "ide_log",
+    # F-015 R1: `con` y `dca`, columnas fijas.
+    _S.insertar_con(dict.fromkeys(CON_COLUMNAS))[0]: "insert_con",
+    _S.insertar_dca(dict.fromkeys(DCA_COLUMNAS))[0]: "insert_dca",
     _S.insertar_ctrprodes(dict.fromkeys(CTRPRODES_COLUMNAS))[0]: "insert_ctrprodes",
     _S.insertar_mov(dict.fromkeys(MOV_COLUMNAS))[0]: "insert_mov",
     _S.insertar_log(dict.fromkeys(LOG_COLUMNAS))[0]: "insert_log",
@@ -96,17 +99,16 @@ _IN = re.compile(r"IN \(\?(?:, \?)*\)")
 
 
 def nombre(sql: str) -> str:
-    """Nombre corto de una sentencia del constructor, o `AssertionError`. Los
-    `INSERT` de las tablas clonadas se reconocen por su cabecera; su SQL
-    completo lo fija carácter a carácter `test_f009_statements.py`."""
+    """Nombre corto de una sentencia del constructor, o `AssertionError`. El
+    `INSERT` de `dcapro`, la única tabla clonada desde F-015, se reconoce por su
+    cabecera; su SQL completo lo fija carácter a carácter `test_f009_statements.py`."""
     normalizado = _IN.sub("IN (?)", sql)
     if normalizado in NOMBRES:
         return NOMBRES[normalizado]
-    for tabla in ("dcapro", "dca", "con"):
-        if sql.startswith(f"INSERT INTO dbo.{tabla} ([") and sql == _S.insertar_clonada(
-            tabla, dict.fromkeys(_columnas_del_insert(sql))
-        )[0]:
-            return f"insert_{tabla}"
+    if sql.startswith("INSERT INTO dbo.dcapro ([") and sql == _S.insertar_clonada(
+        "dcapro", dict.fromkeys(_columnas_del_insert(sql))
+    )[0]:
+        return "insert_dcapro"
     raise AssertionError(f"sentencia inesperada: {sql}")
 
 

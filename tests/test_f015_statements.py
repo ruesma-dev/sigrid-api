@@ -506,3 +506,70 @@ def test_f015_r10_sin_contrato_ni_respaldo_la_identidad_del_proveedor_es_obligat
     with pytest.raises(ValueError, match="cod"):
         _dca(None, None, proveedor, _auxpag())
     _dca(None, _respaldo(), proveedor)
+
+
+# =====================================================================================
+# T6 · R1, R24: `INSERT` de `con` y `dca` con columnas fijas
+# =====================================================================================
+
+
+def test_f015_r1_insert_de_con_con_sus_19_columnas_fijas(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+
+    fila = {columna: columna for columna in reversed(CON_COLUMNAS)}
+    assert sentencias.insertar_con(fila) == (
+        (
+            "INSERT INTO dbo.con (ide, emp, tip, subtip, cod, res, fec, tex, cee, est, fecbaj, "
+            "tiemod, ico, delo, del, obr, doc, serie, hor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+            "?, ?, ?, ?, ?, ?, ?, ?)"
+        ),
+        list(CON_COLUMNAS),
+    )
+
+
+def test_f015_r1_insert_de_dca_con_sus_145_columnas_fijas(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    fila = {columna: i for i, columna in reversed(list(enumerate(modulo.DCA_COLUMNAS)))}
+    sql, params = sentencias.insertar_dca(fila)
+    assert sql == (
+        "INSERT INTO dbo.dca (" + ", ".join(_DCA_DE_LA_SPEC) + ") VALUES ("
+        + ", ".join(["?"] * 145) + ")"
+    )
+    assert sql.startswith("INSERT INTO dbo.dca (ide, cla, entide, entcod, entres, entref, ")
+    assert sql.count("?") == 145 and "[" not in sql
+    assert params == list(range(145))
+
+
+@pytest.mark.parametrize("metodo", ["insertar_con", "insertar_dca"])
+def test_f015_r1_una_fila_de_cabecera_que_no_cuadra_no_se_inserta(
+    sentencias: modulo.AlbaranCompraStatements, metodo: str
+) -> None:
+    """D6: ni una columna de más (de una fila leída) ni una de menos."""
+    from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+
+    columnas = CON_COLUMNAS if metodo == "insertar_con" else modulo.DCA_COLUMNAS
+    fila = dict.fromkeys(columnas, 0)
+    with pytest.raises(ValueError, match="sobran"):
+        getattr(sentencias, metodo)({**fila, "usu": "viejo"})
+    del fila["ide"]
+    with pytest.raises(ValueError, match="faltan"):
+        getattr(sentencias, metodo)(fila)
+
+
+def test_f015_r24_solo_dcapro_se_clona() -> None:
+    assert frozenset({"dcapro"}) == modulo._TABLAS_CLONADAS
+    sentencias = modulo.AlbaranCompraStatements(database="ruesma")
+    for tabla in ("con", "dca"):
+        with pytest.raises(ValueError, match="no se escribe por clonado"):
+            sentencias.insertar_clonada(tabla, {"ide": 1})
+
+
+def test_f015_r24_los_insert_de_cabecera_se_validan_al_construir() -> None:
+    from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+
+    todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
+    assert modulo._insert_fijo("con", CON_COLUMNAS) in todas
+    assert modulo._insert_fijo("dca", modulo.DCA_COLUMNAS) in todas

@@ -175,8 +175,9 @@ ORIGEN_DCA: dict[str, str] = {
 }
 
 #: Tablas que se clonan de una plantilla y cuyo `INSERT` lleva las columnas de
-#: la fila. Ninguna otra se escribe asi.
-_TABLAS_CLONADAS = frozenset({"con", "dca", "dcapro"})
+#: la fila. Ninguna otra se escribe asi: desde F-015, `con` y `dca` van por lista
+#: blanca con columnas fijas (D6).
+_TABLAS_CLONADAS = frozenset({"dcapro"})
 
 # --- Lecturas (con credenciales de lectura) -------------------------------------
 # `{marcadores}` es la lista `(?, ?, ...)` de un `IN`; nunca lleva valores.
@@ -1092,6 +1093,8 @@ class AlbaranCompraStatements:
             E5_IDE_CTRPRODES,
             E6_IDE_MOV,
             E7_BALANCE,
+            _insert_fijo("con", CON_COLUMNAS),
+            _insert_fijo("dca", DCA_COLUMNAS),
             _insert_fijo("ctrprodes", CTRPRODES_COLUMNAS),
             _insert_fijo("mov", MOV_COLUMNAS),
             E9_SERVIDO,
@@ -1237,12 +1240,6 @@ class AlbaranCompraStatements:
         )
         return self._validar(sql), list(fila.values())
 
-    def insertar_con(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
-        return self.insertar_clonada("con", fila)
-
-    def insertar_dca(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
-        return self.insertar_clonada("dca", fila)
-
     def insertar_dcapro(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self.insertar_clonada("dcapro", fila)
 
@@ -1256,6 +1253,14 @@ class AlbaranCompraStatements:
                 f"faltan {sorted(set(columnas) - set(fila))}, sobran {sorted(set(fila) - set(columnas))}."
             )
         return _insert_fijo(tabla, columnas), [fila[c] for c in columnas]
+
+    def insertar_con(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R1: `con` con `CON_COLUMNAS` (F-006), nunca las de una fila leida."""
+        return self._insertar_fija("con", CON_COLUMNAS, fila)
+
+    def insertar_dca(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """F-015 R1: `dca` con las 145 de `DCA_COLUMNAS`."""
+        return self._insertar_fija("dca", DCA_COLUMNAS, fila)
 
     def insertar_ctrprodes(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
         return self._insertar_fija("ctrprodes", CTRPRODES_COLUMNAS, fila)
