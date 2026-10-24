@@ -55,6 +55,7 @@ NOMBRES: dict[str, str] = {
     _S.leer_proveedor_por_cif(1, "x")[0]: "proveedor_por_cif",
     _S.buscar_referencia("x")[0]: "referencia",
     _S.leer_lineas_de_albaran(1)[0]: "lineas_del_existente",
+    _S.leer_retenciones(1)[0]: "retenciones",
     _S.leer_estado_inicial()[0]: "conest",
     _S.leer_usuario("x")[0]: "usuario",
     _S.ultimo_cod(1, "x")[0]: "ultimo_cod",
@@ -246,6 +247,8 @@ def lecturas_base() -> dict[str, Any]:
         "proveedor_por_cif": [(ENTIDE, "P0077")],
         "referencia": [],
         "lineas_del_existente": [],
+        # F-015 L16: el contrato del doble no tiene `ctrrec` (sin retención).
+        "retenciones": [],
         "conest": [(1,)],
         "usuario": [("prueba",)],
         "ultimo_cod": [(15952,)],

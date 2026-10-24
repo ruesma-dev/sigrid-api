@@ -573,3 +573,68 @@ def test_f015_r24_los_insert_de_cabecera_se_validan_al_construir() -> None:
     todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
     assert modulo._insert_fijo("con", CON_COLUMNAS) in todas
     assert modulo._insert_fijo("dca", modulo.DCA_COLUMNAS) in todas
+
+
+# =====================================================================================
+# T9 · R12, R14: L16 y `resolver_retencion`
+# =====================================================================================
+
+
+def test_f015_r12_sql_l16_recargos_del_contrato_con_su_clase(
+    sentencias: modulo.AlbaranCompraStatements,
+) -> None:
+    assert sentencias.leer_retenciones(300) == (
+        (
+            "SELECT r.ide, r.recide, r.pos, r.valdef, r.valpor, r.valcan, r.valmod, r.valfij, "
+            "r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item, x.cla, c.cod FROM dbo.ctrrec r "
+            "LEFT JOIN dbo.rec x ON x.ide = r.recide LEFT JOIN dbo.con c ON c.ide = r.recide "
+            "WHERE r.docide = ? ORDER BY r.pos, r.ide"
+        ),
+        [300],
+    )
+    assert modulo.L16_RETENCIONES in modulo.AlbaranCompraStatements.todas_las_sentencias()
+    assert modulo.L16_COLUMNAS == (
+        "ide", "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla",
+        "cueide", "ivaide", "tex", "resalt", "item", "cla", "cod",
+    )
+
+
+def ctrrec(**valores: object) -> dict:
+    """Un `ctrrec` de `RET5` como los de M11, con la clase de su `rec` y su `cod`."""
+    return {
+        "ide": 7001, "recide": 6005, "pos": 64, "valdef": 1, "valpor": 0.05, "valcan": 0.0,
+        "valmod": 0, "valfij": 0, "reccla": 5, "cueide": 4705, "ivaide": 0, "tex": "",
+        "resalt": "", "item": 0, "cla": 5, "cod": "RET5", **valores,
+    }
+
+
+def test_f015_r12_sin_ctrrec_no_hay_retencion() -> None:
+    assert modulo.resolver_retencion([]) is None
+
+
+@pytest.mark.parametrize("cla", [3, 4, 5])
+def test_f015_r12_un_ctrrec_soportado_es_la_retencion(cla: int) -> None:
+    fila = ctrrec(cla=cla)
+    assert modulo.resolver_retencion([fila]) == fila
+
+
+@pytest.mark.parametrize(
+    ("filas", "motivo"),
+    [
+        ([ctrrec(), ctrrec(ide=7002, pos=128)], "2 recargos"),
+        ([ctrrec(recide=0, cla=None, cod=None)], "sin recargo"),
+        ([ctrrec(cla=None, cod=None)], "no esta en dbo.rec"),
+        ([ctrrec(cla=1, cod="RETESP")], "clase 1"),
+        ([ctrrec(valfij=1)], "valfij"),
+        ([ctrrec(ivaide=777740)], "ivaide"),
+    ],
+    ids=["varias", "recide_0", "sin_rec", "clase_1", "valfij", "ivaide"],
+)
+def test_f015_r14_ctrrec_no_soportado(filas: list, motivo: str) -> None:
+    with pytest.raises(modulo.RetencionNoSoportada, match=motivo) as excinfo:
+        modulo.resolver_retencion(filas)
+    assert isinstance(excinfo.value, ValueError)
+
+
+def test_f015_r14_clases_soportadas_y_su_base() -> None:
+    assert modulo.CLASES_RETENCION_BASE == {5: "totbas", 3: "totbas", 4: "totdoc"}

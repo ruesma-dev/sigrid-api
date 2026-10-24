@@ -226,6 +226,19 @@ L11_LINEAS = (
     "SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro "
     "WHERE docide = ? ORDER BY pos"
 )
+#: L16 (F-015 R12, R14): los recargos del contrato con la clase de su `rec` (NULL
+#: si el `recide` no esta en `dbo.rec`) y el `cod` del recargo, para el aviso.
+L16_RETENCIONES = (
+    "SELECT r.ide, r.recide, r.pos, r.valdef, r.valpor, r.valcan, r.valmod, r.valfij, "
+    "r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item, x.cla, c.cod FROM dbo.ctrrec r "
+    "LEFT JOIN dbo.rec x ON x.ide = r.recide LEFT JOIN dbo.con c ON c.ide = r.recide "
+    "WHERE r.docide = ? ORDER BY r.pos, r.ide"
+)
+#: Nombres de las columnas de L16, en su orden.
+L16_COLUMNAS: tuple[str, ...] = (
+    "ide", "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla",
+    "cueide", "ivaide", "tex", "resalt", "item", "cla", "cod",
+)
 L12_BALANCE = (
     "SELECT TOP 1 almcan, almpma FROM dbo.mov WHERE proide = ? AND almide = ? "
     "ORDER BY fechor DESC, ide DESC"
@@ -361,6 +374,42 @@ def usa_precio_del_contrato(cantidad: float, precio: float, pre_contrato: float)
 #: cualquier cantidad real de Sigrid (se manejan con 2-3 decimales) y muy por
 #: encima del residuo binario de sumar cantidades decimales (~1e-16 a 1e-12).
 EPSILON_STOCK = 1e-6
+
+
+# --- Retencion del contrato (F-015 O2, R12-R16) -------------------------------------
+
+#: Clase del `rec` -> total de la cabecera que es la base de la retencion (M12):
+#: retencion (5) e IRPF (3) sobre la base; la de clase 4, sobre el total.
+CLASES_RETENCION_BASE: dict[int, str] = {5: "totbas", 3: "totbas", 4: "totdoc"}
+
+
+class RetencionNoSoportada(ValueError):
+    """R14: el recargo del contrato no se sabe calcular; el motivo, en el texto."""
+
+
+def resolver_retencion(filas_ctrrec: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    """
+    R12, R14 (M11): el UNICO `ctrrec` del contrato, si se sabe calcular, o
+    `None` sin ninguno. Mas de uno, uno sin recargo (`recide` 0) o con un
+    `recide` que no esta en `dbo.rec`, de una clase fuera de
+    `CLASES_RETENCION_BASE`, con `valfij` o con `ivaide` -> `RetencionNoSoportada`.
+    """
+    if not filas_ctrrec:
+        return None
+    if len(filas_ctrrec) > 1:
+        raise RetencionNoSoportada(f"El contrato tiene {len(filas_ctrrec)} recargos.")
+    fila = filas_ctrrec[0]
+    if not fila["recide"]:
+        raise RetencionNoSoportada("El recargo del contrato esta vacio (sin recargo).")
+    if fila["cla"] is None:
+        raise RetencionNoSoportada(f"El recargo {fila['recide']} no esta en dbo.rec.")
+    if int(fila["cla"]) not in CLASES_RETENCION_BASE:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} es de clase {fila['cla']}.")
+    if fila["valfij"]:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva valfij {fila['valfij']}.")
+    if fila["ivaide"]:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva ivaide {fila['ivaide']}.")
+    return fila
 
 
 @dataclass(frozen=True)
@@ -1105,6 +1154,7 @@ class AlbaranCompraStatements:
             L11_REFERENCIA,
             L11_LINEAS,
             L12_BALANCE,
+            L16_RETENCIONES,
             L13A_ESTADO,
             L13B_USUARIO,
             L14_ULTIMO_COD,
@@ -1164,6 +1214,10 @@ class AlbaranCompraStatements:
 
     def leer_lineas_de_albaran(self, docide: int) -> tuple[str, list[Any]]:
         return L11_LINEAS, [docide]
+
+    def leer_retenciones(self, ctride: int) -> tuple[str, list[Any]]:
+        """L16 (F-015 R12): los `ctrrec` del contrato, con o sin vinculadas."""
+        return L16_RETENCIONES, [ctride]
 
     def leer_estado_inicial(self) -> tuple[str, list[Any]]:
         return L13A_ESTADO, [TIP_ALBARAN, EST_INICIAL]
