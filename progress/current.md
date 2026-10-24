@@ -12,7 +12,7 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
 
 ### Implementación (implementer, 2026-10-24)
 
-- **En curso**: T2 y T1 hechas (T1: filas completas; los nombres SQL nuevos, con su tarea); T3 a continuación.
+- **En curso**: T1-T6 y T8 hechas; T7 a continuación. T8 antes que T7: el caso de uso lanza los códigos nuevos y `AlbaranCompraError` rechaza los que no están en la lista cerrada.
 - **Desviación de orden**: T2 antes que T1, porque las filas completas del doble (T1) se construyen con
   `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
   `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.

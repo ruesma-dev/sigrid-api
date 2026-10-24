@@ -387,7 +387,11 @@ def test_f009_r9_codigos_cerrados_de_design() -> None:
         "contrato_no_encontrado",
         "contrato_ambiguo",
         "usuario_no_valido",
-        "proveedor_sin_albaran_previo",
+        # F-015 R6 retira `proveedor_sin_albaran_previo` (el respaldo es opcional, D4);
+        # R7 añade los del proveedor por CIF y R14 el de la retención.
+        "proveedor_no_encontrado",
+        "proveedor_ambiguo",
+        "retencion_no_soportada",
         "estado_inicial_no_encontrado",
         "almacen_de_obra_no_resuelto",
         "colision_de_clave",
@@ -416,6 +420,9 @@ def test_f009_r9_codigos_cerrados_de_design() -> None:
         "servido_negativo",
         "stock_negativo",
         "cod_provisional",
+        # F-015 R5 (D12) y R16: informativos, de cabecera.
+        "cabecera_sin_dato",
+        "retencion_del_contrato",
     }
     assert not CODIGOS_CABECERA & CODIGOS_LINEA
     assert not (CODIGOS_CABECERA | CODIGOS_LINEA) & CODIGOS_AVISO
@@ -429,7 +436,9 @@ def test_f009_r9_error_de_cabecera() -> None:
     assert error.lineas == []
 
 
-@pytest.mark.parametrize("codigo", ["inventado", "precio_negativo", "cod_provisional", ""])
+@pytest.mark.parametrize(
+    "codigo", ["inventado", "precio_negativo", "cod_provisional", "", "proveedor_sin_albaran_previo"]
+)
 def test_f009_r9_codigo_fuera_de_la_lista_no_se_construye(codigo: str) -> None:
     """Un código de línea va dentro de `lineas_no_validas`, nunca suelto."""
     with pytest.raises(ValueError, match="no es un codigo"):
