@@ -218,9 +218,10 @@ L9_TASAS_IVA = "SELECT ide, iva FROM dbo.iva WHERE ide IN {marcadores}"
 L10_ALMACEN_DE_OBRA = "SELECT almide, cenide FROM dbo.obr WHERE ide = ?"
 L10_ALMACENES = "SELECT ide, obride, cenide FROM dbo.alm WHERE obride = ?"
 L10_ALMACENES_RESUELTOS = " OR ide IN {marcadores}"
+#: F-015 R18: con el `tot` (neto de la retencion) al final.
 L11_REFERENCIA = (
-    "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc FROM dbo.dca d "
-    "JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
+    "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc, d.tot "
+    "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
 )
 L11_LINEAS = (
     "SELECT pos, proide, can, pre, tot, paride, almide, refent FROM dbo.dcapro "

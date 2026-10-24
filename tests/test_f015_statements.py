@@ -773,3 +773,18 @@ def test_f015_r20_numerar_sin_dcarec_no_necesita_ide() -> None:
         ide_log=None,
     )
     assert numeradas.dcarec == []
+
+
+# =====================================================================================
+# T12 · R18: L11 lee también el `tot` del albarán existente
+# =====================================================================================
+
+
+def test_f015_r18_sql_l11_con_el_tot(sentencias: modulo.AlbaranCompraStatements) -> None:
+    assert sentencias.buscar_referencia("ALB-1") == (
+        (
+            "SELECT c.ide, c.cod, c.fec, d.entide, d.obride, d.totbas, d.totdoc, d.tot "
+            "FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
+        ),
+        [14, "ALB-1"],
+    )

@@ -281,7 +281,8 @@ def lecturas_base() -> dict[str, Any]:
     }
 
 
-PEEK = {"con": 2900001, "dcapro": 8000001, "ctrprodes": 400001, "mov": 9000001, "log": 8488889}
+PEEK = {"con": 2900001, "dcapro": 8000001, "ctrprodes": 400001, "mov": 9000001, "log": 8488889,
+        "dcarec": 44001}
 
 RESERVAS: dict[str, Any] = {
     "reservar_cod": (15952,),

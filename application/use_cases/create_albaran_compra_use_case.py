@@ -9,8 +9,9 @@ Flujo (design §Flujo):
 2. Cabecera con lecturas: obra en las empresas admitidas -> contrato -> albaran
    anterior del proveedor (respaldo, opcional; F-015 R6) -> sin contrato ni
    respaldo, el `prv` por CIF (R7) -> `prv` del `entide` -> idempotencia ->
-   `conest` y `usu` -> `auxpag` si el pago sale del `prv`. La cabecera se
-   construye por lista blanca (F-015 R1-R10), sin clonar ninguna fila.
+   `conest` y `usu` -> con contrato, su retencion (L16, F-015 R12, R14) ->
+   `auxpag` si el pago sale del `prv`. La cabecera se construye por lista
+   blanca (F-015 R1-R10), sin clonar ninguna fila.
 3. Lineas, TODAS, acumulando los fallos (`lineas_no_validas`).
 4. Construccion pura de las filas (`albaran_compra_statements`) y, en previa,
    numeracion provisional; en commit, UNA transaccion reentrante.
@@ -35,17 +36,21 @@ from application.use_cases.albaran_compra_statements import (
     EFECTOS_CON_BANCO,
     GRUPO_BANCO,
     GRUPO_PAGO,
+    L16_COLUMNAS,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
     FilasAlbaran,
+    RetencionNoSoportada,
     SellosAlbaran,
+    calcular_retencion,
     codigo_analitica,
     construir_con,
     construir_ctrprodes,
     construir_dca,
     construir_dcapro_sin_vincular,
     construir_dcapro_vinculada,
+    construir_dcarec,
     construir_log,
     construir_mov,
     encadenar_balances,
@@ -53,7 +58,9 @@ from application.use_cases.albaran_compra_statements import (
     importe_linea,
     numerar,
     pago_del_proveedor,
+    redondear_euros,
     resolver_cascada,
+    resolver_retencion,
     sellos_del_alta,
     siguiente_cod,
     sumar_importes,
@@ -135,6 +142,8 @@ class _Cabecera:
     respaldo: dict[str, Any] | None
     proveedor: dict[str, Any]
     pago_proveedor: dict[str, Any] | None = None
+    # El `ctrrec` del contrato ya resuelto (F-015 R12, R14), o `None`.
+    retencion: dict[str, Any] | None = None
     # Avisos de cabecera (R5): se deciden una vez, fuera de la transaccion.
     avisos: list[AvisoAlbaran] = field(default_factory=list)
     # Almacen y centro de las sin vincular (R15), resuelto una vez si hace falta.
@@ -199,11 +208,13 @@ class _Linea:
 
 @dataclass(frozen=True)
 class _Construido:
-    """Las filas de un intento y el balance de cada linea con `mov`."""
+    """Las filas de un intento, el balance de cada linea con `mov` y el aviso de
+    la retencion (F-015 R16), que cita `bas` y `cuo` y por eso sale de aqui."""
 
     filas: FilasAlbaran
     balances: dict[int, Balance]
     totales: dict[str, float]
+    avisos: list[AvisoAlbaran] = field(default_factory=list)
 
 
 class CreateAlbaranCompraUseCase:
@@ -258,6 +269,9 @@ class CreateAlbaranCompraUseCase:
             codigos=[aviso.codigo for aviso in respuesta.avisos]
             + [aviso.codigo for linea in respuesta.lineas for aviso in linea.avisos],
         )
+        if "n_retenciones" in respuesta.totales:
+            # F-015 R19: cuantas, nunca `bas`, `cuo` ni `valpor` (no en `idempotente`).
+            traza["n_retenciones"] = respuesta.totales["n_retenciones"]
         self._trazar(traza, arranque)
         return respuesta
 
@@ -282,6 +296,7 @@ class CreateAlbaranCompraUseCase:
             )
             return self._respuesta_idempotente(request, existente, lineas_existentes)
         self._comprobar_estado_y_usuario(request, sentencias)
+        self._leer_retencion(request, sentencias, cabecera)
         self._completar_cabecera(request, cabecera)
 
         # 3-5. Lineas, construccion y previa o commit.
@@ -464,6 +479,24 @@ class CreateAlbaranCompraUseCase:
                 f"{', '.join(faltan)}: se escriben vacias, como el alta a mano.",
             ))
 
+    def _leer_retencion(
+        self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements,
+        cabecera: _Cabecera,
+    ) -> None:
+        """F-015 R12, R14 (L16): con contrato, su `ctrrec`; si no se sabe calcular,
+        400 `retencion_no_soportada` tambien en dry-run, antes de las lineas."""
+        if cabecera.contrato is None:
+            return
+        _c, filas = self._leer(request, sentencias.leer_retenciones(cabecera.ctride), muchas=True)
+        try:
+            retencion = resolver_retencion([dict(zip(L16_COLUMNAS, fila)) for fila in filas])
+        except RetencionNoSoportada as exc:
+            raise AlbaranCompraError(
+                f"{exc} El albaran no se puede dar de alta con la retencion del contrato: alta a mano.",
+                codigo="retencion_no_soportada",
+            ) from exc
+        cabecera.retencion = dict(retencion) if retencion is not None else None
+
     def _efecto_con_banco(self, request: AlbaranCompraRequest, efeide: int) -> bool:
         """R5: el efecto escrito es de confirming o transferencia (`auxefp.cod`)."""
         if not efeide:
@@ -578,7 +611,7 @@ class CreateAlbaranCompraUseCase:
     ) -> AlbaranCompraResponse:
         """H18: lo LEIDO de Sigrid; `committed` false, `dry_run` = not commit,
         lineas por `pos` con `indice` desde 0 y `referencia_linea` de `refent`."""
-        ide, cod, fec, _entide, _obride, totbas, totdoc = existente
+        ide, cod, fec, _entide, _obride, totbas, totdoc, tot = existente
         return AlbaranCompraResponse(
             database=request.database,
             committed=False,
@@ -604,8 +637,16 @@ class CreateAlbaranCompraUseCase:
                 )
                 for indice, (pos, proide, can, pre, tot, paride, almide, refent) in enumerate(lineas)
             ],
-            totales={"totbas": float(totbas or 0), "totdoc": float(totdoc or 0),
-                     "n_lineas": len(lineas)},
+            # F-015 R18: `retenciones` = totdoc - tot, sin leer su `dcarec`.
+            totales={
+                "totbas": float(totbas or 0),
+                "totdoc": float(totdoc or 0),
+                "tot": float(tot or 0),
+                "retenciones": float(
+                    redondear_euros(float(totdoc or 0)) - redondear_euros(float(tot or 0))
+                ),
+                "n_lineas": len(lineas),
+            },
             estado="idempotente",
             referencia_externa=request.referencia_externa,
         )
@@ -706,11 +747,7 @@ class CreateAlbaranCompraUseCase:
                         "el albaran entero.",
                         codigo="filas_afectadas_inesperadas",
                     )
-            return {
-                "construido": _Construido(filas=filas, balances=construido.balances,
-                                          totales=construido.totales),
-                "estados": estados,
-            }
+            return {"construido": replace(construido, filas=filas), "estados": estados}
 
         try:
             resultado = self._repo.run_in_write_transaction(
@@ -738,7 +775,7 @@ class CreateAlbaranCompraUseCase:
             resultado["construido"],
             estado="creado",
             estados=resultado["estados"],
-            avisos=list(cabecera.avisos),
+            avisos=[*cabecera.avisos, *resultado["construido"].avisos],
         )
 
     # ------------------------------------------------------------------ #
@@ -907,6 +944,14 @@ class CreateAlbaranCompraUseCase:
             ))
 
         totales = sumar_importes(importes)
+        # F-015 R13, R15, R16: la retencion del contrato, sobre los totales escritos.
+        dcarec: list[dict[str, Any]] = []
+        avisos: list[AvisoAlbaran] = []
+        cuo = Decimal(0)
+        if cabecera.retencion is not None:
+            bas, cuo = calcular_retencion(cabecera.retencion, totales)
+            dcarec.append(construir_dcarec(cabecera.retencion, bas=bas, cuo=cuo))
+            avisos.append(_aviso_retencion(cabecera.retencion, bas, cuo))
         almide, cenide = cabecera.almacen_cabecera
         dca, _sin_fuente = construir_dca(
             contrato=cabecera.fila_contrato,
@@ -922,7 +967,7 @@ class CreateAlbaranCompraUseCase:
             cenide=cenide,
             empide=request.empide or self._settings.sigrid_albaran_empide,
             totales=totales,
-            cuo=Decimal(0),
+            cuo=cuo,
             referencia_externa=request.referencia_externa,
         )
         con = construir_con(
@@ -932,9 +977,12 @@ class CreateAlbaranCompraUseCase:
         log = construir_log(emp=cabecera.obra.emp, usu=request.usu, res=con["res"], sellos=sellos)
         return _Construido(
             filas=FilasAlbaran(con=con, dca=dca, dcapro=dcapro, ctrprodes=ctrprodes,
-                               mov=movimientos, log=log),
+                               mov=movimientos, log=log, dcarec=dcarec),
             balances={linea.indice: b for linea, b in zip(con_mov, balances)},
-            totales=totales,
+            # F-015 R17: el neto (`dca.tot`) y la retencion, 0 sin `dcarec`.
+            totales={**totales, "tot": dca["tot"], "retenciones": float(cuo),
+                     "n_retenciones": len(dcarec)},
+            avisos=avisos,
         )
 
     @staticmethod
@@ -962,9 +1010,13 @@ class CreateAlbaranCompraUseCase:
 
         # L14: el cod y los ide de la previa, sin reservar.
         _c, maximo = self._leer(request, sentencias.ultimo_cod(cabecera.obra.emp, sellos.prefijo))
+        # F-015 R20: la `dcarec`, solo si la hay.
+        tablas = ("con", "dcapro", "ctrprodes", "mov", "log") + (
+            ("dcarec",) if construido.filas.dcarec else ()
+        )
         peek = {
             tabla: self._repo.peek_next_ide(database=request.database, table=tabla)
-            for tabla in ("con", "dcapro", "ctrprodes", "mov", "log")
+            for tabla in tablas
         }
         filas = numerar(
             construido.filas,
@@ -974,15 +1026,19 @@ class CreateAlbaranCompraUseCase:
             ide_ctrprodes=peek["ctrprodes"],
             ide_mov=peek["mov"],
             ide_log=peek["log"],
+            ide_dcarec=peek.get("dcarec"),
         )
         return self._respuesta(
             request,
             cabecera,
             lineas,
-            _Construido(filas=filas, balances=construido.balances, totales=construido.totales),
+            replace(construido, filas=filas),
             estado="previsto",
             estados=self._estados_previstos(cabecera, lineas),
-            avisos=[_aviso("cod_provisional", _AVISO_PROVISIONAL), *cabecera.avisos],
+            avisos=[
+                _aviso("cod_provisional", _AVISO_PROVISIONAL), *cabecera.avisos,
+                *construido.avisos,
+            ],
         )
 
     @staticmethod
@@ -1084,6 +1140,16 @@ class CreateAlbaranCompraUseCase:
             avisos=avisos,
             filas=filas.como_dict(),
         )
+
+
+def _aviso_retencion(ctrrec: Mapping[str, Any], bas: Decimal, cuo: Decimal) -> AvisoAlbaran:
+    """F-015 R16: informativo, con el codigo del recargo, el porcentaje, `bas` y `cuo`."""
+    porcentaje = format((Decimal(repr(float(ctrrec["valpor"]))) * 100).normalize(), "f")
+    return _aviso(
+        "retencion_del_contrato",
+        f"El contrato lleva el recargo {str(ctrrec['cod'] or '').strip()} ({porcentaje} %): "
+        f"se retienen {cuo:.2f} sobre {bas:.2f} y el neto (tot) es totdoc menos la retencion.",
+    )
 
 
 def _ejecutar(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:

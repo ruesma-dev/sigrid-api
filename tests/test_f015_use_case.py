@@ -9,6 +9,8 @@ sentencia por su SQL exacto. Datos sintéticos.
 """
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 import pytest
@@ -17,6 +19,8 @@ from f009_dobles import (
     AUXPAG_PRV,
     CTR,
     ENTIDE,
+    OBRA,
+    PEEK,
     PLANTILLA_CABECERA,
     RepositorioDoble,
     SettingsDoble,
@@ -25,7 +29,11 @@ from f009_dobles import (
     prv,
 )
 
-from application.use_cases.albaran_compra_statements import GRUPO_BANCO, GRUPO_PAGO
+from application.use_cases.albaran_compra_statements import (
+    GRUPO_BANCO,
+    GRUPO_PAGO,
+    L16_COLUMNAS,
+)
 from application.use_cases.create_albaran_compra_use_case import (
     CreateAlbaranCompraUseCase,
 )
@@ -339,3 +347,219 @@ def test_f015_r10_columna_ausente_falla_sin_escribir(
         ejecutar(repo=repo, commit=commit)
     assert not any(t in ("peek", "transaccion") for t, _ in repo.llamadas)
     assert "partidas" not in repo.lecturas_hechas() and "tipmov" not in repo.lecturas_hechas()
+
+
+# =====================================================================================
+# T12 · R12, R14, R16-R20: la retención del contrato en el caso de uso
+# =====================================================================================
+
+#: El `ide` que el doble devuelve al mirar la siguiente `dcarec` (previa, R20).
+PEEK_DCAREC = PEEK["dcarec"]
+
+
+def ctrrec_fila(**valores: Any) -> tuple[Any, ...]:
+    """Una fila de L16: el `ctrrec` de `RET5` (M11), en el orden de `L16_COLUMNAS`."""
+    base = {
+        "ide": 7001, "recide": 6005, "pos": 64, "valdef": 1, "valpor": 0.05, "valcan": 0.0,
+        "valmod": 0, "valfij": 0, "reccla": 5, "cueide": 4705, "ivaide": 0, "tex": "RETENCION",
+        "resalt": "", "item": 0, "cla": 5, "cod": "RET5  ", **valores,
+    }
+    return tuple(base[columna] for columna in L16_COLUMNAS)
+
+
+def _con_retencion(*filas: tuple[Any, ...], **lecturas: Any) -> RepositorioDoble:
+    return RepositorioDoble({"retenciones": list(filas or [ctrrec_fila()]), **lecturas})
+
+
+#: `vinculada()`: 2 · 10,50 = 21,00 de base y 4,41 de IVA (21 %): totdoc 25,41.
+#: RET5 (clase 5) sobre la base: 21,00 · 0,05 = 1,05; tot = 25,41 - 1,05 = 24,36.
+_DCAREC_RET5 = {
+    "ide": PEEK_DCAREC, "docide": PEEK["con"], "recide": 6005, "pos": 64, "bas": 21.0,
+    "valdef": 1, "valpor": 0.05, "valcan": 0.0, "valmod": 0, "valfij": 0, "cuo": 1.05,
+    "tex": "RETENCION", "reccla": 5, "cueide": 4705, "ivaide": 0, "ivacuo": 0, "reqcuo": 0,
+    "refide": 0, "resalt": "", "frasupide": 0, "item": 0,
+}
+
+
+def test_f015_r12_con_contrato_l16_tras_conest_y_usuario() -> None:
+    _respuesta, repo = ejecutar()
+    hechas = repo.lecturas_hechas()
+    assert hechas[hechas.index("usuario") + 1] == "retenciones"
+    assert repo.parametros_de("retenciones") == [[CTR]]
+
+
+def test_f015_r12_sin_contrato_no_se_lee_l16() -> None:
+    respuesta, repo = _sin_contrato({"retenciones": [ctrrec_fila()]})
+    assert "retenciones" not in repo.lecturas_hechas()
+    assert respuesta.filas["dcarec"] == []
+
+
+def test_f015_r12_contrato_con_ret5_escribe_una_dcarec() -> None:
+    respuesta, repo = ejecutar(repo=_con_retencion())
+    assert respuesta.filas["dcarec"] == [_DCAREC_RET5]
+    dca = respuesta.filas["dca"]
+    assert (dca["totbas"], dca["totdoc"], dca["tot"], dca["totpag"]) == (21.0, 25.41, 24.36, 24.36)
+    assert ("peek", "dcarec") in repo.llamadas
+
+
+def test_f015_r12_contrato_sin_ctrrec_ninguna_dcarec() -> None:
+    respuesta, repo = ejecutar()
+    assert respuesta.filas["dcarec"] == []
+    assert (respuesta.filas["dca"]["tot"], respuesta.filas["dca"]["totdoc"]) == (25.41, 25.41)
+    assert ("peek", "dcarec") not in repo.llamadas  # R20: sin `dcarec` no se mira
+
+
+def test_f015_r12_en_devolucion_la_retencion_es_negativa() -> None:
+    respuesta, _ = ejecutar([vinculada(cantidad=-2.0)], repo=_con_retencion())
+    (dcarec,) = respuesta.filas["dcarec"]
+    assert (dcarec["bas"], dcarec["cuo"]) == (-21.0, -1.05)
+    assert respuesta.filas["dca"]["tot"] == -24.36
+
+
+def test_f015_r12_un_albaran_ya_escrito_es_idempotente_aunque_su_retencion_no_valga() -> None:
+    repo = _con_retencion(
+        ctrrec_fila(), ctrrec_fila(ide=7002),
+        referencia=[(2800001, "AC26/15000", 20261001, ENTIDE, OBRA, 21.0, 25.41, 24.36)],
+    )
+    respuesta, repo = ejecutar(repo=repo)
+    assert respuesta.estado == "idempotente"
+    assert "retenciones" not in repo.lecturas_hechas()
+
+
+@pytest.mark.parametrize(
+    ("filas", "motivo"),
+    [
+        ((ctrrec_fila(), ctrrec_fila(ide=7002, pos=128)), "2 recargos"),
+        ((ctrrec_fila(cla=None, cod=None),), "no esta en dbo.rec"),
+        ((ctrrec_fila(cla=1, cod="RETESP"),), "clase 1"),
+        ((ctrrec_fila(valfij=1),), "valfij"),
+        ((ctrrec_fila(ivaide=777740),), "ivaide"),
+        ((ctrrec_fila(recide=0, cla=None, cod=None),), "sin recargo"),
+    ],
+    ids=["varias", "sin_rec", "clase_1", "valfij", "ivaide", "recide_0"],
+)
+@pytest.mark.parametrize("commit", [False, True])
+def test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas(
+    filas: tuple, motivo: str, commit: bool
+) -> None:
+    repo = _con_retencion(*filas)
+    with pytest.raises(AlbaranCompraError, match=motivo) as excinfo:
+        ejecutar(repo=repo, commit=commit)
+    assert excinfo.value.codigo == "retencion_no_soportada"
+    assert "tipmov" not in repo.lecturas_hechas()
+    assert not any(t in ("peek", "transaccion") for t, _ in repo.llamadas)
+    assert not any(t == "auxpag" for t, _ in _leidas_completas(repo))
+
+
+def test_f015_r16_aviso_de_la_retencion_en_la_previa() -> None:
+    respuesta, _ = ejecutar(repo=_con_retencion())
+    assert _avisos(respuesta)[1:] == [(
+        "retencion_del_contrato",
+        ("El contrato lleva el recargo RET5 (5 %): se retienen 1.05 sobre 21.00 y el neto "
+         "(tot) es totdoc menos la retencion."),
+    )]
+
+
+def test_f015_r16_aviso_con_otro_porcentaje_y_tras_el_de_cabecera() -> None:
+    repo = _con_retencion(ctrrec_fila(valpor=0.015, cla=4, cod="IRPF15"))
+    repo.filas[("dca", PLANTILLA_CABECERA)] = dca_plantilla(pagide=0, pagtex="", pagfor="", efeide=0)
+    respuesta, _ = ejecutar(repo=repo)
+    assert [codigo for codigo, _ in _avisos(respuesta)] == [
+        "cod_provisional", "cabecera_sin_dato", "retencion_del_contrato"]
+    assert _avisos(respuesta)[2][1] == (
+        "El contrato lleva el recargo IRPF15 (1.5 %): se retienen 0.38 sobre 25.41 y el neto "
+        "(tot) es totdoc menos la retencion."
+    )
+
+
+def test_f015_r16_sin_retencion_no_hay_aviso() -> None:
+    respuesta, _ = ejecutar()
+    assert "retencion_del_contrato" not in [codigo for codigo, _ in _avisos(respuesta)]
+
+
+def test_f015_r17_totales_con_retencion() -> None:
+    respuesta, _ = ejecutar(repo=_con_retencion())
+    assert respuesta.totales == {
+        "totbas": 21.0, "totiva": 4.41, "totdoc": 25.41, "tot": 24.36, "retenciones": 1.05,
+        "n_retenciones": 1, "n_lineas": 1, "n_vinculadas": 1, "n_movimientos": 1,
+    }
+
+
+def test_f015_r17_totales_sin_retencion() -> None:
+    respuesta, _ = ejecutar()
+    assert {k: respuesta.totales[k] for k in ("totdoc", "tot", "retenciones", "n_retenciones")} == {
+        "totdoc": 25.41, "tot": 25.41, "retenciones": 0.0, "n_retenciones": 0}
+
+
+def test_f015_r17_totales_en_el_alta_sin_retencion() -> None:
+    respuesta, _ = ejecutar(commit=True)
+    assert respuesta.estado == "creado"
+    assert (respuesta.totales["tot"], respuesta.totales["retenciones"],
+            respuesta.totales["n_retenciones"], respuesta.filas["dcarec"]) == (25.41, 0.0, 0, [])
+
+
+@pytest.mark.parametrize(
+    ("totdoc", "tot", "retenciones"), [(4568.11, 4379.34, 188.77), (25.41, 25.41, 0.0)]
+)
+def test_f015_r18_idempotente_tot_y_retenciones_del_albaran_existente(
+    totdoc: float, tot: float, retenciones: float
+) -> None:
+    repo = RepositorioDoble({
+        "referencia": [(2800001, "AC26/15000", 20261001, ENTIDE, OBRA, 3775.30, totdoc, tot)],
+        "lineas_del_existente": [(64, 55, 2.0, 10.5, 21.0, 5, 70, "L1")],
+    })
+    respuesta, repo = ejecutar(repo=repo)
+    assert respuesta.estado == "idempotente"
+    assert respuesta.totales == {
+        "totbas": 3775.30, "totdoc": totdoc, "tot": tot, "retenciones": retenciones,
+        "n_lineas": 1,
+    }
+    assert "retenciones" not in repo.lecturas_hechas()  # sin leer su `dcarec` ni el `ctrrec`
+
+
+_LOGGER = "application.use_cases.create_albaran_compra_use_case"
+
+
+def _trazas(caplog: pytest.LogCaptureFixture, **kwargs: Any) -> tuple[Any, list[dict[str, Any]]]:
+    repo = kwargs.pop("repo", None) or RepositorioDoble()
+    # Reloj quieto: `duracion_ms` 0.0 no se confunde con un importe.
+    caso = CreateAlbaranCompraUseCase(repo, SettingsDoble(), ahora_utc=lambda: AHORA,
+                                      reloj=lambda: 100.0)
+    with caplog.at_level(logging.DEBUG, logger=_LOGGER):
+        try:
+            resultado: Any = caso.run(peticion(None, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - el test mira la traza de cualquier fallo
+            resultado = exc
+    registros = [r for r in caplog.records if r.name == _LOGGER]
+    return resultado, [json.loads(r.getMessage()) for r in registros]
+
+
+def test_f015_r19_la_traza_cuenta_las_retenciones_sin_importes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    respuesta, (traza,) = _trazas(caplog, repo=_con_retencion())
+    assert respuesta.estado == "previsto"
+    assert traza["n_retenciones"] == 1
+    assert traza["codigos"][:2] == ["cod_provisional", "retencion_del_contrato"]
+    for prohibido in ("1.05", "21.0", "0.05", "RET5", "PAGARE", "24.36", "RETENCION"):
+        assert prohibido not in caplog.text, prohibido
+
+
+def test_f015_r19_la_traza_sin_retencion_dice_0(caplog: pytest.LogCaptureFixture) -> None:
+    _respuesta, (traza,) = _trazas(caplog, commit=True)
+    assert traza["n_retenciones"] == 0
+
+
+def test_f015_r19_la_traza_de_un_error_no_cuenta_retenciones(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    exc, (traza,) = _trazas(caplog, repo=_con_retencion(ctrrec_fila(), ctrrec_fila(ide=7002)))
+    assert (type(exc), traza["codigo"]) == (AlbaranCompraError, "retencion_no_soportada")
+    assert "n_retenciones" not in traza
+
+
+def test_f015_r20_previa_numera_la_dcarec_con_peek_sin_reservar() -> None:
+    respuesta, repo = ejecutar(repo=_con_retencion())
+    assert [(d["ide"], d["docide"]) for d in respuesta.filas["dcarec"]] == [
+        (PEEK_DCAREC, respuesta.con_ide)]
+    assert "transaccion" not in [t for t, _ in repo.llamadas]
