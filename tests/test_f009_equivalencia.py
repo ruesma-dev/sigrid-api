@@ -109,7 +109,8 @@ def _filas_del_clasico(monkeypatch: pytest.MonkeyPatch, **cambios: Any) -> dict[
 
 
 def _filas_del_extendido(
-    monkeypatch: pytest.MonkeyPatch, *, lecturas: dict[str, Any] | None = None, **cambios: Any
+    monkeypatch: pytest.MonkeyPatch, *, lecturas: dict[str, Any] | None = None,
+    avisos: list[str] | None = None, **cambios: Any,
 ) -> dict[str, Any]:
     capturadas: dict[str, Any] = {}
     original = modulo_extendido.numerar
@@ -132,7 +133,10 @@ def _filas_del_extendido(
         **cambios,
     })
     caso = CreateAlbaranCompraUseCase(RepositorioDoble(lecturas), SettingsDoble(), ahora_utc=lambda: AHORA)
-    assert caso.run(peticion).estado == "previsto"
+    respuesta = caso.run(peticion)
+    assert respuesta.estado == "previsto"
+    if avisos is not None:  # los de cabecera, por su codigo
+        avisos.extend(aviso.codigo for aviso in respuesta.avisos)
     return capturadas
 
 
@@ -204,11 +208,12 @@ def test_f009_r33_con_la_fecha_de_hoy_el_mov_coincide_salvo_prepma(
 def test_f015_r26_con_ctrrec_solo_cambian_el_neto_y_la_dcarec(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """F-015 R26: con un `ctrrec` de RET5, el extendido escribe ademas la `dcarec`
-    y el neto (`tot`, `totpag`); el resto, como sin retencion."""
+    """F-015 R26: con un `ctrrec` de RET5, el extendido escribe ademas la `dcarec`,
+    el neto (`tot`, `totpag`) y el aviso R16; el resto, como sin retencion."""
     ret5 = (7001, 6005, 64, 1, 0.05, 0.0, 0, 0, 5, 4705, 0, "", "", 0, 5, "RET5")
     clasico = _filas_del_clasico(monkeypatch)
-    extendido = _filas_del_extendido(monkeypatch, lecturas={"retenciones": [ret5]})
+    avisos: list[str] = []
+    extendido = _filas_del_extendido(monkeypatch, lecturas={"retenciones": [ret5]}, avisos=avisos)
     diferencias = _comparar(clasico, extendido)
     assert diferencias["dca"] == [_DCA_DISTINTAS | {"tot", "totpag"}]
     assert diferencias["con"] == [{"tiemod"}]
@@ -216,3 +221,4 @@ def test_f015_r26_con_ctrrec_solo_cambian_el_neto_y_la_dcarec(
     assert (extendido["dca"]["tot"], extendido["dca"]["totpag"]) == (38.28, 38.28)
     assert [(f["recide"], f["bas"], f["cuo"]) for f in extendido["dcarec"]] == [(6005, 33.0, 1.65)]
     assert "dcarec" not in clasico
+    assert avisos.count("retencion_del_contrato") == 1
