@@ -140,6 +140,10 @@ DCA_CASCADA: dict[str, str | None] = {
 }
 PAGO_DEL_AUXPAG: dict[str, str] = {"pagtex": "res", "pagfor": "formul"}
 
+#: Efectos (`auxefp.cod`) en los que el banco es imprescindible: confirming y
+#: transferencia (F-015 R5, M22, D12). Sin banco de ningun origen, aviso.
+EFECTOS_CON_BANCO: frozenset[str] = frozenset({"CC", "CT", "TR"})
+
 #: De la peticion, la obra o un calculo (R8, R13), nunca de una fila leida.
 DCA_CALCULADAS: tuple[str, ...] = (
     "ide", "entref", "fecdoc", "hor", "obride", "ctride", "almide", "cenide", "empide",
@@ -616,40 +620,26 @@ def pago_del_proveedor(
     return False
 
 
-def construir_dca(
+def resolver_cascada(
     *,
     contrato: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
     proveedor: Mapping[str, Any],
     pago_proveedor: Mapping[str, Any] | None,
-    respaldo: Mapping[str, Any] | None,
-    fec: int,
-    hor: int,
-    su_referencia: str,
-    obride: int,
-    ctride: int,
-    almide: int,
-    cenide: int,
-    empide: int,
-    totales: Mapping[str, float],
-    cuo: Decimal,
-    referencia_externa: str,
 ) -> tuple[dict[str, Any], tuple[str, ...]]:
     """
-    `dca` del albaran por lista blanca (F-015 R1-R10): recorre `DCA_COLUMNAS` y
-    da a cada una el valor de su UNICO origen (`ORIGEN_DCA`), nunca una plantilla.
+    Las columnas de `dca` que salen de una fila leida (F-015 R3-R5, R10): la
+    identidad y la cascada, y las de cascada que ningun origen trae.
 
     - identidad (R4): del `contrato`; sin el, del `respaldo` y, sin el, del
       `proveedor` (`prv` mas el `cod` de L17) con los nombres de `DCA_IDENTIDAD`;
     - cascada (R3): del primer origen con valor en el orden contrato -> respaldo
       -> proveedor; el pago y el banco en grupo; del `prv`, `pagtex`/`pagfor` de
       su `auxpag` (`pago_proveedor`); `ivadif` del contrato aunque sea 0;
-    - calculadas (R8, R13): de la peticion, la obra y los totales, con `tot` =
-      `totpag` = `totdoc` - `cuo`; `diremp1` = la `entres` escrita;
-    - fijas (R9): `DCA_FIJAS`.
+    - sin fuente (R5): el vacio del alta a mano, y la columna en la lista.
 
-    Devuelve la fila y las columnas de cascada que ningun origen trae (R5), que
-    se escriben con el vacio del alta a mano. Una columna que la lista toma de
-    una fila y no esta en ella -> `ValueError` (R10).
+    Una columna que la lista toma de una fila y no esta en ella -> `ValueError`
+    (R10): se comprueban todas, se usen o no.
     """
     origenes = _origenes(contrato, respaldo, proveedor)
     for nombre, fila in origenes:
@@ -670,7 +660,9 @@ def construir_dca(
     # Cascada (R3, R5).
     sin_fuente: list[str] = []
 
-    def de_un_grupo(columnas: tuple[str, ...], trae: Callable[[str, Mapping[str, Any]], bool]) -> None:
+    def de_un_grupo(
+        columnas: tuple[str, ...], trae: Callable[[str, Mapping[str, Any]], bool]
+    ) -> None:
         for nombre, fila in origenes:
             if trae(nombre, fila):
                 for columna in columnas:
@@ -697,6 +689,39 @@ def construir_dca(
     else:
         valores["ivadif"] = _valor_fijo("ivadif")
         sin_fuente.append("ivadif")
+    return valores, tuple(columna for columna in DCA_CASCADA if columna in sin_fuente)
+
+
+def construir_dca(
+    *,
+    contrato: Mapping[str, Any] | None,
+    proveedor: Mapping[str, Any],
+    pago_proveedor: Mapping[str, Any] | None,
+    respaldo: Mapping[str, Any] | None,
+    fec: int,
+    hor: int,
+    su_referencia: str,
+    obride: int,
+    ctride: int,
+    almide: int,
+    cenide: int,
+    empide: int,
+    totales: Mapping[str, float],
+    cuo: Decimal,
+    referencia_externa: str,
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """
+    `dca` del albaran por lista blanca (F-015 R1-R10): recorre `DCA_COLUMNAS` y
+    da a cada una el valor de su UNICO origen (`ORIGEN_DCA`), nunca una plantilla:
+    identidad y cascada de `resolver_cascada`; calculadas de la peticion, la obra
+    y los totales (R8, R13), con `tot` = `totpag` = `totdoc` - `cuo` y `diremp1` =
+    la `entres` escrita; y las fijas de `DCA_FIJAS` (R9).
+
+    Devuelve la fila y las columnas de cascada que ningun origen trae (R5).
+    """
+    valores, sin_fuente = resolver_cascada(
+        contrato=contrato, respaldo=respaldo, proveedor=proveedor, pago_proveedor=pago_proveedor
+    )
 
     # Calculadas (R8, R13).
     tot = float(_decimal(totales["totdoc"]) - cuo)
@@ -723,8 +748,7 @@ def construir_dca(
         }
     )
     valores.update(DCA_FIJAS)
-    sin_fuente_en_orden = tuple(columna for columna in DCA_CASCADA if columna in sin_fuente)
-    return {columna: valores[columna] for columna in DCA_COLUMNAS}, sin_fuente_en_orden
+    return {columna: valores[columna] for columna in DCA_COLUMNAS}, sin_fuente
 
 
 def _de_la_cascada(

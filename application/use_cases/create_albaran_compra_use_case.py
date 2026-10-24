@@ -6,8 +6,11 @@ vincular (producto de la lista blanca), con o sin partida y con devoluciones.
 
 Flujo (design §Flujo):
 1. Guardas sin leer la base (tope de lineas, prefijo, llaves de escritura).
-2. Cabecera con lecturas: obra en las empresas admitidas -> contrato -> plantilla
-   de cabecera del mismo proveedor y empresa -> idempotencia -> `conest` y `usu`.
+2. Cabecera con lecturas: obra en las empresas admitidas -> contrato -> albaran
+   anterior del proveedor (respaldo, opcional; F-015 R6) -> sin contrato ni
+   respaldo, el `prv` por CIF (R7) -> `prv` del `entide` -> idempotencia ->
+   `conest` y `usu` -> `auxpag` si el pago sale del `prv`. La cabecera se
+   construye por lista blanca (F-015 R1-R10), sin clonar ninguna fila.
 3. Lineas, TODAS, acumulando los fallos (`lineas_no_validas`).
 4. Construccion pura de las filas (`albaran_compra_statements`) y, en previa,
    numeracion provisional; en commit, UNA transaccion reentrante.
@@ -24,10 +27,14 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
     APPLOCKS,
+    EFECTOS_CON_BANCO,
+    GRUPO_BANCO,
+    GRUPO_PAGO,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
@@ -45,6 +52,8 @@ from application.use_cases.albaran_compra_statements import (
     estados_contrato,
     importe_linea,
     numerar,
+    pago_del_proveedor,
+    resolver_cascada,
     sellos_del_alta,
     siguiente_cod,
     sumar_importes,
@@ -115,20 +124,29 @@ class _Contrato:
 
 @dataclass
 class _Cabecera:
+    """Lo leido para la cabecera (F-015): obra, contrato, respaldo (la `dca` del
+    albaran anterior, o `None`), el `prv` del `entide` (con el `cod` de L17 si la
+    identidad sale de el) y, si el pago sale del `prv`, su `auxpag`."""
+
     obra: _Obra
     contrato: _Contrato | None
     entide: int
-    entidad: dict[str, Any]
-    entres: str | None
     template_ide: int
-    con_plantilla: dict[str, Any]
-    dca_plantilla: dict[str, Any]
+    respaldo: dict[str, Any] | None
+    proveedor: dict[str, Any]
+    pago_proveedor: dict[str, Any] | None = None
+    # Avisos de cabecera (R5): se deciden una vez, fuera de la transaccion.
+    avisos: list[AvisoAlbaran] = field(default_factory=list)
     # Almacen y centro de las sin vincular (R15), resuelto una vez si hace falta.
     almacen_sin_vincular: tuple[int, int] | None = None
 
     @property
     def ctride(self) -> int:
         return self.contrato.ide if self.contrato else 0
+
+    @property
+    def fila_contrato(self) -> dict[str, Any] | None:
+        return self.contrato.fila if self.contrato else None
 
     @property
     def almacen_cabecera(self) -> tuple[int, int]:
@@ -264,6 +282,7 @@ class CreateAlbaranCompraUseCase:
             )
             return self._respuesta_idempotente(request, existente, lineas_existentes)
         self._comprobar_estado_y_usuario(request, sentencias)
+        self._completar_cabecera(request, cabecera)
 
         # 3-5. Lineas, construccion y previa o commit.
         lineas = self._resolver_lineas(request, sentencias, cabecera)
@@ -351,6 +370,8 @@ class CreateAlbaranCompraUseCase:
     def _leer_cabecera(
         self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
     ) -> _Cabecera:
+        """F-015 R4, R6, R7: contrato -> respaldo (opcional) -> sin ambos, el `prv`
+        por CIF -> el `prv` del `entide`. Nada de la `con` del albaran anterior."""
         obra = self._resolver_obra(request, sentencias)
         contrato = self._resolver_contrato(request, obra) if request.cod_contrato else None
 
@@ -360,37 +381,97 @@ class CreateAlbaranCompraUseCase:
         else:
             sentencia = sentencias.leer_plantilla_cabecera_por_cif(obra.emp, request.cif_proveedor)
         _columnas, filas = self._leer(request, sentencia)
-        if not filas:
-            raise AlbaranCompraError(
-                "El proveedor no tiene ningun albaran previo en la empresa de la obra del "
-                "que copiar la cabecera (forma de pago, efecto, direccion): alta a mano.",
-                codigo="proveedor_sin_albaran_previo",
-            )
-        template_ide = int(filas[0][0])
-        con_plantilla = self._fila_completa(request, "con", template_ide)
-        dca_plantilla = self._fila_completa(request, "dca", template_ide)
-        if con_plantilla is None or dca_plantilla is None:
-            raise ValueError(f"No se pudo leer la plantilla de cabecera (con/dca) ide={template_ide}.")
+        template_ide = int(filas[0][0]) if filas else 0
+        respaldo = None
+        if template_ide:
+            respaldo = self._fila_completa(request, "dca", template_ide)
+            if respaldo is None:
+                raise ValueError(
+                    f"No se pudo leer la plantilla de cabecera (dca del respaldo) ide={template_ide}."
+                )
 
-        if contrato is not None:
-            entidad = {c: contrato.fila.get(c) for c in ("entide", "entcod", "entres", "entcif")}
-            entidad["entide"] = entide
-            entres = contrato.fila.get("entres")
-        else:
-            entide = _entero(dca_plantilla.get("entide"))
-            entidad = {"entide": entide, "entcod": None, "entres": None, "entcif": None}
-            entres = dca_plantilla.get("entres")
+        cod_proveedor = None
+        if contrato is None:
+            if respaldo is not None:
+                entide = _entero(respaldo.get("entide"))
+            else:
+                entide, cod_proveedor = self._proveedor_por_cif(request, sentencias, obra)
+        proveedor = self._fila_completa(request, "prv", entide)
+        if proveedor is None:
+            raise ValueError(f"No se pudo leer el proveedor (prv) ide={entide}.")
+        if cod_proveedor is not None:
+            # R4: sin contrato ni respaldo, `entcod` es el `con.cod` del `prv` (L17).
+            proveedor = {**proveedor, "cod": cod_proveedor}
 
         return _Cabecera(
             obra=obra,
             contrato=contrato,
             entide=entide,
-            entidad=entidad,
-            entres=entres,
             template_ide=template_ide,
-            con_plantilla=con_plantilla,
-            dca_plantilla=dca_plantilla,
+            respaldo=respaldo,
+            proveedor=proveedor,
         )
+
+    def _proveedor_por_cif(
+        self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements, obra: _Obra
+    ) -> tuple[int, str]:
+        """R7 (L17): sin contrato ni respaldo por CIF, el UNICO `prv` vivo con ese
+        CIF en la empresa de la obra."""
+        _c, filas = self._leer(
+            request, sentencias.leer_proveedor_por_cif(obra.emp, request.cif_proveedor)
+        )
+        if not filas:
+            raise AlbaranCompraError(
+                "Sin contrato ni albaran anterior del CIF, y ningun proveedor vivo con ese CIF "
+                "en la empresa de la obra: alta a mano.",
+                codigo="proveedor_no_encontrado",
+            )
+        if len(filas) > 1:
+            raise AlbaranCompraError(
+                f"Sin contrato ni albaran anterior del CIF, hay {len(filas)} proveedores vivos con "
+                "ese CIF en la empresa de la obra: alta a mano.",
+                codigo="proveedor_ambiguo",
+            )
+        return int(filas[0][0]), str(filas[0][1] or "").strip()
+
+    def _completar_cabecera(self, request: AlbaranCompraRequest, cabecera: _Cabecera) -> None:
+        """Tras `conest` y `usu`: el `auxpag` si el pago sale del `prv` (R3) y el
+        aviso `cabecera_sin_dato` (R5, D12). `resolver_cascada` comprueba ya aqui
+        las columnas de las filas leidas (R10): sin ellas no se sigue."""
+        contrato = cabecera.fila_contrato
+        if pago_del_proveedor(contrato, cabecera.respaldo, cabecera.proveedor):
+            pagide = _entero(cabecera.proveedor.get("pagide"))
+            cabecera.pago_proveedor = self._fila_completa(request, "auxpag", pagide)
+            if cabecera.pago_proveedor is None:
+                raise ValueError(
+                    f"No se pudo leer la forma de pago del proveedor (auxpag) ide={pagide}."
+                )
+        valores, sin_fuente = resolver_cascada(
+            contrato=contrato, respaldo=cabecera.respaldo, proveedor=cabecera.proveedor,
+            pago_proveedor=cabecera.pago_proveedor,
+        )
+        faltan = [columna for columna in GRUPO_PAGO if columna in sin_fuente]
+        if (
+            not faltan
+            and all(columna in sin_fuente for columna in GRUPO_BANCO)
+            and self._efecto_con_banco(request, _entero(valores["efeide"]))
+        ):
+            faltan = list(GRUPO_BANCO)
+        if faltan:
+            cabecera.avisos.append(_aviso(
+                "cabecera_sin_dato",
+                "Ni el contrato, ni el albaran anterior, ni el proveedor traen "
+                f"{', '.join(faltan)}: se escriben vacias, como el alta a mano.",
+            ))
+
+    def _efecto_con_banco(self, request: AlbaranCompraRequest, efeide: int) -> bool:
+        """R5: el efecto escrito es de confirming o transferencia (`auxefp.cod`)."""
+        if not efeide:
+            return False
+        efecto = self._fila_completa(request, "auxefp", efeide)
+        if efecto is None or "cod" not in efecto:
+            raise ValueError(f"No se pudo leer el efecto (auxefp) ide={efeide}.")
+        return str(efecto["cod"] or "").strip().upper() in EFECTOS_CON_BANCO
 
     def _comprobar_estado_y_usuario(
         self, request: AlbaranCompraRequest, sentencias: AlbaranCompraStatements
@@ -657,7 +738,7 @@ class CreateAlbaranCompraUseCase:
             resultado["construido"],
             estado="creado",
             estados=resultado["estados"],
-            avisos=[],
+            avisos=list(cabecera.avisos),
         )
 
     # ------------------------------------------------------------------ #
@@ -827,23 +908,26 @@ class CreateAlbaranCompraUseCase:
 
         totales = sumar_importes(importes)
         almide, cenide = cabecera.almacen_cabecera
-        con = construir_con(
-            cabecera.con_plantilla, emp=cabecera.obra.emp, fec=sellos.fec,
-            entres=cabecera.entres, su_referencia=request.su_referencia,
-        )
-        dca = construir_dca(
-            cabecera.dca_plantilla,
+        dca, _sin_fuente = construir_dca(
+            contrato=cabecera.fila_contrato,
+            proveedor=cabecera.proveedor,
+            pago_proveedor=cabecera.pago_proveedor,
+            respaldo=cabecera.respaldo,
             fec=sellos.fec,
             hor=sellos.hor,
             su_referencia=request.su_referencia,
-            entidad=cabecera.entidad,
-            ctride=cabecera.ctride,
             obride=cabecera.obra.ide,
+            ctride=cabecera.ctride,
             almide=almide,
             cenide=cenide,
             empide=request.empide or self._settings.sigrid_albaran_empide,
             totales=totales,
+            cuo=Decimal(0),
             referencia_externa=request.referencia_externa,
+        )
+        con = construir_con(
+            emp=cabecera.obra.emp, fec=sellos.fec, entres=dca["entres"],
+            su_referencia=request.su_referencia, tiemod=sellos.tiemod,
         )
         log = construir_log(emp=cabecera.obra.emp, usu=request.usu, res=con["res"], sellos=sellos)
         return _Construido(
@@ -898,7 +982,7 @@ class CreateAlbaranCompraUseCase:
             _Construido(filas=filas, balances=construido.balances, totales=construido.totales),
             estado="previsto",
             estados=self._estados_previstos(cabecera, lineas),
-            avisos=[_aviso("cod_provisional", _AVISO_PROVISIONAL)],
+            avisos=[_aviso("cod_provisional", _AVISO_PROVISIONAL), *cabecera.avisos],
         )
 
     @staticmethod

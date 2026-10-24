@@ -12,7 +12,16 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
 
 ### Implementación (implementer, 2026-10-24)
 
-- **En curso**: T1-T6 y T8 hechas; T7 a continuación. T8 antes que T7: el caso de uso lanza los códigos nuevos y `AlbaranCompraError` rechaza los que no están en la lista cerrada.
+- **En curso**: T1-T8 hechas; T9 a continuación. T8 antes que T7: el caso de uso lanza los códigos nuevos
+  y `AlbaranCompraError` rechaza los que no están en la lista cerrada. La parte de caso de uso de T3 (R6, R7) va en
+  T7, que la necesita entera.
+- **Decisión (R5)**: para saber si el efecto escrito es de confirming o transferencia se lee el `auxefp` del `efeide`
+  con `read_full_row` (como el `ctr`, el `prv` y el `auxpag`) y se compara su `cod` con `CC`, `CT`, `TR` (M22). Solo
+  cuando el banco no tiene fuente y hay `efeide`. La spec dice qué avisar pero no nombra esa lectura; no es SQL
+  nuevo. Sin fila de `auxefp`, `ValueError` como con `prv` y `auxpag`.
+- **Decisión (R5, R10)**: el aviso y la comprobación de columnas se hacen una vez, tras `conest`/`usu`, con
+  `resolver_cascada` (la parte de `construir_dca` que lee filas), fuera de la transacción.
+- **F-009 que cambian** (T14): lista viva en el informe.
 - **Desviación de orden**: T2 antes que T1, porque las filas completas del doble (T1) se construyen con
   `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
   `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.
