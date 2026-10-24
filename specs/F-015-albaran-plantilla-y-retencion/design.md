@@ -1,5 +1,8 @@
 # F-015 · Diseño (v2)
 
+> **Aprobada por el humano el 2026-10-24**: D1-D12 (D10, fuera de alcance: F-069 de albaranes), con el orden de fuentes
+> final **contrato → albarán anterior → proveedor** para todas las columnas. Pendiente de T0 (v8.3 y acuse de albaranes).
+
 Medidas: [`progress/explore_F-015.md`](../../progress/explore_F-015.md) (Mn). Base: `specs/F-009-alta-albaran-compra/`
 (design §Sentencias, §Filas, §Flujo) y su contrato [`contrato_albaranes.md`](../F-009-alta-albaran-compra/contrato_albaranes.md).
 
@@ -10,9 +13,9 @@ uso). Ni ruta nueva, ni App Setting nueva, ni cambios en `infrastructure/`.
 
 - **O1 · Lista blanca.** `con` y `dca` dejan de clonarse de una plantilla: se construyen columna a columna, cada columna con
   un origen (§Lista blanca), y se insertan con columnas fijas, como `mov` o la `con` de F-006. Lo del proveedor sale, por
-  este orden (humano, 2026-10-23), del **contrato**, del **proveedor** (`prv`) y del albarán anterior (**respaldo**), que
-  es opcional: sin él no hay error. Se mide contra lo que deja el escritorio en 1.293 altas a mano (M18, M20, M26) y se
-  corrige lo que hoy arrastra la API (M19: 60 de 68).
+  este orden y para todas las columnas (humano, 2026-10-24), del **contrato**, del albarán anterior (**respaldo**, que es
+  opcional: sin él no hay error) y del **proveedor** (`prv`). Se mide contra lo que deja el escritorio en 1.293 altas a
+  mano (M18, M20, M28) y se corrige lo que hoy arrastra la API (M19: 60 de 68).
 - **O2 · Retención.** Con contrato, una `dcarec` copiada de su único `ctrrec` y el total neto (M9-M13). Importa por dinero:
   **la factura hereda la retención del albarán** (M16) y el asiento del albarán no la usa (M15).
 - **Límite de microservicio: cabe.** Copiar al albarán lo que el contrato y Sigrid ya dicen es construir bien el documento.
@@ -23,7 +26,7 @@ uso). Ni ruta nueva, ni App Setting nueva, ni cambios en `infrastructure/`.
 | Fichero | Qué contiene |
 |---|---|
 | `tests/test_f015_statements.py` | Lista blanca (R1, R2, R25 centinela), L5, L11, L16, E6b, `INSERT` de `con`/`dca`/`dcarec`, E12 carácter a carácter; `construir_con`, `construir_dca`, `resolver_retencion`, `calcular_retencion`, `construir_dcarec`, `numerar` con `dcarec`, applocks, control negativo |
-| `tests/test_f015_use_case.py` | Flujo con el doble: cascada contrato → proveedor → respaldo (R3-R5), respaldo opcional (R6), proveedor por CIF (R7), falta de columna (R10), retención (R12-R16), respuesta (R17-R19), previa (R20), commit, reintento y relecturas (R21-R23) |
+| `tests/test_f015_use_case.py` | Flujo con el doble: cascada contrato → respaldo → proveedor (R3-R5), respaldo opcional (R6), proveedor por CIF (R7), falta de columna (R10), retención (R12-R16), respuesta (R17-R19), previa (R20), commit, reintento y relecturas (R21-R23) |
 
 ## Ficheros a modificar
 
@@ -67,8 +70,8 @@ periodo, synckey` (48).
 | Origen | Columnas de `dca` | Valor | Evidencia |
 |---|---|---|---|
 | **petición / obra / cálculo** (18) | `ide`; `entref`; `fecdoc`, `hor`; `obride`, `ctride`; `almide`, `cenide`; `empide`; `synckey`; `impbru`, `impnet`, `totbas`, `totiva`, `totdoc`; `tot`, `totpag`; `diremp1` | `numerar`; `su_referencia`; sellos; obra y contrato (0 sin él); almacén de cabecera de F-009; petición o `SIGRID_ALBARAN_EMPIDE`; `referencia_externa`; `sumar_importes`; `totdoc − cuo` (R13); la `entres` escrita | F-009; M20 (`diremp1` = `entres` 100 %, `cenide`/`almide` = contrato 99,9 %) |
-| **identidad** (6) | `entide`, `entcod`, `entres`, `entcif`, `entciftip`, `entcifpai` | `ctr`; sin contrato, el `prv` de L17 (`ide`, `con.cod`, `raz`, `cif`, `tipcif`, `cifpai`) | M20, M27 |
-| **cascada** (15): `ctr` → `prv` → respaldo, el primero con valor | pago: `pagide`, `pagtex`, `pagfor`, `efeide` (en grupo; del `prv`, `pagtex` = `auxpag.res` y `pagfor` = `auxpag.formul` de su `pagide`); banco: `banban`, `bansuc`, `bandig`, `bancue`, `ban`, `bantipide` (en grupo, del primero con `banban` ≠ 0 o `ban` no vacío); `cueide`; `eioide`; `dirdir1` (del `prv`, `dir`); `dircon1` y `ivadif` (sin columna en `prv`: `ctr` → respaldo; `ivadif` del `ctr` aunque sea 0) | si nadie la trae, 0 o `''` (R5) | M26 |
+| **identidad** (6) | `entide`, `entcod`, `entres`, `entcif`, `entciftip`, `entcifpai` | `ctr`; sin contrato, el respaldo por CIF y, sin él, el `prv` de L17 (`ide`, `con.cod`, `raz`, `cif`, `tipcif`, `cifpai`) | M20, M27 |
+| **cascada** (15): `ctr` → respaldo → `prv`, el primero con valor, igual para todas | pago: `pagide`, `pagtex`, `pagfor`, `efeide` (en grupo; del `prv`, `pagtex` = `auxpag.res` y `pagfor` = `auxpag.formul` de su `pagide`); banco: `banban`, `bansuc`, `bandig`, `bancue`, `ban`, `bantipide` (en grupo, del primero con `banban` ≠ 0 o `ban` no vacío); `cueide`; `eioide`; `dirdir1` (del `prv`, `dir`); `dircon1` y `ivadif` (sin columna en `prv`: `ctr` → respaldo; `ivadif` del `ctr` aunque sea 0) | si nadie la trae, 0 o `''` (R5) | M28 |
 | **fijo** (106) | `tipgar` −1; `emptex` NULL; las demás de `_DCA_TEXTO` `''` y las demás numéricas 0 (`cla`, facturación, cadena, divisa, `fecent`, `feclim`, `cocide`, `estser`, `estfac`, `impdes`, `imprec`, `banide`…) | constante | M18 (0 o vacías en las 1.293), M19; D7 |
 
 **`con`** (`CON_COLUMNAS` de F-006, todas fijas o calculadas, la fila que F-006 ya escribe): `ide` y `cod` de `numerar`,
@@ -84,10 +87,12 @@ repetidas (R25). Las bancarias siguen fuera de `cabecera` y `filas.dca` de la re
 
 - **L5** (R6): `... WHERE c.tip = ? AND c.emp = ? AND d.entide = ? AND c.cod LIKE ? AND d.cla = ? AND ISNULL(d.entref, '')
   NOT LIKE ? ORDER BY c.ide DESC` con `[14, emp, entide, "AC__/%", 0, "PROF%"]` (`PATRON_SERIE_RESPALDO`, `CLA_ALBARAN`,
-  `PATRON_PROFORMA`); la variante por `d.entcif = ?` solo desempata R7. Sin filas, no hay respaldo (ni error).
+  `PATRON_PROFORMA`). Sin contrato, la variante por `d.entcif = ?` con `cif_proveedor` da el respaldo y, con él, el
+  `entide` (R4). Sin filas, no hay respaldo (ni error).
 - **L17** (R7): `SELECT v.ide, c.cod FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide WHERE c.tip = ? AND c.emp = ? AND
-  c.fecbaj = ? AND v.cif = ?` con `[5, emp, 0, cif]` (`TIP_PROVEEDOR`). El `prv` (por `entide`, siempre) y el `auxpag`
-  (solo si el pago sale del `prv`) se leen con `read_full_row`, como el `ctr` y la `dca` del respaldo.
+  c.fecbaj = ? AND v.cif = ?` con `[5, emp, 0, cif]` (`TIP_PROVEEDOR`), **solo** sin contrato ni respaldo por CIF. El
+  `prv` (por `entide`, siempre) y el `auxpag` (solo si el pago sale del `prv`) se leen con `read_full_row`, como el `ctr`
+  y la `dca` del respaldo.
 - Se **quita** la lectura de la `con` de la plantilla (`_fila_completa(..., "con", ...)`).
 - **L11** (R18) añade `d.tot` al final. **L16** (R12, R14): `SELECT r.ide, r.recide, r.pos, r.valdef, r.valpor, r.valcan,
   r.valmod, r.valfij, r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item, x.cla, c.cod FROM dbo.ctrrec r LEFT JOIN
@@ -128,8 +133,8 @@ columnas calculadas de la lista. `CLASES_RETENCION_BASE = {5: "totbas", 3: "totb
 ## Flujo del modo extendido (cambios sobre F-009 design §Flujo)
 
 1. Igual.
-2. Obra → contrato (fila completa del `ctr`, como hoy) o, sin contrato, **L17** (R7) → `prv` → **L5 respaldo**
-   (opcional) → L11 (idempotencia, con `tot`) → `conest`/`usu` → **con contrato, L16** y `resolver_retencion` (o
+2. Obra → contrato (fila completa del `ctr`, como hoy) → **L5 respaldo** (opcional; sin contrato, por CIF) → sin
+   contrato ni respaldo, **L17** (R7) → `prv` del `entide` → L11 (idempotencia, con `tot`) → `conest`/`usu` → **con contrato, L16** y `resolver_retencion` (o
    `retencion_no_soportada`, R14) → `auxpag` si el pago sale del `prv`. Un albarán ya escrito sigue siendo
    `idempotente` aunque su contrato cambie después.
 3. Igual (líneas).
@@ -145,8 +150,8 @@ columnas calculadas de la lista. `CLASES_RETENCION_BASE = {5: "totbas", 3: "totb
 |---|---|---|
 | Respaldo opcional (serie `AC`, `cla 0`, sin proformas); **`proveedor_sin_albaran_previo` se retira** | §4.1 paso 2; §3.3 | Quitar su mapeo: ya no llega |
 | Sin contrato: **`proveedor_no_encontrado`** y **`proveedor_ambiguo`** (cab.) | §3.3 | Mapearlos a `no_admitido` (M27: 7 de 429 serían ambiguos) |
-| Cabecera por lista blanca: identidad del contrato (o del `prv`); pago, efecto, banco, cuenta, condición de envío y dirección por contrato → proveedor → respaldo; facturación, fechas, divisa y Documentum a 0; `tiemod` del alta | §3.1 `cabecera`/`filas`, §4.2 | Nada (F-053 R16 no los guarda) |
-| Aviso **`cabecera_sin_dato`** (cab., si D12 se aprueba) | §3.2 | Informativo; sv9 decide si lo bloquea |
+| Cabecera por lista blanca: identidad del contrato (sin él, del albarán anterior por CIF o del `prv`); pago, efecto, banco, cuenta, condición de envío y dirección por contrato → albarán anterior → proveedor; facturación, fechas, divisa y Documentum a 0; `tiemod` del alta | §3.1 `cabecera`/`filas`, §4.2 | Nada (F-053 R16 no los guarda) |
+| Aviso **`cabecera_sin_dato`** (cab., D12) | §3.2 | Informativo; sv9 decide si lo bloquea |
 | Error **`retencion_no_soportada`** (cab.) | §3.3 | Mapearlo a **`no_admitido`**; sin mapear, H25 lo lleva a `error` |
 | Aviso **`retencion_del_contrato`** (cab.) | §3.2 | Informativo; **no** en `ALTA_SIGRID_AVISOS_BLOQUEANTES` (~89 % de los de contrato con `ctrrec`) |
 | `totales.tot`, `retenciones`, `n_retenciones`; `filas.dcarec[]`; en `idempotente`, `tot` y `retenciones` | §3.1 | `totdoc` sigue sin retención; el neto es `tot`. La comparación de la previa es por línea: no cambia |
@@ -154,15 +159,16 @@ columnas calculadas de la lista. `CLASES_RETENCION_BASE = {5: "totbas", 3: "totb
 | No interpreta el texto del contrato; no deduce `empide` del `usu` (M24); sin retención sin contrato | §4.3 | `empide` sigue en la petición (`ALTA_SIGRID_EMPIDE` o `null`) |
 | **Corrección**: `usu` = `ALTA_SIGRID_USUARIO_RESPALDO` o el `usu` de quien aprueba, no `ALTA_SIGRID_USUARIO` | §2.1 (l. 189), §2.4.9 (l. 254), H1 (l. 485); §7 (l. 1079), a confirmar | Lo confirma albaranes (columna suya) |
 
-§2 (petición) sin cambios de forma. Versión v8.3 con su línea de cambios arriba.
+§2 (petición) sin cambios de forma. **Escrita** en el contrato (2026-10-24) con su línea de cambios arriba; resumen para
+albaranes en [`progress/t0_F-015_albaranes.md`](../../progress/t0_F-015_albaranes.md). Falta su acuse (T0).
 
 ## Equivalencia (R26) y dorado (R11)
 
 - **Dorado**: no se toca; `git diff dev` vacío en el JSON, su test y los cuatro ficheros intocables de F-009 R4.
 - **Equivalencia**: `_diferencias` compara `con` y `dca` en las columnas del clásico (que clona una plantilla del doble) y
-  exige que el extendido tenga exactamente `CON_COLUMNAS`/`DCA_COLUMNAS`. El caso de equivalencia deja vacías en el `ctr` y
-  el `prv` del doble las columnas de cascada, para que caigan al respaldo (= la plantilla del clásico) y deban **coincidir
-  con el clon**; `DECLARADAS["dca"]` = las columnas de `ORIGEN_DCA` que no son de cascada (derivado, no a mano) y
+  exige que el extendido tenga exactamente `CON_COLUMNAS`/`DCA_COLUMNAS`. El caso de equivalencia deja vacías en el `ctr` (y
+  en el `prv`, para que una vacía del respaldo no caiga a él) las columnas de cascada: salen del respaldo (= la plantilla
+  del clásico) y deben **coincidir con el clon**; `DECLARADAS["dca"]` = las columnas de `ORIGEN_DCA` que no son de cascada (derivado, no a mano) y
   `DECLARADAS["con"]` = todas. `dcapro`, `ctrprodes` y `mov`, como hoy. Un caso con `ctrrec` declara `dcarec` y el aviso.
 
 ## Limpieza de las altas ya escritas (R30; MANUAL, solo con autorización expresa)
@@ -184,43 +190,37 @@ No se tocan `con`, `eioide` ni `tiemod`. Hacerla **después** de desplegar F-015
 
 ## Decisiones
 
-**Aprobadas por el humano (2026-10-23, «todo lo demás ok»)**: D1, D6, D7, D8, D9 y D11 tal como se recomendaban; D10
-fuera de alcance. **Para validar**: D2-D5 tal como quedan con el orden del humano, y D12.
+**Todas aprobadas por el humano**: D1, D6-D9 y D11 el 2026-10-23 («todo lo demás ok»); D2-D5 y D12 el 2026-10-24, con el
+orden final. D10, fuera de alcance. Coberturas de M28 (1.293 altas a mano).
 
-- **D1 · Forma de pago: campos del `ctr`, sin leer el documento** (aprobada). Está estructurada en `ctr.pagide` (548 de 548)
-  y el texto del `.doc` casa con ella en 9 de 11 contratos (2 ambiguos) (M21). Interpretar el texto no cabe en este
+- **D1 · Forma de pago: campos del `ctr`, sin leer el documento**. Está estructurada en `ctr.pagide` (548 de 548) y el
+  texto del `.doc` casa con ella en 9 de 11 contratos (2 ambiguos) (M21). Interpretar el texto no cabe en este
   microservicio (sería otro servicio, o albaranes mandando un `pagide` resuelto).
-- **D2 · Orden de fuentes** (*para validar*; orden y lectura «de no encontrarla» del humano). *Problema*: con
-  contrato → proveedor → respaldo, columna a columna, el **banco empeora claramente** (`ban` 77,8 % frente a 96,2 % con el
-  respaldo primero; `bantipide` 45,8 %): el `prv` tiene banco y el escritorio no lo pone en pagarés ni recibos (M22, M26).
-  El resto queda igual o mejor (pago sin contrato 99,3 %; `dirdir1` 95,4 % frente a 99,2 %). *Se aplica el orden del
-  humano*. *Alternativa a validar*: banco del primer origen solo si el efecto del pago es confirming o transferencia; si
-  no, vacío (~96 %, M22).
-- **D3 · Sin contrato** (*para validar*). Identidad del `prv` por CIF en la empresa de la obra (L17: uno en 422 de 429) y
-  cascada `prv` → respaldo (pago 99,3 %, `cueide` 100 %); `ivadif` del respaldo (97,0 %; 0 fijo daría 100 %). Códigos
-  nuevos `proveedor_no_encontrado` y `proveedor_ambiguo` (este, solo si el respaldo por CIF no desempata). *Alternativas*:
-  `ivadif` 0 sin contrato; desempatar siempre con error.
-- **D4 · Sin respaldo** (*para validar*; decidido por el humano que no es error). Se retira `proveedor_sin_albaran_previo`;
-  todo sale del contrato o del proveedor (M26, columna «sin respaldo»: pago con contrato 83,9 %, sin él 96,5 %). Afecta a
-  50 de 865 proveedores (M25).
-- **D5 · Columnas sin columna en el `prv`** (*para validar*). `dircon1` e `ivadif` van del `ctr` al respaldo; `ivadif` se
-  toma del `ctr` aunque sea 0 (es una marca, no un dato que falte). `eioide` sale de la cascada (98,3 %), no del 1 fijo de
-  F-009; `cueide`, 99,9-100 %.
-- **D6 · `INSERT` de columnas fijas y test centinela** (aprobada): una columna nueva de Sigrid queda NULL o hace fallar el
-  alta, nunca se copia.
-- **D7 · Fijos** (aprobada): `tipgar` −1, NULL solo en `emptex` y `con.tex`, `fecent`/`feclim`/`cocide` a 0.
-- **D8 · Retención** (aprobada; v1 D5-D8, D10, D11): con contrato siempre; sin contrato ninguna; `ctrrec` no soportado ⇒
-  error; aviso informativo; sin interruptor; `cueide` del `ctrrec`.
-- **D9 · Clásico intacto** (aprobada); limitación documentada en `sigrid_api.md` §8.6-§8.7.
+- **D2 · Orden de fuentes**: contrato → albarán anterior → proveedor, columna a columna y **sin excepciones** (ni la del
+  banco por efecto); sin contrato, albarán anterior → proveedor. Con contrato: pago 83,9 %, `efeide` 93,4 %, `ban` 78,6 %
+  (`bantipide` 46,2 %), `cueide` 99,9 %, `dirdir1` 95,4 %. Conocido: «copiar el banco del respaldo aunque esté vacío»
+  daría 96,2 %; aquí un respaldo sin banco (pagarés) cae al `prv`, que sí lo tiene (origen del banco: contrato 34,
+  respaldo 362, `prv` 183, ninguno 285).
+- **D3 · Sin contrato**: identidad del respaldo por CIF y, sin él, del `prv` por CIF en la empresa de la obra (L17: uno en
+  422 de 429); pago 96,7 % (99,3 % si el `prv` fuera antes), `efeide` 98,6 %, `cueide` 100 %. Códigos nuevos
+  `proveedor_no_encontrado` y `proveedor_ambiguo` (este, solo sin respaldo por CIF).
+- **D4 · Sin respaldo**: no es error; se retira `proveedor_sin_albaran_previo` y todo sale del contrato o del proveedor
+  (pago con contrato 83,9 %, sin él 96,5 %). Afecta a 50 de 865 proveedores (M25).
+- **D5 · Columnas sin columna en el `prv`**: `dircon1` (99,4-99,8 %) e `ivadif` van del `ctr` al respaldo; `ivadif` se
+  toma del `ctr` aunque sea 0 (es una marca, no un dato que falte): 89,0 % con contrato, 97,0 % sin él (0 fijo daría
+  100 %). `eioide` sale de la cascada (98,3 %), no del 1 fijo de F-009.
+- **D6 · `INSERT` de columnas fijas y test centinela**: una columna nueva de Sigrid queda NULL o hace fallar el alta,
+  nunca se copia.
+- **D7 · Fijos**: `tipgar` −1, NULL solo en `emptex` y `con.tex`, `fecent`/`feclim`/`cocide` a 0.
+- **D8 · Retención** (v1 D5-D8, D10, D11): con contrato siempre; sin contrato ninguna; `ctrrec` no soportado ⇒ error;
+  aviso informativo; sin interruptor; `cueide` del `ctrrec`.
+- **D9 · Clásico intacto**; limitación documentada en `sigrid_api.md` §8.6-§8.7.
 - **D10 · `empide` desde el `usu`**: fuera de alcance; lo resuelve albaranes en su F-069 (M24: no hay clave en Sigrid).
-- **D11 · Limpieza por `sql/write`** (aprobada), §Limpieza, tras desplegar y con autorización expresa para esa escritura.
-- **D12 · Columnas imprescindibles sin fuente** (*para validar*). *Problema*: si ninguna fuente trae el dato, R5 escribe lo
-  que deja el alta a mano (0, `''`), pero el escritorio **nunca** deja el pago a 0 y el banco hace falta para confirming y
-  transferencia. Medido (M26): pago sin fuente 0 con respaldo; **13 de 429** sin contrato si no hay respaldo; banco con
-  efecto confirming o transferencia y sin fuente, **4 de 426** con contrato y **5 de 231** sin él (el escritorio deja sin
-  banco 12 de 261 `CC`); `cueide` sin fuente 3 de 1.293 (también a 0 a mano). *Recomendada*: escribir el vacío y el aviso
-  informativo `cabecera_sin_dato` (sv9 lo hace bloqueante si quiere). *Alternativas*: sin aviso; o error (descartado por
-  el humano como regla general: «no para nada»).
+- **D11 · Limpieza por `sql/write`**, §Limpieza, tras desplegar y con autorización expresa para esa escritura.
+- **D12 · Columnas imprescindibles sin fuente**: se escribe el vacío del alta a mano (0, `''`) y el aviso informativo
+  `cabecera_sin_dato` (sv9 lo hace bloqueante si quiere); nunca error («no para nada»). Medido: pago sin fuente 0 con
+  respaldo y 13 de 429 sin contrato ni respaldo; banco con efecto confirming o transferencia y sin fuente, **4 de 426**
+  con contrato y **4 de 234** sin él (el escritorio deja sin banco 12 de 261 `CC`); `cueide` 3 de 1.293 (también 0 a mano).
 
 ## Riesgos
 
@@ -229,6 +229,7 @@ fuera de alcance. **Para validar**: D2-D5 tal como quedan con el orden del human
 - **Cambio de esquema** de Sigrid: R10 y el `INSERT` fijo lo hacen visible en vez de copiar a ciegas.
 - **Redondeo, recálculo del escritorio y concurrencia de `dcarec`**: como en la v1 (empate 3.775,30 · 0,05 → 188,77;
   V1-V3; applock + `UPDLOCK` + reintento R22).
-- **Respaldo antiguo** (M3: un `AC18/`): ahora es el último recurso, para lo que no traen contrato ni proveedor.
-- **`prv` desactualizado**: el pago y el banco del maestro pueden haber cambiado desde el último albarán; es el orden del
-  humano y la verificación manual (R29) lo revisa.
+- **Respaldo antiguo** (M3: un `AC18/`): manda sobre el `prv`; un pago o banco de hace años del albarán anterior gana al
+  maestro actual. Es el orden del humano; la verificación manual (R29) lo revisa.
+- **Banco más bajo que copiar el del respaldo** (78,6 % frente a 96,2 %, D2): aceptado; el aviso de D12 cubre los
+  confirming y transferencias sin banco.

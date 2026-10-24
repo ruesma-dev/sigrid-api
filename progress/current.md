@@ -1,31 +1,27 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-015 con spec v2 en su rama, `spec_ready`: quedan D2-D5 y D12 para validar (2026-10-23)
+## F-015 con spec v2 **aprobada** en su rama; pendiente de T0 (contrato v8.3 y acuse de albaranes) (2026-10-24)
 
-Spec v2 en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en `dev`),
-ajustada con las respuestas del humano del 2026-10-23. Medidas M17-M27 en [`explore_F-015.md`](explore_F-015.md) (solo
-lecturas por `sql/read` y una muestra de 12 documentos de contrato por `documents/read`, ya borrados). `con` y `dca` se
-construyen **columna a columna** (lista blanca de 19 + 145 columnas, `INSERT` fijo, test centinela). Lo del proveedor
-sale, columna a columna, de **contrato → proveedor (`prv`) → albarán anterior** (respaldo: serie `AC`, `cla 0`, sin
-proformas por `entref`), que es **opcional**: `proveedor_sin_albaran_previo` se retira. Sin contrato, el proveedor se
-resuelve por CIF en la empresa de la obra (uno en 422 de 429; códigos nuevos `proveedor_no_encontrado` y
-`proveedor_ambiguo`). La retención de la v1 se mantiene.
+Spec v2 en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en
+`dev`), **aprobada por el humano el 2026-10-24: D1-D12**, con D10 fuera de alcance (`empide` desde el `usu` lo resuelve
+albaranes en su F-069). Medidas M17-M28 en [`explore_F-015.md`](explore_F-015.md) (solo lecturas). El estado de
+`features.json` lo cambia el líder.
 
-**Aprobadas** por el humano («todo lo demás ok»): D1 (pago de los campos del `ctr`, sin leer el documento), D6 (`INSERT`
-fijo), D7 (fijos), D8 (retención), D9 (clásico intacto), D11 (limpieza por `sql/write` tras desplegar, con autorización
-expresa; nada escrito). **D10** fuera de alcance: `empide` desde el `usu` lo resuelve albaranes en su F-069.
-
-**Para validar**: D2 (orden aplicado; **el banco empeora**: `ban` 77,8 % frente a 96,2 % con el respaldo primero, porque el
-`prv` trae banco que el escritorio no pone en pagarés; alternativa: banco solo con efecto confirming o transferencia),
-D3 (sin contrato: `prv` por CIF y `ivadif` del respaldo, 97,0 %, o 0 fijo, 100 %), D4 (sin respaldo, todo de contrato y
-proveedor; 50 de 865 proveedores), D5 (`dircon1`/`ivadif` sin columna en `prv`; `eioide` de la cascada en vez del 1 de
-F-009) y **D12** (columnas imprescindibles sin fuente: pago sin fuente en 13 de 429 sin contrato si no hay respaldo;
-banco con confirming o transferencia sin fuente en 4 de 426 con contrato y 5 de 231 sin él; recomendado escribir el vacío
-y el aviso informativo `cabecera_sin_dato`). **60 de las 68** altas de la API llevan columnas que el escritorio no pone y
-siguen entrando (~1 al día). **T0 antes de implementar**: contrato con albaranes v8.3 (incluye la corrección de
-`ALTA_SIGRID_USUARIO` → `ALTA_SIGRID_USUARIO_RESPALDO` o el `usu` de quien aprueba, l. 189, 254 y 485, y l. 1079 a
-confirmar) y aviso a su sesión.
+- **Qué hace**: `con` y `dca` se construyen **columna a columna** (lista blanca de 19 + 145 columnas, `INSERT` fijo, test
+  centinela). Lo del proveedor sale, para **todas** las columnas por igual, de **contrato → albarán anterior →
+  proveedor (`prv`)**; sin contrato, albarán anterior (por CIF) → proveedor. El albarán anterior (serie `AC`, `cla 0`,
+  sin proformas) es **opcional**: `proveedor_sin_albaran_previo` se retira. Sin contrato ni albarán anterior, el `prv`
+  por CIF (uno en 422 de 429; `proveedor_no_encontrado`, `proveedor_ambiguo`). Sin fuente: el vacío del alta a mano y el
+  aviso informativo `cabecera_sin_dato` (D12). Retención de la v1 sin cambios.
+- **Coberturas (M28)**, con contrato / sin él: pago 83,9 / 96,7 %; banco (`ban`) 78,6 / 76,2 % (copiar el del albarán
+  anterior aunque esté vacío daría 96,2 %: aceptado); banco imprescindible sin fuente, 4 de 426 / 4 de 234.
+- **T0 (lo siguiente)**: el texto v8.3 **ya está escrito** en `specs/F-009-alta-albaran-compra/contrato_albaranes.md`;
+  resumen para albaranes en [`t0_F-015_albaranes.md`](t0_F-015_albaranes.md). Falta pasárselo a la sesión de albaranes y
+  su acuse (mapeos de los códigos nuevos, el retirado y la corrección de `ALTA_SIGRID_USUARIO`; el `usu` del adjunto, §7, a confirmar).
+  Después, `in_progress`.
+- **Sigue entrando** ~1 alta al día con las columnas que el escritorio no pone (60 de 68): la limpieza (D11, T21) va tras
+  desplegar y con autorización expresa.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 

@@ -190,3 +190,25 @@ con valor ≠ 0 / no vacío, en el orden del humano; «sin respaldo» = la misma
 - **M27 · Proveedor sin contrato por CIF** (`prv` cuyo `con` es `tip 5`, empresa de la obra y `fecbaj` 0, `cif` = el del
   albarán): uno en **422 de 429** (98,4 %, siempre el `entide` del alta) y dos en 7 (4 CIF repetidos en la empresa 1). Sin
   filtrar por empresa ni baja, uno solo en 297. De las 9 altas sin contrato de la API, 7 con un único `prv`.
+
+## v2.2 · Orden final contrato → albarán anterior → proveedor (2026-10-24)
+
+- **M28 · Cobertura con el orden final** (decisión del humano del 2026-10-24; mismas 1.293 altas a mano; cada columna o
+  grupo, del primer origen que la trae con valor; sin contrato, albarán anterior → proveedor). La columna «sin respaldo»
+  es la de M26 (contrato → proveedor), que no cambia:
+
+| Columna o grupo | Con contrato (864): orden final · sin respaldo | Sin contrato (429): orden final · sin respaldo | Ninguna fuente (orden final) |
+|---|---|---|---|
+| pago (`pagide`, `pagtex`, `pagfor`) | 83,9 · 83,9 | **96,7** · 96,5 (con `prv` antes del respaldo, 99,3) | 0 · 0 (13 sin contrato y sin respaldo) |
+| `efeide` (del origen del pago) | 93,4 · 93,4 | 98,6 · 96,7 | igual que el pago |
+| banco (`ban`, `banban`, `bantipide`) | 78,6 / 79,5 / 46,2 | 76,2 / 76,2 / 47,3 | 285 y 126 |
+| `cueide` | 99,9 · 99,9 | 100 · 100 | 1 y 2 (también 0 a mano) |
+| `eioide` | 98,3 · 98,1 | 97,7 · 98,1 | — |
+| `ivadif` (`ctr`; si no, respaldo; si no, 0) | 89,0 | 97,0 | — |
+| `dirdir1` | 95,4 | 99,8 | — |
+| `dircon1` | 99,4 | 99,8 | — |
+
+  El banco sigue lejos del 96,2 % de «copiar el del respaldo aunque esté vacío»: un respaldo sin banco (pagarés) cuenta como
+  «no lo trae» y cae al `prv`, que sí lo tiene. Origen del banco con contrato: contrato 34, respaldo 362, `prv` 183,
+  ninguno 285. **Banco imprescindible sin fuente** (efecto del pago elegido confirming `CC`/`CT` o transferencia `TR`):
+  **4 de 426** con contrato y **4 de 234** sin él (el escritorio deja sin banco 12 de 261 `CC`).
