@@ -12,9 +12,17 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
 
 ### Implementación (implementer, 2026-10-24)
 
-- **En curso**: T1-T8 hechas; T9 a continuación. T8 antes que T7: el caso de uso lanza los códigos nuevos
-  y `AlbaranCompraError` rechaza los que no están en la lista cerrada. La parte de caso de uso de T3 (R6, R7) va en
-  T7, que la necesita entera.
+- **Terminada la parte del implementer**: T1-T18 y T22 hechas, informe en [`impl_F-015.md`](impl_F-015.md)
+  (init.sh en verde, cobertura 100 % de las líneas cambiadas, mutación 104/104 muertos). **Quedan T19-T21
+  MANUALES** (despliegue tras avisar a albaranes, dry-runs R29, grabación autorizada, limpieza) y la revisión.
+  T8 antes que T7: el caso de uso lanza los códigos nuevos y `AlbaranCompraError` rechaza los que no están en la
+  lista cerrada. La parte de caso de uso de T3 (R6, R7) va en T7, que la necesita entera.
+- **Decisiones de T9-T18** (detalle en el informe, §Decisiones): E6b justo tras E6 y el `INSERT` de `dcarec` tras
+  los de `mov` (R21); E12 de `dcarec` siempre, esperando 0 o 1 (R23); `n_retenciones` solo en las trazas de
+  `previsto`/`creado` (R19); L16 como lectura de lista; el `''` de L5 (spec) es el único literal admitido por el
+  control negativo; `numerar` rechaza más de una `dcarec` (la campaña midió el `+ n` como código muerto).
+- **`azure-apps`** `49dfb36` (local, sin push): `sigrid_api.md` con notas «PENDIENTE DE DESPLIEGUE» que hay que
+  quitar al desplegar.
 - **Decisión (R5)**: para saber si el efecto escrito es de confirming o transferencia se lee el `auxefp` del `efeide`
   con `read_full_row` (como el `ctr`, el `prv` y el `auxpag`) y se compara su `cod` con `CC`, `CT`, `TR` (M22). Solo
   cuando el banco no tiene fuente y hay `efeide`. La spec dice qué avisar pero no nombra esa lectura; no es SQL
