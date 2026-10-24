@@ -706,3 +706,70 @@ def test_f015_r13_dcarec_columnas_del_esquema_vivo() -> None:
         "cuo", "tex", "reccla", "cueide", "ivaide", "ivacuo", "reqcuo", "refide", "resalt",
         "frasupide", "item",
     )
+
+
+# =====================================================================================
+# T11 · R13, R17, R20: el total neto, `FilasAlbaran.dcarec` y `numerar`
+# =====================================================================================
+
+
+@pytest.mark.parametrize(
+    ("cuo", "tot"), [(Decimal("50.00"), 71.0), (Decimal(0), 121.0), (Decimal("-6.05"), 127.05)]
+)
+def test_f015_r13_tot_y_totpag_netos_de_la_retencion(cuo: Decimal, tot: float) -> None:
+    dca, _ = _dca(_contrato(), _respaldo(), cuo=cuo)
+    assert (dca["totdoc"], dca["tot"], dca["totpag"]) == (121.0, tot, tot)
+    assert (dca["imprec"], dca["totbas"]) == (0, 100.0)  # M13: la retención no va en `imprec`
+
+
+def test_f015_r13_tot_neto_sin_error_binario() -> None:
+    dca, _ = modulo.construir_dca(
+        contrato=_contrato(), proveedor=_proveedor(), pago_proveedor=None, respaldo=_respaldo(),
+        fec=1, hor=1, su_referencia="", obride=1, ctride=1, almide=1, cenide=1, empide=1,
+        totales={"totbas": 3775.3, "totiva": 792.81, "totdoc": 4568.11}, cuo=Decimal("188.77"),
+        referencia_externa="ALB-1",
+    )
+    assert dca["tot"] == 4379.34
+
+
+def _filas(dcarec: list | None = None) -> modulo.FilasAlbaran:
+    extra = {} if dcarec is None else {"dcarec": dcarec}
+    return modulo.FilasAlbaran(
+        con={"ide": None, "cod": None}, dca={"ide": None}, dcapro=[{"ide": None, "docide": None}],
+        ctrprodes=[], mov=[], log={"ide": None, "cod": None}, **extra,
+    )
+
+
+def test_f015_r17_filas_sin_dcarec_por_defecto_y_en_el_diccionario() -> None:
+    filas = _filas()
+    assert filas.dcarec == []
+    assert filas.como_dict()["dcarec"] == []
+    assert list(filas.como_dict()) == ["con", "dca", "dcapro", "ctrprodes", "mov", "dcarec", "log"]
+
+
+def test_f015_r20_numerar_pone_ide_y_docide_a_la_dcarec() -> None:
+    dcarec = {"ide": None, "docide": None, "recide": 6005}
+    filas = _filas([dcarec])
+    numeradas = modulo.numerar(
+        filas, cod="AC26/1", ide_con=2900001, ide_dcapro=8000001, ide_ctrprodes=None,
+        ide_mov=None, ide_log=8488889, ide_dcarec=44134,
+    )
+    assert numeradas.dcarec == [{"ide": 44134, "docide": 2900001, "recide": 6005}]
+    assert numeradas.como_dict()["dcarec"] == numeradas.dcarec
+    assert filas.dcarec == [{"ide": None, "docide": None, "recide": 6005}]  # reentrante (R22)
+
+
+def test_f015_r20_numerar_con_dcarec_sin_ide_no_numera() -> None:
+    with pytest.raises(ValueError, match="dcarec"):
+        modulo.numerar(
+            _filas([{"ide": None, "docide": None}]), cod="x", ide_con=1, ide_dcapro=1,
+            ide_ctrprodes=None, ide_mov=None, ide_log=None, ide_dcarec=None,
+        )
+
+
+def test_f015_r20_numerar_sin_dcarec_no_necesita_ide() -> None:
+    numeradas = modulo.numerar(
+        _filas(), cod="x", ide_con=1, ide_dcapro=1, ide_ctrprodes=None, ide_mov=None,
+        ide_log=None,
+    )
+    assert numeradas.dcarec == []

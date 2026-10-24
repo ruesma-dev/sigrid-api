@@ -19,7 +19,7 @@ de la fila, cada una validada como identificador y entre corchetes; `mov`,
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -1089,7 +1089,8 @@ class FilasAlbaran:
     """
     Las filas de UN albaran. `ctrprodes` y `mov` van como `(i, fila)`, con `i`
     el indice de su `dcapro` en `dcapro`: de ahi salen `lindeside` y `linide`
-    al numerar (no todas las lineas tienen `ctrprodes` ni `mov`).
+    al numerar (no todas las lineas tienen `ctrprodes` ni `mov`). `dcarec`
+    (F-015 R13) es la retencion del contrato: vacia o una fila.
     """
 
     con: dict[str, Any]
@@ -1098,6 +1099,7 @@ class FilasAlbaran:
     ctrprodes: list[tuple[int, dict[str, Any]]]
     mov: list[tuple[int, dict[str, Any]]]
     log: dict[str, Any]
+    dcarec: list[dict[str, Any]] = field(default_factory=list)
 
     def como_dict(self) -> dict[str, Any]:
         """`filas` de la respuesta (R23)."""
@@ -1107,6 +1109,7 @@ class FilasAlbaran:
             "dcapro": self.dcapro,
             "ctrprodes": [fila for _, fila in self.ctrprodes],
             "mov": [fila for _, fila in self.mov],
+            "dcarec": self.dcarec,
             "log": self.log,
         }
 
@@ -1120,6 +1123,7 @@ def numerar(
     ide_ctrprodes: int | None,
     ide_mov: int | None,
     ide_log: int | None,
+    ide_dcarec: int | None = None,
 ) -> FilasAlbaran:
     """
     Copia de `filas` con `cod`, los `ide` reservados y los enlaces puestos. No
@@ -1127,11 +1131,14 @@ def numerar(
     `ide` de cada tabla son consecutivos desde el reservado; sin `ctrprodes` o
     sin `mov` no hace falta reservar (`None`). El commit numera `log` con
     `None` y le pone su `ide` al reservarlo, al final (E11b, como F-006).
+    La `dcarec` (F-015 R20) lleva el `ide` reservado y `docide` = `ide_con`.
     """
     if filas.ctrprodes and ide_ctrprodes is None:
         raise ValueError("Hay ctrprodes y no se ha reservado ide_ctrprodes.")
     if filas.mov and ide_mov is None:
         raise ValueError("Hay mov y no se ha reservado ide_mov.")
+    if filas.dcarec and ide_dcarec is None:
+        raise ValueError("Hay dcarec y no se ha reservado ide_dcarec.")
     ides_dcapro = [ide_dcapro + i for i in range(len(filas.dcapro))]
     return FilasAlbaran(
         con={**filas.con, "ide": ide_con, "cod": cod},
@@ -1158,6 +1165,10 @@ def numerar(
             for k, (i, fila) in enumerate(filas.mov)
         ],
         log={**filas.log, "ide": ide_log, "cod": cod},
+        dcarec=[
+            {**fila, "ide": ide_dcarec + n, "docide": ide_con}
+            for n, fila in enumerate(filas.dcarec)
+        ],
     )
 
 
