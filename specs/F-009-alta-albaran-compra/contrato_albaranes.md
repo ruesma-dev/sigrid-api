@@ -46,6 +46,9 @@ cálculo, valor fijo o la cascada **contrato → albarán anterior → proveedor
 una `dcarec` y el total neto (`totales.tot`, `retenciones`, `n_retenciones`; `filas.dcarec`). §2 sin cambios de forma;
 se corrige el origen de `usu`: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`; el adjunto (§7) usa el mismo `usu`. Detalle en
 `specs/F-015-albaran-plantilla-y-retencion/` y en el resumen `progress/t0_F-015_albaranes.md` de sigrid-api.
+Corrección de redacción de la v8.3 (2026-10-24, revisión de F-015; sin cambio de forma ni de códigos, no pide nuevo
+acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del proveedor por CIF, como ya decía §3.3) y
+§4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía).
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -398,9 +401,10 @@ código que va a `error`, gana `error`.
    líneas (`demasiadas_lineas`); prefijo (`referencia_no_permitida`). Con `commit:true`: llaves,
    credenciales y base (`escritura_albaranes_deshabilitada`, `base_de_datos_no_permitida`).
 2. **Cabecera** (lecturas): obra por `(tip 42, cod)` en las
-   empresas admitidas → contrato (localizador + esa obra) o, sin contrato, el proveedor por CIF (v8.3) →
-   albarán anterior **opcional** (último `AC` de `cla 0` del mismo proveedor en la empresa de la obra que no sea
-   proforma) → idempotencia por `synckey` (sale ya con `idempotente`) → `conest` y `usu` → con contrato, su
+   empresas admitidas → contrato (localizador + esa obra) → albarán anterior **opcional** (último `AC` de `cla 0`
+   en la empresa de la obra que no sea proforma: con contrato, del `entide` del contrato; sin él, por CIF) → solo
+   sin contrato ni albarán anterior, el proveedor por CIF (v8.3; `proveedor_no_encontrado`, `proveedor_ambiguo`) →
+   idempotencia por `synckey` (sale ya con `idempotente`) → `conest` y `usu` → con contrato, su
    retención (`retencion_no_soportada`, v8.3).
 3. **Líneas**, todas, acumulando fallos: `ctrpro` del contrato; producto por `(emp, cod)` y lista
    blanca; partida entre las imputables de la obra, por `paride` si viene (o `paride` 0 sin partida);
@@ -414,7 +418,8 @@ código que va a `error`, gana `error`.
 ### 4.2. Qué escribe (y nada más; F-009 R25, R31)
 
 `INSERT` de `con` (`tip 14`, `cod AC<aa>/n`, `est 1 PDT`, `res`, `fec`, `tiemod`), `dca` (v8.3: columna a columna;
-`synckey`, `entref`, `obride`, `ctride`, `almide`, `cenide`, `empide`, totales y `tot` neto; identidad, pago, efecto,
+`synckey`, `entref`, `obride`, `ctride`, `almide`, `cenide`, `empide`, totales y `tot` neto; la identidad entera del
+contrato, aunque venga vacía (sin él, del albarán anterior y, sin él, del proveedor); pago, efecto,
 banco, cuenta, condición de envío y dirección por contrato → albarán anterior → proveedor; facturación, cadena, divisa y
 fechas previstas a 0), `dcarec` ×0-1 (v8.3, la retención del contrato),
 `dcapro` ×N (con `refent` = `referencia_linea`), `ctrprodes` ×M (vinculadas), `mov` ×K (productos con
