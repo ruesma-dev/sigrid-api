@@ -26,16 +26,21 @@ from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
     CTRPRODES_COLUMNAS,
+    DCA_COLUMNAS,
     LOG_COLUMNAS,
+    _DCA_TEXTO,
     MOV_COLUMNAS,
     AlbaranCompraStatements,
 )
+from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
 
 BD = "ruesma"
 OBRA = 5000
 CTR = 300
 ENTIDE = 77
 PLANTILLA_CABECERA = 15950
+#: `auxpag` de la forma de pago del proveedor (F-015: el pago sale del `prv`).
+AUXPAG_PRV = 31
 #: 08:15:30 UTC del 6 de octubre de 2026 = 10:15:30 en Madrid (CEST).
 AHORA = datetime(2026, 10, 6, 8, 15, 30, tzinfo=timezone.utc)
 
@@ -112,12 +117,51 @@ def _columnas_del_insert(sql: str) -> list[str]:
 # --- El ERP de mentira -------------------------------------------------------------
 
 
+def fila_completa(
+    columnas: tuple[str, ...], texto: frozenset[str] = frozenset(), **valores: Any
+) -> dict[str, Any]:
+    """F-015 T1: una fila con TODAS las `columnas`, los `valores` dados y el resto
+    vacías (`''` las de `texto`, 0 las demás). Un valor de una columna que no es
+    de la tabla hace fallar el test: así el doble no inventa columnas."""
+    sobran = set(valores) - set(columnas)
+    assert not sobran, f"columnas que no son de la tabla: {sorted(sobran)}"
+    return {c: valores[c] if c in valores else ("" if c in texto else 0) for c in columnas}
+
+
+#: Las columnas de cascada de F-015 (contrato -> respaldo -> proveedor), vacías.
+_CASCADA_VACIA: dict[str, Any] = {
+    "pagide": 0, "pagtex": "", "pagfor": "", "efeide": 0, "banban": 0, "bansuc": 0,
+    "bandig": "", "bancue": "", "ban": "", "bantipide": 0, "cueide": 0, "eioide": 0,
+    "dirdir1": "", "dircon1": "", "ivadif": 0,
+}
+
+
 def ctr() -> dict[str, Any]:
+    """El contrato. F-015: trae la identidad y las columnas de cascada VACÍAS, así
+    que pago, banco, cuenta, envío y dirección salen del respaldo, como el clon de
+    F-009 y del clásico (R26)."""
     return {
         "ide": CTR, "obride": OBRA, "entide": ENTIDE, "entcod": "P0077",
-        "entres": "PROVEEDOR PRUEBA SL", "entcif": "B12345678", "almide": 70,
-        "cenide": 80, "estser": 0, "estfac": 0,
+        "entres": "PROVEEDOR PRUEBA SL", "entcif": "B12345678", "entciftip": "",
+        "entcifpai": "ES", "almide": 70, "cenide": 80, "estser": 0, "estfac": 0,
+        **_CASCADA_VACIA,
     }
+
+
+def prv(**valores: Any) -> dict[str, Any]:
+    """El `prv` del `entide` (F-015). Sus columnas de cascada, vacías por defecto:
+    la cascada no llega a él mientras el respaldo las traiga."""
+    return {
+        "ide": ENTIDE, "raz": "PROVEEDOR PRUEBA SL", "cif": "B12345678", "tipcif": "",
+        "cifpai": "ES", "pagide": 0, "efeide": 0, "banban": 0, "bansuc": 0, "bandig": "",
+        "bancue": "", "ban": "", "bantipide": 0, "cueide": 0, "eioide": 0, "dir": "",
+        **valores,
+    }
+
+
+def auxpag() -> dict[str, Any]:
+    return {"ide": AUXPAG_PRV, "cod": "P120", "res": "PAGARE 120 DIAS", "formul": "120",
+            "efeide": 13}
 
 
 def ctrpro() -> list[dict[str, Any]]:
@@ -138,19 +182,37 @@ def ctrpro() -> list[dict[str, Any]]:
 
 
 def con_plantilla() -> dict[str, Any]:
-    return {"ide": PLANTILLA_CABECERA, "emp": 1, "tip": 14, "cod": "AC26/15950",
-            "res": "PLANTILLA", "fec": 20260601, "est": 3, "usu": "viejo"}
+    """La `con` del albarán anterior, con sus 19 columnas (F-015: solo la lee el
+    clásico; el extendido construye la suya, R1)."""
+    return fila_completa(
+        CON_COLUMNAS, ide=PLANTILLA_CABECERA, emp=1, tip=14, cod="AC26/15950",
+        res="PLANTILLA", fec=20260601, tex=None, est=3, tiemod=46000.5, ico="", delo="",
+        **{"del": ""}, obr="", doc="",
+    )
 
 
-def dca_plantilla() -> dict[str, Any]:
-    return {
-        "ide": PLANTILLA_CABECERA, "fecdoc": 20260601, "hor": 101010, "entref": "vieja",
-        "eioide": 3, "entide": ENTIDE, "entcod": "P0077", "entres": "PROVEEDOR PRUEBA SL",
-        "entcif": "B12345678", "ctride": 999, "obride": 1, "almide": 1, "cenide": 1,
-        "empide": 1, "pagide": 12, "efeide": 13, "totbas": 5.0, "totiva": 1.0,
-        "totdoc": 6.0, "impdes": 1.0, "estser": 1, "estfac": 1, "synckey": "ALB-viejo",
-        "bancue": "ES12", "cpacue1": "ES34",
-    }
+def dca_plantilla(**valores: Any) -> dict[str, Any]:
+    """La `dca` del albarán anterior (el respaldo de F-015, la plantilla del
+    clásico), con sus 145 columnas: lo que debe heredarse (pago, efecto, banco,
+    `eioide` 1, el que fuerza el clásico) y lo que no (facturación, divisa,
+    `dtumID`, `tipgar` 0, M19)."""
+    return fila_completa(
+        DCA_COLUMNAS,
+        _DCA_TEXTO,
+        **{
+            "ide": PLANTILLA_CABECERA, "fecdoc": 20260601, "hor": 101010, "entref": "vieja",
+            "eioide": 1, "entide": ENTIDE, "entcod": "P0077", "entres": "PROVEEDOR PRUEBA SL",
+            "entcif": "B12345678", "entciftip": "", "entcifpai": "ES", "ctride": 999,
+            "obride": 1, "almide": 1, "cenide": 1, "empide": 1, "pagide": 12,
+            "pagtex": "PAGARE 90 DIAS", "pagfor": "90", "efeide": 13, "cueide": 14,
+            "dirdir1": "CALLE PRUEBA 1", "dircon1": "", "diremp1": "PROVEEDOR PRUEBA SL",
+            "totbas": 5.0, "totiva": 1.0, "totdoc": 6.0, "tot": 6.0, "totpag": 6.0,
+            "impdes": 1.0, "estser": 1, "estfac": 1, "synckey": "ALB-viejo", "banban": 21,
+            "bancue": "ES12", "cpacue1": "ES34", "fecfac": 20260615, "idefac": 123,
+            "totbasdiv": 5.0, "dtumID": "DOC-VIEJO", "tipgar": 0, "emptex": None, "tex": "",
+            **valores,
+        },
+    )
 
 
 def plantilla_dcapro(proide: int, **extra: Any) -> dict[str, Any]:
@@ -321,6 +383,8 @@ class RepositorioDoble:
             ("ctr", CTR): ctr(),
             ("con", PLANTILLA_CABECERA): con_plantilla(),
             ("dca", PLANTILLA_CABECERA): dca_plantilla(),
+            ("prv", ENTIDE): prv(),
+            ("auxpag", AUXPAG_PRV): auxpag(),
             **(filas or {}),
         }
         self.ctrpro_filas = ctrpro_filas if ctrpro_filas is not None else ctrpro()
