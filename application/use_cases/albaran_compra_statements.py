@@ -399,7 +399,8 @@ def resolver_retencion(filas_ctrrec: Sequence[Mapping[str, Any]]) -> Mapping[str
     R12, R14 (M11): el UNICO `ctrrec` del contrato, si se sabe calcular, o
     `None` sin ninguno. Mas de uno, uno sin recargo (`recide` 0) o con un
     `recide` que no esta en `dbo.rec`, de una clase fuera de
-    `CLASES_RETENCION_BASE`, con `valfij` o con `ivaide` -> `RetencionNoSoportada`.
+    `CLASES_RETENCION_BASE`, con `valfij`, con `ivaide` o sin porcentaje (`valpor`
+    NULL, que R15 no sabe multiplicar) -> `RetencionNoSoportada`.
     """
     if not filas_ctrrec:
         return None
@@ -416,6 +417,8 @@ def resolver_retencion(filas_ctrrec: Sequence[Mapping[str, Any]]) -> Mapping[str
         raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva valfij {fila['valfij']}.")
     if fila["ivaide"]:
         raise RetencionNoSoportada(f"El recargo {fila['cod']} lleva ivaide {fila['ivaide']}.")
+    if fila["valpor"] is None:
+        raise RetencionNoSoportada(f"El recargo {fila['cod']} no lleva valpor (sin porcentaje).")
     return fila
 
 

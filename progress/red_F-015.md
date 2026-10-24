@@ -195,3 +195,20 @@ FAILED tests/test_f015_use_case.py::test_f015_r6_sin_respaldo_el_alta_sigue_con_
 FAILED tests/test_f015_use_case.py::test_f015_r7_con_contrato_sin_respaldo_no_se_busca_por_cif
 4 failed, 171 passed, 1 warning in 3.89s
 Revertido: 175 passed.
+
+### P2.4 · R14 ampliado: `valpor` NULL -> `retencion_no_soportada` (RED exigida, retencion O2)
+Código de producción de `df16827` (sin el cambio) + los dos casos `valpor_null` nuevos:
+$ python -m pytest tests/test_f015_statements.py tests/test_f015_use_case.py -k "valpor_null" -q --tb=line
+E   Failed: DID NOT RAISE RetencionNoSoportada
+C:\Users\pgris\PycharmProjects\sigrid-api\tests\test_f015_statements.py:666: Failed: DID NOT RAISE RetencionNoSoportada
+E   decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+C:\Users\pgris\PycharmProjects\sigrid-api\application\use_cases\albaran_compra_statements.py:334: decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+E   decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+C:\Users\pgris\PycharmProjects\sigrid-api\application\use_cases\albaran_compra_statements.py:334: decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+FAILED tests/test_f015_statements.py::test_f015_r14_ctrrec_no_soportado[valpor_null]
+FAILED tests/test_f015_use_case.py::test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas[False-valpor_null]
+FAILED tests/test_f015_use_case.py::test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas[True-valpor_null]
+(en el caso de uso, el 500 «excepcion» que señalaba O2). Con la comprobación en
+`resolver_retencion`:
+$ python -m pytest tests/test_f015_statements.py tests/test_f015_use_case.py -k "valpor_null or r14" -q --tb=line
+22 passed, 154 deselected, 1 warning in 1.50s

@@ -460,8 +460,9 @@ def test_f015_r12_un_albaran_ya_escrito_es_idempotente_aunque_su_retencion_no_va
         ((ctrrec_fila(valfij=1),), "valfij"),
         ((ctrrec_fila(ivaide=777740),), "ivaide"),
         ((ctrrec_fila(recide=0, cla=None, cod=None),), "sin recargo"),
+        ((ctrrec_fila(valpor=None),), "sin porcentaje"),
     ],
-    ids=["varias", "sin_rec", "clase_1", "valfij", "ivaide", "recide_0"],
+    ids=["varias", "sin_rec", "clase_1", "valfij", "ivaide", "recide_0", "valpor_null"],
 )
 @pytest.mark.parametrize("commit", [False, True])
 def test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas(

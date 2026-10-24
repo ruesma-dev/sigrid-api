@@ -658,8 +658,9 @@ def test_f015_r12_un_ctrrec_soportado_es_la_retencion(cla: int) -> None:
         ([ctrrec(cla=1, cod="RETESP")], "clase 1"),
         ([ctrrec(valfij=1)], "valfij"),
         ([ctrrec(ivaide=777740)], "ivaide"),
+        ([ctrrec(valpor=None)], "sin porcentaje"),
     ],
-    ids=["varias", "recide_0", "sin_rec", "clase_1", "valfij", "ivaide"],
+    ids=["varias", "recide_0", "sin_rec", "clase_1", "valfij", "ivaide", "valpor_null"],
 )
 def test_f015_r14_ctrrec_no_soportado(filas: list, motivo: str) -> None:
     with pytest.raises(modulo.RetencionNoSoportada, match=motivo) as excinfo:
