@@ -248,7 +248,8 @@ def _max_rows(repo: RepositorioDoble) -> dict[str, set[Any]]:
 
 _TOPE = SettingsDoble().max_allowed_rows
 _LISTAS = {"partidas", "productos", "naturalezas", "cuentas", "analiticas", "tipmov", "iva",
-           "almacenes", "lineas_del_existente"}
+           "almacenes", "lineas_del_existente",
+           "retenciones"}  # F-015 R12: los `ctrrec` del contrato (L16) son una lista
 
 
 def test_f009_r9_las_lecturas_de_lista_piden_el_tope_y_las_de_una_fila_no() -> None:
@@ -262,7 +263,9 @@ def test_f009_r9_las_lecturas_de_lista_piden_el_tope_y_las_de_una_fila_no() -> N
     for repo, lineas, cambios in (
         (RepositorioDoble(), [vinculada(partida="01.01"), sin_vincular()], {}),
         (sin_almacen, [sin_vincular()], {"cod_contrato": None}),
-        (RepositorioDoble({"referencia": [(2800001, "AC26/1", 20261001, ENTIDE, OBRA, 1.0, 1.0)],
+        # F-015 R18: L11 trae tambien el `tot`.
+        (RepositorioDoble({"referencia": [(2800001, "AC26/1", 20261001, ENTIDE, OBRA, 1.0, 1.0,
+                                           1.0)],
                            "lineas_del_existente": [(64, 55, 2.0, 10.5, 21.0, 0, 70, "L1")]}),
          [vinculada()], {}),
     ):
@@ -311,13 +314,15 @@ def test_f009_r30_idempotente_con_nulos_en_lo_leido() -> None:
     Mata `can or 0`, `pre or 0`, `tot or 0` (l. 508-510) y `totbas or 0`/`totdoc
     or 0` (l. 517) -> `or 1`."""
     repo = RepositorioDoble({
-        "referencia": [(2800001, "AC26/1", 20261001, ENTIDE, OBRA, None, None)],
+        "referencia": [(2800001, "AC26/1", 20261001, ENTIDE, OBRA, None, None, None)],
         "lineas_del_existente": [(64, 55, None, None, None, 0, 70, "L1")],
     })
     respuesta, _ = ejecutar(repo=repo)
     linea = respuesta.lineas[0]
     assert (linea.cantidad, linea.precio, linea.total) == (0.0, 0.0, 0.0)
-    assert respuesta.totales == {"totbas": 0.0, "totdoc": 0.0, "n_lineas": 1}
+    # F-015 R18: `tot` NULL tambien vale 0, y `retenciones` = 0 - 0.
+    assert respuesta.totales == {"totbas": 0.0, "totdoc": 0.0, "tot": 0.0, "retenciones": 0.0,
+                                 "n_lineas": 1}
 
 
 def test_f009_r19_balance_vigente_con_nulos_es_cero_en_previa_y_en_commit() -> None:
@@ -396,7 +401,7 @@ def test_f009_r17_precio_cero_es_valido() -> None:
 def test_f009_r30_el_conflicto_nombra_los_cod_de_los_albaranes() -> None:
     """R30: `referencia_en_conflicto` dice en qué albaranes está. Mata `f[1]` ->
     `f[2]` (l. 479)."""
-    repo = RepositorioDoble({"referencia": [(1, "AC26/77 ", 20260101, 999, OBRA, 1.0, 1.0)]})
+    repo = RepositorioDoble({"referencia": [(1, "AC26/77 ", 20260101, 999, OBRA, 1.0, 1.0, 1.0)]})
     exc = error(repo=repo)
     assert exc.codigo == "referencia_en_conflicto"
     assert "AC26/77." in str(exc)
