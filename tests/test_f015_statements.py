@@ -179,3 +179,40 @@ def test_f015_r6_r7_las_sentencias_nuevas_se_validan_al_construir() -> None:
     assert modulo.L17_PROVEEDOR_POR_CIF in todas
     assert not hasattr(modulo, "L5_PLANTILLA_POR_ENTIDE")
     assert not hasattr(modulo, "L5_PLANTILLA_POR_CIF")
+
+
+# =====================================================================================
+# T4 · R8: la `con` por lista (las columnas de F-006) y `tiemod` del alta
+# =====================================================================================
+
+
+def test_f015_r8_con_sellos_con_tiemod_ole_utc_del_alta() -> None:
+    from datetime import datetime, timezone
+
+    from application.use_cases.parte_reclamacion_statements import fecha_ole_utc
+
+    instante = datetime(2026, 10, 6, 8, 15, 30, tzinfo=timezone.utc)
+    sellos = modulo.sellos_del_alta(instante, 20261005)
+    assert sellos.tiemod == fecha_ole_utc(instante)
+    assert 46301.34 < sellos.tiemod < 46301.35  # 2026-10-06 08:15:30 UTC en días OLE
+
+
+def test_f015_r8_con_exactamente_las_columnas_de_f006_con_su_valor() -> None:
+    from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+
+    con = modulo.construir_con(
+        emp=2, fec=20261005, entres="PROVEEDOR PRUEBA SL", su_referencia="A-77", tiemod=46301.5
+    )
+    assert tuple(con) == CON_COLUMNAS
+    assert con == {
+        "ide": None, "emp": 2, "tip": 14, "subtip": 0, "cod": None,
+        "res": "PROVEEDOR PRUEBA SL. (A-77)", "fec": 20261005, "tex": None, "cee": 0, "est": 1,
+        "fecbaj": 0, "tiemod": 46301.5, "ico": "", "delo": "", "del": "", "obr": "", "doc": "",
+        "serie": 0, "hor": 0,
+    }
+
+
+def test_f015_r8_con_res_recortado_a_128_y_sin_entres() -> None:
+    con = modulo.construir_con(emp=1, fec=1, entres=None, su_referencia="X" * 200, tiemod=0.0)
+    assert con["res"] == (". (" + "X" * 200 + ")")[:128]
+    assert len(con["res"]) == 128

@@ -25,7 +25,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from application.use_cases.concepto_grafico_statements import hora_local_de_madrid
-from application.use_cases.parte_reclamacion_statements import LOG_COLUMNAS
+from application.use_cases.parte_reclamacion_statements import (
+    CON_COLUMNAS,
+    LOG_COLUMNAS,
+    fecha_ole_utc,
+)
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 from infrastructure.security.identifier_guard import IdentifierGuard
 
@@ -514,6 +518,7 @@ class SellosAlbaran:
     fec_alta: int   # AAAAMMDD del alta en Madrid: mov.fec (N1), log.fec
     fechor: float   # fec_alta.hor del alta: mov.fechor (N1)
     prefijo: str    # AC<aa>/ del anio de `fec`
+    tiemod: float   # fecha OLE en UTC del alta: con.tiemod (F-015 R8, F-006)
 
 
 def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> SellosAlbaran:
@@ -527,25 +532,39 @@ def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> Sellos
         fec_alta=fec_alta,
         fechor=float(f"{fec_alta}.{hor:06d}"),
         prefijo=prefijo_de_serie(fec),
+        tiemod=fecha_ole_utc(instante_utc),
     )
 
 
 def construir_con(
-    plantilla: Mapping[str, Any], *, emp: int, fec: int, entres: str | None, su_referencia: str
+    *, emp: int, fec: int, entres: str | None, su_referencia: str, tiemod: float
 ) -> dict[str, Any]:
-    """`con` del albaran: clon de la plantilla de cabecera (L5) con `tip` 14,
-    `emp` de la obra, `res` = "<entres>. (<su_referencia>)" recortado, `fec` y
-    `est` 1 (R11, R22)."""
-    return {
-        **plantilla,
+    """`con` del albaran (F-015 R8): exactamente `CON_COLUMNAS` (F-006), sin
+    plantilla. `tip` 14, `emp` de la obra, `res` = "<entres>. (<su_referencia>)"
+    recortado, `fec`, `est` 1, `tiemod` del alta y el resto lo que deja el alta a
+    mano (M18): `tex` NULL, textos vacios y numeros a 0."""
+    fila: dict[str, Any] = {
         "ide": None,
         "emp": emp,
         "tip": TIP_ALBARAN,
+        "subtip": 0,
         "cod": None,
         "res": f"{entres or ''}. ({su_referencia})".strip()[:_LARGO_RES],
         "fec": fec,
+        "tex": None,
+        "cee": 0,
         "est": EST_INICIAL,
+        "fecbaj": 0,
+        "tiemod": tiemod,
+        "ico": "",
+        "delo": "",
+        "del": "",
+        "obr": "",
+        "doc": "",
+        "serie": 0,
+        "hor": 0,
     }
+    return {columna: fila[columna] for columna in CON_COLUMNAS}
 
 
 def construir_dca(
