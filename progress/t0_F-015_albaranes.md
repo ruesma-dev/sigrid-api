@@ -62,3 +62,21 @@ recargo no soportado.
 1. Acuse de la v8.3.
 2. Mapeos de los tres códigos nuevos y retirada del de `proveedor_sin_albaran_previo`.
 3. Confirmar el `usu` del adjunto (§7, l. 1101).
+
+## Acuse de albaranes (2026-10-24, aprobado por su humano)
+
+1. **De acuerdo con la v8.3**: no les obliga a cambiar nada (sv9 no guarda esas columnas; la previa compara por línea).
+2. **Mapeos en sv9** (con texto en el panel de sv4): `proveedor_no_encontrado`, `proveedor_ambiguo` y
+   `retencion_no_soportada` → `no_admitido`; `retencion_del_contrato` → aviso informativo, fuera de
+   `ALTA_SIGRID_AVISOS_BLOQUEANTES`; `cabecera_sin_dato` → informativo y visible en el panel, no bloqueante;
+   `proveedor_sin_albaran_previo` → lo retiran al verificar nuestro despliegue (mantenerlo no hace daño).
+3. **`usu` del adjunto (§7)**: confirmado, el mismo `usu` de la petición de alta. Con su F-069 (desplegada) se resuelve
+   por la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), luego el login de quien aprueba
+   (`dbo.usu.cod`) y si no `ALTA_SIGRID_USUARIO_RESPALDO`. Piden ese texto en §2.1, §2.4.9, H1 y §7.
+4. **Despliegue**: avisarles **antes** de desplegar F-015; sv9 y sv4 (con los mapeos nuevos, en una feature corta suya) se
+   despliegan antes o a la vez; si no, `retencion_no_soportada` caería en `error`. Si cambia el nombre de algún código
+   antes de publicar, avisarles.
+5. **Limpieza** (D11): de acuerdo, tras nuestro despliegue y con autorización del humano. **No filtrar por `empide`
+   2425207** (con su F-069 las altas nuevas llevan el empleado de quien aprueba): filtrar por `synckey LIKE 'ALB-%'` más
+   la lista de `con.ide` que pueden dar con un script de solo lectura. Su humano decide **no** corregir el `empide` de las
+   altas ya escritas.

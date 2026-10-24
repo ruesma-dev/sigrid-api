@@ -1,27 +1,14 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-015 con spec v2 **aprobada** en su rama; pendiente de T0 (contrato v8.3 y acuse de albaranes) (2026-10-24)
+## F-015 en `in_progress` (2026-10-24)
 
-Spec v2 en `specs/F-015-albaran-plantilla-y-retencion/` (rama `feature/F-015-albaran-plantilla-y-retencion`, no en
-`dev`), **aprobada por el humano el 2026-10-24: D1-D12**, con D10 fuera de alcance (`empide` desde el `usu` lo resuelve
-albaranes en su F-069). Medidas M17-M28 en [`explore_F-015.md`](explore_F-015.md) (solo lecturas). El estado de
-`features.json` lo cambia el líder.
-
-- **Qué hace**: `con` y `dca` se construyen **columna a columna** (lista blanca de 19 + 145 columnas, `INSERT` fijo, test
-  centinela). Lo del proveedor sale, para **todas** las columnas por igual, de **contrato → albarán anterior →
-  proveedor (`prv`)**; sin contrato, albarán anterior (por CIF) → proveedor. El albarán anterior (serie `AC`, `cla 0`,
-  sin proformas) es **opcional**: `proveedor_sin_albaran_previo` se retira. Sin contrato ni albarán anterior, el `prv`
-  por CIF (uno en 422 de 429; `proveedor_no_encontrado`, `proveedor_ambiguo`). Sin fuente: el vacío del alta a mano y el
-  aviso informativo `cabecera_sin_dato` (D12). Retención de la v1 sin cambios.
-- **Coberturas (M28)**, con contrato / sin él: pago 83,9 / 96,7 %; banco (`ban`) 78,6 / 76,2 % (copiar el del albarán
-  anterior aunque esté vacío daría 96,2 %: aceptado); banco imprescindible sin fuente, 4 de 426 / 4 de 234.
-- **T0 (lo siguiente)**: el texto v8.3 **ya está escrito** en `specs/F-009-alta-albaran-compra/contrato_albaranes.md`;
-  resumen para albaranes en [`t0_F-015_albaranes.md`](t0_F-015_albaranes.md). Falta pasárselo a la sesión de albaranes y
-  su acuse (mapeos de los códigos nuevos, el retirado y la corrección de `ALTA_SIGRID_USUARIO`; el `usu` del adjunto, §7, a confirmar).
-  Después, `in_progress`.
-- **Sigue entrando** ~1 alta al día con las columnas que el escritorio no pone (60 de 68): la limpieza (D11, T21) va tras
-  desplegar y con autorización expresa.
+Spec v2 aprobada por el humano (D1-D12; orden contrato → albarán anterior → proveedor en todas las columnas). T0 cerrada:
+albaranes acusa la v8.3 el 2026-10-24 ([`t0_F-015_albaranes.md`](t0_F-015_albaranes.md) §Acuse). **Antes de desplegar:
+avisar a albaranes** (sv9 y sv4 con los mapeos nuevos van antes o a la vez). Pendiente de redactar en el contrato: la
+resolución del `usu` que confirma albaranes (§2.1, §2.4.9, H1, §7) y, en design §Limpieza, el filtro por `synckey LIKE
+'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Mientras no se despliegue, las altas
+reales siguen copiando columnas de la plantilla (~4 al día); el humano no ha pedido pausarlas.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
