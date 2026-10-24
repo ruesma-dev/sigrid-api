@@ -48,7 +48,9 @@ se corrige el origen de `usu`: lo resuelve albaranes (su F-069, desplegada): pri
 `specs/F-015-albaran-plantilla-y-retencion/` y en el resumen `progress/t0_F-015_albaranes.md` de sigrid-api.
 Corrección de redacción de la v8.3 (2026-10-24, revisión de F-015; sin cambio de forma ni de códigos, no pide nuevo
 acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del proveedor por CIF, como ya decía §3.3) y
-§4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía).
+§4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía). §3.3 añade a
+`retencion_no_soportada` el recargo sin porcentaje (`valpor` vacío), que antes acababa en un 500: mismo código,
+mismo mapeo.
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
