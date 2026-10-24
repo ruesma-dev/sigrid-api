@@ -5,9 +5,9 @@
 
 Spec v2 aprobada por el humano (D1-D12; orden contrato → albarán anterior → proveedor en todas las columnas). T0 cerrada:
 albaranes acusa la v8.3 el 2026-10-24 ([`t0_F-015_albaranes.md`](t0_F-015_albaranes.md) §Acuse). **Antes de desplegar:
-avisar a albaranes** (sv9 y sv4 con los mapeos nuevos van antes o a la vez). Pendiente de redactar en el contrato: la
-resolución del `usu` que confirma albaranes (§2.1, §2.4.9, H1, §7) y, en design §Limpieza, el filtro por `synckey LIKE
-'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Mientras no se despliegue, las altas
+avisar a albaranes** (sv9 y sv4 con los mapeos nuevos van antes o a la vez). Redactados (commit sin código): la
+resolución del `usu` que confirma albaranes (contrato §2.1, §2.4.9, H1, §7) y, en design §Limpieza, el filtro por
+`synckey LIKE 'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Implementación: T1 en curso. Mientras no se despliegue, las altas
 reales siguen copiando columnas de la plantilla (~4 al día); el humano no ha pedido pausarlas.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)

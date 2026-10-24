@@ -157,10 +157,10 @@ columnas calculadas de la lista. `CLASES_RETENCION_BASE = {5: "totbas", 3: "totb
 | `totales.tot`, `retenciones`, `n_retenciones`; `filas.dcarec[]`; en `idempotente`, `tot` y `retenciones` | §3.1 | `totdoc` sigue sin retención; el neto es `tot`. La comparación de la previa es por línea: no cambia |
 | Escribe además `dcarec` ×0-1 y el applock `SIGRID_IDE_dcarec` | §4.1 paso 4, §4.2 | Nada |
 | No interpreta el texto del contrato; no deduce `empide` del `usu` (M24); sin retención sin contrato | §4.3 | `empide` sigue en la petición (`ALTA_SIGRID_EMPIDE` o `null`) |
-| **Corrección**: `usu` = `ALTA_SIGRID_USUARIO_RESPALDO` o el `usu` de quien aprueba, no `ALTA_SIGRID_USUARIO` | §2.1 (l. 189), §2.4.9 (l. 254), H1 (l. 485); §7 (l. 1079), a confirmar | Lo confirma albaranes (columna suya) |
+| **Corrección**: `usu` por equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`) → login de quien aprueba (`dbo.usu.cod`) → `ALTA_SIGRID_USUARIO_RESPALDO`; el adjunto, el mismo | §2.1, §2.4.9, H1; §7 | Confirmado por albaranes (su F-069); sigrid-api solo recibe `usu` |
 
 §2 (petición) sin cambios de forma. **Escrita** en el contrato (2026-10-24) con su línea de cambios arriba; resumen para
-albaranes en [`progress/t0_F-015_albaranes.md`](../../progress/t0_F-015_albaranes.md). Falta su acuse (T0).
+albaranes en [`progress/t0_F-015_albaranes.md`](../../progress/t0_F-015_albaranes.md). Acuse de albaranes el 2026-10-24 (T0 cerrada).
 
 ## Equivalencia (R26) y dorado (R11)
 
@@ -175,18 +175,20 @@ albaranes en [`progress/t0_F-015_albaranes.md`](../../progress/t0_F-015_albarane
 
 1. **Previa (lectura, `sql/read`)**: `SELECT c.ide, c.cod, d.idefac, d.fecfac, d.horfac, d.antestfac, d.fecent, d.feclim,
    d.cocide, d.totbasdiv, d.totivadiv, d.totdocdiv, d.totdiv, d.totpagdiv, d.dtumID, d.tipgar FROM dbo.con c JOIN dbo.dca d
-   ON d.ide = c.ide WHERE c.tip = ? AND c.emp = ? AND d.empide = ? AND d.synckey LIKE ? AND d.estfac = ? AND (d.idefac <> 0
+   ON d.ide = c.ide WHERE c.tip = ? AND c.emp = ? AND d.synckey LIKE ? AND d.estfac = ? AND c.ide IN (?, …) AND (d.idefac <> 0
    OR d.fecfac <> 0 OR d.horfac <> 0 OR d.antestfac <> 0 OR d.fecent <> 0 OR d.feclim <> 0 OR d.cocide <> 0 OR d.totbasdiv
    <> 0 OR d.totivadiv <> 0 OR d.totdocdiv <> 0 OR d.totdiv <> 0 OR d.totpagdiv <> 0 OR d.dtumID <> '' OR d.tipgar <> ?) AND
    NOT EXISTS (SELECT 1 FROM dbo.dcapro p JOIN dbo.dcfpro f ON f.linoriide = p.ide WHERE p.docide = d.ide)` con
-   `[14, 1, 2425207, "ALB-%", 0, -1]`. La lista (N filas, se espera ~60) va a `progress/` sin nombres; el humano la revisa.
-   `sql/write` no tiene dry-run: esta lectura es la previa.
+   `[14, 1, "ALB-%", 0, <con.ide de albaranes>…, -1]`: las altas se identifican por `synckey` y la lista de `con.ide` que da
+   albaranes (script suyo de solo lectura), **no** por `empide` 2425207 (con su F-069 las altas nuevas llevan el empleado
+   de quien aprueba). La lista (N filas, se espera ~60) va a `progress/` sin nombres; el humano la revisa. `sql/write` no
+   tiene dry-run: esta lectura es la previa.
 2. **Escritura (`sql/write`)**: `UPDATE dbo.dca SET idefac = ?, fecfac = ?, horfac = ?, antestfac = ?, fecent = ?, feclim =
    ?, cocide = ?, totbasdiv = ?, totivadiv = ?, totdocdiv = ?, totdiv = ?, totpagdiv = ?, dtumID = ?, tipgar = ? WHERE ide = ?
-   AND empide = ? AND synckey LIKE ? AND estfac = ?`, `parameter_sets` = `[0×12, '', -1, ide, 2425207, "ALB-%", 0]` por
+   AND synckey LIKE ? AND estfac = ?`, `parameter_sets` = `[0×12, '', -1, ide, "ALB-%", 0]` por
    cada `ide` de la previa, `max_affected_rows` = N. Una transacción. Requiere `UPDATE` en `ALLOWED_WRITE_PREFIXES`.
 3. **Relectura**: la consulta 1 debe dar 0 filas; y `SELECT COUNT(*)` de las N por `ide` con los valores nuevos, N.
-No se tocan `con`, `eioide` ni `tiemod`. Hacerla **después** de desplegar F-015 (hoy entra ~1 alta al día con el defecto).
+No se tocan `con`, `eioide`, `tiemod` ni `empide` (su humano decide no corregir el de las altas ya escritas). Hacerla **después** de desplegar F-015 (hoy entra ~1 alta al día con el defecto).
 
 ## Decisiones
 

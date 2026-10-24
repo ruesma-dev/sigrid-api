@@ -37,14 +37,14 @@ vinculada (§2.2, §3.1, §3.2 y H14): `pre`, `tar` y `dto` del `ctrpro` solo si
 `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`; si no, `pre` = `tar` = `precio` y aviso
 `precio_distinto_del_contrato`; `tot` = `round(cantidad·pre, 2)`, que es siempre el importe aprobado. Sin cambios de
 forma, campos, códigos de error o aviso ni estados.
-**v8.3** (2026-10-24, **F-015 v2** de sigrid-api, aprobada por el humano; pendiente del acuse de albaranes): la cabecera
+**v8.3** (2026-10-24, **F-015 v2** de sigrid-api, aprobada por el humano; **acusada por albaranes el 2026-10-24**): la cabecera
 deja de clonarse de una plantilla. `con` y `dca` se construyen **columna a columna** (lista blanca: petición, obra,
 cálculo, valor fijo o la cascada **contrato → albarán anterior → proveedor**); el albarán anterior (respaldo) es
 **opcional** y nunca una proforma; facturación, cadena, divisa, fechas previstas y Documentum a 0. **Errores**: se retira
 `proveedor_sin_albaran_previo`; nuevos `proveedor_no_encontrado`, `proveedor_ambiguo` (sin contrato) y
 `retencion_no_soportada`. **Avisos** nuevos `cabecera_sin_dato` y `retencion_del_contrato`. **Retención del contrato**:
 una `dcarec` y el total neto (`totales.tot`, `retenciones`, `n_retenciones`; `filas.dcarec`). §2 sin cambios de forma;
-se corrige el origen de `usu` (el de quien aprueba o `ALTA_SIGRID_USUARIO_RESPALDO`, según albaranes). Detalle en
+se corrige el origen de `usu`: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`; el adjunto (§7) usa el mismo `usu`. Detalle en
 `specs/F-015-albaran-plantilla-y-retencion/` y en el resumen `progress/t0_F-015_albaranes.md` de sigrid-api.
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
@@ -196,7 +196,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 | `cod_contrato` | str \| null | no | ≤24 | `albaran_valuations.contrato_codigo` **siempre que la valoración tenga contrato**, también sin vinculadas (F-053 v6 R12; N4) | `dca.ctride` (0 sin contrato), `dcapro.docoricod` | Obligatorio si alguna línea trae `ctrpro_ide` (F-009 R6). **H31** cerrado: F-009 lo admite **sin** vinculadas (enlaza `dca.ctride`, plantilla y almacén del contrato, ningún `UPDATE` de medición) |
 | `referencia_externa` | str | sí | 1-128; prefijo `ALB-` | `"ALB-" + albaran_documents_merge.id` (document_id, 36) | `dca.synckey` (128) | Clave de idempotencia (F-009 R30). **H9** |
 | `su_referencia` | str | no (defecto `""`) | ≤128 | `albaran_documents_merge.numero_albaran` (VARCHAR 128) | `dca.entref` (128); `con.res` = `"<entres>. (<su_referencia>)"` recortado a 128 | F-053 R10: falta → `falta_numero_albaran` |
-| `usu` | str | **sí** (v3) | 1-24 | el `usu` de quien aprueba o, si no lo hay, `ALTA_SIGRID_USUARIO_RESPALDO` de sv9 (v8.3, según albaranes; debe existir en `dbo.usu`) | `log.usu` de la fila de alta | **H1 cerrado**: F-053 v6 lo manda (R12) |
+| `usu` | str | **sí** (v3) | 1-24 | v8.3, lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`; sigrid-api solo recibe `usu` (debe existir en `dbo.usu`) | `log.usu` de la fila de alta | **H1 cerrado**: F-053 v6 lo manda (R12) |
 | `fecha_albaran` | int `AAAAMMDD` \| null | no (null = hoy, Madrid) | 19000101-29991231 | `albaran_documents_merge.fecha` (`AAAA-MM-DD`) → entero | `con.fec`, `dca.fecdoc`; prefijo de serie `AC<aa>/` | El `mov` se fecha en el alta, no aquí (N1). F-053 la manda siempre. Solo formato y rango: una fecha futura **no** se rechaza (v5.1: lo hace la app; **H19**) |
 | `empide` | int \| null | no | ≥1 | `ALTA_SIGRID_EMPIDE` o `null` | `dca.empide` | `null` ⇒ `SIGRID_ALBARAN_EMPIDE` (2425207 por defecto del código). sigrid-api **no** lo deduce del `usu` (v8.3: no hay clave en Sigrid; lo resuelve albaranes en su F-069) |
 | `commit` | bool | no (`false`) | — | `false` en la previa; `true` en la grabación (solo modo real) | — | |
@@ -261,7 +261,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 8. Las decisiones de F-051 D3 (el botón «Almacén a todas» pisa también las líneas con partida), D5
    (el almacén elegido se pierde al revalorar; también el producto elegido, F-053 R42) y D7 (re-alcance
    de F-007) no cambian este contrato: sv9 manda lo que esté aprobado en el momento del alta.
-9. **Cabecera** (F-053 v6; v8.3): `usu` = el de quien aprueba o `ALTA_SIGRID_USUARIO_RESPALDO` (H1); CIF normalizado (H21); `cod_contrato`
+9. **Cabecera** (F-053 v6; v8.3): `usu`: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO` (H1); CIF normalizado (H21); `cod_contrato`
    siempre que haya contrato (H31); fecha futura o de hace más de 365 días ⇒ `revisar` local
    (`fecha_no_plausible`, H19), sin llamar a sigrid-api.
 
@@ -504,8 +504,8 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 obligatorio para la fila de alta de `log`; F-053 v5 (R12, design §2) se alineó con la v2 y no lo
 manda. Con `extra="forbid"` y campo obligatorio, **todas** las altas darían 400 sin código ⇒ `error`.
 **Propuesta**: F-053 R12 añade `usu` = `ALTA_SIGRID_USUARIO` (el mismo del adjunto, ya fijado en su
-T0c contra `dbo.usu`, ≤24) y su tabla mapea `usuario_no_valido` → `error`. *F-053.* **v8.3**: hoy es el `usu` de quien
-aprueba o, si no lo hay, `ALTA_SIGRID_USUARIO_RESPALDO` (según albaranes).
+T0c contra `dbo.usu`, ≤24) y su tabla mapea `usuario_no_valido` → `error`. *F-053.* **v8.3**: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`.
+sigrid-api solo recibe `usu`.
 
 **H2. Obra por código sin empresa.** F-009 L1 resuelve `con WHERE tip = 42 AND cod = ?` sin
 `emp`; F-049 midió (2026-10-03) que el código de obra **se repite entre empresas** (la emp 28 tiene
@@ -1098,7 +1098,7 @@ lo lleva), así que `CDXA01` vale (con la regla de la v7, «lo que sigue al prim
 |---|---|---|
 | `POST /api/sql/read` | R14: ¿alta a mano del mismo albarán? | `SELECT c.ide, c.cod, c.fec FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = 14 AND d.entcif = ? AND d.entref = ? AND ISNULL(d.synckey, '') <> ?` (`[cif, numero, "ALB-{document_id}"]`); comprobar `truncated`. H9 si anular no borra |
 | `POST /api/sql/read` | R28: ¿se anuló en Sigrid? | `SELECT ide FROM dbo.con WHERE ide = ? AND tip = 14` |
-| `POST /api/sigrid/concepto-grafico` | R22: adjuntar el PDF al albarán registrado | `contip` 14, `gratipide` 0, `usu` = `ALTA_SIGRID_USUARIO` (v8.3: a confirmar por albaranes si también es ya el de quien aprueba o `ALTA_SIGRID_USUARIO_RESPALDO`), `sha256`. En `dev`, `SIGRID_DOCUMENT_ALLOWED_CONTIP` ya incluye 14 y `_GRATIPIDE` incluye 0 (`sigrid_api.md` §4.1) |
+| `POST /api/sigrid/concepto-grafico` | R22: adjuntar el PDF al albarán registrado | `contip` 14, `gratipide` 0, `usu` = el mismo de la petición de alta (v8.3, confirmado por albaranes: lo resuelve albaranes (su F-069, desplegada): primero la lista de equivalencias de sv9 (`ALTA_SIGRID_EQUIVALENCIAS_USUARIO`), después el login de quien aprueba (`dbo.usu.cod`) y, si no, `ALTA_SIGRID_USUARIO_RESPALDO`), `sha256`. En `dev`, `SIGRID_DOCUMENT_ALLOWED_CONTIP` ya incluye 14 y `_GRATIPIDE` incluye 0 (`sigrid_api.md` §4.1) |
 
 sv9 no llama a `sql/write`, ni a `sigrid/albaran` en modo clásico, ni a `albaran-directo`
 (F-053 R33). Cuando F-053 esté en real, el modo clásico y `albaran-directo` quedan obsoletos

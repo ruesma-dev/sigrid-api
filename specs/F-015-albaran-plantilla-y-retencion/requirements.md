@@ -123,7 +123,7 @@ proveedor.
 
 - **R30.** MANUAL (humano), con autorización expresa para esa escritura y después de desplegar F-015: el plan de design
   §Limpieza (lectura previa, `UPDATE` parametrizado por `sql/write` con `max_affected_rows` = filas leídas, relectura),
-  solo sobre altas de la API (`empide` 2425207 y `synckey` `ALB-%`) sin facturar ni líneas en `dcfpro`. Nada de `DELETE`
+  solo sobre altas de la API (`synckey` `ALB-%` y la lista de `con.ide` de albaranes; no por `empide`) sin facturar ni líneas en `dcfpro`. Nada de `DELETE`
   (M19: 60 de 68 el 2026-10-23; D11).
 
 ## Fuera de alcance
