@@ -875,3 +875,14 @@ def test_f015_r24_control_negativo_ningun_update_delete_merge_ni_ddl_nuevo() -> 
     insertadas = {re.match(r"INSERT INTO dbo\.(\w+) ", sql).group(1)
                   for sql in todas if sql.startswith("INSERT")}
     assert insertadas == {"con", "dca", "ctrprodes", "mov", "dcarec", "log"}  # `dcapro`, clonada
+
+
+def test_f015_r12_numerar_con_dos_dcarec_no_numera() -> None:
+    """R12: una `dcarec` como mucho. Lo mide la campaña de mutación: un `ide`
+    consecutivo por fila (`ide_dcarec + n`) era código muerto (T18)."""
+    with pytest.raises(ValueError, match="una dcarec"):
+        modulo.numerar(
+            _filas([{"ide": None, "docide": None}, {"ide": None, "docide": None}]), cod="x",
+            ide_con=1, ide_dcapro=1, ide_ctrprodes=None, ide_mov=None, ide_log=None,
+            ide_dcarec=44134,
+        )

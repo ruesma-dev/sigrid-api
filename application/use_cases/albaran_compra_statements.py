@@ -1146,6 +1146,8 @@ def numerar(
         raise ValueError("Hay mov y no se ha reservado ide_mov.")
     if filas.dcarec and ide_dcarec is None:
         raise ValueError("Hay dcarec y no se ha reservado ide_dcarec.")
+    if len(filas.dcarec) > 1:
+        raise ValueError("Un albaran lleva como mucho una dcarec (F-015 R12).")
     ides_dcapro = [ide_dcapro + i for i in range(len(filas.dcapro))]
     return FilasAlbaran(
         con={**filas.con, "ide": ide_con, "cod": cod},
@@ -1172,10 +1174,7 @@ def numerar(
             for k, (i, fila) in enumerate(filas.mov)
         ],
         log={**filas.log, "ide": ide_log, "cod": cod},
-        dcarec=[
-            {**fila, "ide": ide_dcarec + n, "docide": ide_con}
-            for n, fila in enumerate(filas.dcarec)
-        ],
+        dcarec=[{**fila, "ide": ide_dcarec, "docide": ide_con} for fila in filas.dcarec],
     )
 
 
