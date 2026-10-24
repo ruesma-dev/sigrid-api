@@ -673,6 +673,22 @@ def test_f015_r15_en_decimal_no_en_binario() -> None:
     assert modulo.calcular_retencion(ctrrec(), totales) == (Decimal("21.50"), Decimal("1.08"))
 
 
+@pytest.mark.parametrize(
+    ("valpor", "totbas", "cuo"),
+    [(0.015, 1.0, "0.02"), (0.015, -3.0, "-0.05"), (0.03, 0.5, "0.02")],
+)
+def test_f015_r15_valpor_por_su_repr_y_no_por_su_binario(
+    valpor: float, totbas: float, cuo: str
+) -> None:
+    """`ctrrec.valpor` es `Real` (llega `float`): 0,015 y 0,03 (M11) quedan en binario
+    justo por debajo de su decimal y, en empate a medio céntimo, `Decimal(valpor)`
+    redondearía hacia abajo (0,01; -0,04). Mata a M10 de la revisión de mutación."""
+    assert Decimal(valpor) < Decimal(repr(valpor))  # el binario que se evita
+    totales = {"totbas": totbas, "totiva": 0.0, "totdoc": totbas}
+    _bas, calculada = modulo.calcular_retencion(ctrrec(valpor=valpor), totales)
+    assert calculada == Decimal(cuo)
+
+
 def test_f015_r15_totbas_0_retencion_0() -> None:
     totales = {"totbas": 0.0, "totiva": 0.0, "totdoc": 0.0}
     assert modulo.calcular_retencion(ctrrec(), totales) == (Decimal("0.00"), Decimal("0.00"))

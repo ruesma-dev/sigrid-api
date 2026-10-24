@@ -169,3 +169,16 @@ $ python -m pytest tests/test_f015_statements.py -k dos_dcarec -q --tb=line
 E   Failed: DID NOT RAISE ValueError
 tests\test_f015_statements.py:883: Failed: DID NOT RAISE ValueError
 1 failed, 94 deselected in 1.10s
+
+## Pasada 2 de la revisión
+
+### P2.1 · R15: el mutante M10 (`Decimal(valpor)` en vez de `_decimal(valpor)`), aplicado a mano
+Código de producción en `e42e0ad` + el test nuevo. Con M10 aplicado:
+$ python -m pytest tests/test_f015_statements.py -k valpor_por_su_repr -q --tb=line
+    # l. 443: return bas, redondear_euros(bas * Decimal(ctrrec["valpor"]))
+E   AssertionError: assert Decimal('0.01') == Decimal('0.02')
+E   AssertionError: assert Decimal('-0.04') == Decimal('-0.05')
+E   AssertionError: assert Decimal('0.01') == Decimal('0.02')
+3 failed, 95 deselected in 0.85s
+Revertido M10 (código de `e42e0ad`):
+3 passed, 95 deselected in 0.86s
