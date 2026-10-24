@@ -135,7 +135,9 @@ columnas calculadas de la lista. `CLASES_RETENCION_BASE = {5: "totbas", 3: "totb
 1. Igual.
 2. Obra → contrato (fila completa del `ctr`, como hoy) → **L5 respaldo** (opcional; sin contrato, por CIF) → sin
    contrato ni respaldo, **L17** (R7) → `prv` del `entide` → L11 (idempotencia, con `tot`) → `conest`/`usu` → **con contrato, L16** y `resolver_retencion` (o
-   `retencion_no_soportada`, R14) → `auxpag` si el pago sale del `prv`. Un albarán ya escrito sigue siendo
+   `retencion_no_soportada`, R14) → `auxpag` si el pago sale del `prv` → solo si el pago tiene fuente y el banco
+   no, el `auxefp` del `efeide` escrito, por `read_full_row` como el `auxpag`, para saber si el efecto es CC, CT o TR
+   (aviso R5); sin su fila o sin `cod`, `ValueError` sin escribir, como R10. Un albarán ya escrito sigue siendo
    `idempotente` aunque su contrato cambie después.
 3. Igual (líneas).
 4. `_construir`: `sumar_importes` → retención (`calcular_retencion`, `construir_dcarec`) → `construir_con` y
