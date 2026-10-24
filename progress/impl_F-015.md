@@ -15,7 +15,7 @@ autorizada y limpieza: humano y líder). Nada contra Sigrid: ni lecturas ni escr
   `ValueError` (R10). `INSERT` de `con` y `dca` con columnas fijas; solo `dcapro` se sigue clonando.
 - **Respaldo opcional (R6)**: L5 por `entide` o por CIF con `c.cod LIKE 'AC__/%'`, `d.cla = 0` y `ISNULL(d.entref, '')
   NOT LIKE 'PROF%'` (los tres como `?`). Ya no se lee la `con` del albarán anterior. Sin respaldo, el alta sigue
-  (`template_ide` 0); sale `proveedor_sin_albaran_previo`.
+  (`template_ide` 0); se retira `proveedor_sin_albaran_previo`.
 - **Proveedor por CIF (R4, R7)**: sin contrato ni respaldo, L17 (`prv` vivo del CIF en la empresa de la obra):
   `proveedor_no_encontrado` / `proveedor_ambiguo`. El `prv` del `entide` se lee siempre por `read_full_row`.
 - **Avisos (R5, D12)**: `cabecera_sin_dato` (pago sin fuente, o banco sin fuente con efecto `CC`/`CT`/`TR`, leído de
@@ -44,7 +44,8 @@ autorizada y limpieza: humano y líder). Nada contra Sigrid: ni lecturas ni escr
 | `tests/test_f009_{statements,use_case,equivalencia,mutacion,route,models}.py` | T8 y T14, cada cambio con su R |
 | `specs/F-015-…/tasks.md`; `progress/mutacion_F-015.md`, `progress/red_F-015.md` | marcas, campaña, trazas RED |
 
-Commits: `67927eb` (docs), T1-T18 de `f8deb5e` a `b369a7f` (uno por tarea; T15 es solo una comprobación).
+Commits: `67927eb` (docs); T2 `7f4c488` primero y T1 `f8deb5e`; después uno por tarea hasta T17 `40f1425`; T15 sin
+commit propio (solo comprueba; marcada en `c0e40ef`, el de T14); T18 en dos, `97c4e8b` y `b369a7f`; T22 `e42e0ad`.
 
 ## Decisiones y desviaciones (también en `progress/current.md`)
 
@@ -149,6 +150,43 @@ $ python -m pytest tests/test_f015_use_case.py -k "r21 or r22 or r23" -q --tb=li
 8 failed, 64 deselected, 1 warning in 1.43s
 ```
 
+## Pasada 2 de la revisión (arreglos de la pasada 1, `5da4e85`)
+
+Un commit por punto, de `915e226` a `70dbed9`; trazas completas en [`red_F-015.md`](red_F-015.md) §Pasada 2.
+
+| Hallazgo | Arreglo | Commit |
+|---|---|---|
+| mutación H1 (M10) | `test_f015_r15_valpor_por_su_repr_y_no_por_su_binario` (0,015 y 0,03); con M10 aplicado, 3 failed (P2.1) | `915e226` |
+| cabecera H1 | centinela R25 con contrato y sin respaldo, y su vaciado: `dircon1` sin fuente, `ivadif` del contrato (P2.2) | `868bf85` |
+| retención O1 | `test_f015_r12_devolucion_sin_vincular_con_retencion` (commit, sin E9-E11) | `df16827` |
+| retención O2 | `valpor` NULL ⇒ `retencion_no_soportada` (antes 500); RED abajo; contrato §3.3 y nota v8.3 | `dfc72b8`, `ea88bc0`, `10977f6` |
+| cabecera H2, C3 H2 | contrato v8.3 §4.1 paso 2 (orden real) y §4.2 (identidad fuera de la cascada) | `0e63c8c` |
+| cabecera H3, C3 H1 | docstring del módulo: solo `dcapro` se clona; L16, L17, E6b, E12_DCAREC; v8.3 | `d707ea9` |
+| C3 H3 | `azure-apps/sigrid_api.md` §8.6: `ivadif`, cuándo salta `cabecera_sin_dato`, `valpor` vacío | `azure-apps` `bc0c597` |
+| cabecera O1 | design §Flujo: `auxefp` por `read_full_row`, sin fila `ValueError` | `ab70126` |
+| C1C2C5 H1, C4red H1 | `current.md` al día; comandos literales de T19-T21 en [`verificacion_manual.md`](../specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md) | `45a7aea`, `70dbed9` |
+| C1C2C5 H2, H3 | este informe: «se retira» y los commits reales | este commit |
+| retención O3, O4 | dobles de L11 con 8 columnas; R26 comprueba el aviso R16 | `2e7ced4`, `b67de1f` |
+
+**Desviaciones de la pasada 2.** (1) R14 no listaba `valpor` NULL: lo ordenó el líder; no contradice la spec (mismo
+código, mismo mapeo); queda para el líder si R14 lo nombra. (2) La §Verificación manual de design es un resumen y
+enlaza el anexo `verificacion_manual.md`: con los comandos dentro, design pasaba a 373 líneas (tope 250). (3) La
+campaña de las líneas nuevas generó un solo mutante; uno a mano (`not valpor`, rechazaría el 0 %) sobrevivió y lo
+mata `test_f015_r14_valpor_0_es_soportado_solo_none_no` ([`mutacion_F-015_pasada2.md`](mutacion_F-015_pasada2.md)).
+
+RED de la ampliación de R14 (código de `df16827`, tests nuevos ya escritos):
+
+```
+$ python -m pytest tests/test_f015_statements.py tests/test_f015_use_case.py -k "valpor_null" -q --tb=line
+E   Failed: DID NOT RAISE RetencionNoSoportada
+E   decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+E   decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]
+FAILED tests/test_f015_statements.py::test_f015_r14_ctrrec_no_soportado[valpor_null]
+FAILED tests/test_f015_use_case.py::test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas[False-valpor_null]
+FAILED tests/test_f015_use_case.py::test_f015_r14_retencion_no_soportada_400_antes_de_las_lineas[True-valpor_null]
+```
+Con el cambio: `-k "valpor_null or r14"` → 22 passed.
+
 ## Fuera del alcance
 
 El clásico y `albaran-directo` (D9: limitación documentada en `azure-apps`); `empide` desde el `usu` (D10: albaranes
@@ -157,24 +195,26 @@ F-069); interpretar el documento de forma de pago (D1). No se corrige el `empide
 ## Lo que falta (no es del implementer)
 
 - **Avisar a albaranes antes de desplegar** (sv9/sv4 con los mapeos nuevos; contrato v8.3, ya acusado en T0).
-- **T19-T21 MANUALES**: despliegue (`func publish`, el humano), dry-runs R29 (contrato con `RET5`, sin `ctrrec`, sin
-  contrato, proveedor sin respaldo), una grabación solo con autorización expresa, revisada en la UI, repetida e
-  anulada desde la UI, y la limpieza (design §Limpieza) con su autorización.
+- **T19-T21 MANUALES**, con los comandos de `verificacion_manual.md`: despliegue (`func publish`, el humano),
+  dry-runs R29 V1-V4 (el líder, con autorización), la grabación V5 solo con autorización expresa, revisada en la UI,
+  repetida y anulada desde la UI, y la limpieza V6 (design §Limpieza) con su autorización.
+- Decidir si R14 de `requirements.md` nombra el `valpor` NULL (pasada 2).
 - Tras desplegar: quitar las notas «PENDIENTE DE DESPLIEGUE» de `azure-apps/sigrid_api.md`.
-- Revisión del reviewer contra `CHECKPOINTS.md`.
+- Pasada 2 de la revisión contra `CHECKPOINTS.md`.
 
 ## Evidencias
 
 | Evidencia | Valor medido |
 |---|---|
-| Suite completa (`bash harness/init.sh`, última ejecución, HEAD `b369a7f` + este informe) | **2871 passed, 1 skipped**, 0 failed |
-| Tests de F-015 (`test_f015_statements.py` + `test_f015_use_case.py`) | 167 passed (más `test_f015_r26` en equivalencia) |
+| Suite completa (`bash harness/init.sh`, HEAD `70dbed9` + este informe) | **2881 passed, 1 skipped**, 0 failed |
+| Tests de F-015 (`test_f015_statements.py` + `test_f015_use_case.py`) | 177 passed (167 + 10 de la pasada 2; más `test_f015_r26` en equivalencia) |
 | Tests de F-009 (statements, use_case, equivalencia, mutacion, route, models, caracterizacion) | 582 passed |
-| Cobertura de líneas cambiadas (`PUERTA COBERTURA`) | **100.0 % de 237 líneas** (237/237, umbral 80 %, nivel critico) |
+| Cobertura de líneas cambiadas (`PUERTA COBERTURA`) | **100.0 % de 239 líneas** (239/239, umbral 80 %, nivel critico) |
+| Mutación, pasada 2 (`--base 5da4e85 --workers 1`, HEAD `b67de1f`, 13 líneas) | 1 generado, 1 muerto (98,2 s); 2 a mano: 1 superviviente real, muerto con test nuevo |
 | Mutación, ronda 2 (`--workers 1`, HEAD `97c4e8b`) | **104 generados, 104 muertos, 0 supervivientes, 0 timeouts** (1602,5 s) |
 | Mutación, ronda 1 (HEAD `40f1425`) | 103 generados, 102 muertos, 1 timeout medido como superviviente equivalente y quitado (decisión 10) |
-| Tiempo de la suite | 133,81 s (`init.sh`); línea base de la campaña 156,3 s |
+| Tiempo de la suite | 149,94 s (`init.sh`); línea base de las campañas 156,3 s y 89,3 s |
 | `ruff` | ficheros tocados limpios; 79 avisos previos en el repo (no bloquean; `function_app.py` trae 3 previos) |
 
 Detalle de la campaña: [`mutacion_F-015.md`](mutacion_F-015.md). Salida de `init.sh`: «ENTORNO LISTO», PUERTA TAMAÑO
-en verde (requirements 134/150, design 237/250).
+en verde (requirements 134/150, design 248/250).
