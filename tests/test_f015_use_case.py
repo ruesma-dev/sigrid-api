@@ -419,6 +419,28 @@ def test_f015_r12_en_devolucion_la_retencion_es_negativa() -> None:
     assert respuesta.filas["dca"]["tot"] == -24.36
 
 
+def test_f015_r12_devolucion_sin_vincular_con_retencion() -> None:
+    """R12 y R13 en la devolución típica (M10): solo líneas sin vincular, con
+    contrato y RET5, en commit. `sin_vincular(cantidad=-3)`: 3 · 2,675 = -8,03 de
+    base (redondeada); RET5 0,05 · -8,03 = -0,40; `tot` = `totdoc` - `cuo`.
+    Sin línea vinculada no hay `ctrprodes` ni E9-E11; E6b y la `dcarec` igual."""
+    respuesta, repo = ejecutar([sin_vincular(cantidad=-3.0)], repo=_con_retencion(), commit=True)
+    assert respuesta.estado == "creado"
+    dca = respuesta.filas["dca"]
+    (dcarec,) = respuesta.filas["dcarec"]
+    assert (dcarec["bas"], dcarec["cuo"]) == (dca["totbas"], -0.40) == (-8.03, -0.40)
+    assert dca["tot"] == dca["totpag"] == round(dca["totdoc"] + 0.40, 2) == -9.32
+    assert dcarec == {**_DCAREC_RET5, "ide": IDE_DCAREC, "docide": IDE_CON, "bas": -8.03, "cuo": -0.40}
+    assert repo.sentencias() == [
+        "referencia", "reservar_cod", "ide_con", "ide_dcapro", "ide_mov", "ide_dcarec",
+        "balance_bajo_bloqueo",
+        "insert_con", "insert_dca", "insert_dcapro", "insert_mov", "insert_dcarec",
+        "ide_log", "insert_log",
+        "releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_ctrprodes",
+        "releer_dcarec", "releer_log",
+    ]
+
+
 def test_f015_r12_un_albaran_ya_escrito_es_idempotente_aunque_su_retencion_no_valga() -> None:
     repo = _con_retencion(
         ctrrec_fila(), ctrrec_fila(ide=7002),
