@@ -80,7 +80,7 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     (superconjunto de la clásica, sin columnas bancarias), avisos y
     `AlbaranCompraError(ValueError)` con `codigo` cerrado y `lineas` de fallos.
   - *application*: `albaran_compra_statements` — SQL **constante** con `?`
-    (lecturas L1-L15 y sentencias de transacción E1-E12), autovalidado con
+    (lecturas L1-L17 y sentencias de transacción E1-E12), autovalidado con
     `DatabaseReferenceGuard`, y funciones puras (código de serie, balance de
     stock y PMP, estados del contrato, importes con `Decimal`, constructores de
     filas). Sin E/S. `create_albaran_compra_use_case` orquesta: guardas sin
@@ -88,10 +88,25 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     de línea), construcción pura y, con `commit`, un `work` reentrante en
     **una** transacción del repositorio (`run_in_write_transaction`) bajo
     applocks en orden fijo (`SIGRID_REFEXT_14`, `SIGRID_SERIE_14`, `SIGRID_IDE_con`,
-    `_dcapro`, `_ctrprodes`, `_mov`, `_log`): idempotencia re-comprobada dentro,
+    `_dcapro`, `_ctrprodes`, `_mov`, `_dcarec`, `_log`): idempotencia re-comprobada dentro,
     `cod` e `ide` reservados con `UPDLOCK, HOLDLOCK`, relecturas antes del
     COMMIT. La colisión de clave agotada sale del caso de uso como
     `AlbaranCompraError(colision_de_clave)`: la ruta no captura `IntegrityError`.
+  - **Cabecera por lista blanca (F-015 O1)**: `con` y `dca` no se clonan de
+    ninguna fila. `con` lleva exactamente `CON_COLUMNAS` (F-006) y `dca` las 145
+    de `DCA_COLUMNAS`, cada una con UN origen (`ORIGEN_DCA`): identidad (del
+    contrato; sin él, del respaldo por CIF o del `prv` único del CIF, L17),
+    cascada contrato → respaldo → `prv` (pago y banco en bloque; sin fuente, vacía
+    y aviso `cabecera_sin_dato`), calculadas (petición, obra, totales) y fijas (lo
+    que deja el alta a mano). El **respaldo** es el último albarán `AC` de clase 0
+    del proveedor que no es proforma (L5), y es opcional. Solo `dcapro` se sigue
+    clonando de su plantilla de línea.
+  - **Retención del contrato (F-015 O2)**: con contrato, L16 lee sus `ctrrec`;
+    uno soportado (clases 3, 4, 5, sin `valfij` ni `ivaide`) da UNA `dcarec`
+    (`bas` sobre `totbas` o `totdoc`, `cuo` en `Decimal` `ROUND_HALF_UP`) y
+    `dca.tot` = `totpag` = `totdoc` − `cuo`; más de uno o uno raro, 400
+    `retencion_no_soportada`. En el commit, su `ide` (E6b) va bajo el applock
+    `SIGRID_IDE_dcarec`, el `INSERT` tras los `mov` y su relectura en E12.
   - *infrastructure*: nada nuevo; reutiliza los métodos del repositorio.
 - **Ruta**: la guarda `SIGRID_ALBARAN_WRITE_ENABLED` (R8) va en `sigrid/albaran`
   (los dos modos) y en `sigrid/albaran-directo`, **después** de validar el modelo
