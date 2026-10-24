@@ -58,6 +58,24 @@ Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas 
   hoja no trae CIF, fecha, retención ni contrato estructurado; trae MES, ORIGEN y ANTERIOR por partida; pide que el
   endpoint resuelva la cadena a origen. **La spec v1 hay que rehacerla** (contrato exigido o identificable, cadena
   dentro del endpoint, detectar una PROF ya dada de alta a mano). D3-D7 sin aprobar.
+  - **v2 desfasada (2026-10-19, segunda respuesta de facturas,
+    `facturas/progress/explore_hoja_proforma_sigrid.md`):** la mayoría de proformas son AC de clase 0 con
+    `entref LIKE 'PROF%'` (2.871 en 2026, frente a 1.217 de la serie PROF26; la v2 solo medía PROF). El ANTERIOR de la
+    hoja es la suma de las proformas previas del contrato, no la última (casa en 1 de 4). La hoja se parece al contrato:
+    proponen enlazar a `ctrpro.ide` (377 de 510 por código y precio). Facturas localiza y enlaza las ya dadas de alta
+    (su F-063); F-007 queda como respaldo. Abierto: si se aparca, la serie (PROF o la AC de la obra) y quién resuelve
+    el contrato (una hoja puede abarcar dos). F-015 (cabecera y retención), ya desplegada, se reutiliza.
+  - **Decisión del humano (2026-10-24): las proformas se registran en Sigrid POR MES, no a origen.** El origen se
+    calcula a partir de los meses. La v3 tiene que partir de aquí: cada proforma lleva lo del mes y el acumulado sale
+    de sumar las del contrato.
+  - **Material del humano, por revisar (2026-10-24)** en `C:\Users\pgris\OneDrive - Ruesma\Documentos\proformas`
+    (fuera del repo; no se versiona):
+    - cuatro Excel de proformas de ejemplo (`2608 2ª PROFORMA …`, de cuatro subcontratistas): **revisarlos y sacar de
+      ellos una plantilla**;
+    - dos PDF de correos con información adicional sobre proformas.
+
+    Para trabajar con ellos se convierten con `markitdown` a `docs/referencia/`. Antes hay que preguntar al humano,
+    porque pueden traer precios de proveedor o datos personales; en ficheros del repo, sin nombres de personas.
 - **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
   origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas para los dos: dry-run, idempotencia, `con.cod` e
   `ide` en la respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
