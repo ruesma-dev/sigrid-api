@@ -649,6 +649,15 @@ def test_f015_r12_un_ctrrec_soportado_es_la_retencion(cla: int) -> None:
     assert modulo.resolver_retencion([fila]) == fila
 
 
+def test_f015_r14_valpor_0_es_soportado_solo_none_no() -> None:
+    """R14: un 0 % se sabe calcular (`cuo` 0); solo `valpor` NULL no. Mata el
+    mutante a mano `if not fila["valpor"]` (pasada 2)."""
+    fila = ctrrec(valpor=0.0)
+    assert modulo.resolver_retencion([fila]) == fila
+    totales = {"totbas": 21.0, "totiva": 4.41, "totdoc": 25.41}
+    assert modulo.calcular_retencion(fila, totales) == (Decimal("21.00"), Decimal("0.00"))
+
+
 @pytest.mark.parametrize(
     ("filas", "motivo"),
     [
