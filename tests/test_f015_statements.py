@@ -342,6 +342,37 @@ def test_f015_r25_centinela_sin_contrato_ni_respaldo_del_proveedor() -> None:
     assert sin_fuente == ("dircon1", "ivadif")
 
 
+def test_f015_r25_centinela_con_contrato_sin_respaldo_todo_del_contrato() -> None:
+    """R25, la casilla «con contrato y sin respaldo»: sin respaldo nada cambia;
+    la identidad y la cascada salen del contrato y nada del `prv` entra."""
+    contrato, proveedor, pago = _contrato(), _proveedor(), _auxpag()
+    dca, sin_fuente = _dca(contrato, None, proveedor, pago)
+    assert tuple(dca) == modulo.DCA_COLUMNAS
+    origen = _origen_de_cada_columna(dca, contrato=contrato, proveedor=proveedor, auxpag=pago)
+    for columna in modulo.DCA_COLUMNAS:
+        esperado = "contrato" if _de_una_fila(columna) else ""
+        assert origen[columna] == esperado, columna
+    assert sin_fuente == ()
+
+
+def test_f015_r25_contrato_sin_cascada_y_sin_respaldo_pasa_al_proveedor() -> None:
+    """R3-R5 sin respaldo: con la cascada del contrato vacía, sale del `prv` (pago
+    con los textos de su `auxpag`); `dircon1` queda sin fuente; `ivadif` es la
+    marca del contrato (D5), 0, y tiene fuente. La identidad sigue en el contrato."""
+    contrato = _vaciar(_contrato(), set(modulo.DCA_CASCADA))
+    proveedor, pago = _proveedor(), _auxpag()
+    dca, sin_fuente = _dca(contrato, None, proveedor, pago)
+    for columna, en_prv in modulo.DCA_CASCADA.items():
+        if columna in modulo.PAGO_DEL_AUXPAG:
+            assert dca[columna] == pago[modulo.PAGO_DEL_AUXPAG[columna]], columna
+        elif en_prv is not None:
+            assert dca[columna] == proveedor[en_prv], columna
+    assert (dca["dircon1"], dca["ivadif"]) == ("", 0)
+    assert sin_fuente == ("dircon1",)
+    for columna in modulo.DCA_IDENTIDAD:
+        assert dca[columna] == contrato[columna], columna
+
+
 @pytest.mark.parametrize("columna", ["cueide", "eioide", "dirdir1", "dircon1"])
 def test_f015_r3_una_columna_vacia_en_el_contrato_pasa_al_respaldo(columna: str) -> None:
     contrato, respaldo = _vaciar(_contrato(), {columna}), _respaldo()

@@ -182,3 +182,16 @@ E   AssertionError: assert Decimal('0.01') == Decimal('0.02')
 3 failed, 95 deselected in 0.85s
 Revertido M10 (código de `e42e0ad`):
 3 passed, 95 deselected in 0.86s
+
+### P2.2 · R25, la casilla «con contrato y sin respaldo» (control, no RED)
+El comportamiento ya era correcto (el revisor lo midió): los dos tests nuevos no
+pueden fallar contra el código de `e42e0ad`. Control medido con un mutante a mano,
+`if contrato is not None or respaldo is not None:` -> `if respaldo is not None:`
+(identidad e `ivadif` dejan de salir del contrato cuando no hay respaldo):
+$ python -m pytest tests/test_f015_statements.py tests/test_f015_use_case.py tests/test_f009_equivalencia.py -q
+FAILED tests/test_f015_statements.py::test_f015_r25_centinela_con_contrato_sin_respaldo_todo_del_contrato
+FAILED tests/test_f015_statements.py::test_f015_r25_contrato_sin_cascada_y_sin_respaldo_pasa_al_proveedor
+FAILED tests/test_f015_use_case.py::test_f015_r6_sin_respaldo_el_alta_sigue_con_contrato_y_proveedor
+FAILED tests/test_f015_use_case.py::test_f015_r7_con_contrato_sin_respaldo_no_se_busca_por_cif
+4 failed, 171 passed, 1 warning in 3.89s
+Revertido: 175 passed.
