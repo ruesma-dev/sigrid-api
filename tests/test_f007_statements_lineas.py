@@ -178,7 +178,8 @@ def test_f007_r14_r16_revisar_lineas_junta_todos_los_fallos_de_la_etapa_1() -> N
 
 
 def test_f007_r14_revisar_lineas_lleva_los_candidatos_de_la_ambigua() -> None:
-    lineas = [linea(referencia_linea="C", partida="02.03.02.03", medicion_contrato=20140.26)]
+    lineas = [linea(referencia_linea="C", partida="02.03.02.03", medicion_contrato=20140.26,
+                    precio=0.5)]
     _identificadas, fallos = revisar_lineas(lineas, lineas_de("CTSB26/0417"), sin_contrato=False)
     assert [(f.codigo, f.candidatos) for f in fallos] == [("linea_ambigua", IDES_0417[:3])]
 
@@ -537,7 +538,7 @@ def test_f007_traducir_partida_de_imputacion_manda_sobre_la_del_contrato() -> No
 
 
 def test_f007_traducir_linea_de_contrato_sin_partida() -> None:
-    hoja = peticion("CTSB26/0472")
+    hoja = peticion("CTSB26/0472", lineas=DATOS["hojas"]["CTSB26/0472"]["lineas"][:1])
     sin_partida = LineaContrato(ide=262990, docide=2793879, paride=0, partida="", can=1.0,
                                 pre=11.0, tot=11.0, unimed="M3", proide=610004, producto="SM1004")
     traducida = traducir(hoja, contrato=contrato("CTSB26/0472"), identificadas={0: sin_partida},

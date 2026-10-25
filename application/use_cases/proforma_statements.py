@@ -18,13 +18,24 @@ from __future__ import annotations
 import calendar
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from application.use_cases.albaran_compra_statements import TIP_ALBARAN, TIP_CONTRATO
+from application.use_cases.albaran_compra_statements import (
+    TIP_ALBARAN,
+    TIP_CONTRATO,
+    redondear_euros,
+)
+from domain.models.albaran_compra_models import AlbaranCompraRequest, LineaAlbaranIn
 from domain.models.proforma_models import (
+    AvisoProforma,
     ContratoResuelto,
+    FalloLineaProforma,
     LineaProformaIn,
+    LineaProformaResultado,
+    OrigenProforma,
     ProformaError,
+    ProformaRequest,
 )
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 
@@ -33,9 +44,19 @@ PATRON_PROFORMA = "PROF%"
 PATRON_PREVISION = "PREV%"
 #: `dcapro.docoritip` de una linea vinculada a una linea de contrato.
 DOCORITIP_CONTRATO = 44
+#: `dca.cla` de una proforma (R12, M31).
+CLA_PROFORMA = 141
 
-#: Tolerancia de la medicion de contrato al casar una linea (R8, R14).
-TOLERANCIA_MEDICION = 0.001
+#: Tolerancias (R8, R14, R19-R21, R24): medicion y cantidad, precio e importe.
+TOLERANCIA_CANTIDAD = Decimal("0.001")
+TOLERANCIA_PRECIO = Decimal("0.0001")
+TOLERANCIA_IMPORTE = Decimal("0.05")
+#: `supera_contrato_10`: el origen pasa del 110 % del contrato (D8).
+MARGEN_CONTRATO = Decimal("1.10")
+#: `dca.docoritip` de una proforma a origen (D13).
+DOCORITIP_A_ORIGEN = 1
+#: Prefijo del `entref` por defecto: `PROF<MMAA>_<obra>` (R12, M36).
+PREFIJO_ENTREF = "PROF"
 
 # --- Lecturas (credenciales de lectura) -------------------------------------------
 
@@ -150,6 +171,19 @@ def _cif(valor: Any) -> str:
     return "".join(_texto(valor).split()).upper()
 
 
+def _d(valor: Any) -> Decimal:
+    """`Decimal` de lo que se ve (`repr` del float), como `redondear_euros`."""
+    return valor if isinstance(valor, Decimal) else Decimal(repr(float(valor or 0)))
+
+
+def _casa_medicion(can: float, medicion: float | None) -> bool:
+    return abs(_d(can) - _d(medicion)) <= TOLERANCIA_CANTIDAD
+
+
+def _r2(valor: Any) -> float:
+    return float(redondear_euros(_d(valor)))
+
+
 @dataclass(frozen=True)
 class ContratoCandidato:
     """Un contrato de la obra (LP3)."""
@@ -261,8 +295,7 @@ def _contiene(lineas: Sequence[LineaContrato], linea: LineaProformaIn) -> bool:
     if linea.ctrpro_ide is not None:
         return any(l.ide == linea.ctrpro_ide for l in lineas)
     return any(
-        _clave(l.partida) == _clave(linea.partida)
-        and abs(l.can - (linea.medicion_contrato or 0)) <= TOLERANCIA_MEDICION + 1e-9
+        _clave(l.partida) == _clave(linea.partida) and _casa_medicion(l.can, linea.medicion_contrato)
         for l in lineas
     )
 
@@ -320,4 +353,366 @@ def resolver_contrato(
         f"Varios contratos del proveedor casan con la hoja: {', '.join(c.cod for c in completos)}. "
         "Indica cod_contrato.",
         codigo="contrato_ambiguo",
+    )
+
+
+
+# --- Lineas (R13-R16, R19 de linea) -------------------------------------------------
+
+
+class FalloIdentificacion(Exception):
+    """Una linea de contrato que no se identifica (R14), con sus candidatas."""
+
+    def __init__(self, codigo: str, mensaje: str, candidatos: Sequence[int] = ()) -> None:
+        super().__init__(mensaje)
+        self.codigo = codigo
+        self.mensaje = mensaje
+        self.candidatos = list(candidatos)
+
+
+def identificar_linea(
+    linea: LineaProformaIn, lineas_del_contrato: Sequence[LineaContrato]
+) -> LineaContrato:
+    """
+    R14 (D6). Con `ctrpro_ide`, SOLO se comprueba que es una linea del contrato
+    resuelto: ni se re-identifica ni se sustituye. Sin el (respaldo), la
+    partida (codigo, obligatoria si viene) y despues, mientras queden varias y
+    quedandose con las que casan si casa alguna: `medicion_contrato` (±0,001),
+    `unidad` y precio (±0,0001). Varias, `linea_ambigua`; ninguna,
+    `linea_no_es_del_contrato`.
+    """
+    if linea.ctrpro_ide is not None:
+        for candidata in lineas_del_contrato:
+            if candidata.ide == linea.ctrpro_ide:
+                return candidata
+        raise FalloIdentificacion(
+            "linea_no_es_del_contrato",
+            f"La linea de contrato {linea.ctrpro_ide} no es del contrato resuelto.",
+        )
+    quedan = list(lineas_del_contrato)
+    if linea.partida is not None:
+        quedan = [l for l in quedan if _clave(l.partida) == _clave(linea.partida)]
+    filtros = []
+    if linea.medicion_contrato is not None:
+        filtros.append(lambda l: _casa_medicion(l.can, linea.medicion_contrato))
+    if linea.unidad is not None:
+        filtros.append(lambda l: _clave(l.unimed) == _clave(linea.unidad))
+    filtros.append(lambda l: abs(_d(l.pre) - _d(linea.precio)) <= TOLERANCIA_PRECIO)
+    for filtro in filtros:
+        if len(quedan) <= 1:
+            break
+        casan = [l for l in quedan if filtro(l)]
+        if casan:
+            quedan = casan
+    if not quedan:
+        raise FalloIdentificacion(
+            "linea_no_es_del_contrato",
+            f"Ninguna linea del contrato casa con la partida '{linea.partida or ''}'.",
+        )
+    if len(quedan) > 1:
+        raise FalloIdentificacion(
+            "linea_ambigua",
+            f"{len(quedan)} lineas del contrato casan con la partida, la medicion, la unidad y "
+            "el precio: indica ctrpro_ide.",
+            [l.ide for l in quedan],
+        )
+    return quedan[0]
+
+
+def linea_descuadrada(linea: LineaProformaIn) -> bool:
+    """R19: con anterior y origen, origen = anterior + mes (±0,001)."""
+    if linea.cantidad_anterior is None or linea.cantidad_origen is None:
+        return False
+    esperado = _d(linea.cantidad_anterior) + _d(linea.cantidad)
+    return abs(_d(linea.cantidad_origen) - esperado) > TOLERANCIA_CANTIDAD
+
+
+def revisar_lineas(
+    lineas: Sequence[LineaProformaIn],
+    lineas_del_contrato: Sequence[LineaContrato] | None,
+    *,
+    sin_contrato: bool,
+) -> tuple[dict[int, LineaContrato], list[FalloLineaProforma]]:
+    """
+    Etapa 1 de las lineas (design §Flujo 4): identifica las de contrato (R13,
+    R14), exige `producto` en las demas (R16) y comprueba que cada linea cuadra
+    (R19), juntando TODOS los fallos. Sin contrato (R11), todas van sin vincular
+    con su `producto` y no hay comprobaciones de R19.
+    """
+    identificadas: dict[int, LineaContrato] = {}
+    fallos: list[FalloLineaProforma] = []
+
+    def fallo(indice: int, linea: LineaProformaIn, codigo: str, mensaje: str,
+              candidatos: Sequence[int] = ()) -> None:
+        fallos.append(FalloLineaProforma(
+            indice=indice, referencia_linea=linea.referencia_linea, codigo=codigo,
+            mensaje=mensaje, candidatos=list(candidatos),
+        ))
+
+    for indice, linea in enumerate(lineas):
+        if linea.de_contrato and not sin_contrato:
+            try:
+                identificadas[indice] = identificar_linea(linea, lineas_del_contrato or ())
+            except FalloIdentificacion as exc:
+                fallo(indice, linea, exc.codigo, exc.mensaje, exc.candidatos)
+        elif linea.producto is None:
+            fallo(indice, linea, "producto_obligatorio",
+                  "Una linea sin contrato necesita su producto: no hay producto por defecto.")
+        if not sin_contrato and linea_descuadrada(linea):
+            fallo(indice, linea, "linea_descuadrada",
+                  "La cantidad a origen no es la anterior mas la del mes.")
+    return identificadas, fallos
+
+
+# --- Fecha (R18) y referencia (R12) ------------------------------------------------
+
+
+def fecha_de_periodo(periodo: int, fecha_proforma: int | None, hoy: int) -> int:
+    """R18 (D9): `fecha_proforma` si cae en el periodo; si no, el ultimo dia del
+    periodo si ya paso u `hoy` (Madrid) en el mes en curso. Periodo futuro o
+    `fecha_proforma` fuera de el: `periodo_no_valido`."""
+    if periodo > hoy // 100:
+        raise ProformaError(
+            f"El periodo {periodo} es futuro: no se registra la proforma de un mes que no ha "
+            "empezado.",
+            codigo="periodo_no_valido",
+        )
+    if fecha_proforma is not None:
+        if fecha_proforma // 100 != periodo:
+            raise ProformaError(
+                f"La fecha de la proforma {fecha_proforma} no cae en el periodo {periodo}.",
+                codigo="periodo_no_valido",
+            )
+        return fecha_proforma
+    return fin_de_periodo(periodo) if periodo < hoy // 100 else hoy
+
+
+def entref_por_defecto(periodo: int, cod_obra: str) -> str:
+    """R12 (M36): `PROF<MMAA>_<obra>`, el contrato de lectura con `facturas`."""
+    anio, mes = divmod(periodo, 100)
+    return f"{PREFIJO_ENTREF}{mes:02d}{anio % 100:02d}_{cod_obra}"
+
+
+# --- Comprobaciones de la hoja (R19) -----------------------------------------------
+
+
+def importe_de_lineas(lineas: Sequence[LineaProformaIn]) -> Decimal:
+    """Σ round(cantidad·precio, 2), cada producto en `Decimal`."""
+    return sum((redondear_euros(_d(l.cantidad) * _d(l.precio)) for l in lineas), Decimal(0))
+
+
+def comprobar_hoja(request: ProformaRequest) -> None:
+    """R19 de cabecera, aun en dry-run: la suma de las lineas es el importe del
+    mes (±0,05) y, con anterior y origen, origen = anterior + mes (±0,05)."""
+    suma = importe_de_lineas(request.lineas)
+    if abs(suma - _d(request.importe_mes)) > TOLERANCIA_IMPORTE:
+        raise ProformaError(
+            f"Las lineas suman {suma:.2f} y el importe del mes es {_d(request.importe_mes):.2f}.",
+            codigo="importe_mes_no_cuadra",
+        )
+    if request.importe_anterior is None or request.importe_origen is None:
+        return
+    esperado = _d(request.importe_anterior) + _d(request.importe_mes)
+    if abs(_d(request.importe_origen) - esperado) > TOLERANCIA_IMPORTE:
+        raise ProformaError(
+            "El importe a origen de la hoja no es el anterior mas el del mes.",
+            codigo="hoja_descuadrada",
+        )
+
+
+# --- Lo registrado en Sigrid (R20-R22) ---------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProformaRegistrada:
+    """Una proforma registrada del contrato (LP1)."""
+
+    ide: int
+    cod: str
+    fec: int
+    entref: str
+    totbas: float
+    docoritip: int
+
+    @classmethod
+    def de_fila(cls, fila: Sequence[Any]) -> ProformaRegistrada:
+        ide, cod, fec, entref, totbas, docoritip = fila
+        return cls(ide=int(ide), cod=_texto(cod), fec=int(fec or 0), entref=_texto(entref),
+                   totbas=float(totbas or 0), docoritip=int(docoritip or 0))
+
+
+def anterior_por_linea(filas: Sequence[Sequence[Any]]) -> dict[int, float]:
+    """LP2: `linoriide` -> Σ `can` de las proformas previas al periodo."""
+    return {int(linoriide): float(suma or 0) for linoriide, suma in filas}
+
+
+def importe_de_contrato(lineas: Sequence[LineaContrato]) -> float:
+    """R21 (D8): Σ `ctrpro.tot`, el «IMPORTE TOTAL» de la hoja."""
+    return float(redondear_euros(sum((_d(l.tot) for l in lineas), Decimal(0))))
+
+
+def _aviso(codigo: str, mensaje: str) -> AvisoProforma:
+    return AvisoProforma(codigo=codigo, mensaje=mensaje)
+
+
+def anterior_y_origen(
+    proformas: Sequence[ProformaRegistrada],
+    *,
+    primer_dia: int,
+    importe_mes: float,
+    importe_contrato: float,
+    importe_anterior: float | None,
+) -> tuple[OrigenProforma, list[AvisoProforma]]:
+    """
+    R20-R22: el importe anterior registrado (Σ `totbas` de las previas al
+    periodo), el origen (anterior + mes), el contrato y el porcentaje; y los
+    avisos informativos de cabecera: `anterior_distinto_de_sigrid` (±0,05),
+    `supera_contrato` (> 100 %) o `supera_contrato_10` (> 110 %) y
+    `contrato_a_origen`.
+    """
+    previas = (_d(p.totbas) for p in proformas if p.fec < primer_dia)
+    anterior = redondear_euros(sum(previas, Decimal(0)))
+    mes = redondear_euros(_d(importe_mes))
+    origen = anterior + mes
+    contrato = redondear_euros(_d(importe_contrato))
+    porcentaje = (
+        float((origen * 100 / contrato).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+        if contrato > 0 else None
+    )
+    avisos: list[AvisoProforma] = []
+    if importe_anterior is not None and abs(_d(importe_anterior) - anterior) > TOLERANCIA_IMPORTE:
+        avisos.append(_aviso(
+            "anterior_distinto_de_sigrid",
+            f"El importe anterior de la hoja ({_d(importe_anterior):.2f}) no es el registrado en "
+            f"Sigrid ({anterior:.2f}).",
+        ))
+    if contrato > 0 and origen > contrato:
+        codigo = "supera_contrato_10" if origen > contrato * MARGEN_CONTRATO else "supera_contrato"
+        avisos.append(_aviso(
+            codigo,
+            f"El importe a origen ({origen:.2f}) supera el del contrato ({contrato:.2f}): "
+            f"{porcentaje} %.",
+        ))
+    if any(p.docoritip == DOCORITIP_A_ORIGEN for p in proformas):
+        avisos.append(_aviso(
+            "contrato_a_origen",
+            "El contrato ya tiene proformas a origen: esta se registra de mes.",
+        ))
+    return OrigenProforma(
+        importe_anterior_sigrid=float(anterior), importe_mes=float(mes),
+        importe_origen=float(origen), importe_contrato=float(contrato),
+        porcentaje_contrato=porcentaje,
+    ), avisos
+
+
+def aviso_anterior_de_linea(
+    linea: LineaProformaIn, anterior_sigrid: float
+) -> AvisoProforma | None:
+    """R20 por linea: la cantidad anterior de la hoja frente a la registrada (±0,001)."""
+    if linea.cantidad_anterior is None:
+        return None
+    if abs(_d(linea.cantidad_anterior) - _d(anterior_sigrid)) <= TOLERANCIA_CANTIDAD:
+        return None
+    return _aviso(
+        "anterior_distinto_de_sigrid",
+        f"La cantidad anterior de la hoja ({linea.cantidad_anterior}) no es la registrada en "
+        f"Sigrid ({anterior_sigrid}).",
+    )
+
+
+# --- Ya registrada (R23, R24) ------------------------------------------------------
+
+
+def es_proforma(fila_lp5: Sequence[Any], ctride: int) -> bool:
+    """R23: el `tip 14` de la referencia es una proforma (`cla 141`) del mismo contrato."""
+    _ide, _cod, cla, ctride_fila = fila_lp5
+    return int(cla or 0) == CLA_PROFORMA and int(ctride_fila or 0) == ctride
+
+
+def buscar_del_mes(
+    proformas: Sequence[ProformaRegistrada],
+    *,
+    periodo: int,
+    importe_mes: float,
+    otra_del_mes: bool,
+) -> tuple[ProformaRegistrada | None, list[AvisoProforma]]:
+    """
+    R24 (D10), entre las proformas DEL CONTRATO: con `otra_del_mes`, si hay
+    alguna del mes, aviso y sigue; si no, la del mes con el mismo total (±0,05)
+    es la `existente` y una del mes con otro total es
+    `proforma_del_mes_existente`.
+    """
+    del_mes = [p for p in proformas if p.fec // 100 == periodo]
+    if not del_mes:
+        return None, []
+    cods = ", ".join(p.cod for p in del_mes)
+    if otra_del_mes:
+        return None, [_aviso("otra_del_mes", f"El contrato ya tiene proforma de este mes: {cods}.")]
+    for proforma in del_mes:
+        if abs(_d(proforma.totbas) - _d(importe_mes)) <= TOLERANCIA_IMPORTE:
+            return proforma, []
+    raise ProformaError(
+        f"El contrato ya tiene proforma de este mes con otro importe: {cods}. Si es una segunda, "
+        "otra_del_mes.",
+        codigo="proforma_del_mes_existente",
+    )
+
+
+def lineas_del_existente(filas_lp6: Sequence[Sequence[Any]]) -> list[LineaProformaResultado]:
+    """R24: las lineas de la proforma ya registrada (LP6), para enlazarla."""
+    resultado = []
+    for indice, (ide, linoriide, producto, can, pre, tot) in enumerate(filas_lp6):
+        vinculo = int(linoriide or 0)
+        resultado.append(LineaProformaResultado(
+            indice=indice, referencia_linea="", dcapro_ide=int(ide), ctrpro_ide=vinculo,
+            linoriide=vinculo, proide=0, producto=_texto(producto) or None,
+            cantidad=float(can or 0), precio=float(pre or 0), total=float(tot or 0),
+            importe=float(tot or 0), iva_cuota=0.0, almide=0, de_contrato=vinculo > 0,
+        ))
+    return resultado
+
+
+# --- Traduccion a la peticion del nucleo (design §Traduccion) ------------------------
+
+
+def traducir(
+    request: ProformaRequest,
+    *,
+    contrato: ContratoCandidato | None,
+    identificadas: Mapping[int, LineaContrato],
+    fecha: int,
+) -> AlbaranCompraRequest:
+    """La peticion de F-009 que da de alta la proforma: las de contrato
+    vinculadas con la partida de imputacion o la de su `ctrpro` (codigo y
+    `paride`); las demas, sin vincular con su `producto` y su partida."""
+    lineas = []
+    for indice, linea in enumerate(request.lineas):
+        comun: dict[str, Any] = {
+            "referencia_linea": linea.referencia_linea, "descripcion": linea.descripcion,
+            "unidad": linea.unidad, "cantidad": linea.cantidad, "precio": linea.precio,
+        }
+        ctrpro = identificadas.get(indice)
+        if ctrpro is not None:
+            if linea.partida_imputacion is not None:
+                comun["partida"] = linea.partida_imputacion
+            elif ctrpro.partida:
+                comun.update(partida=ctrpro.partida, paride=ctrpro.paride or None)
+            lineas.append(LineaAlbaranIn(**comun, ctrpro_ide=ctrpro.ide))
+        else:
+            lineas.append(LineaAlbaranIn(
+                **comun, producto=linea.producto,
+                partida=linea.partida_imputacion or linea.partida,
+            ))
+    return AlbaranCompraRequest(
+        database=request.database,
+        cod_obra=request.cod_obra,
+        usu=request.usu,
+        cif_proveedor=contrato.entcif if contrato is not None else request.cif_proveedor,
+        referencia_externa=request.referencia_externa,
+        cod_contrato=contrato.cod if contrato is not None else None,
+        su_referencia=request.su_referencia or entref_por_defecto(request.periodo, request.cod_obra),
+        fecha_albaran=fecha,
+        empide=None,
+        lineas=lineas,
+        commit=request.commit,
     )
