@@ -473,7 +473,9 @@ def test_f007_t18_fecha_proforma_29_de_febrero_de_un_anio_no_bisiesto() -> None:
 
 @pytest.mark.parametrize("fecha", [18991231, 30000101])
 def test_f007_t18_fecha_proforma_fuera_de_los_anios(fecha: int) -> None:
-    invalida(periodo=fecha // 100, fecha_proforma=fecha)
+    # Con un periodo valido: el modelo no cruza fecha y periodo (eso es R18, del
+    # caso de uso), asi que el unico motivo del 400 es el anio (ronda 2 de T18).
+    invalida(fecha_proforma=fecha)
 
 
 @pytest.mark.parametrize("periodo", [189912, 300001, 202600, 202613])
