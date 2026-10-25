@@ -839,6 +839,114 @@
     "pre": 3.5,
     "tot": 265.48
    }
+  ],
+  "AC26/25552": [
+   {
+    "ide": 1360001,
+    "linoriide": 271001,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 1.0,
+    "tot": 18492.48
+   },
+   {
+    "ide": 1360003,
+    "linoriide": 271002,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 0.2,
+    "tot": 3698.5
+   },
+   {
+    "ide": 1360005,
+    "linoriide": 271003,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 0.27,
+    "tot": 4992.97
+   },
+   {
+    "ide": 1360007,
+    "linoriide": 271004,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 1.0,
+    "tot": 871.21
+   },
+   {
+    "ide": 1360009,
+    "linoriide": 271005,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 0.2,
+    "tot": 174.24
+   },
+   {
+    "ide": 1360011,
+    "linoriide": 271006,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 0.27,
+    "tot": 235.23
+   },
+   {
+    "ide": 1360013,
+    "linoriide": 271007,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 1.0,
+    "tot": 871.51
+   },
+   {
+    "ide": 1360015,
+    "linoriide": 271008,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 0.2,
+    "tot": 174.3
+   },
+   {
+    "ide": 1360017,
+    "linoriide": 271009,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 0.27,
+    "tot": 235.31
+   },
+   {
+    "ide": 1360019,
+    "linoriide": 0,
+    "producto": "SM1026",
+    "can": 20235.2,
+    "pre": 0.036,
+    "tot": 728.47
+   },
+   {
+    "ide": 1360021,
+    "linoriide": 0,
+    "producto": "SM1026",
+    "can": 816.84,
+    "pre": 1.0,
+    "tot": 816.84
+   }
+  ],
+  "AC26/25551": [
+   {
+    "ide": 1361001,
+    "linoriide": 281002,
+    "producto": "SM1026",
+    "can": 1250.467,
+    "pre": 2.8,
+    "tot": 3501.31
+   },
+   {
+    "ide": 1361003,
+    "linoriide": 281003,
+    "producto": "SM1026",
+    "can": 1603.46,
+    "pre": 2.8,
+    "tot": 4489.69
+   }
   ]
  },
  "hojas": {
