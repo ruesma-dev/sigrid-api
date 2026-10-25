@@ -117,8 +117,10 @@ allí en T19 (R36).
   (`AC26/25552`) y no `/29425`; el CIF manda sobre el nombre en R8; reglas de R9 y del embudo de R14 sin caso
   explícito en la spec; sin contrato, ninguna comprobación de R19 (R11 literal); el test de F-012 que cuenta las
   rutas con `validation_error_response` pasa de 9 a 10.
-- **Queda**: T18 (mutación), T19 (documentación, incluido alinear `periodo` en el contrato y el «9 rutas» del
-  docstring de `validation_error_response`), T20-T22 MANUALES, T23 revisión, T24.
+- **T18-T19 hechas** (segundo encargo, `904a2ef`…`d9e97a8`; `azure-apps` `af81713`, sin push): mutación en serie,
+  ronda 2 con 372 de 374 muertos y 0 supervivientes no aceptados ([`mutacion_F-007.md`](mutacion_F-007.md));
+  documentación de R36 y contrato v1. El texto del aviso a `proformas`, `facturas` y albaranes está en el informe.
+- **Queda**: avisos (los manda el líder), T20-T22 MANUALES, T23 revisión, T24.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
