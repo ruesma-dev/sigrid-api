@@ -143,7 +143,7 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "spec_ready",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "critico",
       "priority": 8,
@@ -276,7 +276,7 @@
         "Dry-run por defecto; ninguna grabación de prueba sin autorización expresa del humano",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "sdd": true,
       "rigor": "critico",
       "priority": 15,

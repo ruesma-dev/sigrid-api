@@ -1,7 +1,16 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-015 en `in_progress` (2026-10-24)
+## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
+
+**Por qué `blocked`:** solo falta el cierre manual. Administración tiene que revisar `AC26/30670` (`con.ide` 2860439,
+grabación V5 autorizada en la obra 0404) y anularla desde la UI de Sigrid (nunca `DELETE`). Lectura del 2026-10-25:
+sigue en Sigrid (1 `dcapro`, 1 `dcarec`, `ctrpro` 104172 con `canser` 70). Se pasa a `blocked` para liberar el único
+`in_progress` a F-007. Al desbloquear: lecturas de comprobación (sin `con`, `dca` ni `dcarec` de 2860439, `canser` de
+vuelta a 69), quitar las notas «PENDIENTE DE DESPLIEGUE» de `azure-apps`, `done`, `history.md` y merge de la rama de
+F-015 a `dev` (el humano hace el push).
+
+### Detalle de F-015 (2026-10-24)
 
 Spec v2 aprobada por el humano (D1-D12; orden contrato → albarán anterior → proveedor en todas las columnas). T0 cerrada:
 albaranes acusa la v8.3 el 2026-10-24 ([`t0_F-015_albaranes.md`](t0_F-015_albaranes.md) §Acuse). **Antes de desplegar:
@@ -45,7 +54,13 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
   `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
   `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.
 
-## F-007 · spec v3 ajustada (2026-10-25), `spec_ready`, pendiente de la PARADA 1
+## F-007 · spec v3 ajustada (2026-10-25), PARADA 1 aprobada, `in_progress`
+
+**PARADA 1 aprobada por el humano el 2026-10-25:** acepta D4-D14 tal como están en design §Decisiones, con el ajuste
+del mismo día (consumidor `proformas`, casado hecho por `proformas`). D11: el humano aprueba la lista de despliegue
+`SM9999`, `SB9999` y `SM370001` (cierra esa parte de V8). Queda para V8, con Administración, solo si el registro de
+mes vale en los contratos que van a origen; mientras, D13 es el aviso `contrato_a_origen`. `proformas` respondió
+a las preguntas de la v3 por mensaje y lo anotó en sus F-004, F-005 y F-007 (su commit `ea7e7ca`).
 
 Rama `feature/F-007-registrar-proforma` (con `dev` fusionado: F-015 dentro). Spec v3 en `specs/F-007-registrar-proforma/`
 (requisitos 150/150, diseño ~240/250, 24 tareas en lotes A-D) más dos anexos: el **contrato con `proformas`**
@@ -70,7 +85,7 @@ con `dcapro.ide`, `linoriide`, producto, cantidad, precio e importe por línea (
 `AC26/25548`); R24 por contrato, explícito; D3 decidida (`PROF` aunque hoy lo habitual sea `AC`); `usu` = quien aprueba,
 `referencia_externa` = `PRF-` + id de `proformas`, previa una por proforma.
 
-**Decisiones que siguen abiertas para el humano** (design §Decisiones):
+**Decisiones (aprobadas el 2026-10-25, ver arriba)** (design §Decisiones):
 - **D4 (interpretación del líder, anotada como tal):** «el humano puede cambiar el contrato» = la persona de la
   bandeja de `proformas`, que revisa la previa y reenvía con `cod_contrato`. Confirmar.
 - **D5:** hoja de dos contratos (1,7 %) → error con el reparto y una petición por contrato con el mismo `periodo`.
