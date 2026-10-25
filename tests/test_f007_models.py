@@ -228,6 +228,7 @@ def test_f007_r13_de_contrato_por_ctrpro_o_medicion_positiva(
     [
         {"nombre_proveedor": None},                                            # nada que resuelva
         {"nombre_proveedor": None, "sin_contrato": True, "lineas": [nueva()]},  # sin CIF
+        {"sin_contrato": True, "lineas": [nueva()]},                            # con nombre, sin CIF
         {"cif_proveedor": "B00000001", "sin_contrato": True, "cod_contrato": "CTSB26/0472",
          "lineas": [nueva()]},
         {"cif_proveedor": "B00000001", "sin_contrato": True},                  # con ctrpro_ide

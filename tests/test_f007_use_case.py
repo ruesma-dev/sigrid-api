@@ -15,10 +15,6 @@ import logging
 from typing import Any
 
 import pytest
-from application.use_cases.create_proforma_use_case import (
-    PERFIL_PROFORMA,
-    CreateProformaUseCase,
-)
 from f007_dobles import (
     DATOS,
     OBRA_0719,
@@ -34,6 +30,10 @@ from application.use_cases.albaran_compra_statements import (
     APPLOCKS,
     DCA_COLUMNAS,
     L16_COLUMNAS,
+)
+from application.use_cases.create_proforma_use_case import (
+    PERFIL_PROFORMA,
+    CreateProformaUseCase,
 )
 from domain.models.albaran_compra_models import AlbaranCompraError
 from domain.models.proforma_models import (
@@ -279,6 +279,19 @@ def test_f007_r27_commit_escribe_la_proforma_en_una_transaccion() -> None:
     assert repo.parametros_en_transaccion("reservar_cod")[0][-1].startswith("PROF26/")
 
 
+def test_f007_r20_anterior_de_linea_distinto_de_sigrid_en_la_previa() -> None:
+    hoja = DATOS["hojas"]["CTSB26/0472"]
+    lineas = [dict(hoja["lineas"][0], cantidad_anterior=240, cantidad_origen=860),
+              *hoja["lineas"][1:]]
+    respuesta, _repo = ejecutar(peticion(otra_del_mes=True, lineas=lineas))
+    avisos = [a.codigo for a in respuesta.lineas[0].avisos]
+    assert avisos[-1] == "anterior_distinto_de_sigrid"
+    assert "240" in respuesta.lineas[0].avisos[-1].mensaje
+    assert respuesta.lineas[0].cantidad_anterior_sigrid == 241.0
+    assert all("anterior_distinto_de_sigrid" not in [a.codigo for a in l.avisos]
+               for l in respuesta.lineas[1:])
+
+
 # =====================================================================================
 # R23 · idempotencia
 # =====================================================================================
@@ -303,6 +316,14 @@ def test_f007_r23_misma_referencia_de_proforma_del_contrato_es_idempotente(commi
         "lineas_del_existente",
     ]
     assert repo.transacciones == []
+
+
+def test_f007_r23_la_referencia_que_desaparece_entre_dos_lecturas_no_es_idempotente() -> None:
+    repo = RepositorioProforma(lecturas={
+        "lp5_referencia": [(2900011, "PROF26/01282", 141, CTR_0472)], "referencia": [],
+    })
+    with pytest.raises(ValueError):
+        ejecutar(peticion(), repo=repo)
 
 
 @pytest.mark.parametrize(

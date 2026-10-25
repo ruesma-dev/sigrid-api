@@ -180,9 +180,6 @@ def _casa_medicion(can: float, medicion: float | None) -> bool:
     return abs(_d(can) - _d(medicion)) <= TOLERANCIA_CANTIDAD
 
 
-def _r2(valor: Any) -> float:
-    return float(redondear_euros(_d(valor)))
-
 
 @dataclass(frozen=True)
 class ContratoCandidato:
