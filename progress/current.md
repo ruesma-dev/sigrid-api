@@ -45,42 +45,46 @@ despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al dí
   `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
   `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.
 
-## F-007 · spec v2 escrita (2026-10-19) — SUPERADA, hay que rehacerla (v3)
+## F-007 · spec v3 escrita (2026-10-25), `spec_ready`, pendiente de la PARADA 1
 
-> **2026-10-25.** La v2 queda superada: facturas midió que la mayoría de proformas son AC con `entref PROF…` y que
-> el ANTERIOR de la hoja es la suma de las previas. El humano decidió el 2026-10-24 registrar **por mes** (el origen
-> se calcula sumando meses), que F-007 es el registro de la proforma del **jefe de obra** (xlsx o pdf), serie
-> **PROF**, y que el contrato lo resuelve **la API por defecto, con opción de que el humano lo cambie**. Detalle en
-> la rama de F-015 (`current.md`, sección de F-007) y en la memoria del líder. Ejemplos convertidos en
-> `docs/referencia/proforma_ejemplo_*.md` y `proformas_correo_*.md`. Lo de abajo es la v2, como referencia.
+Rama `feature/F-007-registrar-proforma` (con `dev` fusionado: F-015 dentro). Spec v3 en `specs/F-007-registrar-proforma/`
+(requisitos 149/150, diseño ~222/250, 24 tareas en lotes A-D) más dos anexos: el **contrato con facturas**
+([`contrato_facturas.md`](../specs/F-007-registrar-proforma/contrato_facturas.md), borrador v0: plantilla de datos,
+respuesta, códigos) y la **plantilla de hoja** para los jefes de obra
+([`plantilla_hoja.md`](../specs/F-007-registrar-proforma/plantilla_hoja.md), propuesta). Medición v3 (M27-M39, solo
+lecturas) en [`explore_F-007.md`](explore_F-007.md) §v3; la v2 (a origen, M16-M26) queda como antecedente superado.
 
-Rama `feature/F-007-registrar-proforma` (al día con `dev` `6faacd7`). Spec en `specs/F-007-registrar-proforma/`
-(requisitos 133/150, diseño 187/250, 24 tareas en lotes A-D); medición v2 (M16-M26, solo lecturas) en
-[`explore_F-007.md`](explore_F-007.md). **Se implementa después de F-015 cerrada** (usa su plantilla `AC` y su
-`dcarec`). Llamante: facturas F-063.
+**Qué es la v3:** `POST /api/sigrid/proforma` registra UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`,
+`cla 141`, `docoritip 0`, solo las partidas con MES ≠ 0; las de contrato vinculadas a su `ctrpro` exactamente como la
+vinculada de F-009 (M28: así están el 100 % de las 2.956 de mes de 2026; M30: se facturan 1:1). El contrato lo
+resuelve la API (obra + proveedor por CIF o nombre normalizado y, si hay varios, las líneas: 94,6 % bien, 0,5 % mal,
+M32) y el llamante lo cambia con `cod_contrato`. Línea de contrato por partida → medición de contrato → unidad →
+precio (96,8 %, M33). Cabecera y retención de F-015 tal cual (M31). Origen = Σ de las proformas del contrato; avisos de
+ANTERIOR frente a Sigrid y de exceso sobre contrato. Detecta la del mes ya registrada (`existente`). Caso de uso:
+subclase del de F-009 con cinco costuras sin cambio de conducta; la petición se traduce a la de F-009.
 
-**Qué cambia de la v1:** `cod_contrato` obligatorio y proveedor del contrato (sin CIF); `periodo` +
-`importe_anterior` + `importe_mes` en cabecera; **el endpoint resuelve la cadena** (casa el importe ANTERIOR total con
-las puntas del contrato: 745 de 773 únicas y correctas, 0 incorrectas, M25) y **arrastra todas las líneas de la
-anterior** (M23); detecta la PROF ya dada de alta a mano (`existente`, sin escribir, M26); las líneas las identifica
-el llamante por `ide` (`linea_anterior_ide`, `ctrpro_ide` o `producto`) con la ayuda de la previa, porque ninguna
-clave de texto sirve (M20); plantilla anterior → PROF → `AC`; V1 cerrada (`docoritip 1`, M17); caso de uso como
-subclase del de F-009 con costuras de solo nombres.
+**Decisiones que necesita validar el humano** (design §Decisiones, con problema, propuesta y alternativas):
+- **D4 (interpretación del líder, anotada como tal):** «el humano puede cambiar el contrato» = el de la app, que
+  revisa la previa y reenvía con `cod_contrato`. Confirmar.
+- **D5:** hoja de dos contratos (1,7 %) → error con el reparto y una petición por contrato.
+- **D6:** partidas sin contrato (BERENJENO, regularización, seguridad) → sin vincular con el producto del contrato si
+  tiene uno solo, o el que mande la app de la lista.
+- **D7:** ANTERIOR distinto de Sigrid → aviso, no error. **D8:** exceso sobre contrato → avisos `supera_contrato`
+  (> 100 %) y `supera_contrato_10` (> 110 %); bloquear la factura es de facturas o F-008.
+- **D10:** misma proforma del mes con el mismo total → `existente`; con otro total, error salvo `otra_del_mes`.
+- **D11:** productos sin contrato `SM9999`, `SB9999`, `SM370001` (pendiente de Administración, V8).
+- **D13:** contratos que ya van a origen (24,7 %) → aviso `contrato_a_origen`, o bloquear. **D14:** sin contrato
+  (15,3 % de las de mes) → dentro solo con `sin_contrato` explícito y CIF, o fuera.
+- **Tamaño:** cabe en una feature (149/150); si se añaden varias proformas por llamada o más casos sin contrato, partir.
 
-**Decisiones para el humano (recomendación):**
-- **D2:** cadena dentro, por importe ANTERIOR ±0,05 € y cantidades ANTERIOR si vienen; `cod_proforma_anterior` como
-  salida manual. **D3:** retención de F-015. **D4:** `docoritip 1`, `ivadif` y forma de pago del contrato; sin
-  vencimiento (es de la factura). **D5:** plantilla anterior → PROF del proveedor → `AC`; sin nada, error (13 % de
-  las primeras). **D6:** subclase con costuras y dorados intactos. **D7:** `SB9999`/`SM9999`; `SM370001`, `MA9999`,
-  `XA9999` fuera hasta que negocio diga; tope 500 líneas. **D8:** fecha = último día del periodo, u hoy en el mes en
-  curso. **D9:** líneas por `ide` (previa con `lineas` vacía + consulta de `ctrpro` documentada). **D10:**
-  `existente` 200 sin escribir. **D11:** `entref` `PROF<MMAA>_<obra>`. **D12:** una feature en lotes, no partirla
-  (1.642 de 1.963 a origen son encadenadas).
-- **Para facturas (con su humano):** confirmar que pueden mandar `importe_mes`, `importe_anterior`, `periodo` y el
-  contrato resuelto (`cod_contrato`), y el flujo de dos pasos (previa → mapear líneas → alta). V4-V5 necesitan una
-  hoja real: ¿su TOTAL ANTERIOR es el Σ de Sigrid? ¿la hoja es una impresión de Sigrid? ¿qué es «Nº ORDEN»?
-- **Para el líder:** hay 354 `AC` a origen desde 2025 (M19): la plantilla `AC` de F-015 debería poner `docoritip`
-  y `docoriide` a 0.
+**Preguntas para facturas** (design §Preguntas; contrato §6): CIF o nombre del subcontratista; si extraen la medición
+de contrato; solo partidas con MES ≠ 0; una petición por contrato; `usu`, prefijo `PRF-` y avisos bloqueantes; quién
+elige el producto de las partidas sin contrato.
+
+**Para el líder:** los cuatro ejemplos de la obra 0719 ya están en Sigrid como `AC` de mes (M29): el dry-run de T21
+debe dar `existente` sobre `AC26/25548`, `/29425` y `/25551`. `harness/features.json` sigue con F-015 en
+`in_progress` en esta rama aunque está desplegada: lo cierra el líder. Medición: dos consultas globales con subconsultas
+sobre `ctrpro` se cortaron en el cliente a los 240 s; puede que siguieran un rato en el SQL Server (F-013).
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
@@ -243,5 +247,5 @@ mutación paralela.
 > revisión** troceada. Después: avisar a albaranes antes de desplegar, el despliegue (lo lanza el humano) y T19-T21
 > con los comandos de `verificacion_manual.md` de su spec (dry-runs el líder con autorización; grabación y limpieza el
 > humano, con autorización expresa para cada escritura). F-009 está desplegada con la llave abierta; solo queda T24
-> cuando F-053 esté en real. F-007 tiene spec v1 en su rama que hay que rehacer con la respuesta de facturas. No
+> cuando F-053 esté en real. F-007 tiene spec v3 en su rama (`spec_ready`), pendiente de la PARADA 1 y de facturas. No
 > arranques otra feature sin cerrar F-015 ni sin preguntar.

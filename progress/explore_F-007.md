@@ -10,6 +10,11 @@ repositorio. «PROF26» = `con.tip 14`, `emp 1`, `cod LIKE 'PROF26/%'` (1.216 do
 Sirve también a **F-008** (factura de compra): §M15 recoge cómo enlaza la factura con la proforma. La v2
 (M16-M26, 2026-10-19) mide lo que necesita la app de facturas: fecha, cadenas, identificación de líneas y duplicadas.
 
+> **2026-10-25 · v1 y v2 superadas como diseño.** M11 y M16-M26 miden el modelo **a origen** (cadena `docoriide`,
+> arrastre de líneas), que el humano descartó el 2026-10-24: F-007 registra **por mes** (§v3, M27-M39). Siguen
+> valiendo como hechos de Sigrid M1 (serie `PROF`, `cla 141`, `tip 20` = asiento), M2 (estados y `log`), M6
+> (`ctrprodes`, `canser` = Σ `can`, `mov` con `tipmov` 1), M9 (IVA), M10 (retención), M13 (posventa), M14 y M15.
+
 ## M1 · Qué es una proforma en Sigrid
 
 Un **albarán de compra** (`con.tip 14` + extensión `dca` + líneas `dcapro`) de **otra serie y otra clase**:
@@ -249,3 +254,167 @@ dos proformas con total 0 y otro de dos proformas distintas de la misma obra con
 - V3: qué columnas de `dca` toma el escritorio del contrato y cuáles de la anterior o de la última proforma.
 - V4: si el TOTAL ANTERIOR de una hoja real es el Σ round(`canoriori`·`pre`, 2) de su anterior en Sigrid (M25).
 - V5: si la hoja es una impresión de Sigrid (mismas líneas y orden que la anterior) y qué es su «Nº ORDEN».
+
+
+## v3 · Medición del 2026-10-25: la proforma de mes del jefe de obra (M27-M39)
+
+Mismo método (solo lecturas por `sql/read` de la API desplegada, SQL parametrizado, script y datos descargados en el
+scratchpad del spec-author, fuera del repositorio). Dos consultas con subconsultas correlacionadas sobre `ctrpro` se
+cortaron por tiempo en el cliente a los 240 s (sin `truncated`); se rehicieron descargando, por lotes acotados, las
+proformas desde 2026-07-01 (1.395 documentos), sus 17.017 líneas, los 2.732 contratos de sus obras y sus 54.252
+`ctrpro`, y midiendo en local. «Proforma» = `con.tip 14`, `emp 1`, `dca.entref LIKE 'PROF%'` o serie `PROF26/`.
+«De mes» = `dca.docoritip 0`; «a origen» = `docoritip 1`. Motivo: decisiones del humano del 2026-10-24/25 (registro
+**por mes**, serie `PROF`, contrato resuelto por la API) y la medición de facturas
+(`facturas/progress/explore_hoja_proforma_sigrid.md`).
+
+### M27 · Tres modelos conviven en 2026
+
+| Serie | `entref` | `docoritip` | `cla` | Documentos | Obras | Con contrato |
+|---|---|---|---|---|---|---|
+| `AC26/` | `PROF…` | 0 (de mes) | 0 | **2.868** | 48 | 2.428 (84,7 %) |
+| `PROF26/` | `PROF…` | 1 (a origen) | 141 | 975 | 13 | 957 |
+| `PROF26/` | `PROF…` | **0 (de mes)** | 141 | **88** | 10 | 72 |
+| `AC26/` | `PROF…` | 1 | 0 | 66 | 7 | 64 |
+
+Más `PREV…` (provisiones: 5.930 `AC` y 81 `PROF`), `IMPUT…` (370 `AC`, total 0) y 110 `PROF` con otra referencia.
+**La forma mayoritaria es la proforma de mes en serie `AC`**; la combinación que pide el humano (`PROF` + de mes)
+existe ya: 88 documentos en 10 obras. **El «check» de albarán a origen** del correo del 2026-10-15 es
+`dca.docoritip` («Es documento origen», diccionario `dca`): con él la proforma lleva unidades de origen y anterior
+y arrastra la cadena (M11, M23); sin él es un albarán de las cantidades del mes. 440 de las de mes (15,3 %) no
+tienen contrato.
+
+### M28 · La proforma de mes: líneas
+
+Todas las líneas de las de mes de 2026 (24.468 `AC` + 359 `PROF`):
+
+- **`can` ≠ 0 en el 100 %**: solo van las partidas con movimiento en el mes; 5,9 % negativas (desde julio, 489 de
+  8.338; 157 vinculadas). Tamaño desde julio: media 8,2 líneas, p95 28, máximo 366.
+- **Vinculadas** (`docoritip 44`, 14.767 + 80): `linoriide` = `ctrpro.ide`, **`canoriori` = `ctrpro.can` e
+  `imporiori` = `ctrpro.tot` en el 100 %, `canoriant`, `imporiant` y `canorilin` 0 en el 100 %**: es exactamente lo
+  que escribe hoy la vinculada de F-009 (`construir_dcapro_vinculada`). `paride` = el del `ctrpro` en el 97,1 % y
+  `pre` en el 97,9 %.
+- **Sin vincular**: 39,6 % de las líneas (9.701 + 279); `canoriori` e `imporiori` 0 en el 87,4 %.
+- En las a origen, en cambio, solo el 28 % de las líneas tiene `can` ≠ 0 y el 82 % lleva `canorilin` (arrastre).
+- **El origen se obtiene sumando**: `ctrpro.canser` = Σ `can` de las líneas servidas en los dos modelos (M6), y el
+  importe a origen de un contrato = Σ `dcapro.tot` de sus proformas (cada `tot` es el del mes también en las a origen).
+
+### M29 · Los ejemplos de la obra 0719 en Sigrid (las cuatro hojas de `docs/referencia/`)
+
+- Los tres contratos (`CTSB26/0472`, `/0417`, `/0369`) tienen **una proforma de mes por hoja**, en serie `AC`, con
+  `entref` `PROF<MMAA>_0719` (una con sufijo `-1`), `docoritip 0`, `cla 0`, `dcarec` y solo las partidas con MES:
+  `AC26/22961` (julio) y `AC26/25548` (agosto) de `/0472`; `AC26/22962`, `/25552` y `/29425` de `/0417`;
+  `AC26/22980`, `/25551` y `/29444` de `/0369`. **El MES de cada hoja = `dca.totbas`** (±0,01) y **el ANTERIOR = la
+  suma de las proformas previas del contrato** en las tres hojas con contrato (agosto de `/0472`: 2.651; septiembre de
+  `/0417`: 36.249,30 + 31.291,06; agosto de `/0369`: 6.056). Conviven con `PREV…`, `PREV…-ANULA` e `IMPUT…` (total 0).
+- **Las partidas de la hoja son `obrparpar.cod` de las líneas del contrato** (`ctrpro.paride`): «02.03.02.01» →
+  `ctrpro` 262990. El código no es único (`/0417`: suministro, elaboración y colocación en la misma partida, con
+  precios 1, 0,2 y 0,27; `/0369`: dos líneas en «02.02.02»); la «Medición de contrato» de la hoja = `ctrpro.can`.
+- **Partidas sin contrato de las hojas**: «BERENJENO» (medición de contrato 0), «Regularización precio acero» y
+  «Seguridad y replanteo» (sin medición) están en Sigrid como **sin vincular** con el **producto del contrato**
+  (`SM1004`, `SM1026`) y con su partida, que puede no ser la de la hoja (BERENJENO, en `02.20.02.02.14`). Una vinculada
+  lleva otra partida que la de su `ctrpro` (`02.20.02.02.07` frente a `.11`): la imputación la decide Administración.
+- La hoja sin contrato (ZANELA): junio y agosto en Sigrid como `AC` de mes **sin contrato** (`ctride` 0); su
+  contrato (`CTSB26/0609`) es del 10 de septiembre y la proforma de septiembre ya lo lleva.
+- `ctr.tot` no es el importe de la hoja: es neto de la retención (`/0369`: 114.646,58 = 0,95 · 120.680,61) o con IVA
+  en los `CTSU`. **El «IMPORTE TOTAL» de la hoja = Σ `ctrpro.tot`** (120.680,5988 frente a 120.680,61).
+
+### M30 · La factura (F-008) de una proforma de mes
+
+Líneas de las proformas de agosto de 2026 ya facturadas (`con.est` 10), por `dcfpro.linoriide` y `docoritip 14`:
+
+| Modelo | Líneas | Facturadas | Misma `can`, `pre` y `tot` | `dcfpro.canoriant`/`imporiant` ≠ 0 |
+|---|---|---|---|---|
+| `AC` de mes | 2.194 | **2.194** | 2.194 | 0 / 0 |
+| `PROF` de mes | 25 | **25** | 25 | 0 / 0 |
+| `PROF` a origen | 1.835 | 559 (las de `can` ≠ 0) | 559 | 357 / 312 |
+
+La factura de una proforma de mes es **1:1 con sus líneas** y sin anterior (las «hojitas» del correo del 2026-10-15 son
+las de las a origen). `dcf.docoritip` 0 en las 366 facturas de los dos modelos. Lo que F-007 escriba así lo factura
+F-008 como factura las de mes de hoy.
+
+### M31 · Cabecera y retención de las de mes
+
+- `PROF` de mes (88) frente a `AC` de mes (400 últimas) y `AC` ordinario con contrato (400 últimos), porcentaje con
+  valor: **solo `cla` difiere de forma sistemática** (100 / 0 / 0). El resto de diferencias es de la facturación
+  posterior (`estfac`, `fecfac`) o del proveedor (banco, `ivadif`). `con.res` = `<entres>. (<entref>)` en 73 de 88 y
+  342 de 400. Con contrato: `pagide` del `ctr` 92 %, `cueide` 94 %, `ivadif` 71 % (`PROF`) y 80 % (`AC`).
+- Retención (de mes desde julio, con contrato): `AC` 835, de ellas 569 con `ctrrec` y **556 con `dcarec` (97,7 %),
+  del mismo `recide` en el 100 %**; 7 con `dcarec` sin `ctrrec`. `PROF` de mes: 12 de 12. Lo de F-015 vale tal cual.
+
+### M32 · Resolver el contrato
+
+Documentos con contrato desde julio (1.222, sin `PREV`); candidatos = contratos de la obra (y del proveedor) con
+`con.fec` ≤ la de la proforma; «cubre» = el contrato tiene todas las (partida, medición) de las vinculadas:
+
+| Regla | Único y correcto | Único e incorrecto | Varios | Ninguno |
+|---|---|---|---|---|
+| Obra + proveedor | 1.056 (86,4 %) | 0 | 158 | 8 |
+| **Obra + proveedor y, si hay varios, los que cubren las líneas** | **1.156 (94,6 %)** | 6 (0,5 %) | 51 | 9 |
+| Solo obra y los que cubren las líneas | 842 (68,9 %) | 1 | 370 | 9 |
+
+- 316 de las 1.222 (25,9 %) **no tienen ninguna vinculada**: sin proveedor no hay de dónde resolverlas.
+- Sin filtro de fecha, 1.161 únicos y correctos pero 5 incorrectos; el filtro evita el caso ZANELA (M29: el
+  contrato posterior se elegiría para junio y agosto).
+- **Nombre de la hoja → contrato**: en mayúsculas y sin signos ni espacios, el nombre de la hoja está contenido en
+  `ctr.entres` de un solo contrato de la obra en las 4 hojas (BAU SIGLO XXI, MONTAFERRO, NORTOBRAMA, ZANELA); también
+  resuelve los dos casos que facturas vio frágiles («NUN S.A.» / «NUN, S.A.»; «MODELO DIGITAL» / «MODELODIGITAL …»).
+- **Hojas de dos contratos**: (obra, proveedor, mes) con proformas de dos contratos, 18 de 1.086, y de tres, 1
+  (1,7 %); facturas midió una (ESTRUCALA, `CTSB24/0901` y `CTSB25/0043`).
+
+### M33 · Identificar la línea del contrato con los datos de la hoja
+
+Vinculadas desde julio (11.012) contra las líneas de su contrato, como lo haría la API con la hoja:
+
+| Clave | Única y correcta | Varias | Ninguna |
+|---|---|---|---|
+| Partida | 6.589 (59,8 %) | 4.416 | 7 |
+| Partida + precio | 9.739 (88,4 %) | 1.017 | 253 (precio distinto del contrato) |
+| **Partida → medición de contrato → unidad → precio (desempate)** | **10.657 (96,8 %)** | 347 (3,2 %) | 7 |
+
+Con la última, 1 incorrecta y 213 de las únicas con precio distinto del contrato (el aviso de F-009). Facturas casó
+377 de 510 filas de sus hojas por partida y precio, sin medición.
+
+### M34 · Líneas sin contrato
+
+Sin vincular de las de mes con contrato desde julio (5.447): con partida el 90,6 %; producto **del contrato** el
+82,9 % y **genérico** (`SM9999`, `SB9999`, `SM370001`, `XA9999`, `MA9999`, `QA9999`) el 89,9 % (se solapan: muchos
+contratos llevan un genérico); ni uno ni otro, 5. Contratos de un solo producto: 55 %; en ellos, la sin vincular lleva
+ese producto en el 73 %. Más usados: `SM9999` 2.004, `SB9999` 1.545, `SM370001` 1.080 (`tipmov` 0), `XA9999` 140,
+`MA9999` 125. Si en la proforma hay una vinculada del mismo producto, la sin vincular lleva su misma `natide`,
+`cueide` y `caaide` en el 95,8 %.
+
+### M35 · Origen frente al importe del contrato
+
+Contratos con proformas desde julio (538), Σ (`ctrpro.canser` · `pre`) frente a Σ `ctrpro.tot` (aproximación: el
+servido incluye las provisiones `PREV` no anuladas): ≤ 100 % 504 (93,7 %), **100-110 % 12 (2,2 %), > 110 % 19
+(3,5 %)**, sin importe 3. Por línea, `canser` > `can` en 1.181 de 18.889 (6,3 %) y > 110 % en 915.
+
+### M36 · Duplicadas, fecha y referencia
+
+- (contrato, mes del `entref`) en las proformas de 2026 sin anulaciones: 2.644 grupos con una, **110 con dos o más
+  (3,9 %)**, de ellos 10 con el mismo total redondeado a euros. Una segunda del mismo mes es legítima (sufijos `-1`,
+  `BIS`).
+- `entref`: `PROF<MMAA>_<obra>` 2.141 `AC` y 405 `PROF`; con sufijo 228 y 45; `PROF_<MMAA>…` 607 `PROF` y 24 `AC`.
+- Fecha de las `AC` de mes desde julio: en el mes del `entref` 962 de 998 (96,4 %); de ellas, el último día 316,
+  a 1-3 días del final 114, a 4-10 días 446, a más de 10 días 86.
+
+### M37 · Contratos que ya van a origen
+
+De los 538 contratos con proformas desde julio, 398 solo de mes, **133 solo a origen (24,7 %)** y 7 con los dos; 36
+obras de mes, 10 a origen y 8 con los dos. Registrar una de mes en un contrato con cadena a origen deja la cadena sin
+ese mes: la siguiente a origen hecha a mano acumularía `canoriori` sin él (el servido, `canser`, sigue bien).
+
+### M38 · Lo que no cambia de la v1/v2
+
+`tip 20` es el asiento (M1); el alta no crea asiento (M2); `ctrprodes` por vinculada y `mov` si `tipmov` 1 (M6); IVA
+del `ctrpro` (M9, `790408` inversión del sujeto pasivo en el 91,5 %); `dcaprodes`, `canfac` y estados de facturación
+son de F-008 (M15).
+
+### M39 · Verificación del humano (solo se ve en la UI o con negocio)
+
+- **V6**: una `PROF` de mes (`cla 141`, `docoritip 0`) dada de alta por la API se ve y se factura en el escritorio como
+  las 88 de hoy (M27): ficha, impresión, paso a factura.
+- **V7**: el dry-run de las hojas de agosto de `/0472` y `/0369` y de septiembre de `/0417` devuelve `existente`
+  sobre su `AC` de mes (M29) y, con otra referencia y `otra_del_mes`, una previa con las mismas líneas y totales.
+- **V8**: con Administración, qué producto llevan las partidas sin contrato (M34) y si el registro de mes vale en los
+  contratos que van a origen (M37).
