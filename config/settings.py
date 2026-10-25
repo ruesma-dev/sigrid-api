@@ -131,6 +131,26 @@ class Settings(BaseSettings):
         default_factory=dict, alias="SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO"
     )
 
+    # --- Registro de la proforma de mes del jefe de obra (F-007, R4) ---
+    # Los cinco defectos son CERRADOS, como los de albaranes: sin interruptor no
+    # hay commit; con los prefijos vacios toda referencia se rechaza (tambien en
+    # dry-run); sin productos ni naturalezas solo valen los productos del
+    # contrato. La obra se resuelve en SIGRID_ALBARAN_EMPRESAS_OBRA. Despliegue
+    # (D11), SOLO en JSON: ["PRF-"], ["SM9999", "SB9999", "SM370001"] y
+    # {"SM9999": "SM99", "SB9999": "SB99", "SM370001": "SM37"}.
+    sigrid_proforma_write_enabled: bool = Field(False, alias="SIGRID_PROFORMA_WRITE_ENABLED")
+    sigrid_proforma_prefijos_referencia: list[str] = Field(
+        default_factory=list, alias="SIGRID_PROFORMA_PREFIJOS_REFERENCIA"
+    )
+    sigrid_proforma_productos_sin_contrato: list[str] = Field(
+        default_factory=list, alias="SIGRID_PROFORMA_PRODUCTOS_SIN_CONTRATO"
+    )
+    # `NoDecode` por lo mismo que el mapeo de albaranes: claves repetidas visibles.
+    sigrid_proforma_naturaleza_por_producto: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict, alias="SIGRID_PROFORMA_NATURALEZA_POR_PRODUCTO"
+    )
+    sigrid_proforma_max_lineas: int = Field(500, alias="SIGRID_PROFORMA_MAX_LINEAS")
+
     model_config = SettingsConfigDict(
         extra="ignore",
         case_sensitive=False,
@@ -145,6 +165,8 @@ class Settings(BaseSettings):
         "sigrid_reclamacion_prefijos_referencia",
         "sigrid_albaran_prefijos_referencia",
         "sigrid_albaran_productos_sin_contrato",
+        "sigrid_proforma_prefijos_referencia",
+        "sigrid_proforma_productos_sin_contrato",
         mode="before",
     )
     @classmethod
@@ -227,7 +249,11 @@ class Settings(BaseSettings):
                 ) from None
         return enteros
 
-    @field_validator("sigrid_albaran_naturaleza_por_producto", mode="before")
+    @field_validator(
+        "sigrid_albaran_naturaleza_por_producto",
+        "sigrid_proforma_naturaleza_por_producto",
+        mode="before",
+    )
     @classmethod
     def parse_string_dict(cls, value: Any) -> dict[str, str]:
         """
