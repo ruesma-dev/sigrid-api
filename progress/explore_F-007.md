@@ -11,7 +11,7 @@ Sirve también a **F-008** (factura de compra): §M15 recoge cómo enlaza la fac
 (M16-M26, 2026-10-19) mide lo que necesita la app de facturas: fecha, cadenas, identificación de líneas y duplicadas.
 
 > **2026-10-25 · v1 y v2 superadas como diseño.** M11 y M16-M26 miden el modelo **a origen** (cadena `docoriide`,
-> arrastre de líneas), que el humano descartó el 2026-10-24: F-007 registra **por mes** (§v3, M27-M39). Siguen
+> arrastre de líneas), que el humano descartó el 2026-10-24: F-007 registra **por mes** (§v3, M27-M40). Siguen
 > valiendo como hechos de Sigrid M1 (serie `PROF`, `cla 141`, `tip 20` = asiento), M2 (estados y `log`), M6
 > (`ctrprodes`, `canser` = Σ `can`, `mov` con `tipmov` 1), M9 (IVA), M10 (retención), M13 (posventa), M14 y M15.
 
@@ -256,7 +256,7 @@ dos proformas con total 0 y otro de dos proformas distintas de la misma obra con
 - V5: si la hoja es una impresión de Sigrid (mismas líneas y orden que la anterior) y qué es su «Nº ORDEN».
 
 
-## v3 · Medición del 2026-10-25: la proforma de mes del jefe de obra (M27-M39)
+## v3 · Medición del 2026-10-25: la proforma de mes del jefe de obra (M27-M40)
 
 Mismo método (solo lecturas por `sql/read` de la API desplegada, SQL parametrizado, script y datos descargados en el
 scratchpad del spec-author, fuera del repositorio). Dos consultas con subconsultas correlacionadas sobre `ctrpro` se
@@ -418,3 +418,32 @@ son de F-008 (M15).
   sobre su `AC` de mes (M29) y, con otra referencia y `otra_del_mes`, una previa con las mismas líneas y totales.
 - **V8**: con Administración, qué producto llevan las partidas sin contrato (M34) y si el registro de mes vale en los
   contratos que van a origen (M37).
+
+### M40 · Vinculación de las líneas por modelo (medición del líder, 2026-10-25)
+
+Solo lecturas por `sql/read`: documentos `tip 14` con contrato (`dca.ctride` > 0), líneas con `can` ≠ 0. Vinculada =
+`docoritip 44` y `linoriide` > 0. Desde el 2026-07-01:
+
+| Modelo | Docs | Líneas | Vinculadas | Docs con todas | Docs con ninguna |
+|---|---|---|---|---|---|
+| Proformas de mes | 912 | 7.915 | 4.777 (60 %) | 267 | 320 |
+| Proformas a origen | 368 | 2.602 | 1.916 (74 %) | 167 | 87 |
+| Albaranes de la UI | 5.739 | 13.096 | 1.730 (13 %) | 679 | 4.651 |
+| Albaranes de la API (`ALB-%`) | 60 | 165 | 55 | 1 | 32 |
+| PREV | 1.074 | 5.467 | 357 | — | — |
+
+Octubre de 2026, líneas sin vincular frente a las del contrato:
+
+| Modelo | Sin vincular | Mismo producto | Mismo producto y partida | Además mismo precio |
+|---|---|---|---|---|
+| Proformas de mes | 143 | 125 | 60 | 15 (10 %) |
+| Albaranes de la UI | 1.173 | 1.037 | 719 | 245 (21 %) |
+
+Obra 0719 (`AC26/22961`, `/25548`, `/22962`, `/25552`, `/29425`, `/22980`, `/25551`, `/29444`): todas las partidas de
+contrato están vinculadas; las sin vincular son las extras. `/25548` tiene 5 de 6: la sexta es BERENJENO, sin vincular
+con `SM1004`, el producto del contrato (comprobado por el spec-author con LP6, `dcapro` por `docide`, solo lectura).
+
+**Conclusión**: en las proformas de mes las líneas de contrato se vinculan y lo no vinculado son las extras, con el
+producto del contrato; casarlas en `proformas` con `ctrpro_ide` y que una persona elija el producto de las nuevas
+reproduce lo que hace hoy Administración. Las sin vincular que casarían con una línea del contrato por producto,
+partida y precio son pocas (10 % en octubre): F-007 no las vincula por su cuenta.

@@ -1,16 +1,19 @@
 <!-- specs/F-007-registrar-proforma/design.md -->
 # F-007 · Diseño (v3, pendiente de la PARADA 1)
 
-Medición: [`progress/explore_F-007.md`](../../progress/explore_F-007.md) §v3 (**M27-M39**; M1-M15 siguen como hechos
-de Sigrid). Núcleo: F-009 tal como lo dejó **F-015** (fusionada en `dev` y desplegada). Llamante: app de facturas,
-F-063 ([`contrato_facturas.md`](contrato_facturas.md)). Plantilla de hoja para los jefes de obra:
+Medición: [`progress/explore_F-007.md`](../../progress/explore_F-007.md) §v3 (**M27-M40**; M1-M15 siguen como hechos
+de Sigrid). Núcleo: F-009 tal como lo dejó **F-015** (fusionada en `dev` y desplegada). Llamante: el microservicio
+`proformas`, su F-005 ([`contrato_proformas.md`](contrato_proformas.md); traspaso en
+`proformas/docs/referencia/01_traspaso_facturas.md`). Plantilla de hoja para los jefes de obra:
 [`plantilla_hoja.md`](plantilla_hoja.md). La v2 (a origen, cadena, arrastre) queda superada.
 
 ## La decisión de fondo
 
-En la app de facturas hay dos procesos: **(a) cotejar** la proforma firmada del proveedor con Sigrid (lectura; no es
-F-007) y **(b) registrar en Sigrid la proforma del jefe de obra**, que llega en xlsx o pdf: esto es F-007. La app lee
-la hoja y manda datos estructurados; la API resuelve contrato y líneas contra Sigrid, valida y escribe.
+Dos procesos (humano, 2026-10-25): **(a) cotejar** la proforma firmada del proveedor con Sigrid es lectura de
+`facturas` (no es F-007); **(b) registrar en Sigrid la proforma del jefe de obra** es esto, y lo llama el microservicio
+`proformas`: lee la hoja (xlsx o pdf), una persona casa en su bandeja las partidas con las líneas del contrato y elige
+el producto de las nuevas, aprueba y entonces llama a la API con datos estructurados. La API resuelve el contrato,
+valida contra Sigrid y escribe. `facturas` solo lee lo registrado por `sql/read`, por el `entref` de R12.
 
 Se registra **por mes** (humano, 2026-10-24): la proforma lleva solo las partidas con MES ≠ 0 y el origen se calcula
 sumando las del contrato. Es la forma que ya tienen 2.868 + 88 proformas de 2026 (M27) y, línea a línea, **es lo que
@@ -18,11 +21,11 @@ escribe hoy la vinculada de F-009** (M28: `canoriori` = `ctrpro.can`, `imporiori
 arrastre). Su factura es 1:1 y sin «hojitas» (M30), así que F-008 la facturará como factura las de mes de hoy. La
 diferencia con un albarán es de cabecera: serie `PROF`, `cla 141` y `entref` `PROF<MMAA>_<obra>` (M31).
 
-**Límite de microservicio: cabe.** Resolver el contrato y la línea contra Sigrid y dar de alta el documento con sus
-efectos es de la pasarela. **No cabe** y va a la app: leer el xlsx o el pdf, decidir qué hoja se registra, el flujo
-de aprobación y bloquear la factura por exceso. Fuera también: facturación (F-008), asiento, provisiones `PREV`.
+**Límite de microservicio: cabe.** Validar el contrato y las líneas contra Sigrid y dar de alta el documento con sus
+efectos es de la pasarela. **No cabe** y es de `proformas`: leer el xlsx o el pdf, casar las partidas, elegir el
+producto, el flujo de aprobación y bloquear la aprobación por exceso (con los avisos de F-007). Fuera también: facturación (F-008), asiento, provisiones `PREV`.
 
-**Tamaño: una feature** (requisitos 149/150), implementada en lotes (tasks.md). Si el humano pide además el modo sin
+**Tamaño: una feature** (requisitos 150/150, en el tope), implementada en lotes (tasks.md). Si el humano pide además el modo sin
 contrato completo o las hojas de varios contratos en una llamada, hay que partirla.
 
 ## Ficheros a crear
@@ -30,7 +33,7 @@ contrato completo o las hojas de varios contratos en una llamada, hay que partir
 | Fichero | Capa | Qué contiene |
 |---|---|---|
 | `domain/models/proforma_models.py` | domain | `LineaProformaIn`, `ProformaRequest` (R1-R3), `ContratoResuelto`, `OrigenProforma`, `LineaProformaResultado`, `ProformaResponse(AlbaranCompraResponse)` (R10, R30) y `ProformaError(AlbaranCompraError)` / `FalloLineaProforma(FalloLinea)` con sus conjuntos (§Códigos), `reparto` y `candidatos` |
-| `application/use_cases/proforma_statements.py` | application | SQL constante LP1-LP5 (§Sentencias) y puras: `normalizar_nombre`, `fecha_de_periodo`, `entref_por_defecto`, `candidatos_de_contrato`, `resolver_contrato`, `identificar_linea`, `producto_por_defecto`, `comprobar_hoja`, `anterior_y_origen`, `buscar_del_mes`, `es_proforma`, `traducir` (§Traducción). Sin E/S; autovalidado con `DatabaseReferenceGuard` |
+| `application/use_cases/proforma_statements.py` | application | SQL constante LP1-LP6 (§Sentencias) y puras: `normalizar_nombre`, `fecha_de_periodo`, `entref_por_defecto`, `candidatos_de_contrato`, `resolver_contrato`, `identificar_linea`, `comprobar_hoja`, `anterior_y_origen`, `buscar_del_mes`, `lineas_del_existente`, `es_proforma`, `traducir` (§Traducción). Sin E/S; autovalidado con `DatabaseReferenceGuard` |
 | `application/use_cases/create_proforma_use_case.py` | application | `CreateProformaUseCase(CreateAlbaranCompraUseCase)` con `perfil = PERFIL_PROFORMA` (§Flujo) |
 | `tests/test_f007_*.py`, `tests/fixtures/f007_*.json` | — | ver `tasks.md`; fixtures con las hojas de la obra 0719 (M29) |
 
@@ -76,9 +79,9 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
 2. **Obra** con el `_resolver_obra` del núcleo. **Idempotencia** (LP5, R23): si es una proforma del mismo contrato,
    se delega en el núcleo, que la devuelve `idempotente`; si no, `referencia_en_conflicto`.
 3. **Contrato** (salvo `sin_contrato`): LP3 → R7 o R8 → LP4 de los candidatos → R8-R9 (§Contrato).
-4. **Etapa 1 de líneas** (`identificar_linea`, `producto_por_defecto`, R13-R16, R19 de línea): todos sus fallos
+4. **Etapa 1 de líneas** (`identificar_linea`, `producto` presente, R13-R16, R19 de línea): todos sus fallos
    juntos en un `lineas_no_validas`.
-5. **Comprobaciones** (R19 de cabecera) → LP1, LP2 → **ya registrada** (R24: `existente` sale ya, sin escribir) →
+5. **Comprobaciones** (R19 de cabecera) → LP1, LP2 → **ya registrada** (R24: `existente` sale ya con sus líneas de LP6, sin escribir) →
    avisos R20-R22.
 6. **Traducción** a `AlbaranCompraRequest` (§Traducción) y **núcleo** (`_ejecutar`): etapa 2 de líneas (los fallos de
    F-009: partida, producto, naturaleza…), construcción, previa o transacción con R28 dentro.
@@ -97,12 +100,13 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
 
 ## Líneas (R13-R17; D6)
 
-- `identificar_linea(linea, lineas_del_contrato)`: con `ctrpro_ide`, debe ser del contrato (si no,
-  `linea_no_es_del_contrato`); sin él, el embudo de R14 (partida → medición → unidad → precio), quedándose en cada paso
-  con las que casan si queda alguna. Varias → `linea_ambigua` + `candidatos`; ninguna → `linea_no_es_del_contrato`.
-- `producto_por_defecto(linea, productos_del_contrato)`: `producto` de la petición; si no viene, el único producto
-  del contrato; si no, `producto_obligatorio` (M34: el del contrato es el de la sin vincular en el 73 % de los
-  contratos de un producto).
+- `identificar_linea(linea, lineas_del_contrato)`: con `ctrpro_ide` (lo que manda `proformas`, casado por una
+  persona), **solo** se comprueba que es una línea del contrato resuelto; si no (también si es de otro contrato de la
+  obra), `linea_no_es_del_contrato`, sin buscar otra ni corregirla en silencio. Sin él (respaldo para otro llamante),
+  el embudo de R14 (partida → medición → unidad → precio), quedándose en cada paso con las que casan si queda alguna.
+  Varias → `linea_ambigua` + `candidatos`; ninguna → `linea_no_es_del_contrato`.
+- Línea sin contrato: `producto` obligatorio (`producto_obligatorio`), de la lista de R4 o de los del contrato; R17
+  pone naturaleza, cuenta, analítica e IVA del producto del contrato. M40: así son las extras de hoy.
 - La partida que se escribe: vinculada, `partida_imputacion` o la del `ctrpro` (código y `paride`, F-009 R14b); sin
   contrato, `partida_imputacion` o `partida`. Las resuelve y valida el núcleo (F-009 R14-R16).
 
@@ -136,6 +140,9 @@ Las del modo extendido de F-009 con F-015 (`con`, `dca`, `dcapro` × N, `ctrprod
   LEFT JOIN dbo.con pc ON pc.ide = p.proide WHERE p.docide IN {marcadores} ORDER BY p.docide, p.pos, p.ide`.
 - **LP5** (R23): `SELECT c.ide, c.cod, d.cla, d.ctride FROM dbo.dca d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ?
   AND d.synckey = ?` con `[14, referencia_externa]`.
+- **LP6** (R24, solo con `existente`): `SELECT p.ide, p.linoriide, ISNULL(pc.cod, '') AS producto, p.can, p.pre, p.tot
+  FROM dbo.dcapro p LEFT JOIN dbo.con pc ON pc.ide = p.proide WHERE p.docide = ? ORDER BY p.pos, p.ide` con
+  `[con_ide]`. Probada en lectura sobre `AC26/25548` (M40): 6 líneas, 5 vinculadas.
 
 Todas de lectura; LP1 se repite dentro de la transacción (R28) por el `cursor` del `work`. Ningún `UPDATE` nuevo.
 
@@ -159,41 +166,49 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
 
 ## Decisiones (para el humano; recomendación en negrita)
 
-- **D1 · Qué es F-007** *(decidido, 2026-10-24)*. El registro de la proforma del jefe de obra (b); el cotejo (a) es
-  lectura de la app. **La API recibe datos estructurados**; leer el xlsx o el pdf es de la app.
+- **D1 · Qué es F-007** *(decidido, 2026-10-24/25)*. El registro de la proforma del jefe de obra (b), llamado por
+  `proformas` F-005 tras aprobar; el cotejo (a) es lectura de `facturas`. **La API recibe datos estructurados.**
 - **D2 · Por mes** *(decidido)*. Problema: ¿qué escribir para que la de mes sea correcta y la factura cuadre?
   **`docoritip 0`, solo las partidas con MES ≠ 0 y vinculadas como F-009** (M28: así están el 100 % de las 2.956 de
   mes de 2026; M30: se facturan 1:1). Descartado: marcar el «check» (`docoritip 1`), que exige cadena y arrastre (v2).
-- **D3 · Serie `PROF`** *(decidido)*. **`PROF<aa>/`, `cla 141`, `entref` `PROF<MMAA>_<obra>`** por defecto (M36: la
-  forma más usada). Medido: la cabecera de una `PROF` de mes solo difiere de una `AC` de mes en `cla` (M31), y ya hay
-  88 (M27). V6 confirma en la UI que se ve y se factura igual.
+- **D3 · Serie `PROF`** *(decidido, 2026-10-25)*. **`PROF<aa>/`, `cla 141`, `entref` `PROF<MMAA>_<obra>`**: el humano la
+  mantiene sabiendo que hoy lo habitual es `AC` (2.868 `AC` de mes frente a 88 `PROF`, M27). La cabecera de una `PROF`
+  de mes solo difiere de una `AC` de mes en `cla` (M31); LP1 encuentra también las `AC` con `entref` `PROF%`. El
+  `entref` es el contrato de lectura entre `proformas` y `facturas`. V6 confirma en la UI que se ve y factura igual.
 - **D4 · Contrato: lo resuelve la API y el llamante lo cambia.** *Interpretación del líder*, anotada como tal: «el
-  humano» es el de la app, que revisa la previa y, si no está de acuerdo, reenvía con `cod_contrato`. Propuesta:
-  **`cod_contrato` manda; si no viene, obra + proveedor (CIF o nombre normalizado) y, si quedan varios, las líneas de
-  contrato** (94,6 %, 0,5 % mal, 4,9 % al humano; M32), devolviendo `contrato.resuelto_por` y `candidatos`.
-  Alternativas: contrato obligatorio (la hoja lo trae a veces, facturas lo leyó en 1 de 4); solo por líneas, sin
-  proveedor (68,9 %; 25,9 % de las proformas no tienen ni una vinculada); nombre solo en la app (frágil, M32).
-- **D5 · Hoja de dos contratos** (1,7 %, M32). **Error `hoja_de_varios_contratos` con el reparto línea → contrato**, y la
-  app manda una petición por contrato (dos proformas, dos referencias). Alternativa: dos documentos en una llamada
-  (rompe «una proforma por petición», la idempotencia y la previa).
-- **D6 · Líneas de contrato vinculadas a su `ctrpro`** («documento origen», correo del 2026-10-21). **Embudo partida →
-  medición de contrato → unidad → precio** (96,8 %, M33; facturas, sin medición, 377 de 510); con `ctrpro_ide`, sin
-  embudo. **Partidas sin contrato** (BERENJENO, regularización de precio, seguridad y replanteo: sin medición o con
-  medición 0): **sin vincular, con el producto del contrato si tiene uno solo** o el que mande la app de la lista
-  (M29, M34). Alternativas: identificar solo por `ctrpro_ide` (la app tendría que leer `ctrpro`); un genérico fijo.
+  humano» es la persona de la bandeja de `proformas`, que ve la previa y, si no está de acuerdo, reenvía con
+  `cod_contrato`. Propuesta: **`cod_contrato` manda; si no viene, obra + proveedor (CIF o nombre normalizado) y, si
+  quedan varios, las líneas de contrato** (94,6 %, 0,5 % mal, 4,9 % a la persona; M32), devolviendo
+  `contrato.resuelto_por` y `candidatos`. Un `ctrpro_ide` de otro contrato es error (D6), nunca cambia el resuelto.
+  Alternativas: contrato obligatorio (la hoja lo trae a veces); nombre solo en el llamante (frágil, M32).
+- **D5 · Hoja de dos contratos** (1,7 %, M32). **Error `hoja_de_varios_contratos` con el reparto línea → contrato**, y
+  `proformas` manda una petición por contrato con el mismo `periodo` (dos proformas, dos referencias); R24 va por
+  contrato, así que la segunda no salta por la primera. Alternativa: dos documentos en una llamada (rompe «una proforma
+  por petición», la idempotencia y la previa).
+- **D6 · Casado en `proformas`** *(decidido, 2026-10-25)*. `proformas` manda **siempre `ctrpro_ide`** en las líneas de
+  contrato y **siempre `producto`** en las nuevas, que elige una persona. La API **solo valida** que el `ctrpro_ide` es
+  del contrato resuelto (`linea_no_es_del_contrato` si no, también si es de otro contrato de la obra); no re-identifica
+  ni sustituye. El embudo de R14 queda de respaldo para quien no lo mande; **no hay producto por defecto**. Medido
+  (M40): en las de mes de la 0719 todas las de contrato van vinculadas y lo sin vincular son las extras, con el
+  producto del contrato (`/25548`: 5 de 6; BERENJENO con `SM1004`).
 - **D7 · ANTERIOR frente a Sigrid: aviso, no error.** Σ de las proformas previas del contrato casa en 3 de 3 hojas de
   la 0719 (M29), pero facturas vio diferencias por «bis» y anulaciones (1 de 4 exacta). Alternativa: error con
   `forzar`. ORIGEN = ANTERIOR + MES de la propia hoja sí es error (R19).
 - **D8 · Avisos de Administración** (correo del 2026-10-21). **En F-007, avisos informativos `supera_contrato`
   (> 100 %) y `supera_contrato_10` (> 110 %)** sobre Σ `ctrpro.tot` (= «IMPORTE TOTAL» de la hoja; `ctr.tot` es neto
   de retención o con IVA, M29); medido 2,2 % y 3,5 % de los contratos (M35). **Avisar al administrativo o al jefe de
-  obra y bloquear la aprobación de la factura es de facturas (o de F-008)**, que decide con estos avisos.
+  obra y frenar la aprobación es de `proformas` (en su bandeja) y bloquear la factura, de `facturas` o F-008**, que
+  deciden con estos avisos.
 - **D9 · Fecha y cabecera**: la de la v2 (M36: 96,4 % en el mes) y la lista blanca de F-015 sin más cambios que D3.
 - **D10 · Ya registrada**: **`existente` (200, sin escribir) si hay una del mismo contrato y mes con el mismo total**
-  (±0,05); con otro total, error salvo `otra_del_mes` (3,9 % de los meses llevan dos, M36). Alternativa: no mirar y
-  confiar en la idempotencia (duplicaría las que Administración dé de alta a mano en la transición).
+  (±0,05), con sus líneas (LP6: `dcapro.ide`, `linoriide`, producto, cantidad, precio, importe) para que `proformas`
+  enlace sin otra lectura; con otro total, error salvo `otra_del_mes` (3,9 % de los meses llevan dos, M36). Por
+  contrato, nunca por obra ni subcontratista (D5). Alternativa: confiar en la idempotencia (duplicaría las que
+  Administración dé de alta a mano en la transición).
 - **D11 · Configuración**: llave propia y listas propias; despliegue propuesto `SM9999`, `SB9999`, `SM370001` (los tres
   más usados sin contrato, M34; `SM370001` sin `mov`, `tipmov` 0), **pendiente de Administración (V8)**; tope 500.
+  **Sin endpoint de lista de productos** (como albaranes): `proformas` tiene su App Setting, contenida en
+  `SIGRID_PROFORMA_PRODUCTOS_SIN_CONTRATO`, y lee descripciones y productos del contrato por `sql/read`.
 - **D12 · Reutilización: subclase del caso de uso de F-009 con cinco costuras** y sus dorados intactos (R31). La
   petición se traduce a la de F-009 (§Traducción). Descartado: copiar el núcleo; un modo nuevo de `sigrid/albaran`.
 - **D13 · Contratos que van a origen** (24,7 % de los contratos con proformas desde julio, M37). **Aviso
@@ -201,14 +216,14 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
 - **D14 · Sin contrato** (15,3 % de las de mes, M27). **Dentro, solo con `sin_contrato` explícito y `cif_proveedor`**
   (camino de F-015); sin él, una hoja sin contrato resuelto es `contrato_no_resuelto`. Alternativa: fuera (alta a mano).
 
-## Preguntas para facturas (con su humano)
+## Preguntas para `proformas` (con su humano)
 
-1. ¿Pueden mandar el **CIF** del subcontratista o solo el nombre de la hoja? (R8 admite los dos; el CIF es más seguro.)
-2. ¿Extraen la **medición de contrato** por partida? Sin ella, la línea es «sin contrato» (R13) salvo `ctrpro_ide`.
-3. ¿Mandan solo las partidas con **MES ≠ 0** y el MES por línea (en xlsx, ORIGEN − ANTERIOR)?
-4. Ante `hoja_de_varios_contratos`, ¿parten la hoja y mandan una petición por contrato?
-5. ¿Qué `usu` y qué prefijo de `referencia_externa` (propuesto `PRF-`) usan, y qué avisos bloquean en su flujo?
-6. ¿Quién elige el **producto** de las partidas sin contrato cuando el contrato tiene varios?
+Decidido el 2026-10-25 y ya no se pregunta: `ctrpro_ide` y `producto` siempre (D6), `usu` = quien aprueba en la
+bandeja, `referencia_externa` = `PRF-` + id de `proformas`, una petición por contrato (D5), previa desde la bandeja.
+
+1. ¿Mandan el **CIF** del subcontratista o solo el nombre de la hoja? (R8 admite los dos; el CIF es más seguro.)
+2. ¿Mandan solo las partidas con **MES ≠ 0** y el MES por línea (en xlsx, ORIGEN − ANTERIOR)?
+3. ¿Qué avisos (`supera_contrato_10`, `anterior_distinto_de_sigrid`, `contrato_a_origen`) bloquean la aprobación?
 
 ## Riesgos
 
@@ -216,7 +231,9 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
   vacíos; dorados de F-009 y F-015 intactos; mutación sobre todo lo cambiado; avisar a albaranes antes de fusionar.
 - **Carrera con el escritorio**: si Administración da de alta a mano la misma proforma en el mismo segundo, puede
   quedar duplicada (residual, como F-009). Mitiga R24 dentro de la transacción.
-- **Contrato mal resuelto** (0,5 %, M32): la previa enseña el contrato y `resuelto_por`; el humano de la app lo corrige.
+- **Contrato mal resuelto** (0,5 %, M32): la previa enseña el contrato y `resuelto_por`; la persona de la bandeja de `proformas` lo corrige.
 - **Contratos a origen** (M37): una de mes deja su cadena sin ese mes; aviso D13 y V8.
-- **Lecturas pesadas**: LP1-LP4 van por contrato u obra, nunca por toda la base (en la medición v3, dos consultas
+- **Carga**: la previa se llama desde la bandeja antes de aprobar, una por proforma y sin ráfagas; tope de 500 líneas
+  (R4) y balanceador a 230 s. Si una previa se corta, no se relanza en el acto (F-013).
+- **Lecturas pesadas**: LP1-LP4 y LP6 van por contrato, obra o documento, nunca por toda la base (en la medición v3, dos consultas
   globales con subconsultas sobre `ctrpro` se cortaron a los 240 s).

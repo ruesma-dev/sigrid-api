@@ -3,7 +3,8 @@
 
 **Propuesta** de F-007 v3 (2026-10-25), sacada de la estructura común de las cuatro hojas de ejemplo de la obra 0719
 (`docs/referencia/proforma_ejemplo_*.md`). No es una norma hasta que el humano y Administración la aprueben. Lo que
-la API necesita de cada campo está en [`contrato_facturas.md`](contrato_facturas.md) §2.
+la API necesita de cada campo está en [`contrato_proformas.md`](contrato_proformas.md) §2;
+casar las partidas con el contrato y elegir los productos se hace en la bandeja de `proformas`.
 
 ## 1. Lo que las cuatro hojas tienen en común
 
