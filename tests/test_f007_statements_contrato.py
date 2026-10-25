@@ -37,7 +37,11 @@ from application.use_cases.proforma_statements import (
     primer_dia_de_periodo,
     resolver_contrato,
 )
-from domain.models.proforma_models import ContratoResuelto, LineaProformaIn, ProformaError
+from domain.models.proforma_models import (
+    ContratoResuelto,
+    LineaProformaIn,
+    ProformaError,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "f007_obra0719.json"
 DATOS: dict[str, Any] = json.loads(FIXTURE.read_text(encoding="utf-8"))
