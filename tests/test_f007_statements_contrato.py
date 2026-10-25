@@ -172,6 +172,8 @@ def test_f007_r32_cada_sentencia_pasa_por_el_guardia_de_bases(monkeypatch: pytes
     sentencias = ProformaStatements(database=" ruesma ")
     assert [sql for sql, _ in vistas] == list(ProformaStatements.todas_las_sentencias())
     assert {tuple(bases) for _, bases in vistas} == {("ruesma",)}
+    # La de `IN`, con UN marcador: la misma que reconoce el doble (T18).
+    assert LP4_LINEAS_DE_CONTRATOS.format(marcadores="(?)") in ProformaStatements.todas_las_sentencias()
     vistas.clear()
     sentencias.leer_lineas_de_contratos([1, 2, 3])
     assert vistas == [(LP4_LINEAS_DE_CONTRATOS.format(marcadores="(?, ?, ?)"), ["ruesma"])]

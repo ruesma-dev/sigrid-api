@@ -166,7 +166,8 @@ def _es_fecha(valor: int) -> bool:
         date(valor // 10000, (valor // 100) % 100, valor % 100)
     except ValueError:
         return False
-    return 19000101 <= valor <= 29991231
+    # El anio, no el entero entero: el borde de arriba es 2999 y no 29991231 (T18).
+    return 1900 <= valor // 10000 <= 2999
 
 
 class ProformaRequest(BaseModel):
@@ -221,7 +222,7 @@ class ProformaRequest(BaseModel):
     @field_validator("periodo")
     @classmethod
     def _periodo_aaaamm(cls, value: int) -> int:
-        if not (190001 <= value <= 299912 and 1 <= value % 100 <= 12):
+        if not (1900 <= value // 100 <= 2999 and 1 <= value % 100 <= 12):
             raise ValueError("'periodo' es AAAAMM con el mes de 1 a 12.")
         return value
 

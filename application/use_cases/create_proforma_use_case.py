@@ -417,7 +417,7 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         leidas = nucleo.estado == "idempotente"
         lineas = []
         for linea in nucleo.lineas:
-            vinculada = linea.ctrpro_ide > 0
+            vinculada = linea.tipo == "vinculada"
             propios = [AvisoProforma(**aviso.model_dump()) for aviso in linea.avisos]
             if not leidas and linea.indice in avisos_linea:
                 propios.append(avisos_linea[linea.indice])

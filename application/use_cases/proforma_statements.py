@@ -395,9 +395,8 @@ def identificar_linea(
     if linea.unidad is not None:
         filtros.append(lambda l: _clave(l.unimed) == _clave(linea.unidad))
     filtros.append(lambda l: abs(_d(l.pre) - _d(linea.precio)) <= TOLERANCIA_PRECIO)
+    # Sin `break` con una sola: un filtro que no la casa no la quita (T18).
     for filtro in filtros:
-        if len(quedan) <= 1:
-            break
         casan = [l for l in quedan if filtro(l)]
         if casan:
             quedan = casan
@@ -623,7 +622,7 @@ def aviso_anterior_de_linea(
 def es_proforma(fila_lp5: Sequence[Any], ctride: int) -> bool:
     """R23: el `tip 14` de la referencia es una proforma (`cla 141`) del mismo contrato."""
     _ide, _cod, cla, ctride_fila = fila_lp5
-    return int(cla or 0) == CLA_PROFORMA and int(ctride_fila or 0) == ctride
+    return cla == CLA_PROFORMA and int(ctride_fila or 0) == ctride
 
 
 def buscar_del_mes(

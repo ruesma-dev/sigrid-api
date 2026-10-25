@@ -420,3 +420,62 @@ def test_f007_r30_sin_columnas_bancarias_como_el_nucleo() -> None:
                            filas={"dca": {"ide": 1, "cpacue1": "ES34"}})
     assert respuesta.cabecera == {"fec": 1}
     assert respuesta.filas["dca"] == {"ide": 1}
+
+
+# =====================================================================================
+# T18 · bordes de los campos (huecos de la campana de mutacion)
+# =====================================================================================
+
+
+@pytest.mark.parametrize(
+    "campo", ["database", "usu", "referencia_externa", "cod_obra", "cod_contrato",
+              "cif_proveedor", "nombre_proveedor"],
+)
+def test_f007_t18_textos_de_cabecera_de_un_caracter(campo: str) -> None:
+    assert getattr(valida(**{campo: "X"}), campo) == "X"
+
+
+@pytest.mark.parametrize("campo", ["partida", "producto", "partida_imputacion"])
+def test_f007_t18_textos_de_linea_de_un_caracter(campo: str) -> None:
+    assert getattr(valida(lineas=[nueva(**{campo: "X"})]).lineas[0], campo) == "X"
+
+
+def test_f007_t18_textos_de_24_y_no_de_25() -> None:
+    assert valida(cod_obra="9" * 24).cod_obra == "9" * 24
+    invalida(cod_obra="9" * 25)
+    for campo in ("partida", "producto"):
+        assert getattr(valida(lineas=[nueva(**{campo: "P" * 24})]).lineas[0], campo) == "P" * 24
+        invalida(lineas=[nueva(**{campo: "P" * 25})])
+
+
+def test_f007_t18_origenes_estrictos() -> None:
+    invalida(importe_origen="9736.48")
+    invalida(lineas=[linea(cantidad_origen="861")])
+
+
+def test_f007_t18_numero_de_orden_cero() -> None:
+    assert valida(numero_orden=0).numero_orden == 0
+
+
+@pytest.mark.parametrize("periodo", [190001, 299912])
+def test_f007_t18_periodo_en_los_bordes(periodo: int) -> None:
+    assert valida(periodo=periodo).periodo == periodo
+
+
+@pytest.mark.parametrize("fecha", [19000101, 29991231, 20240229])
+def test_f007_t18_fecha_proforma_en_los_bordes_y_el_29_de_febrero(fecha: int) -> None:
+    assert valida(periodo=fecha // 100, fecha_proforma=fecha).fecha_proforma == fecha
+
+
+def test_f007_t18_fecha_proforma_29_de_febrero_de_un_anio_no_bisiesto() -> None:
+    invalida(periodo=202302, fecha_proforma=20230229)
+
+
+@pytest.mark.parametrize("fecha", [18991231, 30000101])
+def test_f007_t18_fecha_proforma_fuera_de_los_anios(fecha: int) -> None:
+    invalida(periodo=fecha // 100, fecha_proforma=fecha)
+
+
+@pytest.mark.parametrize("periodo", [189912, 300001, 202600, 202613])
+def test_f007_t18_periodo_fuera_de_los_anios_o_del_mes(periodo: int) -> None:
+    invalida(periodo=periodo)

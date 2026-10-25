@@ -533,3 +533,42 @@ def test_f007_r33_traza_de_una_excepcion(caplog: pytest.LogCaptureFixture) -> No
         ejecutar(repo=repo)
     traza, _texto = _traza(caplog)
     assert (traza["resultado"], traza["codigo"]) == ("excepcion", "ValueError")
+
+
+# =====================================================================================
+# T18 · huecos de la campana de mutacion (progress/mutacion_F-007.md)
+# =====================================================================================
+
+
+def _topes(repo: RepositorioProforma) -> dict[str, Any]:
+    """Lectura -> `max_rows` pedido (la ultima vez que se hizo)."""
+    return {datos[0]: datos[2] for tipo, datos in repo.llamadas if tipo == "leer"}
+
+
+def test_f007_t18_las_lecturas_de_muchas_filas_piden_el_tope_de_filas() -> None:
+    """LP1-LP4 y LP6 pueden traer mas filas que el defecto de `sql/read`: piden
+    `max_allowed_rows`, como las de F-009 (si no, un contrato grande saldria
+    truncado y la proforma no se podria registrar)."""
+    tope = SettingsProforma().max_allowed_rows
+    _respuesta, repo = ejecutar()
+    topes = _topes(repo)
+    for lectura in ("lp3_contratos", "lp4_lineas", "lp1_proformas", "lp2_anterior", "lp6_lineas"):
+        assert topes[lectura] == tope, lectura
+
+
+def test_f007_t18_las_lineas_del_idempotente_piden_el_tope_de_filas() -> None:
+    repo = RepositorioProforma(lecturas={
+        "lp5_referencia": [(2900011, "PROF26/01282", 141, CTR_0472)],
+        "referencia": [_L11],
+        "lineas_del_existente": [(64, SM1004, 620.0, 11.0, 6820.0, 355001, 70, "F09")],
+    })
+    _respuesta, repo = ejecutar(repo=repo)
+    assert _topes(repo)["lineas_del_existente"] == SettingsProforma().max_allowed_rows
+
+
+def test_f007_t18_el_conflicto_de_referencia_nombra_los_cod() -> None:
+    filas = [(2831541, "AC26/25548", 0, CTR_0472)]
+    error = fallo(peticion(), repo=RepositorioProforma(lecturas={"lp5_referencia": filas}))
+    assert error.codigo == "referencia_en_conflicto"
+    assert "AC26/25548" in str(error)
+
