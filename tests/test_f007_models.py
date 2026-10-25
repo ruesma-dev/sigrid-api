@@ -13,6 +13,16 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
+
+from domain.models.albaran_compra_models import (
+    CODIGOS_AVISO,
+    CODIGOS_CABECERA,
+    CODIGOS_LINEA,
+    AlbaranCompraError,
+    AlbaranCompraResponse,
+    FalloLinea,
+)
 from domain.models.proforma_models import (
     CODIGOS_AVISO_PROFORMA,
     CODIGOS_CABECERA_PROFORMA,
@@ -26,16 +36,6 @@ from domain.models.proforma_models import (
     ProformaError,
     ProformaRequest,
     ProformaResponse,
-)
-from pydantic import ValidationError
-
-from domain.models.albaran_compra_models import (
-    CODIGOS_AVISO,
-    CODIGOS_CABECERA,
-    CODIGOS_LINEA,
-    AlbaranCompraError,
-    AlbaranCompraResponse,
-    FalloLinea,
 )
 
 
