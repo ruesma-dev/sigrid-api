@@ -23,7 +23,14 @@ import dataclasses
 from typing import Any, ClassVar
 
 import pytest
-from f009_dobles import AHORA, CTR, IntegrityError, RepositorioDoble, SettingsDoble, plantilla_dcapro
+from f009_dobles import (
+    AHORA,
+    CTR,
+    IntegrityError,
+    RepositorioDoble,
+    SettingsDoble,
+    plantilla_dcapro,
+)
 
 from application.use_cases.albaran_compra_statements import (
     PREFIJO_SERIE,

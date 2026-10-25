@@ -322,15 +322,17 @@ def _parametros_de_serie(emp: int, prefijo: str) -> list[Any]:
 # =====================================================================================
 
 
-def prefijo_de_serie(fecha: int) -> str:
-    """`AC<aa>/` del anio de `fecha` (AAAAMMDD, la del albaran; R22)."""
-    return f"{PREFIJO_SERIE}{(fecha // 10000) % 100:02d}/"
+def prefijo_de_serie(fecha: int, prefijo: str = PREFIJO_SERIE) -> str:
+    """`AC<aa>/` del anio de `fecha` (AAAAMMDD, la del albaran; R22). F-007
+    (costura 2): otra serie del `tip 14` con su `prefijo` (`PROF`)."""
+    return f"{prefijo}{(fecha // 10000) % 100:02d}/"
 
 
-def siguiente_cod(prefijo: str, maximo: int | None) -> str:
+def siguiente_cod(prefijo: str, maximo: int | None, *, cifras: int = 0) -> str:
     """El siguiente `cod` de la serie a partir del MAX numerico de E2/L14
-    (`None` si no hay ninguno). Sin ceros a la izquierda, como el clasico."""
-    return f"{prefijo}{(maximo or 0) + 1}"
+    (`None` si no hay ninguno). Sin ceros a la izquierda, como el clasico; con
+    `cifras` (F-007: la serie `PROF` va a 5, M1), relleno con ceros hasta ellas."""
+    return f"{prefijo}{str((maximo or 0) + 1).zfill(cifras)}"
 
 
 def _decimal(valor: float | Decimal) -> Decimal:
@@ -625,7 +627,9 @@ class SellosAlbaran:
     tiemod: float   # fecha OLE en UTC del alta: con.tiemod (F-015 R8, F-006)
 
 
-def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> SellosAlbaran:
+def sellos_del_alta(
+    instante_utc: datetime, fecha_albaran: int | None, prefijo: str = PREFIJO_SERIE
+) -> SellosAlbaran:
     local = hora_local_de_madrid(instante_utc)
     fec_alta = int(f"{local:%Y%m%d}")
     hor = int(f"{local:%H%M%S}")
@@ -635,7 +639,7 @@ def sellos_del_alta(instante_utc: datetime, fecha_albaran: int | None) -> Sellos
         hor=hor,
         fec_alta=fec_alta,
         fechor=float(f"{fec_alta}.{hor:06d}"),
-        prefijo=prefijo_de_serie(fec),
+        prefijo=prefijo_de_serie(fec, prefijo),
         tiemod=fecha_ole_utc(instante_utc),
     )
 

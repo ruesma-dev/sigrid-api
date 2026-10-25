@@ -16,7 +16,7 @@ la clasica (R7).
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -123,6 +123,9 @@ _CLAVE_CLASICO = "lineas_recibidas"
 class FalloLinea(BaseModel):
     """Una linea que no vale, dentro de `details.lineas` (R9)."""
 
+    #: Conjunto CERRADO de la clase (F-007, costura 5): una subclase lo amplia.
+    codigos: ClassVar[frozenset[str]] = CODIGOS_LINEA
+
     indice: int = Field(..., ge=0)
     referencia_linea: str
     codigo: str
@@ -131,7 +134,7 @@ class FalloLinea(BaseModel):
     @field_validator("codigo")
     @classmethod
     def _codigo_de_linea(cls, value: str) -> str:
-        if value not in CODIGOS_LINEA:
+        if value not in cls.codigos:
             raise ValueError(f"'{value}' no es un codigo de linea de sigrid/albaran.")
         return value
 
@@ -146,13 +149,16 @@ class AlbaranCompraError(ValueError):
     TODAS las lineas que fallan.
     """
 
+    #: Conjunto CERRADO de la clase (F-007, costura 5): una subclase lo amplia.
+    codigos: ClassVar[frozenset[str]] = CODIGOS_CABECERA
+
     def __init__(
         self, mensaje: str, *, codigo: str, lineas: list[FalloLinea] | None = None
     ) -> None:
-        if codigo not in CODIGOS_CABECERA:
+        if codigo not in type(self).codigos:
             raise ValueError(
                 f"'{codigo}' no es un codigo de error de sigrid/albaran. "
-                f"Permitidos: {', '.join(sorted(CODIGOS_CABECERA))}"
+                f"Permitidos: {', '.join(sorted(type(self).codigos))}"
             )
         lineas = list(lineas or [])
         if codigo == "lineas_no_validas" and not lineas:
@@ -313,13 +319,16 @@ class AlbaranCompraRequest(BaseModel):
 class AvisoAlbaran(BaseModel):
     """Aviso con codigo (H27): F-053 decide por el `codigo`, nunca por el texto."""
 
+    #: Conjunto CERRADO de la clase (F-007, costura 5): una subclase lo amplia.
+    codigos: ClassVar[frozenset[str]] = CODIGOS_AVISO
+
     codigo: str
     mensaje: str
 
     @field_validator("codigo")
     @classmethod
     def _codigo_de_aviso(cls, value: str) -> str:
-        if value not in CODIGOS_AVISO:
+        if value not in cls.codigos:
             raise ValueError(f"'{value}' no es un codigo de aviso de sigrid/albaran.")
         return value
 
