@@ -24,8 +24,10 @@ transaccion del nucleo. El SQL es el constante de `ProformaStatements` y de
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
+
+from pydantic import PrivateAttr
 
 from application.use_cases.albaran_compra_statements import (
     AlbaranCompraStatements,
@@ -76,6 +78,32 @@ from domain.models.proforma_models import (
     ProformaRequest,
     ProformaResponse,
 )
+
+
+@dataclass(frozen=True)
+class _Contexto:
+    """Lo que `_comprobar_dentro` necesita de la proforma (R28)."""
+
+    ctride: int
+    periodo: int
+    importe_mes: float
+    otra_del_mes: bool
+
+
+class _AltaDeProforma(AlbaranCompraRequest):
+    """La peticion traducida al nucleo con el contexto de R28, que no viaja en
+    ningun campo: el nucleo la trata como una `AlbaranCompraRequest` mas."""
+
+    _contexto: _Contexto | None = PrivateAttr(default=None)
+
+
+class _ExistenteDentro(Exception):
+    """R28: bajo el applock aparecio la proforma del mes con el mismo total."""
+
+    def __init__(self, proforma: ProformaRegistrada) -> None:
+        super().__init__(proforma.cod)
+        self.proforma = proforma
+
 
 #: Lo que distingue el alta de una proforma (costura 1, R4, R12).
 PERFIL_PROFORMA = PerfilAlta(
@@ -218,9 +246,18 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
             if existente is not None:
                 return self._existente(request, lecturas, existente, resuelto, origen, avisos)
 
-        # 6. Traduccion y nucleo.
-        alta = traducir(request, contrato=contrato, identificadas=identificadas, fecha=fecha)
-        nucleo = self._ejecutar(alta)
+        # 6. Traduccion y nucleo, con lo que R28 repite bajo el applock de referencias.
+        traducida = traducir(request, contrato=contrato, identificadas=identificadas, fecha=fecha)
+        alta = _AltaDeProforma.model_validate(traducida.model_dump())
+        alta._contexto = _Contexto(
+            ctride=ctride, periodo=request.periodo, importe_mes=request.importe_mes,
+            otra_del_mes=request.otra_del_mes,
+        )
+        try:
+            nucleo = self._ejecutar(alta)
+        except _ExistenteDentro as dentro:
+            # La transaccion ya se ha revertido sin escribir nada (R28).
+            return self._existente(request, lecturas, dentro.proforma, resuelto, origen, avisos)
         # 7. Respuesta (R30).
         return self._convertir(
             request, nucleo, resuelto=resuelto, origen=origen, avisos=avisos,
@@ -322,8 +359,31 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         )
 
     # ------------------------------------------------------------------ #
-    # Nucleo: la clase de la `dca` (R12)
+    # Nucleo: R28 dentro de la transaccion y la clase de la `dca` (R12)
     # ------------------------------------------------------------------ #
+    def _comprobar_dentro(
+        self, cursor: Any, request: AlbaranCompraRequest, cabecera: _Cabecera
+    ) -> None:
+        """R28 (costura 3): tras E1, con `SIGRID_REFEXT_14` tomado y antes de
+        reservar nada, LP1 otra vez por el cursor del `work`. Una del mes con el
+        mismo total aparecida entre tanto es `existente`; con otro total, el
+        error de R24; con `otra_del_mes`, sigue. Sin contrato no hay R24. Lo que
+        se lance aqui revierte la transaccion sin escribir."""
+        contexto = getattr(request, "_contexto", None)
+        if contexto is None or not contexto.ctride:
+            return
+        sql, params = ProformaStatements(
+            database=request.database
+        ).leer_proformas_del_contrato(contexto.ctride)
+        cursor.execute(sql, *params)
+        proformas = [ProformaRegistrada.de_fila(fila) for fila in cursor.fetchall()]
+        existente, _avisos = buscar_del_mes(
+            proformas, periodo=contexto.periodo, importe_mes=contexto.importe_mes,
+            otra_del_mes=contexto.otra_del_mes,
+        )
+        if existente is not None:
+            raise _ExistenteDentro(existente)
+
     def _construir(
         self,
         request: AlbaranCompraRequest,
