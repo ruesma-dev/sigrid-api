@@ -179,7 +179,7 @@ Cada tarea de implementación siguiente (T4, T5, T7, T9, T11, T13, T15, T17) dej
 | Tests ejecutados | 3347 passed, 1 skipped (suite completa en `init.sh`); 466 de F-007 |
 | Cobertura de las líneas cambiadas | **100,0 %** (710/710, umbral 80 %, nivel critico) |
 | Mutantes generados / supervivientes | Ronda 2: **374 / 2** (372 muertos, 0 timeouts): uno equivalente justificado y uno cazado después (`8c92d52`). Ronda 1: 375 / 67. Manuales: 10 / 0 |
-| Tiempo de la suite | 92,55 s con cobertura (`init.sh`); F-007 sola, 4,0 s; campaña ronda 2, 3755 s |
+| Tiempo de la suite | 100,63 s con cobertura (`init.sh`); F-007 sola, 4,0 s; campaña ronda 2, 3755 s |
 
 Salida de `bash harness/init.sh` (última ejecución, sin las líneas de puntos):
 
@@ -187,10 +187,10 @@ Salida de `bash harness/init.sh` (última ejecución, sin las líneas de puntos)
 [OK] Arnés v1.7.8 (2026-09-02) · [OK] features.json válido · [OK] BACKLOG.md al día
 [AVISO] Hay features en estado blocked: revisa progress/current.md      (F-015, previa)
 [AVISO] ruff: 79 avisos (deuda previa, no bloquea)
-3347 passed, 1 skipped, 1 warning in 92.55s (0:01:32)
+3347 passed, 1 skipped, 1 warning in 100.63s (0:01:40)
 [OK] pytest en verde (con medición de cobertura)
 [OK] PUERTA COBERTURA: 100.0% de 710 líneas cambiadas cubiertas (710/710, umbral 80%, nivel critico)
-[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 239/250, impl 142/220)
+[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 239/250, impl 196/220)
 [OK] Rama actual: feature/F-007-registrar-proforma
 ENTORNO LISTO. Puedes trabajar.
 ```
