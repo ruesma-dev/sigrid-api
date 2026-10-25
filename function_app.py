@@ -18,6 +18,7 @@ from application.use_cases.create_direct_albaran_use_case import CreateDirectAlb
 from application.use_cases.create_partes_reclamacion_use_case import (
     CreatePartesReclamacionUseCase,
 )
+from application.use_cases.create_proforma_use_case import CreateProformaUseCase
 from application.use_cases.create_purchase_albaran_use_case import CreatePurchaseAlbaranUseCase
 from application.use_cases.execute_sql_command_use_case import ExecuteSqlCommandUseCase
 from application.use_cases.execute_sql_query_use_case import ExecuteSqlQueryUseCase
@@ -39,6 +40,7 @@ from domain.models.parte_reclamacion_models import (
     CreatePartesReclamacionRequest,
     ParteReclamacionError,
 )
+from domain.models.proforma_models import ProformaError, ProformaRequest
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
 from infrastructure.repositories.sql_server_repository import SqlServerRepository
@@ -286,7 +288,74 @@ def _respuesta_albaran_compra_error(exc: AlbaranCompraError, ruta: str) -> func.
     details: dict[str, Any] = {"type": type(exc).__name__, "codigo": exc.codigo}
     if exc.lineas:
         details["lineas"] = [fallo.model_dump() for fallo in exc.lineas]
+    # F-007 (D5): `hoja_de_varios_contratos` lleva el reparto linea -> contrato.
+    reparto = getattr(exc, "reparto", None)
+    if reparto:
+        details["reparto"] = dict(reparto)
     return error_response(str(exc), status_code=400, details=details)
+
+
+@app.route(route="sigrid/proforma", methods=["POST"])
+def sigrid_proforma(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Alta idempotente de UNA proforma DE MES de un subcontratista (F-007): la
+    hoja del jefe de obra ya leida y casada por el microservicio `proformas`.
+    La API resuelve el contrato (o lo toma de `cod_contrato`), valida las
+    lineas contra el, comprueba que la hoja cuadra, calcula lo registrado y,
+    si la proforma del mes ya esta en Sigrid con el mismo importe, la devuelve
+    `existente` sin escribir. Si no, la da de alta con el nucleo del modo
+    extendido de `sigrid/albaran` como albaran de compra (con.tip 14) de la
+    serie `PROF<aa>/` y `dca.cla 141`, con `entref` `PROF<MMAA>_<obra>`.
+
+    DRY-RUN por defecto (commit=false). El commit exige ademas
+    SIGRID_PROFORMA_WRITE_ENABLED (R5), comprobada aqui antes del caso de uso.
+    Los fallos de negocio son 400 con `details.codigo` (y `details.lineas`, con
+    `candidatos`, o `details.reparto`); el cuerpo invalido, 400 de F-012.
+    """
+    try:
+        deps = build_dependencies()
+        settings, repository = deps[0], deps[1]
+        body = req.get_json()
+        try:
+            request_model = ProformaRequest.model_validate(body)
+        except ValidationError as exc:
+            # Donde y que fallo, nunca los valores: textos, nombres e importes (R33).
+            logger.warning(
+                "ValidationError en sigrid/proforma: %s",
+                [(error["loc"], error["type"]) for error in exc.errors()],
+            )
+            return validation_error_response(exc)
+        _exigir_escritura_de_proformas(settings, request_model.commit)
+        use_case = CreateProformaUseCase(repository, settings)
+        return json_response(use_case.run(request_model))
+    except AlbaranCompraError as exc:
+        return _respuesta_albaran_compra_error(exc, "sigrid/proforma")
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/proforma: %s", type(exc).__name__)
+        return error_response(
+            str(exc),
+            status_code=400,
+            details={"type": type(exc).__name__},
+        )
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/proforma")
+        return error_response(
+            "Error interno ejecutando sigrid/proforma.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
+def _exigir_escritura_de_proformas(settings: Settings, commit: bool) -> None:
+    """R5: la llave propia del commit de sigrid/proforma, despues de validar el
+    modelo y ANTES del caso de uso. La de albaranes no la abre; el dry-run no
+    cambia."""
+    if commit and not settings.sigrid_proforma_write_enabled:
+        raise ProformaError(
+            "Escritura de proformas desactivada (SIGRID_PROFORMA_WRITE_ENABLED=false): "
+            "no se ha escrito nada.",
+            codigo="escritura_proformas_deshabilitada",
+        )
 
 
 @app.route(route="sigrid/albaran-directo", methods=["POST"])
