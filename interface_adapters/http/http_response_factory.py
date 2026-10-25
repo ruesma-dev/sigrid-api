@@ -45,8 +45,9 @@ def _errores_serializables(exc: ValidationError) -> list[dict[str, Any]]:
 
 def validation_error_response(exc: ValidationError) -> func.HttpResponse:
     """400 «Solicitud invalida.» con `details` = `{type, validation}`, el de las
-    9 rutas (F-012 R8). `validation` es `exc.errors()` serializable siempre (R4,
-    R6). No traza nada: cada ruta conserva su propia traza (R11)."""
+    10 rutas (F-012 R8; la decima, `sigrid/proforma`, de F-007). `validation`
+    es `exc.errors()` serializable siempre (R4, R6). No traza nada: cada ruta
+    conserva su propia traza (R11)."""
     return error_response(
         "Solicitud invalida.",
         status_code=400,

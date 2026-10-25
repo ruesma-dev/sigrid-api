@@ -1,9 +1,9 @@
 <!-- specs/F-007-registrar-proforma/contrato_proformas.md -->
 # Contrato proformas ↔ sigrid-api · registro de la proforma del jefe de obra
 
-**F-007 de sigrid-api (`POST /api/sigrid/proforma`) ↔ F-005 del microservicio `proformas`.** **Borrador v0.1**
-(2026-10-25), escrito con la spec v3 de F-007 y las decisiones del humano de ese día: pendiente de la PARADA 1 y de la
-respuesta de `proformas` (§7). Traspaso de origen: `proformas/docs/referencia/01_traspaso_facturas.md`. Plantilla de
+**F-007 de sigrid-api (`POST /api/sigrid/proforma`) ↔ F-005 del microservicio `proformas`.** **v1**
+(2026-10-25): lo implementado en la rama `feature/F-007-registrar-proforma` (spec v3, PARADA 1 aprobada ese día).
+**Pendiente de despliegue** y de la respuesta de `proformas` (§7). Cambios desde el borrador v0.1 en §8. Traspaso de origen: `proformas/docs/referencia/01_traspaso_facturas.md`. Plantilla de
 hoja propuesta para los jefes de obra: [`plantilla_hoja.md`](plantilla_hoja.md).
 
 **Dueño**: sigrid-api (expone el endpoint). `proformas` lo consume y **no lo copia**: enlaza aquí. Si este documento y
@@ -36,16 +36,16 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
 | `usu` | texto ≤24 | sí | — | `dbo.usu.cod` de **quien aprueba** en la bandeja (traza `log`) |
 | `referencia_externa` | texto 1-128 | sí | — | `PRF-` + id de la proforma en `proformas`; clave de idempotencia (`dca.synckey`) |
 | `cod_obra` | texto | sí | OBRA («719.…» → `0719`) | Obra de las empresas permitidas |
-| `periodo` | `AAAAMM` | sí | MES («AGOSTO-26» → `202608`) | Mes de la proforma; fecha = último día si ya pasó |
+| `periodo` | entero `AAAAMM` | sí | MES («AGOSTO-26» → `202608`) | Mes de la proforma; fecha = último día si ya pasó. **Número, no texto**: `"202608"` da 400 |
 | `importe_mes` | número | sí | TOTALES · IMPORTE MES | Debe ser Σ round(`cantidad`·`precio`, 2) ± 0,05 |
 | `importe_anterior` | número | no | TOTALES · IMPORTE ANTERIOR | Se compara con lo registrado (aviso) |
 | `importe_origen` | número | no | TOTALES · IMPORTE ORIGEN | Con el anterior: ORIGEN = ANTERIOR + MES (error si no) |
 | `cod_contrato` | texto | no | Nº CONTRATO | Si viene, **manda** (así se cambia el resuelto) |
-| `cif_proveedor` | texto | no¹ | — | Resuelve el contrato (`ctr.entcif`); obligatorio con `sin_contrato` |
+| `cif_proveedor` | texto | no¹ | — | Resuelve el contrato (`ctr.entcif`); si viene, **manda sobre el nombre** (solo se filtra por CIF); obligatorio con `sin_contrato` |
 | `nombre_proveedor` | texto ≤128 | no¹ | SUBCONTRATISTA | Resuelve el contrato por nombre normalizado en `ctr.entres` |
-| `sin_contrato` | bool | no | Nº CONTRATO vacío | Alta sin contrato (todas las líneas sin vincular, sin retención) |
+| `sin_contrato` | bool | no | Nº CONTRATO vacío | Alta sin contrato (todas las líneas sin vincular, sin retención). Sin contrato **no** se comprueba la hoja (`importe_mes_no_cuadra`, `hoja_descuadrada`, `linea_descuadrada`), ni se calcula el origen ni se busca la del mes (`existente`) |
 | `otra_del_mes` | bool | no | — | Permite una segunda proforma del mismo contrato y mes |
-| `fecha_proforma` | `AAAAMMDD` | no | — | Debe caer en `periodo` |
+| `fecha_proforma` | entero `AAAAMMDD` | no | — | Debe caer en `periodo` |
 | `su_referencia` | texto ≤128 | no | — | `dca.entref`; por defecto `PROF<MMAA>_<obra>` (§6) |
 | `numero_orden` | entero | no | Nº ORDEN | Solo traza (es el ordinal mensual, no se valida) |
 | `commit` | bool | no | — | `false` por defecto |
@@ -69,7 +69,9 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
 | `partida_imputacion` | texto | no | — | Otra partida que la de la línea de contrato |
 
 ² `ctrpro_ide` y `producto` no van juntos. La API admite, como respaldo para otro llamante, una línea de contrato sin
-`ctrpro_ide` (la identifica por partida, medición de contrato, unidad y precio); `proformas` no lo usa.
+`ctrpro_ide` (la identifica por partida, medición de contrato, unidad y precio); `proformas` no lo usa. En ese
+respaldo la `partida`, si viene, es filtro duro; medición, unidad y precio solo se aplican mientras queden varias y
+solo si dejan alguna.
 
 ## 3. Respuesta
 
@@ -80,8 +82,12 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
   proforma **de ese contrato** y mes con el mismo importe (también una `AC` con `entref` `PROF…`); la devuelve, **no
   escribe** y trae por línea `dcapro_ide`, `linoriide`, `producto`, `cantidad`, `precio` e `importe`, en previa y con
   `commit`, para enlazarla sin otra lectura.
-- `contrato`: `cod`, `ide`, `resuelto_por` (`peticion`, `proveedor` o `lineas`) y `candidatos` (sus `cod`).
-- `origen`: `importe_anterior_sigrid`, `importe_mes`, `importe_origen`, `importe_contrato`, `porcentaje_contrato`.
+  En `existente`, `cabecera` trae `fec` y `entref`, `totales` trae `totbas` y `n_lineas`, y `avisos` los de la hoja
+  (`anterior_distinto_de_sigrid`, `supera_contrato`, `supera_contrato_10`, `contrato_a_origen`).
+- `contrato`: `cod`, `ide`, `resuelto_por` (`peticion`, `proveedor` o `lineas`) y `candidatos` (sus `cod`). Nulo con
+  `sin_contrato`. En `idempotente` viene el contrato y `origen` es nulo.
+- `origen`: `importe_anterior_sigrid`, `importe_mes`, `importe_origen`, `importe_contrato`, `porcentaje_contrato`;
+  nulo sin contrato.
 - Por línea: `de_contrato`, `ctrpro_ide`, `cantidad_anterior_sigrid`.
 
 Ejemplo (hoja de agosto de `CTSB26/0472`, obra 0719, en `docs/referencia/proforma_ejemplo_bau_siglo_xxi.md`; dos de
@@ -90,7 +96,7 @@ sus seis líneas y BERENJENO): la proforma ya existe en Sigrid (`AC26/25548`, M2
 ```jsonc
 // POST /api/sigrid/proforma
 {"database": "ruesma", "usu": "<login de quien aprueba>", "referencia_externa": "PRF-<id en proformas>",
- "cod_obra": "0719", "periodo": "202608", "nombre_proveedor": "BAU SIGLO XXI", "numero_orden": 2,
+ "cod_obra": "0719", "periodo": 202608, "nombre_proveedor": "BAU SIGLO XXI", "numero_orden": 2,
  "importe_mes": 17024.28, "importe_anterior": 2651.00, "importe_origen": 19675.28,
  "lineas": [
   {"referencia_linea": "F09", "ctrpro_ide": 262990, "unidad": "M3", "descripcion": "VERTIDO HORMIGON CIMENTACION LIMPIEZA",
@@ -120,8 +126,8 @@ contrato: naturaleza, cuenta e IVA de su línea de contrato) y la retención del
 
 | Código | Tipo | Cuándo | Qué hace `proformas` (propuesta) |
 |---|---|---|---|
-| `contrato_no_resuelto` | error | Ningún contrato de la obra y el proveedor a la fecha | Revisar proveedor; o `cod_contrato`, o `sin_contrato` |
-| `contrato_ambiguo` | error | Varios candidatos que no deshacen las líneas (mensaje con sus `cod`) | La persona elige y reenvía con `cod_contrato` |
+| `contrato_no_resuelto` | error | Ningún contrato de la obra y el proveedor a la fecha, o una línea de contrato que no está en ninguno de los candidatos | Revisar proveedor; o `cod_contrato`, o `sin_contrato` |
+| `contrato_ambiguo` | error | Varios candidatos que no deshacen las líneas: ninguna línea de contrato, o líneas que están en más de uno (mensaje con sus `cod`) | La persona elige y reenvía con `cod_contrato` |
 | `hoja_de_varios_contratos` | error | Las líneas se reparten entre contratos (`details.reparto`) | Una petición por contrato, mismo `periodo` |
 | `contrato_de_otro_proveedor` | error | `cod_contrato` de otro CIF | Revisar |
 | `periodo_no_valido` | error | Mes futuro o `fecha_proforma` fuera del mes | Revisar |
@@ -129,6 +135,8 @@ contrato: naturaleza, cuenta e IVA de su línea de contrato) y la retención del
 | `proforma_del_mes_existente` | error | Ya hay una del contrato y mes con otro importe (mensaje con su `cod`) | La persona decide; `otra_del_mes` si es una segunda |
 | `lineas_no_validas` | error | Fallos por línea: `linea_no_es_del_contrato`, `producto_obligatorio`, `producto_no_permitido`, `linea_descuadrada`, `linea_ambigua` (solo respaldo) y los de F-009 (`partida_*`…) | Recasar la línea o elegir el producto |
 | `escritura_proformas_deshabilitada`, `referencia_no_permitida`, `demasiadas_lineas`, `referencia_en_conflicto` | error | Configuración o reintento con otra proforma | — |
+| (sin `codigo`) | error | Cuerpo que no valida: 400 `Solicitud invalida.` con `details.validation` (F-012); cuerpo que no es JSON o lectura truncada: 400 con `details.type` `ValueError` | Revisar la petición |
+| (500) | error | Inesperado | Reenviar la **misma** `referencia_externa`: la idempotencia dice si llegó a escribirse |
 | `anterior_distinto_de_sigrid` | aviso | ANTERIOR (cabecera o línea) ≠ lo registrado | Informativo (bis, anulaciones) |
 | `supera_contrato` | aviso | El origen supera el importe del contrato | Avisar de preparar una ampliación |
 | `supera_contrato_10` | aviso | Lo supera en más del 10 % | Frenar la aprobación; la factura no se podrá aprobar (`facturas` o F-008) |
@@ -157,3 +165,15 @@ la aprueba; avisar por correo; bloquear la aprobación o la factura; escribir ob
 TOTAL» en Sigrid; proformas a origen; varias proformas por petición; modificar o anular (se anula desde la UI).
 
 Preguntas: las de `design.md` §Preguntas para `proformas` (CIF o nombre; solo MES ≠ 0; avisos que bloquean).
+
+## 8. Cambios desde el borrador v0.1
+
+Lo que la implementación fijó y el borrador no decía (detalle en `progress/impl_F-007.md`, §Desviaciones):
+
+- `periodo` y `fecha_proforma` son **enteros** (como `fecha_albaran` de `sigrid/albaran`); el ejemplo de §3 lo
+  escribía como texto, que da 400.
+- El CIF manda sobre el nombre al resolver el contrato (§2.1).
+- Cuándo es `contrato_no_resuelto` y cuándo `contrato_ambiguo` con varios candidatos (§4); el respaldo sin
+  `ctrpro_ide` (nota ² de §2.2).
+- Sin contrato no hay comprobaciones de la hoja ni `existente` (§2.1).
+- Forma de `existente` y de `idempotente` (§3), y los 400 sin `codigo` y el 500 (§4).
