@@ -107,6 +107,19 @@ debe dar `existente` sobre `AC26/25548`, `/29425` y `/25551`. `harness/features.
 actualiza el líder. `azure-apps` no tiene todavía documento de `proformas`; el `entref` que lee `facturas` se declara
 allí en T19 (R36).
 
+### Implementación de F-007 (implementer, 2026-10-25): T1-T17 hechas
+
+- **Hecho**: lotes A, B y C (T1-T17), un commit por tarea hasta `bbd562c`; informe en
+  [`impl_F-007.md`](impl_F-007.md). `bash harness/init.sh` en verde: 3297 passed, cobertura 100 % de las 712
+  líneas cambiadas. Dorados y tests de F-009/F-015, su doble e `infrastructure/` sin tocar (`git diff dev` vacío).
+- **Desviaciones para revisar** (detalle en el informe §Desviaciones): `PerfilAlta` con `cifras_serie` y `error`;
+  `periodo` entero (el ejemplo de `contrato_proformas.md` lo pone como texto); fixture de la 0417 con la de agosto
+  (`AC26/25552`) y no `/29425`; el CIF manda sobre el nombre en R8; reglas de R9 y del embudo de R14 sin caso
+  explícito en la spec; sin contrato, ninguna comprobación de R19 (R11 literal); el test de F-012 que cuenta las
+  rutas con `validation_error_response` pasa de 9 a 10.
+- **Queda**: T18 (mutación), T19 (documentación, incluido alinear `periodo` en el contrato y el «9 rutas» del
+  docstring de `validation_error_response`), T20-T22 MANUALES, T23 revisión, T24.
+
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
 Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
