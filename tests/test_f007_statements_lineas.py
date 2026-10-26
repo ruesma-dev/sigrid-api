@@ -565,6 +565,27 @@ def test_f007_traducir_cabecera_campo_a_campo() -> None:
     }
 
 
+def _solo_la_nueva() -> ProformaRequest:
+    """La hoja de CTSB26/0472 con solo la BERENJENO (sin contrato, no hay que identificar)."""
+    nueva = DATOS["hojas"]["CTSB26/0472"]["lineas"][-1]
+    return peticion("CTSB26/0472", lineas=[nueva], importe_mes=265.48, importe_anterior=None,
+                    importe_origen=None)
+
+
+def test_f007_o4_traducir_normaliza_el_cif_del_contrato() -> None:
+    sucio = ContratoCandidato(**{**DATOS["contratos"][0], "entcif": " b 00000472 "})
+    traducida = traducir(_solo_la_nueva(), contrato=sucio, identificadas={}, fecha=20260831)
+    assert traducida.cif_proveedor == "B00000472"
+
+
+def test_f007_o4_traducir_con_el_contrato_sin_cif_es_un_fallo_con_codigo() -> None:
+    sin_cif = ContratoCandidato(**{**DATOS["contratos"][0], "entcif": "  "})
+    with pytest.raises(ProformaError) as exc:
+        traducir(_solo_la_nueva(), contrato=sin_cif, identificadas={}, fecha=20260831)
+    assert exc.value.codigo == "proveedor_no_encontrado"
+    assert "CTSB26/0472" in str(exc.value) and "entcif" in str(exc.value)
+
+
 def test_f007_traducir_lineas_de_contrato_y_nueva_en_su_orden() -> None:
     traducida = _traducida()
     assert traducida.lineas[0] == LineaAlbaranIn(

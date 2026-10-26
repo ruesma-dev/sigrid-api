@@ -363,9 +363,51 @@ def test_f007_r7_cod_contrato_resuelto_por_peticion() -> None:
         cod="CTSB26/0472", ide=CTR_0472, resuelto_por="peticion", candidatos=["CTSB26/0472"]
     )
     assert respuesta.contrato is not None
-    (locate,) = [datos for tipo, datos in repo.llamadas if tipo == "locate_contract"]
-    assert (locate["cod_contrato"], locate["cif_proveedor"], locate["cod_obra"]) == (
-        "CTSB26/0472", "B00000472", "0719")
+    # O4: el nucleo carga el contrato YA resuelto por su `ide`, sin volver a buscarlo.
+    assert "locate_contract" not in [tipo for tipo, _datos in repo.llamadas]
+    assert ("read_full_row", ("ctr", CTR_0472)) in repo.llamadas
+
+
+class RepositorioCifComoSql(RepositorioProforma):
+    """La 0719 con el `ctr.entcif` de CTSB26/0472 escrito como venga, y un
+    `locate_contract` que compara el CIF como el SQL (`t.entcif = ?`)."""
+
+    def __init__(self, entcif: str, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.entcif = entcif
+        self.lecturas["lp3_contratos"] = [
+            (c["ide"], c["cod"], c["fec"], entcif if c["ide"] == CTR_0472 else c["entcif"],
+             c["entres"], c["nlin"])
+            for c in DATOS["contratos"]
+        ]
+        self.filas[("ctr", CTR_0472)] = {**self.filas[("ctr", CTR_0472)], "entcif": entcif}
+
+    def locate_contract(self, **kwargs: Any) -> tuple[list[str], list[tuple[Any, ...]]]:
+        columnas, filas = super().locate_contract(**kwargs)
+        return columnas, [f for f in filas if kwargs["cif_proveedor"] == self.entcif]
+
+
+@pytest.mark.parametrize("commit", [False, True])
+@pytest.mark.parametrize("entcif", ["B 00000472", " b00000472"])
+def test_f007_o4_el_contrato_resuelto_se_graba_aunque_su_entcif_traiga_espacios(
+    entcif: str, commit: bool
+) -> None:
+    """O4: R8 resuelve el contrato por el nombre; la grabacion no debe volver a
+    buscarlo por un CIF normalizado que ya no es el de `ctr.entcif`."""
+    repo = RepositorioCifComoSql(entcif)
+    respuesta, repo = ejecutar(peticion(otra_del_mes=True, commit=commit), repo=repo)
+    assert respuesta.estado == ("creado" if commit else "previsto")
+    assert respuesta.contrato is not None and respuesta.contrato.cod == "CTSB26/0472"
+    assert respuesta.filas["dca"]["ctride"] == CTR_0472
+
+
+def test_f007_o4_contrato_sin_cif_es_un_fallo_con_codigo_sin_escribir() -> None:
+    """Un `ctr.entcif` vacio no puede acabar en un 400 sin `codigo` (un
+    `ValidationError` de la peticion del nucleo): es un fallo de negocio."""
+    repo = RepositorioCifComoSql("")
+    error = fallo(peticion(otra_del_mes=True, commit=True), repo=repo)
+    assert isinstance(error, ProformaError) and error.codigo == "proveedor_no_encontrado"
+    assert repo.transacciones == []
 
 
 def test_f007_r7_cod_contrato_de_otro_proveedor() -> None:
