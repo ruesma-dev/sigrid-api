@@ -728,12 +728,13 @@ class CreateAlbaranCompraUseCase:
             # E1: idempotencia bajo el applock de referencias, antes de reservar nada.
             _ejecutar(cursor, sentencias.buscar_referencia(request.referencia_externa))
             existente = self._resolver_referencia(list(cursor.fetchall()), cabecera)
+            # F-007 (costura 3): lo que un perfil comprueba bajo el applock de
+            # referencias antes de reservar nada, tambien con la fila de E1 antes
+            # de su salida idempotente (el albaran, nada).
+            self._comprobar_dentro(cursor, request, cabecera, existente)
             if existente is not None:
                 _ejecutar(cursor, sentencias.leer_lineas_de_albaran(int(existente[0])))
                 return {"idempotente": (existente, list(cursor.fetchall()))}
-            # F-007 (costura 3): lo que un perfil comprueba bajo el applock de
-            # referencias antes de reservar nada (el albaran, nada).
-            self._comprobar_dentro(cursor, request, cabecera)
 
             # E2-E7 (R26): reservas y balances vigentes, todo bajo UPDLOCK, HOLDLOCK.
             _ejecutar(cursor, sentencias.reservar_cod(emp, sellos.prefijo))
@@ -847,12 +848,17 @@ class CreateAlbaranCompraUseCase:
         )
 
     def _comprobar_dentro(
-        self, cursor: Any, request: AlbaranCompraRequest, cabecera: _Cabecera
+        self,
+        cursor: Any,
+        request: AlbaranCompraRequest,
+        cabecera: _Cabecera,
+        existente: tuple[Any, ...] | None,
     ) -> None:
         """F-007 (costura 3): gancho de `work` tras E1, con el applock de
-        referencias tomado y antes de reservar nada. El albaran no comprueba nada
-        mas: no lee ni toca el cursor. Lo que un perfil lance aqui revierte la
-        transaccion sin escribir."""
+        referencias tomado y antes de reservar nada; `existente` es la fila que
+        ha encontrado E1 (o `None`), antes de su salida idempotente. El albaran
+        no comprueba nada mas: no lee ni toca el cursor. Lo que un perfil lance
+        aqui revierte la transaccion sin escribir."""
 
     # ------------------------------------------------------------------ #
     # Lineas (R9, R12-R17)

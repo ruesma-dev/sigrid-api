@@ -105,6 +105,15 @@ class _ExistenteDentro(Exception):
         self.proforma = proforma
 
 
+def _conflicto_de_referencia(filas: Sequence[Sequence[Any]]) -> ProformaError:
+    """R23: la referencia esta en algo que no es UNA proforma de este contrato."""
+    return ProformaError(
+        f"La referencia externa ya esta en {len(filas)} documento(s) que no son una "
+        f"proforma de este contrato: {', '.join(str(f[1]).strip() for f in filas)}.",
+        codigo="referencia_en_conflicto",
+    )
+
+
 #: Lo que distingue el alta de una proforma (costura 1, R4, R12).
 PERFIL_PROFORMA = PerfilAlta(
     endpoint="sigrid/proforma",
@@ -196,11 +205,7 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         if referencias:
             if len(referencias) == 1 and es_proforma(referencias[0], ctride):
                 return self._idempotente(request, sentencias, resuelto)
-            raise ProformaError(
-                f"La referencia externa ya esta en {len(referencias)} documento(s) que no son una "
-                f"proforma de este contrato: {', '.join(str(f[1]).strip() for f in referencias)}.",
-                codigo="referencia_en_conflicto",
-            )
+            raise _conflicto_de_referencia(referencias)
 
         # 4. Etapa 1 de las lineas: todos sus fallos juntos.
         identificadas, fallos = revisar_lineas(
@@ -258,6 +263,10 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         except _ExistenteDentro as dentro:
             # La transaccion ya se ha revertido sin escribir nada (R28).
             return self._existente(request, lecturas, dentro.proforma, resuelto, origen, avisos)
+        if nucleo.estado == "idempotente":
+            # R28 (D3): la misma referencia aparecio bajo el applock; como la de
+            # fuera (R23), sin `origen` ni los avisos de la hoja.
+            origen, avisos = None, []
         # 7. Respuesta (R30).
         return self._convertir(
             request, nucleo, resuelto=resuelto, origen=origen, avisos=avisos,
@@ -362,19 +371,34 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
     # Nucleo: R28 dentro de la transaccion y la clase de la `dca` (R12)
     # ------------------------------------------------------------------ #
     def _comprobar_dentro(
-        self, cursor: Any, request: AlbaranCompraRequest, cabecera: _Cabecera
+        self,
+        cursor: Any,
+        request: AlbaranCompraRequest,
+        cabecera: _Cabecera,
+        existente: tuple[Any, ...] | None,
     ) -> None:
-        """R28 (costura 3): tras E1, con `SIGRID_REFEXT_14` tomado y antes de
-        reservar nada, LP1 otra vez por el cursor del `work`. Una del mes con el
-        mismo total aparecida entre tanto es `existente`; con otro total, el
-        error de R24; con `otra_del_mes`, sigue. Sin contrato no hay R24. Lo que
-        se lance aqui revierte la transaccion sin escribir."""
+        """R28 (costura 3, enmienda 1): tras E1, con `SIGRID_REFEXT_14` tomado y
+        antes de reservar nada, por el cursor del `work`. Si E1 ha encontrado la
+        referencia, R23 con LP5: solo sale `idempotente` si es UNA proforma del
+        contrato resuelto (o sin contrato, si lo era la peticion); si no,
+        `referencia_en_conflicto`. Si no, R24 con LP1: una del mes con el mismo
+        total aparecida entre tanto es `existente`; con otro total, el error de
+        R24; con `otra_del_mes`, sigue (sin contrato no hay R24). Lo que se
+        lance aqui revierte la transaccion sin escribir."""
         contexto = getattr(request, "_contexto", None)
-        if contexto is None or not contexto.ctride:
+        if contexto is None:
             return
-        sql, params = ProformaStatements(
-            database=request.database
-        ).leer_proformas_del_contrato(contexto.ctride)
+        lecturas = ProformaStatements(database=request.database)
+        if existente is not None:
+            sql, params = lecturas.buscar_referencia(request.referencia_externa)
+            cursor.execute(sql, *params)
+            filas = list(cursor.fetchall())
+            if len(filas) == 1 and es_proforma(filas[0], contexto.ctride):
+                return
+            raise _conflicto_de_referencia(filas)
+        if not contexto.ctride:
+            return
+        sql, params = lecturas.leer_proformas_del_contrato(contexto.ctride)
         cursor.execute(sql, *params)
         proformas = [ProformaRegistrada.de_fila(fila) for fila in cursor.fetchall()]
         existente, _avisos = buscar_del_mes(
