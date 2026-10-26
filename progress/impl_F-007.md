@@ -155,7 +155,7 @@ Origen: `review_F-007_*.md` (pasada 1) y enmienda 1 de la spec. RED antes que GR
 | Tests ejecutados | 3393 passed, 1 skipped (suite completa en `init.sh`); 512 de F-007; 1328 de F-007 + F-009 + F-015 |
 | Cobertura de las líneas cambiadas | **100,0 %** (736/736, umbral 80 %, nivel critico) |
 | Mutantes generados / supervivientes | Pasada 1 (`4a94da0`): **381 / 5** (376 muertos, 0 timeouts): 1 equivalente aceptado por el humano (`cifras`), 1 hueco cazado con test, 2 falsos de la herramienta (mueren a mano), 1 guarda reescrita; **0 no aceptados**. Manuales: 11 / 0 (N7, A1-A5, S1-S5). Rondas anteriores: 375 / 67 y 374 / 2 |
-| Tiempo de la suite | 156,90 s con cobertura (`init.sh`); F-007 sola, 6,4 s; campaña de la pasada 1, 4674,3 s (media 12,3 s por mutante) |
+| Tiempo de la suite | 167,74 s con cobertura (`init.sh`); F-007 sola, 6,4 s; campaña de la pasada 1, 4674,3 s (media 12,3 s por mutante) |
 
 Salida de `bash harness/init.sh` (última ejecución, sin las líneas de puntos):
 
@@ -164,10 +164,10 @@ Salida de `bash harness/init.sh` (última ejecución, sin las líneas de puntos)
     15 features, 6 abiertas, en curso: ['F-007'], bloqueadas: ['F-015']
 [AVISO] Hay features en estado blocked: revisa progress/current.md      (F-015, previa)
 [AVISO] ruff: 79 avisos (deuda previa, no bloquea)
-3393 passed, 1 skipped, 1 warning in 156.90s (0:02:36)
+3393 passed, 1 skipped, 1 warning in 167.74s (0:02:47)
 [OK] pytest en verde (con medición de cobertura)
 [OK] PUERTA COBERTURA: 100.0% de 736 líneas cambiadas cubiertas (736/736, umbral 80%, nivel critico)
-[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 248/250, impl 164/220)
+[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 248/250, impl 173/220)
 [OK] Rama actual: feature/F-007-registrar-proforma
 ENTORNO LISTO. Puedes trabajar.
 ```
