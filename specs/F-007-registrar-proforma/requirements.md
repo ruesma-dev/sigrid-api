@@ -1,12 +1,11 @@
 <!-- specs/F-007-registrar-proforma/requirements.md -->
-# F-007 · Requisitos (v3, pendiente de la PARADA 1)
+# F-007 · Requisitos (v3.1: enmienda 1 del 2026-10-26, tras la pasada 1 de revisión)
 
-**`POST /api/sigrid/proforma`: alta idempotente de UNA proforma DE MES** (las cantidades del mes, no a origen) **de un
-subcontratista**, con la hoja que prepara el jefe de obra. La llama el microservicio `proformas` (su F-005) tras la
-aprobación en su bandeja, con la hoja ya leída y casada (leerla es suyo); `facturas` solo lee lo registrado, por
-`sql/read`. Es un albarán de compra (`con.tip 14`) de la serie `PROF<aa>/`, `dca.cla 141`, `docoritip 0`, solo con las
-partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40). **Mn**:
-[`explore_F-007.md`](../../progress/explore_F-007.md) §v3; **Dn**: design §Decisiones; petición y respuesta:
+**`POST /api/sigrid/proforma`: alta idempotente de UNA proforma DE MES** (no a origen) **de un subcontratista**, con la
+hoja del jefe de obra. La llama `proformas` (su F-005) tras aprobarla en su bandeja, con la hoja ya leída y casada;
+`facturas` solo lee lo registrado (`sql/read`). Es un albarán de compra (`con.tip 14`) de la serie `PROF<aa>/`, `dca.cla`
+141, `docoritip 0`, solo con las partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40). **Mn**:
+[`explore_F-007.md`](../../progress/explore_F-007.md) §v3; **Dn**: design §Decisiones; petición y respuesta en
 [`contrato_proformas.md`](contrato_proformas.md). F-009 y F-015 mandan en lo que aquí no se repite («F-009 Rn»).
 
 ## Petición y configuración
@@ -41,9 +40,9 @@ partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40).
   `contrato_de_otro_proveedor`. Manda sobre R8: es como el llamante cambia el contrato resuelto.
 - **R8.** CUANDO no venga `cod_contrato` ni `sin_contrato`, el sistema debe resolver el contrato (LP3, LP4): candidatos
   = contratos de la obra con `con.fec` ≤ último día de `periodo`, con alguna línea y del proveedor (`ctr.entcif` =
-  `cif_proveedor`, o el `nombre_proveedor` normalizado contenido en el `ctr.entres` normalizado; normalizar =
-  mayúsculas y solo letras y cifras); con uno, ese; con varios, los que contienen todas las **líneas de contrato** de
-  la petición (R13) por (partida, `medicion_contrato`); con uno, ese (M32).
+  `cif_proveedor`, o el `nombre_proveedor` normalizado contenido en el `ctr.entres` normalizado; normalizar = mayúsculas
+  y solo letras y cifras); con uno, ese; con varios, los que contienen todas las **líneas de contrato** de la petición
+  (R13), por su `ctrpro_ide` o, sin él, por partida y precio (±0,0001) como R14; con uno, ese (M32).
 - **R9.** SI tras R8 no queda ningún candidato, ENTONCES `contrato_no_resuelto`; SI quedan varios, ENTONCES
   `contrato_ambiguo` con sus `cod` en el mensaje; SI ningún candidato contiene todas las líneas de contrato pero dos o
   más las reparten sin solaparse, ENTONCES `hoja_de_varios_contratos` con, por línea, el `cod` de su contrato (D5).
@@ -64,12 +63,12 @@ partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40).
 ## Líneas (D6)
 
 - **R13.** Una línea es **de contrato** si trae `ctrpro_ide` o `medicion_contrato` > 0; si no, **sin contrato**.
-- **R14.** CUANDO una línea de contrato traiga `ctrpro_ide`, el sistema debe comprobar solo que es del contrato resuelto,
-  sin re-identificarla ni sustituirla; SI no lo es (también si es de otro contrato de la obra), ENTONCES
-  `linea_no_es_del_contrato`. Sin `ctrpro_ide` (respaldo: `proformas` lo manda siempre, D6), debe identificarla entre
-  las del contrato por, en este orden y quedándose con las que casan mientras queden varias: `partida` = código de
-  partida (`obrparpar.cod` del `ctrpro.paride`), `ctrpro.can` = `medicion_contrato` (±0,001), `unimed` = `unidad` y
-  |`ctrpro.pre` − `precio`| ≤ 0,0001 (M33: 96,8 %); varias, `linea_ambigua` con sus `ctrpro_ide`; ninguna, la de arriba.
+- **R14.** CUANDO una línea de contrato traiga `ctrpro_ide`, el sistema debe comprobar solo que es del contrato
+  resuelto, sin re-identificarla ni sustituirla; SI no lo es (también si es de otro contrato de la obra), ENTONCES
+  `linea_no_es_del_contrato`. Sin `ctrpro_ide` (respaldo; `proformas` lo manda siempre, D6), debe quedarse, sin relajar
+  ningún filtro, con las del contrato de `partida` = código de partida (`obrparpar.cod` del `ctrpro.paride`; sin
+  `partida`, ninguna) y |`ctrpro.pre` − `precio`| ≤ 0,0001: una, esa; ninguna, la de arriba; varias, `linea_ambigua` con
+  sus `ctrpro_ide` (el desempate, por descripción, es de `proformas`). Medición, unidad y `producto` no cuentan.
 - **R15.** La línea de contrato debe construirse como la vinculada de F-009 (R12, R16-R17: `canoriori` = `ctrpro.can`,
   `imporiori` = `ctrpro.tot`, `canoriant`, `imporiant` y `canorilin` 0; aviso de precio distinto) con `paride` = el de
   `partida_imputacion` si viene (F-009 R14) o, si no, el del `ctrpro` (M28: 97,1 %).
@@ -77,8 +76,8 @@ partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40).
   de R4 o de los del contrato: SI no lo trae, ENTONCES `producto_obligatorio` (no hay producto por defecto, D6); SI no
   es de ninguno, `producto_no_permitido`. La partida es `partida_imputacion` o `partida` (F-009 R14).
 - **R17.** CUANDO el producto de una línea sin contrato sea del contrato, el sistema debe tomar su naturaleza, cuenta y
-  analítica de la plantilla de línea de F-009 (L8b, L8) y su IVA del `ctrpro` de ese producto, nunca del mapeo de R4
-  (M34: 95,8 %).
+  analítica de la plantilla de línea de F-009 (L8b, L8; sin ella, 0) y su IVA del `ctrpro` de ese producto, haya o no
+  plantilla, nunca del mapeo de R4 (M34: 95,8 %).
 
 ## Fecha, comprobaciones y avisos
 
@@ -103,12 +102,12 @@ partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40).
 
 - **R23.** CUANDO ya exista un `tip 14` con `dca.synckey` = `referencia_externa`, el sistema debe devolverlo
   `idempotente` como F-009 R30 solo si es una proforma (`cla 141`) del mismo contrato; si no, `referencia_en_conflicto`.
-- **R24.** CUANDO entre las proformas **del mismo contrato** (LP1 por `ctride`; ni por obra ni por subcontratista) haya
-  una del mismo mes (`con.fec` en `periodo`) con |`totbas` − `importe_mes`| ≤ 0,05, el sistema debe devolverla
-  `existente` **sin escribir**, en previa y con `commit`: `cod`, `ide`, `committed` `false` y, por línea (LP6),
-  `dcapro.ide`, `linoriide`, producto, cantidad, precio e importe. SI hay del mismo mes con otro total y no viene
-  `otra_del_mes`, ENTONCES `proforma_del_mes_existente` con sus `cod`; con `otra_del_mes`, aviso `otra_del_mes` y sigue
-  (M36; D10). Una hoja partida en dos peticiones (una por contrato, mismo `periodo`) no salta: cada una ve su contrato.
+- **R24.** CUANDO, sin `otra_del_mes`, entre las proformas **del mismo contrato** (LP1 por `ctride`; ni por obra ni por
+  subcontratista) haya una del mismo mes (`con.fec` en `periodo`) con |`totbas` − `importe_mes`| ≤ 0,05, el sistema debe
+  devolverla `existente` **sin escribir**, en previa y con `commit`: `cod`, `ide`, `committed` `false` y, por línea
+  (LP6), `dcapro.ide`, `linoriide`, producto, cantidad, precio e importe; SI solo las hay con otro total, ENTONCES
+  `proforma_del_mes_existente` con sus `cod`. Con `otra_del_mes` y alguna del mes (de cualquier total), aviso
+  `otra_del_mes` y sigue (M36; D10; una hoja de dos contratos, D5, no salta).
 - **R25.** MIENTRAS `commit` sea `false`, el sistema debe hacer solo lecturas y devolver `previsto` con `cod`/`ide`
   provisionales y todas las filas, como F-009 R23 y F-015 R20.
 - **R26.** CUANDO `commit` sea `true`, el sistema debe exigir como F-009 R24 `SIGRID_DOMAIN_WRITE_ENABLED`,
@@ -116,8 +115,9 @@ partidas de MES ≠ 0 y las de contrato vinculadas a su `ctrpro` (M27-M28, M40).
   prefijo de R4 y `demasiadas_lineas` por encima de `SIGRID_PROFORMA_MAX_LINEAS`.
 - **R27.** El sistema debe escribir la proforma en **una** transacción con los `INSERT` y `UPDATE` de F-009 R25 y la
   `dcarec` de F-015 R21, con los applocks de F-015 en su orden, y nada más (ni `dcapropar`, `dcaproana`, `asi`…).
-- **R28.** Dentro de la transacción, tras `SIGRID_REFEXT_14`, el sistema debe repetir R23 y R24 con LP1; SI el
-  resultado cambia, ENTONCES responder con lo que salga (`idempotente`, `existente` o el error) sin escribir.
+- **R28.** Dentro de la transacción, tras `SIGRID_REFEXT_14`, el sistema debe repetir R23 con LP5 (una fila con esa
+  referencia que no sea proforma del contrato resuelto da `referencia_en_conflicto`) y R24 con LP1; SI el resultado
+  cambia, ENTONCES responder con lo que salga (`idempotente`, `existente` o el error) sin escribir.
 - **R29.** SI un `INSERT` choca con una clave única o las relecturas no cuadran, ENTONCES como F-009 R27-R28 y F-015 R22.
 
 ## Respuesta, compatibilidad, trazas, pruebas y documentación

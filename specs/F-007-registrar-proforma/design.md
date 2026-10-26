@@ -1,5 +1,5 @@
 <!-- specs/F-007-registrar-proforma/design.md -->
-# F-007 · Diseño (v3, pendiente de la PARADA 1)
+# F-007 · Diseño (v3.1: enmienda 1 del 2026-10-26, tras la pasada 1 de revisión)
 
 Medición: [`progress/explore_F-007.md`](../../progress/explore_F-007.md) §v3 (**M27-M40**; M1-M15 siguen como hechos
 de Sigrid). Núcleo: F-009 tal como lo dejó **F-015** (fusionada en `dev` y desplegada). Llamante: el microservicio
@@ -41,8 +41,8 @@ contrato completo o las hojas de varios contratos en una llamada, hay que partir
 
 | Fichero | Qué cambia |
 |---|---|
-| `application/use_cases/create_albaran_compra_use_case.py` | §Costuras 1, 3 y 4: literales a `PerfilAlta` **con los mismos valores**; gancho `_comprobar_dentro`; `_Catalogo` con productos del contrato si el perfil lo pide |
-| `application/use_cases/albaran_compra_statements.py` | §Costuras 2: `prefijo_de_serie(fecha, prefijo=PREFIJO_SERIE)` y `sellos_del_alta(..., prefijo=PREFIJO_SERIE)`; ninguna constante SQL cambia |
+| `application/use_cases/create_albaran_compra_use_case.py` | §Costuras 1, 3 y 4: literales a `PerfilAlta` **con los mismos valores** (guardas, serie y error por el perfil); gancho `_comprobar_dentro`; `_Catalogo` con productos del contrato si el perfil lo pide |
+| `application/use_cases/albaran_compra_statements.py` | §Costuras 2: `prefijo_de_serie(fecha, prefijo=PREFIJO_SERIE)`, `sellos_del_alta(..., prefijo=PREFIJO_SERIE)` y `siguiente_cod(prefijo, maximo, *, cifras=0)`; ninguna constante SQL cambia |
 | `domain/models/albaran_compra_models.py` | §Costuras 5: `AlbaranCompraError` y `FalloLinea` validan contra atributos de clase (por defecto los conjuntos de hoy) |
 | `config/settings.py`, `local.settings.sample.json` | las cinco claves de R4, con `parse_string_list`/`parse_string_dict` de F-009 |
 | `function_app.py` | ruta `sigrid/proforma` (POST): validar, llave R5 solo con `commit`, `CreateProformaUseCase(repository, settings)` construido en la ruta (sin tocar la tupla de `build_dependencies`), `AlbaranCompraError` → 400 con `codigo` (y `reparto` si lo trae), `ValidationError` → F-012 |
@@ -57,16 +57,21 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
 
 ## Costuras en el núcleo (D12; sin cambio de conducta)
 
-1. `PerfilAlta` (dataclass congelada): `endpoint`, `prefijo_serie`, `codigo_llave`, `cla` y los nombres de los campos
-   de `Settings` (llave, prefijos de referencia, máximo de líneas, productos, naturalezas), y `productos_del_contrato:
-   bool`. `PERFIL_ALBARAN` reproduce los literales de hoy; `CreateAlbaranCompraUseCase.perfil = PERFIL_ALBARAN`. Un test
-   comprueba que todos los nombres existen en `Settings`.
-2. Prefijo de serie como parámetro con el defecto de hoy (`AC`).
-3. `_comprobar_dentro(cursor, request, cabecera)`: se llama en `work` justo después de E1 (idempotencia bajo
-   `SIGRID_REFEXT_14`); en la base no lee nada.
+1. `PerfilAlta` (dataclass congelada): `endpoint` (traza); `prefijo_serie` y `cifras_serie` (ancho del número, 0 = sin
+   relleno); `cla`; `codigo_llave`; los nombres de los campos de `Settings` `campo_llave`, `campo_prefijos`,
+   `campo_max_lineas`, `campo_productos` y `campo_naturalezas`; `productos_del_contrato: bool`, y `error`, la clase que
+   lanzan las guardas (defecto `AlbaranCompraError`). `_comprobar_guardas` lee los campos con `getattr(settings, …)` y
+   lanza `perfil.error` con `perfil.codigo_llave`. `PERFIL_ALBARAN` reproduce los literales de hoy (`AC`, 0, `cla` 0
+   que el núcleo no lee, `sigrid_albaran_*`); `PERFIL_PROFORMA`: `PROF`, 5, 141, `sigrid_proforma_*`, `ProformaError`.
+   `CreateAlbaranCompraUseCase.perfil = PERFIL_ALBARAN`. Un test comprueba que todos los nombres existen en `Settings`.
+2. Serie como parámetro con el defecto de hoy: prefijo (`AC`) y `siguiente_cod(..., cifras=)` (`zfill`; 0 da el
+   `AC<aa>/N` de hoy), con `perfil.cifras_serie` en la previa y en la reserva dentro de la transacción.
+3. `_comprobar_dentro(cursor, request, cabecera)`: se llama en `work` tras E1 (bajo `SIGRID_REFEXT_14`); en la base no
+   lee nada. Para R28 (enmienda 1) la subclase debe ver la fila que encuentre E1 **antes** de su salida idempotente:
+   la relee con LP5 por el `cursor` y, si no es proforma del contrato resuelto, `referencia_en_conflicto`.
 4. `_Catalogo`: si `perfil.productos_del_contrato`, una sin vincular cuyo producto es el de alguna línea del contrato
-   se admite fuera de la lista y toma naturaleza, cuenta y analítica de su plantilla de línea (L8b, L8) y el IVA de esa
-   línea del contrato (R17); con `False` (albarán), igual que hoy.
+   se admite fuera de la lista y toma naturaleza, cuenta y analítica de su plantilla de línea (L8b, L8; sin ella, 0) y
+   el IVA de esa línea del contrato **también sin plantilla** (R17); con `False` (albarán), igual que hoy.
 5. Códigos: conjuntos cerrados como atributo de clase, para que `ProformaError` y `FalloLineaProforma` los amplíen.
 
 `CreateProformaUseCase` sobrescribe `run` (su flujo y su traza R33), `_construir` (`super()` y después `dca.cla` =
@@ -93,18 +98,22 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
   `entcif` = `cif` o `normalizar_nombre(nombre)` ⊆ `normalizar_nombre(entres)`. Con `cod_contrato` (R7) no se filtra
   por fecha ni proveedor: se busca por `cod` y se compara el CIF si viene.
 - `resolver_contrato(candidatos, lineas_lp4, lineas_de_contrato)`: uno → `proveedor`; varios → los que contienen todas
-  las (partida, `medicion_contrato`) de las líneas de contrato → uno → `lineas`. Si ninguno las contiene todas pero
+  las líneas de contrato, cada una por su `ctrpro_ide` o, sin él, por (partida, precio ±0,0001), la misma regla que
+  el respaldo de `identificar_linea` (R8 = R14) → uno → `lineas`. Si ninguno las contiene todas pero
   cada una está en exactamente un candidato → `hoja_de_varios_contratos` con `reparto` (referencia de línea → `cod`);
-  si no, `contrato_ambiguo` o `contrato_no_resuelto`. Medido: 94,6 % único y correcto, 0,5 % incorrecto (M32).
+  si no, `contrato_ambiguo` o `contrato_no_resuelto`. M32 (medido con partida y medición): 94,6 % único, 0,5 % mal.
 - Elegido el contrato, el núcleo lo vuelve a localizar con `cod_contrato` + obra + `ctr.entcif` (`locate_contract`).
 
 ## Líneas (R13-R17; D6)
 
 - `identificar_linea(linea, lineas_del_contrato)`: con `ctrpro_ide` (lo que manda `proformas`, casado por una
   persona), **solo** se comprueba que es una línea del contrato resuelto; si no (también si es de otro contrato de la
-  obra), `linea_no_es_del_contrato`, sin buscar otra ni corregirla en silencio. Sin él (respaldo para otro llamante),
-  el embudo de R14 (partida → medición → unidad → precio), quedándose en cada paso con las que casan si queda alguna.
-  Varias → `linea_ambigua` + `candidatos`; ninguna → `linea_no_es_del_contrato`.
+  obra), `linea_no_es_del_contrato`, sin buscar otra ni corregirla en silencio. Sin él (respaldo para otro llamante;
+  humano, 2026-10-26): en Sigrid la partida de la proforma se vincula por partida y precio unitario, y el desempate es
+  semántico (la descripción significa lo mismo), que la API no intenta. Dos filtros **estrictos** (sin volver atrás si
+  uno deja cero): código de partida (sin `partida`, ninguna) y precio ±0,0001. Una → esa; varias → `linea_ambigua` +
+  `candidatos` y `proformas` reenvía con `ctrpro_ide`; ninguna → `linea_no_es_del_contrato` (M33, partida + precio:
+  88,4 % única, 9,2 % varias, 2,3 % ninguna). Medición, unidad y `producto` no cuentan (R13 igual).
 - Línea sin contrato: `producto` obligatorio (`producto_obligatorio`), de la lista de R4 o de los del contrato; R17
   pone naturaleza, cuenta, analítica e IVA del producto del contrato. M40: así son las extras de hoy.
 - La partida que se escribe: vinculada, `partida_imputacion` o la del `ctrpro` (código y `paride`, F-009 R14b); sin
@@ -188,7 +197,7 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
 - **D6 · Casado en `proformas`** *(decidido, 2026-10-25)*. `proformas` manda **siempre `ctrpro_ide`** en las líneas de
   contrato y **siempre `producto`** en las nuevas, que elige una persona. La API **solo valida** que el `ctrpro_ide` es
   del contrato resuelto (`linea_no_es_del_contrato` si no, también si es de otro contrato de la obra); no re-identifica
-  ni sustituye. El embudo de R14 queda de respaldo para quien no lo mande; **no hay producto por defecto**. Medido
+  ni sustituye. El respaldo estricto de R14 es para quien no lo mande; **no hay producto por defecto**. Medido
   (M40): en las de mes de la 0719 todas las de contrato van vinculadas y lo sin vincular son las extras, con el
   producto del contrato (`/25548`: 5 de 6; BERENJENO con `SM1004`).
 - **D7 · ANTERIOR frente a Sigrid: aviso, no error.** Σ de las proformas previas del contrato casa en 3 de 3 hojas de

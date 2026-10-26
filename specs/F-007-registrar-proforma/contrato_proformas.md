@@ -1,9 +1,10 @@
 <!-- specs/F-007-registrar-proforma/contrato_proformas.md -->
 # Contrato proformas ↔ sigrid-api · registro de la proforma del jefe de obra
 
-**F-007 de sigrid-api (`POST /api/sigrid/proforma`) ↔ F-005 del microservicio `proformas`.** **v1**
-(2026-10-25): lo implementado en la rama `feature/F-007-registrar-proforma` (spec v3, PARADA 1 aprobada ese día).
-**Pendiente de despliegue** y de la respuesta de `proformas` (§7). Cambios desde el borrador v0.1 en §8. Traspaso de origen: `proformas/docs/referencia/01_traspaso_facturas.md`. Plantilla de
+**F-007 de sigrid-api (`POST /api/sigrid/proforma`) ↔ F-005 del microservicio `proformas`.** **v1.1**
+(2026-10-26; la v1 es del 2026-10-25): lo implementado en la rama `feature/F-007-registrar-proforma` (spec v3, PARADA 1
+aprobada el 2026-10-25), con la enmienda 1 de la spec (v3.1). **Pendiente de despliegue** y de la respuesta de
+`proformas` (§7). Cambios desde el borrador v0.1 y de la v1.1 en §8. Traspaso de origen: `proformas/docs/referencia/01_traspaso_facturas.md`. Plantilla de
 hoja propuesta para los jefes de obra: [`plantilla_hoja.md`](plantilla_hoja.md).
 
 **Dueño**: sigrid-api (expone el endpoint). `proformas` lo consume y **no lo copia**: enlaza aquí. Si este documento y
@@ -44,7 +45,7 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
 | `cif_proveedor` | texto | no¹ | — | Resuelve el contrato (`ctr.entcif`); si viene, **manda sobre el nombre** (solo se filtra por CIF); obligatorio con `sin_contrato` |
 | `nombre_proveedor` | texto ≤128 | no¹ | SUBCONTRATISTA | Resuelve el contrato por nombre normalizado en `ctr.entres` |
 | `sin_contrato` | bool | no | Nº CONTRATO vacío | Alta sin contrato (todas las líneas sin vincular, sin retención). Sin contrato **no** se comprueba la hoja (`importe_mes_no_cuadra`, `hoja_descuadrada`, `linea_descuadrada`), ni se calcula el origen ni se busca la del mes (`existente`) |
-| `otra_del_mes` | bool | no | — | Permite una segunda proforma del mismo contrato y mes |
+| `otra_del_mes` | bool | no | — | Permite una segunda proforma del mismo contrato y mes, tenga la del mes el mismo importe o no (con él no se devuelve `existente`) |
 | `fecha_proforma` | entero `AAAAMMDD` | no | — | Debe caer en `periodo` |
 | `su_referencia` | texto ≤128 | no | — | `dca.entref`; por defecto `PROF<MMAA>_<obra>` (§6) |
 | `numero_orden` | entero | no | Nº ORDEN | Solo traza (es el ordinal mensual, no se valida) |
@@ -62,16 +63,19 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
 | `descripcion` | texto ≤128 | sí | Trabajos realizados | `dcapro.res` |
 | `ctrpro_ide` | entero | **sí en las de contrato**² | (casada en la bandeja) | Solo se comprueba que es del contrato resuelto; si no, `linea_no_es_del_contrato` (también si es de otro contrato de la obra). No se corrige ni se sustituye |
 | `producto` | texto | **sí en las nuevas**² | (elegido en la bandeja) | De la lista de §5 o de los productos del contrato; sin él, `producto_obligatorio` |
-| `partida` | texto | no | Partida | Partida de la línea nueva (si no, la de imputación) |
-| `medicion_contrato` | número | no | Medición de Contrato | Solo para el respaldo sin `ctrpro_ide` |
+| `partida` | texto | no | Partida | Partida de la línea nueva (si no, la de imputación); en el respaldo sin `ctrpro_ide`², filtro de la línea de contrato |
+| `medicion_contrato` | número | no | Medición de Contrato | Sin `ctrpro_ide`, > 0 hace la línea de contrato²; no sirve para identificarla |
 | `unidad` | texto ≤8 | no | UD. | `dcapro.unimed` |
 | `cantidad_anterior`, `cantidad_origen` | número | no | MEDICIÓN · ANTERIOR / ORIGEN | ORIGEN = ANTERIOR + MES (error); ANTERIOR frente a Sigrid (aviso) |
 | `partida_imputacion` | texto | no | — | Otra partida que la de la línea de contrato |
 
 ² `ctrpro_ide` y `producto` no van juntos. La API admite, como respaldo para otro llamante, una línea de contrato sin
-`ctrpro_ide` (la identifica por partida, medición de contrato, unidad y precio); `proformas` no lo usa. En ese
-respaldo la `partida`, si viene, es filtro duro; medición, unidad y precio solo se aplican mientras queden varias y
-solo si dejan alguna.
+`ctrpro_ide`; `proformas` no lo usa. En Sigrid una partida de la proforma se vincula a una línea del contrato por
+partida y precio unitario, y el desempate entre varias es semántico (la descripción significa lo mismo). Así que la API
+se queda con las líneas del contrato de esa `partida` (código; sin `partida` no casa ninguna) **y** ese precio
+(±0,0001), los dos filtros estrictos: una, esa; ninguna, `linea_no_es_del_contrato`; varias, `linea_ambigua` con sus
+`ctrpro_ide`, y `proformas` desempata por la descripción y reenvía con `ctrpro_ide`. Ni la medición, ni la unidad, ni
+el `producto` cuentan para vincularla. Con varios contratos candidatos, la misma regla dice en cuál «está» la línea.
 
 ## 3. Respuesta
 
@@ -177,3 +181,9 @@ Lo que la implementación fijó y el borrador no decía (detalle en `progress/im
   `ctrpro_ide` (nota ² de §2.2).
 - Sin contrato no hay comprobaciones de la hoja ni `existente` (§2.1).
 - Forma de `existente` y de `idempotente` (§3), y los 400 sin `codigo` y el 500 (§4).
+
+**v1.1 (2026-10-26)**, enmienda 1 de la spec tras la primera revisión: respaldo sin `ctrpro_ide` estricto por partida
+y precio (nota ² de §2.2; antes, partida → medición → unidad → precio relajando filtros), y la misma regla al decidir
+entre contratos; `otra_del_mes` se salta también la `existente` del mismo importe (§2.1); bajo el applock, una fila con
+la misma `referencia_externa` de otro contrato o que no es proforma da `referencia_en_conflicto` (§4); el IVA de una
+línea nueva con producto del contrato sale de su `ctrpro` también si ese producto nunca ha salido en un albarán (§3).
