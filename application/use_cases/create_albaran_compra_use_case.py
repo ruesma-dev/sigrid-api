@@ -122,8 +122,9 @@ class PerfilAlta:
     costura 1): la ruta de la traza, la serie y su ancho, la clase de la `dca`,
     el codigo y la clase del error de las guardas, los nombres de los campos de
     `Settings` de la llave, los prefijos, el tope de lineas, los productos sin
-    contrato y sus naturalezas, y si una sin vincular puede llevar un producto
-    del contrato (costura 4). `PERFIL_ALBARAN` son los literales de antes.
+    contrato y sus naturalezas, si una sin vincular puede llevar un producto
+    del contrato (costura 4) y como se llaman sus documentos en los mensajes.
+    `PERFIL_ALBARAN` son los literales de antes.
     """
 
     endpoint: str
@@ -138,6 +139,7 @@ class PerfilAlta:
     campo_naturalezas: str
     productos_del_contrato: bool
     error: type[AlbaranCompraError] = AlbaranCompraError
+    documentos: str = "albaranes"
 
 
 #: El modo extendido de `sigrid/albaran` tal como estaba antes de F-007.
@@ -384,8 +386,9 @@ class CreateAlbaranCompraUseCase:
             and settings.sql_server_write_password
         ):
             raise error(
-                "Escritura de albaranes desactivada: hacen falta SIGRID_DOMAIN_WRITE_ENABLED, "
-                f"{perfil.campo_llave.upper()} y credenciales de escritura.",
+                f"Escritura de {perfil.documentos} desactivada: hacen falta "
+                f"SIGRID_DOMAIN_WRITE_ENABLED, {perfil.campo_llave.upper()} y credenciales de "
+                "escritura.",
                 codigo=perfil.codigo_llave,
             )
         # Una lista VACIA no abre (al contrario que el modo clasico).

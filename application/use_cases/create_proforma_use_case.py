@@ -129,6 +129,7 @@ PERFIL_PROFORMA = PerfilAlta(
     campo_naturalezas="sigrid_proforma_naturaleza_por_producto",
     productos_del_contrato=True,
     error=ProformaError,
+    documentos="proformas",
 )
 
 
