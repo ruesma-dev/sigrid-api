@@ -36,6 +36,7 @@ from f009_dobles import (
 )
 
 from application.use_cases.albaran_compra_statements import (
+    _DCAPRO_SIN_PLANTILLA,
     PREFIJO_SERIE,
     prefijo_de_serie,
     sellos_del_alta,
@@ -484,6 +485,21 @@ def test_f007_r17_sin_historico_la_fila_tiene_las_columnas_de_la_sin_plantilla()
     columnas que la de una sin vincular sin plantilla del albaran."""
     proforma, _ = _con_productos_del_contrato([sin_vincular()], plantilla_linea=lambda p: [])
     assert set(proforma.filas["dcapro"][0]) == set(_albaran_sin_historico().filas["dcapro"][0])
+
+
+def test_f007_t32_sin_historico_las_columnas_de_la_sin_plantilla_salen_como_en_el_albaran() -> None:
+    """Enmienda 1 (D1), superviviente de la campaña de la pasada 1: sin
+    plantilla, la base de la fila es la de una sin vincular sin historico del
+    albaran (las columnas de `_DCAPRO_SIN_PLANTILLA` a 0), no solo las mismas
+    claves. Cuenta y naturaleza, a 0 (el albaran las saca de su producto) y
+    `prepma`, del precio: esas tres se comprueban aparte."""
+    proforma, _ = _con_productos_del_contrato([sin_vincular()], plantilla_linea=lambda p: [])
+    fila = proforma.filas["dcapro"][0]
+    albaran = _albaran_sin_historico().filas["dcapro"][0]
+    resto = [c for c in _DCAPRO_SIN_PLANTILLA if c not in ("cueide", "natide", "prepma")]
+    assert resto == ["envide", "reqcuo", "lintip", "taride", "cuoman"]
+    assert {c: fila[c] for c in resto} == {c: albaran[c] for c in resto} == dict.fromkeys(resto, 0)
+    assert (fila["cueide"], fila["natide"]) == (0, 0)
 
 
 # =====================================================================================

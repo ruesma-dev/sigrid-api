@@ -377,7 +377,8 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         """O4: el contrato que R7-R9 ya han resuelto, cargado por su `ide` (el
         de LP3, de esta obra). No se vuelve a localizar por `cod` + obra + CIF:
         un `ctr.entcif` con espacios no casaria con el CIF normalizado."""
-        assert isinstance(request, _AltaDeProforma) and request._contexto is not None
+        assert isinstance(request, _AltaDeProforma)
+        assert request._contexto is not None
         contrato = self._cargar_contrato(request, request._contexto.ctride)
         if contrato is None:
             raise ProformaError(
