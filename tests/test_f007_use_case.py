@@ -401,6 +401,14 @@ def test_f007_o4_el_contrato_resuelto_se_graba_aunque_su_entcif_traiga_espacios(
     assert respuesta.filas["dca"]["ctride"] == CTR_0472
 
 
+def test_f007_o4_el_contrato_que_desaparece_antes_de_grabar_no_se_encuentra() -> None:
+    repo = RepositorioProforma(filas={("ctr", CTR_0472): None})
+    error = fallo(peticion(otra_del_mes=True, commit=True), repo=repo)
+    assert isinstance(error, ProformaError) and error.codigo == "contrato_no_encontrado"
+    assert "CTSB26/0472" in str(error)
+    assert repo.transacciones == []
+
+
 def test_f007_o4_contrato_sin_cif_es_un_fallo_con_codigo_sin_escribir() -> None:
     """Un `ctr.entcif` vacio no puede acabar en un 400 sin `codigo` (un
     `ValidationError` de la peticion del nucleo): es un fallo de negocio."""

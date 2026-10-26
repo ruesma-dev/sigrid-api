@@ -39,6 +39,7 @@ from application.use_cases.create_albaran_compra_use_case import (
     PerfilAlta,
     _Cabecera,
     _Construido,
+    _Contrato,
     _Linea,
     _Obra,
 )
@@ -368,8 +369,22 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         )
 
     # ------------------------------------------------------------------ #
-    # Nucleo: R28 dentro de la transaccion y la clase de la `dca` (R12)
+    # Nucleo: el contrato resuelto, R28 dentro de la transaccion y la clase
+    # de la `dca` (R12)
     # ------------------------------------------------------------------ #
+    def _resolver_contrato(self, request: AlbaranCompraRequest, obra: _Obra) -> _Contrato:
+        """O4: el contrato que R7-R9 ya han resuelto, cargado por su `ide` (el
+        de LP3, de esta obra). No se vuelve a localizar por `cod` + obra + CIF:
+        un `ctr.entcif` con espacios no casaria con el CIF normalizado."""
+        assert isinstance(request, _AltaDeProforma) and request._contexto is not None
+        contrato = self._cargar_contrato(request, request._contexto.ctride)
+        if contrato is None:
+            raise ProformaError(
+                f"El contrato '{request.cod_contrato}' ya no esta en Sigrid.",
+                codigo="contrato_no_encontrado",
+            )
+        return contrato
+
     def _comprobar_dentro(
         self,
         cursor: Any,

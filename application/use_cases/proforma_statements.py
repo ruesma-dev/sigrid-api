@@ -676,7 +676,18 @@ def traducir(
 ) -> AlbaranCompraRequest:
     """La peticion de F-009 que da de alta la proforma: las de contrato
     vinculadas con la partida de imputacion o la de su `ctrpro` (codigo y
-    `paride`); las demas, sin vincular con su `producto` y su partida."""
+    `paride`); las demas, sin vincular con su `producto` y su partida. Con
+    contrato, el CIF es su `ctr.entcif` normalizado; si esta vacio, un fallo
+    con codigo y no un 400 sin el (O4)."""
+    cif = request.cif_proveedor
+    if contrato is not None:
+        cif = _cif(contrato.entcif)
+        if not cif:
+            raise ProformaError(
+                f"El contrato '{contrato.cod}' no tiene el CIF del proveedor (ctr.entcif vacio): "
+                "corrigelo en Sigrid o da de alta la proforma a mano.",
+                codigo="proveedor_no_encontrado",
+            )
     lineas = []
     for indice, linea in enumerate(request.lineas):
         comun: dict[str, Any] = {
@@ -699,7 +710,7 @@ def traducir(
         database=request.database,
         cod_obra=request.cod_obra,
         usu=request.usu,
-        cif_proveedor=contrato.entcif if contrato is not None else request.cif_proveedor,
+        cif_proveedor=cif,
         referencia_externa=request.referencia_externa,
         cod_contrato=contrato.cod if contrato is not None else None,
         su_referencia=request.su_referencia or entref_por_defecto(request.periodo, request.cod_obra),

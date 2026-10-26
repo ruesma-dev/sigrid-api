@@ -614,16 +614,22 @@ class CreateAlbaranCompraUseCase:
                 f"Hay {len(de_la_obra)} contratos '{request.cod_contrato}' de la obra y el proveedor.",
                 codigo="contrato_ambiguo",
             )
-        ctr = (
-            self._fila_completa(request, "ctr", int(de_la_obra[0]["ide"])) if de_la_obra else None
-        )
-        if ctr is None:
+        contrato = self._cargar_contrato(request, int(de_la_obra[0]["ide"])) if de_la_obra else None
+        if contrato is None:
             raise AlbaranCompraError(
                 f"No hay un contrato '{request.cod_contrato}' de la obra '{request.cod_obra}' y ese "
                 "proveedor.",
                 codigo="contrato_no_encontrado",
             )
-        ctride = int(de_la_obra[0]["ide"])
+        return contrato
+
+    def _cargar_contrato(self, request: AlbaranCompraRequest, ctride: int) -> _Contrato | None:
+        """El `ctr` completo y sus `ctrpro` por `pos`, o `None` si el `ctr` no
+        esta. F-007 (costura): la proforma carga asi el contrato que ya ha
+        resuelto, sin volver a localizarlo por su CIF (O4)."""
+        ctr = self._fila_completa(request, "ctr", ctride)
+        if ctr is None:
+            return None
         columnas, filas = self._repo.read_rows_by(
             database=request.database, table="ctrpro", where_column="docide",
             where_value=ctride, order_by="pos",
