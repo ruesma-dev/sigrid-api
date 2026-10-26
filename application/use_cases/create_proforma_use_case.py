@@ -402,9 +402,9 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         total aparecida entre tanto es `existente`; con otro total, el error de
         R24; con `otra_del_mes`, sigue (sin contrato no hay R24). Lo que se
         lance aqui revierte la transaccion sin escribir."""
-        contexto = getattr(request, "_contexto", None)
-        if contexto is None:
-            return
+        assert isinstance(request, _AltaDeProforma)
+        contexto = request._contexto
+        assert contexto is not None
         lecturas = ProformaStatements(database=request.database)
         if existente is not None:
             sql, params = lecturas.buscar_referencia(request.referencia_externa)

@@ -116,6 +116,9 @@ Cada superviviente es una línea que ningún test comprueba de verdad, o una mut
 > Decisión: **reescrita** como dos `assert` (una por condición; las dos sirven a mypy), commit de T32. Sus mutantes
 > (`is None` por `is not None`, `not isinstance`) **mueren** a mano: `40 failed, 38 passed` en
 > `test_f007_use_case.py` + `test_f007_transaccion.py`.
+> Lo mismo en `_comprobar_dentro`: su `if contexto is None: return` era **código muerto** (el caso de uso siempre
+> pone el contexto antes de llamar al núcleo; la puerta de cobertura lo vio sin cubrir) y pasa a las mismas dos
+> guardas. Sus mutantes mueren a mano: `21 failed, 57 passed` en esos dos ficheros.
 
 ## Análisis (implementer)
 
