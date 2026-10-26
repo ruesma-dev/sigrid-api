@@ -1,196 +1,173 @@
 <!-- progress/impl_F-007.md -->
-# F-007 · Informe del implementer (lotes A, B y C: T1-T17; T18-T19)
+# F-007 · Informe del implementer (T1-T19; correcciones de la pasada 1: T25-T40)
 
-Rama `feature/F-007-registrar-proforma`, rigor **critico**. Spec v3, PARADA 1 aprobada el 2026-10-25 (D4-D14; D11
-con `SM9999`, `SB9999`, `SM370001`). Nada contra Sigrid: ni lecturas ni escrituras; los tests no tocan red ni base.
-T1-T17 hechas, un commit por tarea (`04f13ba`…`bbd562c`); T18-T19 en un segundo encargo (`904a2ef`…`d9e97a8`,
-más `af81713` en `azure-apps`). **Paro en T19**: T20-T24 van aparte.
+Rama `feature/F-007-registrar-proforma`, rigor **critico**. Spec v3 (PARADA 1 del 2026-10-25) y enmienda 1
+(2026-10-26, `spec_F-007_enmienda1.md`, aprobada por el humano). Nada contra Sigrid: ni lecturas ni escrituras; los
+tests no tocan red ni base. T1-T17 `04f13ba`…`bbd562c`; T18-T19 `904a2ef`…`d9e97a8` (+ `azure-apps` `af81713`);
+pasada 1 `6af8221`…T40 (+ `azure-apps` `0072629`). T20-T22 (MANUAL), T23 (revisión) y T24 van aparte.
 
-## Qué cambió (por tarea)
+## Qué cambió en T1-T19 (resumen; el detalle, en los commits)
 
-- **T1** · red de R31 sin tocarla: `pytest tests/test_f009_*.py tests/test_f015_*.py` → 816 passed. Intocables:
-  los ocho `test_f009_*.py`, los dos `test_f015_*.py`, el dorado `tests/fixtures/f009_caracterizacion.json` y el
-  doble `tests/f009_dobles.py`. Al terminar, `git diff dev --` de todos ellos (y de `infrastructure/`) **vacío**.
-- **T2-T5** · costuras en el núcleo de F-009 con los valores de hoy (sin cambio de conducta):
-  `PerfilAlta`/`PERFIL_ALBARAN` y `perfil` de clase en `create_albaran_compra_use_case.py` (traza, serie, guardas,
-  llave, catálogo y `cifras_serie` leen del perfil); `prefijo_de_serie`/`sellos_del_alta` con `prefijo` y
-  `siguiente_cod(..., cifras=0)` en `albaran_compra_statements.py` (ninguna constante SQL cambia); gancho
-  `_comprobar_dentro` tras E1 (vacío en la base); `_Catalogo` con `productos_del_contrato` (R17); `codigos` de clase en
-  `FalloLinea`, `AlbaranCompraError` y `AvisoAlbaran`. Cinco App Settings de R4 en `config/settings.py` y
-  `local.settings.sample.json`, con defecto cerrado y los validadores de F-009.
-- **T6-T7** · `domain/models/proforma_models.py`: petición (R1-R3), línea (R2, R13), respuesta (R10, R30),
-  `ProformaError` con `reparto`, `FalloLineaProforma` con `candidatos`, conjuntos de códigos ampliados.
-- **T8-T11** · `application/use_cases/proforma_statements.py`: LP1-LP6 constantes con `?`, validadas con
-  `DatabaseReferenceGuard` (LP4 al generarse); puras `normalizar_nombre`, `primer_dia_de_periodo`, `fin_de_periodo`,
-  `candidatos_de_contrato`, `contrato_pedido` (R7), `resolver_contrato` (R8-R9), `identificar_linea`,
-  `revisar_lineas` (etapa 1), `fecha_de_periodo`, `entref_por_defecto`, `comprobar_hoja`, `linea_descuadrada`,
-  `anterior_y_origen`, `aviso_anterior_de_linea`, `buscar_del_mes`, `lineas_del_existente`, `es_proforma`, `traducir`.
-  Fixture `tests/fixtures/f007_obra0719.json` (M29) generado con proveedores y CIF ficticios.
-- **T12-T15** · `application/use_cases/create_proforma_use_case.py`: `CreateProformaUseCase(CreateAlbaranCompraUseCase)`
-  con `PERFIL_PROFORMA` (`sigrid/proforma`, `PROF`, 5 cifras, `cla` 141, llave y listas `sigrid_proforma_*`,
-  `productos_del_contrato`, `ProformaError`); `run` con la traza R33; flujo de design §Flujo; `_construir` pone
-  `dca.cla`; `_comprobar_dentro` repite R24 con LP1 por el cursor bajo `SIGRID_REFEXT_14` (R28). Doble
-  `tests/f007_dobles.py` que extiende el de F-009 sin tocarlo (reconoce LP1-LP6 dentro y fuera de la transacción).
-- **T16-T17** · ruta `sigrid/proforma` en `function_app.py`: valida con `ProformaRequest` (400 de F-012, traza solo
-  `loc`/`type`), llave R5 solo con `commit` y antes del caso de uso, caso de uso construido en la ruta (la tupla de
-  `build_dependencies` no cambia), `AlbaranCompraError` → 400 con `codigo`, `lineas` (con `candidatos`) y `reparto`.
+- **T1** · red de R31: los ocho `test_f009_*.py`, los dos `test_f015_*.py`, el dorado
+  `tests/fixtures/f009_caracterizacion.json` y el doble `tests/f009_dobles.py` no se tocan (`git diff dev` vacío).
+- **T2-T5** · costuras en el núcleo de F-009 con los valores de hoy: `PerfilAlta`/`PERFIL_ALBARAN`,
+  `prefijo_de_serie`/`sellos_del_alta`/`siguiente_cod(..., cifras=0)`, gancho `_comprobar_dentro`, `_Catalogo` con
+  `productos_del_contrato`, `codigos` de clase en `FalloLinea`, `AlbaranCompraError` y `AvisoAlbaran`. Cinco App
+  Settings `SIGRID_PROFORMA_*` cerradas por defecto (`config/settings.py`, `local.settings.sample.json`).
+- **T6-T11** · `domain/models/proforma_models.py` (petición, línea, respuesta, `ProformaError` con `reparto`,
+  `FalloLineaProforma` con `candidatos`) y `application/use_cases/proforma_statements.py` (LP1-LP6 con `?` y
+  funciones puras de R7-R24). Fixture `tests/fixtures/f007_obra0719.json` (M29, proveedores y CIF ficticios).
+- **T12-T17** · `CreateProformaUseCase(CreateAlbaranCompraUseCase)` con `PERFIL_PROFORMA`, traza R33, R28 bajo
+  `SIGRID_REFEXT_14`; doble `tests/f007_dobles.py`; ruta `sigrid/proforma` (400 de F-012, llave R5 antes del caso
+  de uso, `AlbaranCompraError` → 400 con `codigo`, `lineas` y `reparto`).
+- **T18** · mutación en serie: ronda 1, 375 / 67 supervivientes; ronda 2, 374 / 2 (un equivalente y uno cazado en
+  `8c92d52`). Detalle en [`mutacion_F-007.md`](mutacion_F-007.md) (ahora con la ronda de la pasada 1).
+- **T19** · `docs/ARCHITECTURE.md`, mapa de `CLAUDE.md`, `contrato_proformas.md` v1 y `azure-apps/sigrid_api.md`
+  (§4, §4.1, §7.2, §7.6, §8, §8.10, §10, §13) con «PENDIENTE DE DESPLIEGUE (F-007)».
+- **Hojas con precios**: convertir a `docs/referencia/proforma_ejemplo_*.md` las cuatro hojas de proforma, que traen
+  precios de subcontratista, lo **autorizó el humano el 2026-10-25** (consta en la cabecera de cada una).
 
-## T18 · mutación (detalle en [`mutacion_F-007.md`](mutacion_F-007.md))
+**Fase ROJA de T2-T16** (comando `python -m pytest <fichero> -q`, salida real): T2 `test_f007_perfil.py` →
+`ImportError: cannot import name 'PERFIL_ALBARAN'` (1 error); T3 `test_f007_settings.py` → `40 failed, 2 passed`
+(`'Settings' object has no attribute 'sigrid_proforma_write_enabled'`); T6 `test_f007_models.py` y T8
+`test_f007_statements_contrato.py` → `ModuleNotFoundError` del módulo nuevo; T10 `test_f007_statements_lineas.py` →
+`cannot import name 'FalloIdentificacion'`; T12 `test_f007_use_case.py` → `ModuleNotFoundError`; T14
+`test_f007_transaccion.py` → `6 failed, 9 passed` (`assert ('creado', ...) == ('existente', ...)`); T16
+`test_f007_route.py` → `17 failed` (`has no attribute 'CreateProformaUseCase'`).
 
-- En serie (`--workers 1`). **Ronda 1** (`a3acbd7`): 375 mutantes, 308 muertos, **67 supervivientes**. Cada uno se
-  aplicó a mano en un `git worktree` desechable (`../sigrid-api-mut007`, nunca en el árbol compartido) y se midió.
-- Resolución (`904a2ef`): 22 tests nuevos en `tests/test_f007_filas.py`, 25 en `test_f007_models.py`, 3 en
-  `test_f007_use_case.py` y una aserción en `test_f007_statements_contrato.py`. **Hueco real**: las seis lecturas de muchas filas
-  no pedían `max_allowed_rows` en ningún test (sin el tope, un contrato grande saldría truncado). **Código muerto**
-  quitado: el `break` de `identificar_linea`. Reescritos para que el borde se pueda probar: fecha y periodo por el
-  año, `es_proforma` sin `or 0`, `vinculada` por el `tipo` de línea del núcleo.
-- **Ronda 2** (`7cbff6b`): 374 mutantes, **372 muertos**, 2 supervivientes: el `cifras: int = 0` (equivalente medido:
-  `zfill(0)` ≡ `zfill(1)`; el defecto lo exige el test intocable de F-009) y el borde 2999 del año (test mal
-  planteado, corregido en `8c92d52` y medido a mano). **0 supervivientes no aceptados.**
-- **Falso superviviente de la herramienta** en la ronda 1: `% 100` → `% 101` de `prefijo_de_serie` (núcleo). Aplicado
-  a mano muere en 7 s (`test_f007_r31_prefijo_de_serie_con_el_defecto_ac`) y la ronda 2 también lo mata. Para
-  `arnes-base`: la campaña en serie también miente a veces (sin diagnosticar).
-- **Manuales** (ficheros con ≤ 2 automáticos: `albaran_compra_models.py` 0, `settings.py` 2), suite entera en el
-  worktree, **10 de 10 mueren**: A1-A5 (costura 5: un código de proforma en el conjunto base de `FalloLinea` y de
-  `AlbaranCompraError`, y las tres validaciones contra el conjunto fijo) caen en `test_f007_models.py`,
-  `test_f007_perfil.py` y `test_f007_filas.py`; S1-S5 (llave abierta por defecto, prefijos y naturalezas fuera de
-  su validador, tope 100, productos leídos de la App Setting de albaranes) caen en `test_f007_settings.py`.
+## Desviaciones de T1-T19 que siguen vivas (las superadas por la enmienda 1, al final)
 
-## T19 · documentación (R36)
+1. **Costura 1 ampliada** con `cifras_serie` (5 cifras de `PROF26/01282`) y `error` (la clase de las guardas); en la
+   pasada 1, además, `documentos` (T35). `PERFIL_ALBARAN` deja el albarán igual.
+2. **`periodo` entero `AAAAMM`** estricto; el ejemplo del contrato v0.1 lo escribía como texto. Contrato v1.
+4. **R8**: si viene `cif_proveedor`, se filtra solo por CIF (manda sobre el nombre).
+5. **R9**: alguna línea de contrato fuera de todo candidato → `contrato_no_resuelto`; si se solapan, o varios
+   candidatos sin líneas de contrato → `contrato_ambiguo`.
+7. **R11 literal**: sin contrato no hay ninguna comprobación de R19, tampoco `linea_descuadrada`.
+9. **`existente`**: `cabecera` `{fec, entref}`, `totales` `{totbas, n_lineas}` y los avisos de R20-R22.
+11. **R28**: el contexto viaja en un `PrivateAttr` de una subclase de `AlbaranCompraRequest`; la `existente` hallada
+    dentro sale por una excepción interna que revierte y se responde fuera con LP6.
+12. **Ruta**: `ValueError` → 400 como en `sigrid/albaran`; lo demás, 500.
+13. **Test de F-012 tocado**: cuenta 10 rutas con `validation_error_response` en vez de 9 (una línea, comentada).
+14. `ahora` se lee dos veces; `con.fec` y `fecdoc` salen de la fecha de R18, no de la segunda lectura.
 
-- `docs/ARCHITECTURE.md` (ruta, módulos, sección «`sigrid/proforma`» con las cinco costuras), la ruta en el mapa de
-  `CLAUDE.md` (solo eso), docstring de `validation_error_response` con 10 rutas, `contrato_proformas.md` a **v1**
-  (`periodo` y `fecha_proforma` enteros, el CIF manda, R9 y el respaldo de R14, sin contrato no se comprueba la hoja
-  ni hay `existente`, forma de `existente` e `idempotente`, 400 sin `codigo` y 500; §8 con los cambios). `7cbff6b`.
-- `azure-apps/sigrid_api.md`, rama `master`, commit `af81713` (sin push): §8.10 nueva, la ruta en §8, §7.2 punto 9
-  (llave), §7.6, las cinco App Settings en §4 y sus valores de despliegue de D11 en §4.1 (la llave **cerrada** hasta
-  T22), el consumidor `proformas` F-005 y el `entref` `PROF<MMAA>_<obra>` en la fila de `facturas` (§10), y §13.
-  Cada bloque lleva **«PENDIENTE DE DESPLIEGUE (F-007)»**. `local.settings.sample.json` ya iba en T4.
-- Las notas «PENDIENTE (F-015)» de `azure-apps` siguen ahí: se quitan al cerrar F-015 (`current.md`), no aquí.
+Superadas: **3** (fixture 0417 con `/25552`) la cierra el líder: T21 compara con `AC26/25552`; **6** (embudo de R14)
+la sustituye R14 v1.1 (T25-T26); **8** (E1 bajo el applock) la sustituye D2 (T29-T30); **10** (IVA a 0 sin
+plantilla) la sustituye D1 (T27-T28).
 
-**Texto del aviso** (lo manda el líder; no he avisado a nadie):
+**Texto del aviso** (actualizado a la v1.1 en T40; lo manda el líder, no he avisado a nadie):
 
 > **sigrid-api F-007 (`POST /api/sigrid/proforma`) implementada en su rama, pendiente de revisión y despliegue.**
-> - **proformas (F-005)**: contrato v1 en `sigrid-api/specs/F-007-registrar-proforma/contrato_proformas.md` (§8, lo
->   que cambió desde v0.1). Lo que os afecta: `periodo` y `fecha_proforma` son **enteros** (`202608`; el texto da
->   400); si mandáis `cif_proveedor`, manda sobre el nombre; sin contrato no hay `existente` ni comprobación de la
->   hoja; referencia `PRF-`; vuestra lista de productos debe estar contenida en la de la API. Siguen abiertas las
->   preguntas de design §Preguntas.
+> - **proformas (F-005)**: contrato **v1.1** en `sigrid-api/specs/F-007-registrar-proforma/contrato_proformas.md`
+>   (§8, lo que cambió). Lo que os afecta: `periodo` y `fecha_proforma` son **enteros** (`202608`; el texto da 400);
+>   `cif_proveedor` manda sobre el nombre; sin contrato no hay `existente` ni comprobación de la hoja; referencia
+>   `PRF-`; vuestra lista de productos, contenida en la de la API. **Novedades de la v1.1**: una línea de contrato
+>   sin `ctrpro_ide` (respaldo que no usáis) se vincula **solo por partida y precio unitario**; si casan varias,
+>   `linea_ambigua` con sus `candidatos`: desempatáis por la descripción y reenviáis con `ctrpro_ide` (la misma regla
+>   decide entre contratos); `otra_del_mes` registra aunque haya una del mismo importe; reenviar una ya grabada da
+>   `idempotente` con `origen` nulo y `avisos` vacío; una referencia de otro contrato o que no es proforma da
+>   `referencia_en_conflicto` también bajo el applock; el IVA de una nueva con producto del contrato sale de su línea
+>   de contrato; un contrato sin CIF en Sigrid da `proveedor_no_encontrado`; con la llave cerrada, el 400 dice
+>   «Escritura de proformas desactivada». Siguen abiertas las tres preguntas de design §Preguntas (CIF o nombre;
+>   solo MES ≠ 0; qué avisos bloquean la aprobación).
 > - **facturas**: las proformas que registre la API serán `tip 14` de la serie `PROF<aa>/` (`cla 141`) con
 >   `dca.entref` = `PROF<MMAA>_<cod_obra>`, el mismo de las `AC` de hoy. Si buscáis proformas por `con.cod` `AC…`,
 >   añadid la serie `PROF`. Ver `azure-apps/sigrid_api.md` §8.10 y §10.
-> - **albaranes**: se ha tocado el núcleo del modo extendido de `sigrid/albaran` **sin cambio de conducta** (cinco
->   costuras con los valores de hoy); su dorado y sus tests de F-009 y F-015 pasan sin modificarse. No hay nada que
->   cambiar en sv9.
+> - **albaranes**: el núcleo del modo extendido de `sigrid/albaran` cambia por costuras **sin cambio de conducta**;
+>   su dorado y sus tests de F-009 y F-015 pasan sin modificarse. Nada que cambiar en sv9. Al desplegar F-007 se
+>   hará un dry-run de `sigrid/albaran` antes que nada (una App Setting mal formada tumbaría todas las rutas).
 
-## Fase ROJA (comando y salida real, antes del código)
+## Correcciones pasada 1 (T25-T40, 2026-10-26)
 
-- T2 `python -m pytest tests/test_f007_perfil.py -q`:
-  `E ImportError: cannot import name 'PERFIL_ALBARAN' from 'application.use_cases.create_albaran_compra_use_case'`
-  → `1 warning, 1 error in 1.49s`.
-- T3 `python -m pytest tests/test_f007_settings.py -q`: `40 failed, 2 passed in 2.09s` (p. ej.
-  `FAILED ...::test_f007_r4_el_fichero_de_ejemplo_declara_las_cinco_cerradas`).
-- T6 `python -m pytest tests/test_f007_models.py -q`:
-  `E ModuleNotFoundError: No module named 'domain.models.proforma_models'` → `1 error in 0.44s`.
-- T8 `python -m pytest tests/test_f007_statements_contrato.py -q`:
-  `E ModuleNotFoundError: No module named 'application.use_cases.proforma_statements'` → `1 error in 0.67s`.
-- T10 `python -m pytest tests/test_f007_statements_lineas.py -q`: `E ImportError: cannot import name
-  'FalloIdentificacion' from 'application.use_cases.proforma_statements'` → `1 error in 2.67s`.
-- T12 `python -m pytest tests/test_f007_use_case.py -q`:
-  `E ModuleNotFoundError: No module named 'application.use_cases.create_proforma_use_case'` → `1 error in 0.80s`.
-- T14 `python -m pytest tests/test_f007_transaccion.py -q`: `6 failed, 9 passed` — las seis de R28/R29 con LP1
-  dentro, p. ej. `E AssertionError: assert ('creado', 'P...2900011, True) == ('existente',...831541, False)`. Las
-  nueve que ya pasaban caracterizan lo heredado del núcleo (orden, `UPDATE`, relecturas, previa).
-- T16 `python -m pytest tests/test_f007_route.py -q`: `17 failed` (`E AttributeError: <module 'function_app' ...> has
-  no attribute 'CreateProformaUseCase'`; la de registro, `assert 'sigrid_proforma' in {...}`).
+Origen: `review_F-007_*.md` (pasada 1) y enmienda 1 de la spec. RED antes que GREEN, un commit por paso.
 
-- T18 (los tests nuevos contra cada superviviente aplicado en el worktree; script del scratchpad que corre
-  `python -m pytest tests/test_f007_*.py -q -x --tb=no`, más F-009/F-015 si el mutante es del núcleo). Ejemplos:
-  `[61] create_proforma_use_case.py:227 MUERE ['FAILED tests/test_f007_use_case.py::test_f007_t18_las_lecturas_de_
-  muchas_filas_piden_el_tope_de_filas'] ['1 failed, 453 passed']`; `[219] proforma_statements.py:570 MUERE ['FAILED
-  tests/test_f007_filas.py::test_f007_t18_r20_la_del_primer_dia_del_periodo_no_es_anterior']`; `[345]
-  proforma_models.py:197 MUERE ['FAILED tests/test_f007_models.py::test_f007_t18_numero_de_orden_cero']`. 61 de 67
-  mueren así; los otros seis: dos ya no existen (el `break` quitado y `vinculada` reescrita), tres equivalentes
-  medidos con la suite entera (`exit=0`) y reescritos, y el `cifras` (equivalente, medido aparte). Ronda 2, borde 2999: `FAILED tests/test_f007_models.py::test_f007_t18_fecha_
-  proforma_fuera_de_los_anios[30000101]` — `Failed: DID NOT RAISE ValidationError` (`1 failed, 1531 passed`).
+| Tarea | Qué cambió | Ficheros |
+|---|---|---|
+| T25-T26 | **R14/R8 estrictos**: `_por_partida_y_precio` (partida por código **y** precio ±0,0001; sin partida no casa ninguna); una → esa, ninguna → `linea_no_es_del_contrato`, varias → `linea_ambigua` con `candidatos`; sin relajar filtros; medición, unidad y producto no cuentan. `_contiene` (R8) usa la misma regla. Quitado `_casa_medicion` | `proforma_statements.py`; tests `statements_lineas`, `statements_contrato`, `filas` |
+| T27-T28 | **D1**: la sin vincular con producto del contrato y **sin plantilla** toma el IVA de su `ctrpro` (naturaleza y cuentas a 0); `producto_sin_historico` lo dice («cuenta a 0 e IVA de su linea de contrato»). El albarán sin histórico, igual que antes | `create_albaran_compra_use_case.py` (`_de_la_plantilla_del_contrato`); `test_f007_perfil.py`, `test_f007_use_case.py` |
+| T29-T30 | **D2/D3**: el núcleo pasa la fila de E1 a `_comprobar_dentro(cursor, request, cabecera, existente)` **antes** de la salida idempotente (la base no hace nada); la proforma repite LP5 por el cursor: misma referencia, proforma `cla 141` del mismo contrato → `idempotente` con `origen` nulo y `avisos` `[]`; otro contrato, otra clase o varias filas → `referencia_en_conflicto` | núcleo (gancho), `create_proforma_use_case.py`; `test_f007_transaccion.py` |
+| T31 | **D5/O3**: hora de Madrid en el borde del mes (22:30 y 21:30 UTC del 31-8), cambio de año (23:30 UTC del 31-12: `202612` → `PROF26/`, `20261231`; `202701` → `PROF27/`) y `otra_del_mes` con la del mismo total | `test_f007_use_case.py` (tests de fijación) |
+| T33 | **O4**: costura `_cargar_contrato(request, ctride)` en el núcleo (el albarán sigue localizando por `cod` + obra + CIF); la proforma carga el contrato **ya resuelto por su `ide`** (`_resolver_contrato`), sin volver a buscarlo por un CIF normalizado; `traducir` normaliza `ctr.entcif` y, vacío, lanza `proveedor_no_encontrado` (antes, 400 sin `codigo` por `ValidationError`) | núcleo, `create_proforma_use_case.py`, `proforma_statements.py`; tests `use_case`, `statements_lineas` |
+| T34 | **N7**: test de que el IVA de la sin vincular sale de la **primera** línea del contrato por `pos` (`setdefault`) | `test_f007_perfil.py` |
+| T35 | **Llave**: `PerfilAlta.documentos` (`"albaranes"` por defecto, `"proformas"` en el perfil): «Escritura de proformas desactivada: hacen falta …». El mensaje de albaranes no cambia | núcleo, `create_proforma_use_case.py`; tests `use_case` |
+| T32, T36 | Campaña en serie: 381 / 5 supervivientes, 0 no aceptados (abajo); **test nuevo** de las columnas de la sin plantilla (hueco real de D1) y la guarda de `_resolver_contrato` en dos `assert` (equivalente). Manuales N7, A1-A5, S1-S5 reproducibles | `progress/mutacion_F-007.md`, `test_f007_perfil.py`, `create_proforma_use_case.py` |
+| T37 | `specs/F-007-registrar-proforma/verificacion_manual.md`: D1-D3 (App Settings en JSON validado, cerradas; publicar; dry-run de `sigrid/albaran`) y V0-V5 (llave, `existente` de las tres hojas, `otra_del_mes`, respaldo, una grabación y su anulación por la UI). Sin secretos: URL, clave y recursos por variable de entorno | spec |
+| T38 | `progress/current.md` reescrito al estado real (H1), descripción de F-007 en `harness/features.json` (H2), `BACKLOG.md` regenerado con `harness/backlog.py` | arnés |
+| T39 | `azure-apps/sigrid_api.md` §8.10: riesgo O3, R14 v1.1, `otra_del_mes`, idempotente bajo el applock, IVA del `ctrpro`, `proveedor_no_encontrado` (commit `0072629`, sin tocar `datamart_seg_anual.md`) | `azure-apps` |
+| T40 | Texto del aviso a la v1.1 (arriba) | este informe |
 
-Cada tarea de implementación siguiente (T4, T5, T7, T9, T11, T13, T15, T17) dejó en verde su verificación de
-`tasks.md`; T5, T13 y T15 con `test_f009_*` y `test_f015_*` dentro (858 y 873 passed).
+**Fase ROJA de la pasada 1** (salida real; `-q -p no:cacheprovider --tb=line`):
 
-## Desviaciones de la spec y decisiones (para el reviewer y el humano)
+- T25 `python -m pytest tests/test_f007_statements_lineas.py tests/test_f007_statements_contrato.py
+  tests/test_f007_filas.py` → **26 failed, 161 passed**: `E AssertionError: assert 281001 == 281002`
+  (`test_f007_statements_lineas.py:128`), `E Failed: DID NOT RAISE FalloIdentificacion`, `assert False is True`
+  (`test_f007_statements_contrato.py:474`).
+- T27 `python -m pytest tests/test_f007_perfil.py tests/test_f007_use_case.py` → **2 failed, 85 passed**:
+  `E assert (0, 0.0) == (3, 1.58)` (`test_f007_perfil.py:419`) y `E assert (0, 0.0) == (3, 55.75)`.
+- T29 `python -m pytest tests/test_f007_transaccion.py tests/test_f007_perfil.py` → **10 failed, 50 passed**:
+  `E AssertionError: assert ['referencia'...el_existente'] == ['referencia'...el_existente']`
+  (`test_f007_transaccion.py:146`) y `E Failed: DID NOT RAISE ProformaError`.
+- T33 `python -m pytest tests/test_f007_use_case.py tests/test_f007_statements_lineas.py` → **7 failed, 154
+  passed**: `E AssertionError: assert 'locate_contract' not in ['leer', ...]` (`test_f007_use_case.py:367`) y
+  `E domain.models.albaran_compra_models.AlbaranCompraError: No hay un contrato 'CTSB26/0472' de la obra '0719' y
+  ese proveedor.`
+- T35 `python -m pytest tests/test_f007_use_case.py tests/test_f007_perfil.py` → **3 failed, 96 passed**:
+  `E AttributeError: 'PerfilAlta' object has no attribute 'documentos'` (`test_f007_use_case.py:94`) y
+  `E AssertionError: assert 'Escritura de...de escritura.' == 'Escritura de...de escritura.'`.
+- T32 (superviviente §2 aplicado en el worktree `../sigrid-api-mut007-p1`) `python -m pytest
+  tests/test_f007_perfil.py` → **1 failed, 41 passed**: `E AssertionError: assert {'envide': 1,...ride': 0, ...} ==
+  {'envide': 0,...ride': 0, ...}` (`test_f007_perfil.py:501`).
+- T31 y T34 son tests de **fijación** (la conducta ya era la pedida): verdes desde el principio. Su RED es el
+  mutante: con `datetime.now(timezone.utc)` en vez de Madrid caen 2 de los 3 de T31; con `por_proide[...] = ctrpro`
+  en vez de `setdefault` cae el de T34 (N7 de la tabla de manuales).
 
-1. **Costura 1 ampliada** con `cifras_serie` (R12 «5 cifras», M1 `PROF26/01282`) y `error` (la clase de las guardas,
-   para que la llave lance `escritura_proformas_deshabilitada` como `ProformaError`). `PERFIL_ALBARAN` = 0 y
-   `AlbaranCompraError`: el albarán sigue igual. La costura 5 se aplica también a `AvisoAlbaran`.
-2. **`periodo` es un entero `AAAAMM`** estricto (como `fecha_albaran` de F-009 y «números estrictos» de R1); el ejemplo
-   de `contrato_proformas.md` §3 lo escribe como texto `"202608"`, que da 400. Contrato alineado en T19 (v1).
-3. **Fixture 0417**: la hoja de septiembre convertida trae MES 0, así que el fixture usa la de **agosto**
-   (`AC26/25552`, `totbas` 31.291,06) y no `/29425`, que es la que cita T21. El dry-run manual de T21 debe decidir
-   cuál de las dos se compara.
-4. **R8, CIF y nombre**: si viene `cif_proveedor`, se filtra solo por CIF (manda sobre el nombre, «por este orden»).
-5. **R9 sin contenedor ni reparto limpio**: si alguna línea de contrato no está en ningún candidato,
-   `contrato_no_resuelto`; si se solapan, `contrato_ambiguo`. Con varios candidatos y ninguna línea de contrato,
-   `contrato_ambiguo`.
-6. **R14, respaldo**: la partida (si viene) es filtro duro; medición, unidad y precio solo se aplican mientras quedan
-   varias y solo si dejan alguna. Sin partida, se empieza por todas las líneas del contrato.
-7. **R11 literal**: sin contrato no hay ninguna comprobación de R19, tampoco `linea_descuadrada`.
-8. **R23**: LP5 se lee tras la obra y se decide con el contrato resuelto; `idempotente` se construye con L11 y
-   `_respuesta_idempotente` del núcleo (sin re-traducir), con `contrato` y `origen` nulo. Dentro de la transacción,
-   E1 sigue con la regla de F-009 (mismo `entide` y obra); el caso «misma referencia, otro `cla`» bajo el applock es
-   residual (los prefijos `PRF-` y `ALB-` no se cruzan).
-9. **`existente`**: `cabecera` `{fec, entref}`, `totales` `{totbas, n_lineas}` y los avisos de F-007 de la hoja (R20-R22).
-10. **Producto del contrato sin plantilla** (R17): naturaleza, cuenta, analítica e IVA a 0 con `producto_sin_historico`,
-    como cualquier sin vincular sin histórico.
-11. **R28**: el contexto (contrato, periodo, importe, `otra_del_mes`) viaja en un `PrivateAttr` de una subclase de
-    `AlbaranCompraRequest`; la `existente` hallada dentro sale por una excepción interna que revierte la transacción
-    y se responde fuera con LP6. Con `otra_del_mes`, lo de dentro no para.
-12. **Ruta**: `ValueError` → 400 como en `sigrid/albaran` (cuerpo que no es JSON, lectura truncada); lo demás, 500.
-13. **Test de F-012 tocado**: `test_f012_r8_function_app_ya_no_construye_el_400_a_mano` cuenta las rutas con
-    `return validation_error_response(exc)`; pasa de 9 a 10 por la ruta nueva (una línea, con comentario). El
-    docstring de `validation_error_response` decía «las 9 rutas»: corregido en T19.
-14. `ahora` se lee dos veces (fecha de R18 y sellos del núcleo); la fecha viaja como `fecha_albaran`, así que
-    `con.fec` y `fecdoc` no dependen de la segunda lectura (solo `hor` y `tiemod`).
+**Decisiones y puntos para el reviewer:**
+
+- **`proveedor_no_encontrado` para `ctr.entcif` vacío** (O4): código ya existente de F-009, no está en la tabla §4
+  del contrato; el mensaje nombra el contrato y `ctr.entcif`. A validar por el líder (alternativa: código nuevo).
+- **design.md** dice que el núcleo relocaliza el contrato con `locate_contract`; desde T33 la proforma lo carga por
+  `ide` (la costura nueva es de solo extracción: el albarán sigue igual, dorados intactos).
+- **Guardas en vez de ramas muertas** (T32): en `_resolver_contrato` y `_comprobar_dentro` de la proforma, el
+  contexto de R28 siempre existe; un `and` equivalente y un `if contexto is None: return` sin cubrir pasan a dos
+  `assert` (tipo y contexto), cuyos mutantes mueren a mano. La base del núcleo sigue sin hacer nada en el gancho.
+- **Residual fuera del applock** (no lo pide la enmienda): entre LP5 de fuera y L11 del núcleo, otra petición con la
+  misma referencia puede grabar; dentro, D2 lo resuelve. Sin cambio.
+- **R31**: `git diff dev -- tests/test_f009_* tests/test_f015_* tests/fixtures/f009_caracterizacion.json
+  tests/f009_dobles.py infrastructure/` → vacío.
 
 ## Verificación (resultado real)
 
-- `python -m pytest tests/test_f007_*.py -q` → **466 passed** en 4,0 s (tras T18: models 144, filas 22, use_case 47;
-  el resto como en T17: perfil 37, settings 42, contrato 50, lineas 92, transaccion 15, route 17).
-- `python -m pytest tests -q` (dentro de `init.sh`) → **3347 passed, 1 skipped**.
-- `bash harness/init.sh` → **ENTORNO LISTO** (salida al final de §Evidencias).
-- `git diff dev -- tests/test_f009_* tests/test_f015_* tests/fixtures/f009_caracterizacion.json tests/f009_dobles.py
-  infrastructure/` → vacío.
-- Las tres hojas de agosto de la 0719 dan `existente` sobre `AC26/25548`, `AC26/25552` y `AC26/25551` con sus líneas,
-  en previa y con `commit`, sin transacción (`test_f007_r24_las_tres_hojas_de_la_0719_son_existentes`).
-- ruff limpio en todos los ficheros nuevos; en `function_app.py` quedan los 3 avisos previos (I001, BLE001, RUF010),
-  que no se tocan.
+- `python -m pytest tests/test_f007_*.py tests/test_f009_*.py tests/test_f015_*.py -q` → **1328 passed** (F-007 sola,
+  512 passed en 6,4 s).
+- `bash harness/init.sh` → **ENTORNO LISTO** (salida al final).
+- Las tres hojas de agosto de la 0719 dan `existente` sobre `AC26/25548`, `AC26/25552` y `AC26/25551` con sus líneas
+  (`test_f007_r24_las_tres_hojas_de_la_0719_son_existentes`); en real, V2 de `verificacion_manual.md`.
 
 ## Qué queda (fuera de este encargo)
 
-- **T20-T22** MANUALES (V6-V8, despliegue con las App Settings de R4 y la llave cerrada, dry-runs de la 0719 y un
-  `commit:true` autorizado). En T21, decidir si la hoja de la 0417 se compara con `/25552` (agosto, la del fixture) o
-  con `/29425` (desviación 3).
-- **Avisos** a `proformas`, `facturas` y albaranes (texto arriba, los manda el líder).
-- **T23** revisión contra `CHECKPOINTS.md`; **T24** `init.sh`. El worktree de la medición ya está borrado (`git worktree remove`).
+- **Avisos** (texto arriba, los manda el líder); **T23** pasada 2 de la revisión; merge.
+- **T20-T22** MANUALES con `specs/F-007-registrar-proforma/verificacion_manual.md`; **T24** `init.sh` final.
 
 ## Evidencias
 
 | Evidencia | Valor medido |
 |---|---|
-| Tests ejecutados | 3347 passed, 1 skipped (suite completa en `init.sh`); 466 de F-007 |
-| Cobertura de las líneas cambiadas | **100,0 %** (710/710, umbral 80 %, nivel critico) |
-| Mutantes generados / supervivientes | Ronda 2: **374 / 2** (372 muertos, 0 timeouts): uno equivalente justificado y uno cazado después (`8c92d52`). Ronda 1: 375 / 67. Manuales: 10 / 0 |
-| Tiempo de la suite | 100,63 s con cobertura (`init.sh`); F-007 sola, 4,0 s; campaña ronda 2, 3755 s |
+| Tests ejecutados | 3393 passed, 1 skipped (suite completa en `init.sh`); 512 de F-007; 1328 de F-007 + F-009 + F-015 |
+| Cobertura de las líneas cambiadas | **100,0 %** (736/736, umbral 80 %, nivel critico) |
+| Mutantes generados / supervivientes | Pasada 1 (`4a94da0`): **381 / 5** (376 muertos, 0 timeouts): 1 equivalente aceptado por el humano (`cifras`), 1 hueco cazado con test, 2 falsos de la herramienta (mueren a mano), 1 guarda reescrita; **0 no aceptados**. Manuales: 11 / 0 (N7, A1-A5, S1-S5). Rondas anteriores: 375 / 67 y 374 / 2 |
+| Tiempo de la suite | 156,90 s con cobertura (`init.sh`); F-007 sola, 6,4 s; campaña de la pasada 1, 4674,3 s (media 12,3 s por mutante) |
 
 Salida de `bash harness/init.sh` (última ejecución, sin las líneas de puntos):
 
 ```
 [OK] Arnés v1.7.8 (2026-09-02) · [OK] features.json válido · [OK] BACKLOG.md al día
+    15 features, 6 abiertas, en curso: ['F-007'], bloqueadas: ['F-015']
 [AVISO] Hay features en estado blocked: revisa progress/current.md      (F-015, previa)
 [AVISO] ruff: 79 avisos (deuda previa, no bloquea)
-3347 passed, 1 skipped, 1 warning in 100.63s (0:01:40)
+3393 passed, 1 skipped, 1 warning in 156.90s (0:02:36)
 [OK] pytest en verde (con medición de cobertura)
-[OK] PUERTA COBERTURA: 100.0% de 710 líneas cambiadas cubiertas (710/710, umbral 80%, nivel critico)
-[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 239/250, impl 196/220)
+[OK] PUERTA COBERTURA: 100.0% de 736 líneas cambiadas cubiertas (736/736, umbral 80%, nivel critico)
+[OK] PUERTA TAMAÑO: F-007 dentro de los topes (requirements 150/150, design 248/250, impl 164/220)
 [OK] Rama actual: feature/F-007-registrar-proforma
 ENTORNO LISTO. Puedes trabajar.
 ```
