@@ -47,7 +47,7 @@ DOCORITIP_CONTRATO = 44
 #: `dca.cla` de una proforma (R12, M31).
 CLA_PROFORMA = 141
 
-#: Tolerancias (R8, R14, R19-R21, R24): medicion y cantidad, precio e importe.
+#: Tolerancias (R8, R14, R19-R21, R24): cantidad, precio e importe.
 TOLERANCIA_CANTIDAD = Decimal("0.001")
 TOLERANCIA_PRECIO = Decimal("0.0001")
 TOLERANCIA_IMPORTE = Decimal("0.05")
@@ -176,10 +176,6 @@ def _d(valor: Any) -> Decimal:
     return valor if isinstance(valor, Decimal) else Decimal(repr(float(valor or 0)))
 
 
-def _casa_medicion(can: float, medicion: float | None) -> bool:
-    return abs(_d(can) - _d(medicion)) <= TOLERANCIA_CANTIDAD
-
-
 
 @dataclass(frozen=True)
 class ContratoCandidato:
@@ -286,15 +282,28 @@ def contrato_pedido(
     return elegido
 
 
+def _por_partida_y_precio(
+    lineas: Sequence[LineaContrato], linea: LineaProformaIn
+) -> list[LineaContrato]:
+    """R14 (enmienda 1): las del contrato con el codigo de partida de la linea
+    (sin `partida`, ninguna) Y su precio (±0,0001). Dos filtros estrictos: si
+    uno deja cero, no se vuelve atras. Medicion, unidad y `producto` no cuentan."""
+    if linea.partida is None:
+        return []
+    return [
+        l for l in lineas
+        if _clave(l.partida) == _clave(linea.partida)
+        and abs(_d(l.pre) - _d(linea.precio)) <= TOLERANCIA_PRECIO
+    ]
+
+
 def _contiene(lineas: Sequence[LineaContrato], linea: LineaProformaIn) -> bool:
-    """Una linea de contrato de la peticion esta en el contrato: por su
-    `ctrpro_ide` o, sin el, por (partida, `medicion_contrato` ±0,001)."""
+    """R8 = R14: una linea de contrato de la peticion esta en el contrato por su
+    `ctrpro_ide` o, sin el, si casa con alguna por partida y precio (una o
+    varias: con un solo candidato seria esa o `linea_ambigua`)."""
     if linea.ctrpro_ide is not None:
         return any(l.ide == linea.ctrpro_ide for l in lineas)
-    return any(
-        _clave(l.partida) == _clave(linea.partida) and _casa_medicion(l.can, linea.medicion_contrato)
-        for l in lineas
-    )
+    return bool(_por_partida_y_precio(lineas, linea))
 
 
 def resolver_contrato(
@@ -371,12 +380,12 @@ def identificar_linea(
     linea: LineaProformaIn, lineas_del_contrato: Sequence[LineaContrato]
 ) -> LineaContrato:
     """
-    R14 (D6). Con `ctrpro_ide`, SOLO se comprueba que es una linea del contrato
-    resuelto: ni se re-identifica ni se sustituye. Sin el (respaldo), la
-    partida (codigo, obligatoria si viene) y despues, mientras queden varias y
-    quedandose con las que casan si casa alguna: `medicion_contrato` (±0,001),
-    `unidad` y precio (±0,0001). Varias, `linea_ambigua`; ninguna,
-    `linea_no_es_del_contrato`.
+    R14 (D6, enmienda 1). Con `ctrpro_ide`, SOLO se comprueba que es una linea
+    del contrato resuelto: ni se re-identifica ni se sustituye. Sin el
+    (respaldo), las del contrato de esa partida y ese precio, sin relajar
+    ningun filtro: una, esa; ninguna, `linea_no_es_del_contrato`; varias,
+    `linea_ambigua` con sus `ctrpro_ide` (el desempate, por la descripcion, es
+    de `proformas`).
     """
     if linea.ctrpro_ide is not None:
         for candidata in lineas_del_contrato:
@@ -386,33 +395,20 @@ def identificar_linea(
             "linea_no_es_del_contrato",
             f"La linea de contrato {linea.ctrpro_ide} no es del contrato resuelto.",
         )
-    quedan = list(lineas_del_contrato)
-    if linea.partida is not None:
-        quedan = [l for l in quedan if _clave(l.partida) == _clave(linea.partida)]
-    filtros = []
-    if linea.medicion_contrato is not None:
-        filtros.append(lambda l: _casa_medicion(l.can, linea.medicion_contrato))
-    if linea.unidad is not None:
-        filtros.append(lambda l: _clave(l.unimed) == _clave(linea.unidad))
-    filtros.append(lambda l: abs(_d(l.pre) - _d(linea.precio)) <= TOLERANCIA_PRECIO)
-    # Sin `break` con una sola: un filtro que no la casa no la quita (T18).
-    for filtro in filtros:
-        casan = [l for l in quedan if filtro(l)]
-        if casan:
-            quedan = casan
-    if not quedan:
+    casan = _por_partida_y_precio(lineas_del_contrato, linea)
+    if not casan:
         raise FalloIdentificacion(
             "linea_no_es_del_contrato",
-            f"Ninguna linea del contrato casa con la partida '{linea.partida or ''}'.",
+            f"Ninguna linea del contrato casa con la partida '{linea.partida or ''}' y el precio.",
         )
-    if len(quedan) > 1:
+    if len(casan) > 1:
         raise FalloIdentificacion(
             "linea_ambigua",
-            f"{len(quedan)} lineas del contrato casan con la partida, la medicion, la unidad y "
-            "el precio: indica ctrpro_ide.",
-            [l.ide for l in quedan],
+            f"{len(casan)} lineas del contrato casan con la partida y el precio: indica "
+            "ctrpro_ide.",
+            [l.ide for l in casan],
         )
-    return quedan[0]
+    return casan[0]
 
 
 def linea_descuadrada(linea: LineaProformaIn) -> bool:
