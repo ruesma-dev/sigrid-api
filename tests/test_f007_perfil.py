@@ -410,11 +410,39 @@ def test_f007_r17_producto_del_contrato_de_baja_no_vale() -> None:
     assert [f.codigo for f in excinfo.value.lineas] == ["producto_no_encontrado"]
 
 
-def test_f007_r17_producto_del_contrato_sin_historico_queda_como_hoy() -> None:
+def test_f007_r17_producto_del_contrato_sin_historico_lleva_el_iva_del_ctrpro() -> None:
+    """Enmienda 1 (D1): sin plantilla (L8b y L8 vacias), naturaleza, cuenta y
+    analitica a 0, pero el IVA sigue siendo el de la linea del contrato."""
     respuesta, _ = _con_productos_del_contrato([sin_vincular()], plantilla_linea=lambda p: [])
     fila = respuesta.filas["dcapro"][0]
-    assert (fila["natide"], fila["cueide"], fila["caaide"], fila["ivaide"]) == (0, 0, 0, 0)
-    assert [a.codigo for a in respuesta.lineas[0].avisos] == ["producto_sin_historico"]
+    assert (fila["natide"], fila["cueide"], fila["caaide"]) == (0, 0, 0)
+    assert (fila["ivaide"], fila["ivacuo"]) == (3, 1.58)  # 7,50 · 21 % del ctrpro 9001
+    assert respuesta.lineas[0].iva_cuota == 1.58
+    (aviso,) = respuesta.lineas[0].avisos
+    assert aviso.codigo == "producto_sin_historico"
+    assert "IVA a 0" not in aviso.mensaje and "IVA de su linea de contrato" in aviso.mensaje
+
+
+def _albaran_sin_historico() -> Any:
+    repo = RepositorioDoble({"plantilla_linea": lambda p: [], "plantilla_linea_proveedor": lambda p: []})
+    caso = CreateAlbaranCompraUseCase(repo, SettingsDoble(), ahora_utc=lambda: AHORA)
+    return caso.run(peticion([sin_vincular(producto="MA9999")]))
+
+
+def test_f007_r17_el_albaran_sin_historico_sigue_con_iva_0() -> None:
+    """R31: en el albaran (perfil apagado) una sin vincular sin plantilla, igual que hoy."""
+    respuesta = _albaran_sin_historico()
+    fila = respuesta.filas["dcapro"][0]
+    assert (fila["ivaide"], fila["ivacuo"]) == (0, 0.0)
+    (aviso,) = respuesta.lineas[0].avisos
+    assert aviso.mensaje == "El producto 66 no tiene lineas previas de albaran: cuenta e IVA a 0."
+
+
+def test_f007_r17_sin_historico_la_fila_tiene_las_columnas_de_la_sin_plantilla() -> None:
+    """Solo cambian el IVA y su cuota: la fila se construye con las mismas
+    columnas que la de una sin vincular sin plantilla del albaran."""
+    proforma, _ = _con_productos_del_contrato([sin_vincular()], plantilla_linea=lambda p: [])
+    assert set(proforma.filas["dcapro"][0]) == set(_albaran_sin_historico().filas["dcapro"][0])
 
 
 # =====================================================================================

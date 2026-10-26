@@ -243,6 +243,19 @@ def test_f007_r17_berenjeno_sin_vincular_con_el_producto_del_contrato() -> None:
     assert repo.parametros_de("plantilla_linea_proveedor") == [[SM1004, ENTIDE]]
 
 
+def test_f007_r17_berenjeno_sin_plantilla_con_el_iva_del_ctrpro() -> None:
+    """Enmienda 1 (D1): sin L8b ni L8, el IVA del `ctrpro` (21 %) con su cuota en
+    la fila y en los totales; naturaleza, cuenta y analitica a 0."""
+    sin_plantilla = {"plantilla_linea": lambda p: [], "plantilla_linea_proveedor": lambda p: []}
+    respuesta, _repo = ejecutar(peticion(otra_del_mes=True),
+                                repo=RepositorioProforma(lecturas=sin_plantilla))
+    fila = respuesta.filas["dcapro"][5]
+    assert (fila["natide"], fila["cueide"], fila["caaide"]) == (0, 0, 0)
+    assert (fila["ivaide"], fila["ivacuo"]) == (3, 55.75)  # 265,48 · 21 %
+    assert (respuesta.totales["totiva"], respuesta.totales["totdoc"]) == (3575.1, 20599.38)
+    assert respuesta.filas["dca"]["totiva"] == 3575.1
+
+
 def test_f007_r16_producto_ni_de_la_lista_ni_del_contrato() -> None:
     hoja = DATOS["hojas"]["CTSB26/0472"]
     lineas = [*hoja["lineas"][:-1], dict(hoja["lineas"][-1], producto="SM7777")]
