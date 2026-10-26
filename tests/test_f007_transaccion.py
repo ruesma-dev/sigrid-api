@@ -127,16 +127,64 @@ def test_f007_r28_con_otra_del_mes_lo_de_dentro_no_para() -> None:
     assert repo.sentencias() == ORDEN_DEL_INTENTO
 
 
+#: La L11 de E1: misma referencia, mismo proveedor y misma obra.
+_L11 = (2900011, "PROF26/01282", 20260831, ENTIDE, DATOS["obra"]["ide"], 17024.28, 20599.38,
+        19570.17)
+
+
 def test_f007_r28_dentro_aparece_la_misma_referencia_y_es_idempotente() -> None:
-    l11 = (2900011, "PROF26/01282", 20260831, ENTIDE, DATOS["obra"]["ide"], 17024.28, 20599.38,
-           19570.17)
+    """R28 (enmienda 1): la fila de E1 se relee con LP5 por el cursor; si es una
+    proforma del contrato resuelto, `idempotente` con `origen` nulo y sin los
+    avisos de la hoja (D3), como la idempotente de fuera."""
     repo = repo_commit(filas_en_transaccion={
-        "referencia": [l11], "lineas_del_existente": [(64, 610004, 620.0, 11.0, 6820.0, 0, 70, "F09")],
+        "referencia": [_L11], "lp5_referencia": [(2900011, "PROF26/01282", 141, CTR_0472)],
+        "lineas_del_existente": [(64, 610004, 620.0, 11.0, 6820.0, 0, 70, "F09")],
     })
-    respuesta = ejecutar(repo)
+    # Fuera, la hoja da un aviso (ANTERIOR 2600 frente a 2651 registrado).
+    respuesta = ejecutar(repo, importe_anterior=2600.0, importe_origen=19624.28)
     assert (respuesta.estado, respuesta.cod, respuesta.committed) == ("idempotente", "PROF26/01282", False)
-    assert repo.sentencias() == ["referencia", "lineas_del_existente"]
+    assert repo.sentencias() == ["referencia", "lp5_referencia", "lineas_del_existente"]
+    assert repo.parametros_en_transaccion("lp5_referencia") == [[14, "PRF-1001"]]
     assert respuesta.contrato is not None and respuesta.contrato.cod == "CTSB26/0472"
+    assert (respuesta.origen, respuesta.avisos) == (None, [])
+
+
+@pytest.mark.parametrize(
+    "lp5",
+    [[(2900011, "PROF26/01282", 0, CTR_0472)],                         # un albaran, no proforma
+     [(2900011, "PROF26/01282", 141, ctride_de("CTSB26/0417"))],       # de otro contrato
+     [(2900011, "PROF26/01282", 141, CTR_0472), (1, "PROF26/00001", 141, CTR_0472)],
+     []],
+)
+def test_f007_r28_dentro_la_misma_referencia_que_no_es_proforma_del_contrato_es_conflicto(
+    lp5: list[tuple[Any, ...]],
+) -> None:
+    """D2: dos peticiones con la misma referencia y distinto contrato. La
+    primera escribe; la segunda, bajo el applock, no puede salir idempotente con
+    el documento de la otra: `referencia_en_conflicto` sin escribir nada."""
+    repo = repo_commit(filas_en_transaccion={"referencia": [_L11], "lp5_referencia": lp5})
+    with pytest.raises(ProformaError) as excinfo:
+        ejecutar(repo)
+    assert excinfo.value.codigo == "referencia_en_conflicto"
+    assert repo.sentencias() == ["referencia", "lp5_referencia"]
+
+
+def test_f007_r28_sin_contrato_dentro_la_misma_referencia_es_idempotente() -> None:
+    cuerpo = {
+        "database": "ruesma", "usu": "prueba", "referencia_externa": "PRF-2002",
+        "cod_obra": "0719", "periodo": 202608, "importe_mes": 816.84,
+        "cif_proveedor": "B00000999", "sin_contrato": True, "commit": True,
+        "lineas": [{"referencia_linea": "S1", "producto": "SM9999", "partida": "9.01",
+                    "descripcion": "Seguridad y replanteo", "cantidad": 816.84, "precio": 1}],
+    }
+    repo = RepositorioProforma(filas_en_transaccion={
+        "referencia": [_L11], "lp5_referencia": [(2900011, "PROF26/01282", 141, 0)],
+        "lineas_del_existente": [],
+    })
+    caso = CreateProformaUseCase(repo, SettingsProforma(), ahora_utc=lambda: AHORA)
+    respuesta = caso.run(ProformaRequest(**cuerpo))
+    assert (respuesta.estado, respuesta.contrato, respuesta.origen) == ("idempotente", None, None)
+    assert repo.sentencias() == ["referencia", "lp5_referencia", "lineas_del_existente"]
 
 
 def test_f007_r28_dentro_la_misma_referencia_de_otra_obra_es_conflicto() -> None:

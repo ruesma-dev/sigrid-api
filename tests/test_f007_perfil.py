@@ -7,8 +7,10 @@ cambio de conducta (design §Costuras).
    campo existen en `Settings`; el núcleo lee la configuración por el perfil.
 2. Prefijo de serie como parámetro (`prefijo_de_serie`, `sellos_del_alta`) con el
    defecto `AC`, y el ancho de la serie (`siguiente_cod`) sin ceros por defecto.
-3. `_comprobar_dentro(cursor, request, cabecera)`: en la base no lee nada y se
-   llama en `work` justo después de E1 (idempotencia bajo `SIGRID_REFEXT_14`).
+3. `_comprobar_dentro(cursor, request, cabecera, existente)`: en la base no lee
+   nada y se llama en `work` justo después de E1 (idempotencia bajo
+   `SIGRID_REFEXT_14`), también con la fila que encuentra E1 antes de su salida
+   idempotente (enmienda 1, R28).
 4. `_Catalogo` con `productos_del_contrato`: apagado, como hoy; encendido, una
    sin vincular cuyo producto es del contrato toma naturaleza, cuenta y
    analítica de su plantilla de línea y el IVA del `ctrpro` (R17).
@@ -283,18 +285,22 @@ class CursorIntocable:
 
 def test_f007_r31_comprobar_dentro_de_la_base_no_lee_nada() -> None:
     caso = CreateAlbaranCompraUseCase(RepositorioDoble(), SettingsDoble())
-    assert caso._comprobar_dentro(CursorIntocable(), peticion(), None) is None
+    assert caso._comprobar_dentro(CursorIntocable(), peticion(), None, None) is None
+    fila_e1 = (2900500, "AC26/15000", 20261001, 77, 5000, 21.0, 25.41, 25.41)
+    assert caso._comprobar_dentro(CursorIntocable(), peticion(), None, fila_e1) is None
 
 
 class CasoConGancho(CreateAlbaranCompraUseCase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.vistas: list[tuple[int, list[str], Any, int]] = []
+        self.existentes: list[Any] = []
 
-    def _comprobar_dentro(self, cursor: Any, request: Any, cabecera: Any) -> None:
+    def _comprobar_dentro(self, cursor: Any, request: Any, cabecera: Any, existente: Any) -> None:
         self.vistas.append(
             (cursor.intento, self._repo.sentencias(cursor.intento), request, cabecera.ctride)
         )
+        self.existentes.append(existente)
 
 
 def test_f007_r31_comprobar_dentro_va_justo_tras_e1_en_cada_intento() -> None:
@@ -307,17 +313,35 @@ def test_f007_r31_comprobar_dentro_va_justo_tras_e1_en_cada_intento() -> None:
     assert respuesta.estado == "creado"
     assert [(i, s) for i, s, _r, _c in caso.vistas] == [(1, ["referencia"]), (2, ["referencia"])]
     assert all(r is request and c == CTR for _i, _s, r, c in caso.vistas)
+    assert caso.existentes == [None, None]
     assert repo.sentencias(2)[:2] == ["referencia", "reservar_cod"]
 
 
-def test_f007_r31_comprobar_dentro_no_se_llama_si_e1_encuentra_el_albaran() -> None:
+def test_f007_r31_comprobar_dentro_ve_la_fila_de_e1_antes_de_la_salida_idempotente() -> None:
     existente = (2900500, "AC26/15000", 20261001, 77, 5000, 21.0, 25.41, 25.41)
     repo = RepositorioDoble(filas_en_transaccion={"referencia": [existente],
                                                   "lineas_del_existente": []})
     caso = CasoConGancho(repo, SettingsDoble(), ahora_utc=lambda: AHORA)
     respuesta = caso.run(peticion(commit=True))
     assert respuesta.estado == "idempotente"
-    assert caso.vistas == []
+    # El gancho va tras E1 y antes de leer las lineas del existente.
+    assert [(i, s) for i, s, _r, _c in caso.vistas] == [(1, ["referencia"])]
+    assert caso.existentes == [existente]
+    assert repo.sentencias() == ["referencia", "lineas_del_existente"]
+
+
+def test_f007_r31_lo_que_lance_el_gancho_con_la_fila_de_e1_no_deja_salir_idempotente() -> None:
+    class CasoQueRechaza(CasoConGancho):
+        def _comprobar_dentro(self, cursor: Any, request: Any, cabecera: Any, existente: Any) -> None:
+            if existente is not None:
+                raise AlbaranCompraError("ajena", codigo="referencia_en_conflicto")
+
+    existente = (2900500, "AC26/15000", 20261001, 77, 5000, 21.0, 25.41, 25.41)
+    repo = RepositorioDoble(filas_en_transaccion={"referencia": [existente]})
+    with pytest.raises(AlbaranCompraError) as excinfo:
+        CasoQueRechaza(repo, SettingsDoble(), ahora_utc=lambda: AHORA).run(peticion(commit=True))
+    assert excinfo.value.codigo == "referencia_en_conflicto"
+    assert repo.sentencias() == ["referencia"]
 
 
 def test_f007_r31_comprobar_dentro_no_se_llama_en_la_previa() -> None:
