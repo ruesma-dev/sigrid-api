@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -483,6 +484,60 @@ def test_f007_r26_la_llave_del_albaran_no_abre_la_proforma() -> None:
     # Y en dry-run la llave cerrada no cambia nada (R5).
     respuesta, _repo = ejecutar(peticion(), settings=settings)
     assert respuesta.estado == "existente"
+
+
+# =====================================================================================
+# R18 · hora de Madrid y cambio de anio (D5); R24 · `otra_del_mes` (O3)
+# =====================================================================================
+
+
+def _a_las(ahora: datetime, cuerpo: dict[str, Any]) -> ProformaResponse:
+    caso = CreateProformaUseCase(RepositorioProforma(), SettingsProforma(), ahora_utc=lambda: ahora)
+    return caso.run(ProformaRequest(**cuerpo))
+
+
+def test_f007_r18_a_las_2230_utc_del_31_de_agosto_ya_es_septiembre_en_madrid() -> None:
+    # 22:30 UTC = 00:30 del 1 de septiembre en Madrid (CEST): 202609 es el mes en curso.
+    respuesta = _a_las(datetime(2026, 8, 31, 22, 30, tzinfo=timezone.utc),
+                       peticion(periodo=202609))
+    assert respuesta.estado == "previsto"
+    assert (respuesta.filas["con"]["fec"], respuesta.filas["dca"]["entref"]) == (
+        20260901, "PROF0926_0719")
+
+
+def test_f007_r18_a_las_2130_utc_del_31_de_agosto_septiembre_es_futuro() -> None:
+    # 21:30 UTC = 23:30 del 31 de agosto en Madrid: 202609 aun no ha empezado.
+    with pytest.raises(ProformaError) as excinfo:
+        _a_las(datetime(2026, 8, 31, 21, 30, tzinfo=timezone.utc), peticion(periodo=202609))
+    assert excinfo.value.codigo == "periodo_no_valido"
+
+
+def test_f007_r18_r12_cambio_de_anio_en_madrid() -> None:
+    # 23:30 UTC del 31-12 = 00:30 del 1-1-2027 en Madrid (CET): diciembre ya paso,
+    # su ultimo dia es la fecha y la serie es la de 2026.
+    respuesta = _a_las(datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc),
+                       peticion(periodo=202612))
+    assert (respuesta.estado, respuesta.cod) == ("previsto", "PROF26/01282")
+    assert (respuesta.filas["con"]["fec"], respuesta.filas["dca"]["entref"]) == (
+        20261231, "PROF1226_0719")
+    # Y enero de 2027 ya es el mes en curso: serie de 2027 y fecha de hoy en Madrid.
+    respuesta = _a_las(datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc),
+                       peticion(periodo=202701))
+    assert (respuesta.estado, respuesta.cod) == ("previsto", "PROF27/01282")
+    assert (respuesta.filas["con"]["fec"], respuesta.filas["dca"]["entref"]) == (
+        20270101, "PROF0127_0719")
+
+
+def test_f007_r24_otra_del_mes_se_salta_la_del_mismo_total_con_su_aviso() -> None:
+    """O3: la hoja de CTSB26/0472 tiene el MISMO total que AC26/25548; con
+    `otra_del_mes` no es `existente`: aviso y alta."""
+    hoja = DATOS["hojas"]["CTSB26/0472"]
+    assert hoja["importe_mes"] == next(
+        p["totbas"] for p in DATOS["proformas"]["CTSB26/0472"] if p["cod"] == "AC26/25548")
+    respuesta, _repo = ejecutar(peticion(otra_del_mes=True))
+    assert respuesta.estado == "previsto"
+    (aviso,) = [a for a in respuesta.avisos if a.codigo == "otra_del_mes"]
+    assert "AC26/25548" in aviso.mensaje
 
 
 # =====================================================================================
