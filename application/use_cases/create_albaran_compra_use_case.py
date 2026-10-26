@@ -32,6 +32,7 @@ from decimal import Decimal
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    _DCAPRO_SIN_PLANTILLA,
     APPLOCKS,
     EFECTOS_CON_BANCO,
     GRUPO_BANCO,
@@ -1547,9 +1548,14 @@ class _Catalogo:
                     "IVA de la ultima de otro.",
                 ))
         if plantilla is None:
+            # F-007 (R17): la del contrato conserva el IVA de su linea de contrato.
+            que = (
+                "cuenta a 0 e IVA de su linea de contrato" if linea.del_contrato
+                else "cuenta e IVA a 0"
+            )
             linea.avisos.append(_aviso(
                 "producto_sin_historico",
-                f"El producto {linea.proide} no tiene lineas previas de albaran: cuenta e IVA a 0.",
+                f"El producto {linea.proide} no tiene lineas previas de albaran: {que}.",
             ))
         linea.plantilla = plantilla
         if linea.del_contrato:
@@ -1559,13 +1565,15 @@ class _Catalogo:
 
     @staticmethod
     def _de_la_plantilla_del_contrato(linea: _Linea) -> None:
-        """F-007 (R17, M34): naturaleza, cuenta y analitica de su plantilla de
-        linea (L8b o L8) y el IVA de la linea del contrato, tambien en la fila
-        (`construir_dcapro_sin_vincular` lo toma de la plantilla). Sin plantilla,
-        como cualquier sin vincular sin historico: todo a 0, con su aviso."""
+        """F-007 (R17, M34; enmienda 1, D1): naturaleza, cuenta y analitica de su
+        plantilla de linea (L8b o L8) y el IVA de la linea del contrato, haya o
+        no plantilla, tambien en la fila (`construir_dcapro_sin_vincular` lo
+        toma de la plantilla). Sin plantilla, la base de una sin vincular sin
+        historico (mismas columnas, a 0) con ese IVA."""
         plantilla = linea.plantilla
         if plantilla is None:
-            linea.natide = linea.cueide = linea.caaide = linea.ivaide = 0
+            linea.natide = linea.cueide = linea.caaide = 0
+            linea.plantilla = {**dict.fromkeys(_DCAPRO_SIN_PLANTILLA, 0), "ivaide": linea.ivaide}
             return
         linea.natide = _entero(plantilla.get("natide"))
         linea.cueide = _entero(plantilla.get("cueide"))
