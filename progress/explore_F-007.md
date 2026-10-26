@@ -300,6 +300,10 @@ Todas las líneas de las de mes de 2026 (24.468 `AC` + 359 `PROF`):
 
 ### M29 · Los ejemplos de la obra 0719 en Sigrid (las cuatro hojas de `docs/referencia/`)
 
+> **Autorización** (anotada el 2026-10-26, obs. 3 de `review_F-007_C3C4ter.md`): el humano autorizó el 2026-10-25
+> convertir a Markdown y versionar las cuatro hojas de proforma (`docs/referencia/proforma_ejemplo_*.md`), que traen
+> precios de subcontratista; sin datos personales (las firmas solo llevan el rol). Consta también en su cabecera.
+
 - Los tres contratos (`CTSB26/0472`, `/0417`, `/0369`) tienen **una proforma de mes por hoja**, en serie `AC`, con
   `entref` `PROF<MMAA>_0719` (una con sufijo `-1`), `docoritip 0`, `cla 0`, `dcarec` y solo las partidas con MES:
   `AC26/22961` (julio) y `AC26/25548` (agosto) de `/0472`; `AC26/22962`, `/25552` y `/29425` de `/0417`;
