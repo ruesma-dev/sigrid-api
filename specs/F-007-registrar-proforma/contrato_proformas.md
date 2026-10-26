@@ -41,7 +41,7 @@ aunque hoy lo habitual sea `AC`) con solo las partidas de MES ≠ 0; las de cont
 | `importe_mes` | número | sí | TOTALES · IMPORTE MES | Debe ser Σ round(`cantidad`·`precio`, 2) ± 0,05 |
 | `importe_anterior` | número | no | TOTALES · IMPORTE ANTERIOR | Se compara con lo registrado (aviso) |
 | `importe_origen` | número | no | TOTALES · IMPORTE ORIGEN | Con el anterior: ORIGEN = ANTERIOR + MES (error si no) |
-| `cod_contrato` | texto | no | Nº CONTRATO | Si viene, **manda** (así se cambia el resuelto) |
+| `cod_contrato` | texto | no | Nº CONTRATO | Si viene, **manda** (así se cambia el resuelto); si no está en la obra, `contrato_no_encontrado` |
 | `cif_proveedor` | texto | no¹ | — | Resuelve el contrato (`ctr.entcif`); si viene, **manda sobre el nombre** (solo se filtra por CIF); obligatorio con `sin_contrato` |
 | `nombre_proveedor` | texto ≤128 | no¹ | SUBCONTRATISTA | Resuelve el contrato por nombre normalizado en `ctr.entres` |
 | `sin_contrato` | bool | no | Nº CONTRATO vacío | Alta sin contrato (todas las líneas sin vincular, sin retención). Sin contrato **no** se comprueba la hoja (`importe_mes_no_cuadra`, `hoja_descuadrada`, `linea_descuadrada`), ni se calcula el origen ni se busca la del mes (`existente`) |
@@ -131,14 +131,17 @@ contrato: naturaleza, cuenta e IVA de su línea de contrato) y la retención del
 | Código | Tipo | Cuándo | Qué hace `proformas` (propuesta) |
 |---|---|---|---|
 | `contrato_no_resuelto` | error | Ningún contrato de la obra y el proveedor a la fecha, o una línea de contrato que no está en ninguno de los candidatos | Revisar proveedor; o `cod_contrato`, o `sin_contrato` |
-| `contrato_ambiguo` | error | Varios candidatos que no deshacen las líneas: ninguna línea de contrato, o líneas que están en más de uno (mensaje con sus `cod`) | La persona elige y reenvía con `cod_contrato` |
+| `contrato_no_encontrado` | error | `cod_contrato` que no está en la obra (o el contrato resuelto desaparece de Sigrid antes de grabar) | Revisar `cod_contrato`, o reenviar sin él para que la API lo resuelva |
+| `contrato_ambiguo` | error | Varios candidatos que no deshacen las líneas: ninguna línea de contrato, o líneas que están en más de uno (mensaje con sus `cod`); o dos contratos de la obra con ese `cod_contrato` | La persona elige y reenvía con `cod_contrato` |
+| `proveedor_no_encontrado` | error | Con contrato, su `ctr.entcif` está vacío en Sigrid; con `sin_contrato`, el CIF no tiene albarán anterior ni un `prv` vivo en la empresa de la obra | Revisar el CIF del contrato o del proveedor en Sigrid, o alta a mano |
 | `hoja_de_varios_contratos` | error | Las líneas se reparten entre contratos (`details.reparto`) | Una petición por contrato, mismo `periodo` |
 | `contrato_de_otro_proveedor` | error | `cod_contrato` de otro CIF | Revisar |
 | `periodo_no_valido` | error | Mes futuro o `fecha_proforma` fuera del mes | Revisar |
 | `importe_mes_no_cuadra`, `hoja_descuadrada` | error | La hoja no suma (MES o ORIGEN ≠ ANTERIOR + MES) | Revisar la lectura |
 | `proforma_del_mes_existente` | error | Ya hay una del contrato y mes con otro importe (mensaje con su `cod`) | La persona decide; `otra_del_mes` si es una segunda |
 | `lineas_no_validas` | error | Fallos por línea: `linea_no_es_del_contrato`, `producto_obligatorio`, `producto_no_permitido`, `linea_descuadrada`, `linea_ambigua` (solo respaldo) y los de F-009 (`partida_*`…) | Recasar la línea o elegir el producto |
-| `escritura_proformas_deshabilitada`, `referencia_no_permitida`, `demasiadas_lineas`, `referencia_en_conflicto` | error | Configuración o reintento con otra proforma | — |
+| `escritura_proformas_deshabilitada`, `referencia_no_permitida`, `demasiadas_lineas`, `base_de_datos_no_permitida`, `referencia_en_conflicto` | error | Configuración o reintento con otra proforma | — |
+| Heredados de `sigrid/albaran`: `obra_no_encontrada`, `obra_de_empresa_no_permitida`, `obra_ambigua`, `usuario_no_valido`, `proveedor_ambiguo`, `retencion_no_soportada`, `almacen_de_obra_no_resuelto`, `estado_inicial_no_encontrado`, `colision_de_clave`, `filas_afectadas_inesperadas` | error | Con el sentido de F-009 y F-015 (`proveedor_ambiguo`, solo con `sin_contrato`) | Revisar `cod_obra` o `usu`; `colision_de_clave`, reenviar la misma petición; los demás, alta a mano |
 | (sin `codigo`) | error | Cuerpo que no valida: 400 `Solicitud invalida.` con `details.validation` (F-012); cuerpo que no es JSON o lectura truncada: 400 con `details.type` `ValueError` | Revisar la petición |
 | (500) | error | Inesperado | Reenviar la **misma** `referencia_externa`: la idempotencia dice si llegó a escribirse |
 | `anterior_distinto_de_sigrid` | aviso | ANTERIOR (cabecera o línea) ≠ lo registrado | Informativo (bis, anulaciones) |
@@ -187,3 +190,5 @@ y precio (nota ² de §2.2; antes, partida → medición → unidad → precio r
 entre contratos; `otra_del_mes` se salta también la `existente` del mismo importe (§2.1); bajo el applock, una fila con
 la misma `referencia_externa` de otro contrato o que no es proforma da `referencia_en_conflicto` (§4); el IVA de una
 línea nueva con producto del contrato sale de su `ctrpro` también si ese producto nunca ha salido en un albarán (§3).
+Tras la segunda revisión (2026-10-26), §4 recoge `contrato_no_encontrado` (también en §2.1), `proveedor_no_encontrado`
+(con contrato, un `ctr.entcif` vacío) y los heredados de `sigrid/albaran` que la ruta puede devolver.

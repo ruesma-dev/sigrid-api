@@ -6,9 +6,10 @@ Administración y respuesta de `proformas`) no lleva comandos: se anota en `prog
 el resultado de cada paso de este fichero.
 
 **Cuándo y quién.** Todo después de T20 y de la revisión aprobada. El despliegue (D1-D3) y la grabación (V5) los lanza
-el **humano**: `func publish` con el prefijo `!` y cada escritura con autorización expresa para esa llamada. Las
-lecturas y los dry-runs (V1-V4) los lanza el líder con autorización del humano para esa sesión. Todo desde PowerShell
-5.1, contra la API desplegada; nada por SQL directo. **Nunca `DELETE`**: lo grabado se anula desde la UI de Sigrid.
+el **humano**, cada escritura con autorización expresa para esa llamada. Las lecturas y los dry-runs (V1-V4) los lanza
+el líder con autorización del humano para esa sesión. Todo desde PowerShell 5.1 **salvo D2**: `func publish` lo lanza
+el humano con el prefijo `!` de la sesión, que corre en **bash**, donde no existen las variables `$env:` de la consola
+(ver D2). Contra la API desplegada; nada por SQL directo. **Nunca `DELETE`**: lo grabado se anula desde la UI de Sigrid.
 
 **Sin secretos.** Ni la URL ni la clave ni los nombres de los recursos se escriben en ningún fichero: van en variables
 de entorno de la propia consola. Los ficheros JSON de App Settings se dejan en `$env:TEMP`, fuera del repositorio.
@@ -55,9 +56,15 @@ az functionapp config appsettings list -g $env:SIGRID_API_RG -n $env:SIGRID_API_
 Se mira: el `python` imprime `False ['PRF-'] ['SM9999', 'SB9999', 'SM370001'] {...} 500` (si falla, no se sube);
 el `list` enseña las cinco con esos valores (el `set` las enseña a `null`: es normal).
 
-**D2 · Publicar** desde la rama revisada (el humano, con `!`):
-`func azure functionapp publish $env:SIGRID_API_APP --python`. La primera llamada puede dar timeout por arranque en
-frío: se repite.
+**D2 · Publicar** desde la rama revisada. El humano, en el prompt de la sesión de Claude Code, con el prefijo `!` (corre
+en bash) y la orden literal, sin variables: en lugar de `<app>` teclea él el nombre de la Function App (el mismo que
+puso en `$env:SIGRID_API_APP`):
+
+```text
+! func azure functionapp publish <app> --python
+```
+
+La primera llamada puede dar timeout por arranque en frío: se repite.
 
 **D3 · Lo primero, un dry-run de `sigrid/albaran`** (O3). Obra 0404, contrato `CTSU16/0206` (el de F-009), una línea
 con cantidad pendiente; antes, las ayudas de V0:
@@ -132,7 +139,7 @@ function Cuerpo($cod, $ref, $otra = $false, $conIde = $true) {
   @{ database = "ruesma"; usu = "prueba"; referencia_externa = $ref; cod_obra = "0719"; periodo = 202608
      cod_contrato = $cod; importe_mes = $h.mes; importe_anterior = $h.anterior; importe_origen = $h.origen
      numero_orden = 2; otra_del_mes = $otra; commit = $false; lineas = $lineas + $h.nuevas } }
-function Lineas($r) { $r.lineas | Select-Object ctrpro_ide, producto, cantidad, precio, total | Format-Table }
+function Lineas($r) { $r.lineas | Select-Object dcapro_ide, ctrpro_ide, linoriide, producto, cantidad, precio, importe, total | Format-Table }
 ```
 
 **V1 · La ruta existe y la llave está cerrada** (sin escribir aunque estuviera abierta: la hoja es `existente`):
@@ -142,7 +149,8 @@ $c = Cuerpo "CTSB26/0472" "PRF-prueba-F007-llave"; $c.commit = $true
 Llamar "sigrid/proforma" $c
 ```
 
-Se mira: 400 `escritura_proformas_deshabilitada` con «Escritura de proformas desactivada: hacen falta …».
+Se mira: 400 `escritura_proformas_deshabilitada` con el mensaje de la ruta, «Escritura de proformas desactivada
+(SIGRID_PROFORMA_WRITE_ENABLED=false): no se ha escrito nada.».
 
 **V2 · Las tres hojas, `existente`** (T21, V7). Para cada contrato, la previa y su tiempo:
 
@@ -220,6 +228,7 @@ que `canser` vuelve a lo leído antes de grabar:
 
 ```powershell
 Q "SELECT COUNT(*) AS n FROM dbo.con WHERE ide = ?" @($g.con_ide)
+Q "SELECT COUNT(*) AS n FROM dbo.dcarec WHERE docide = ?" @($g.con_ide)
 Q "SELECT COUNT(*) AS n FROM dbo.dca WHERE synckey = ?" @($cuerpoG.referencia_externa)
 Q "SELECT ide, can, canser FROM dbo.ctrpro WHERE docide = ? ORDER BY pos" @($ctride)
 ```

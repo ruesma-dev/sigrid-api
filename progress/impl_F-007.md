@@ -62,14 +62,17 @@ plantilla) la sustituye D1 (T27-T28).
 >   (§8, lo que cambió). Lo que os afecta: `periodo` y `fecha_proforma` son **enteros** (`202608`; el texto da 400);
 >   `cif_proveedor` manda sobre el nombre; sin contrato no hay `existente` ni comprobación de la hoja; referencia
 >   `PRF-`; vuestra lista de productos, contenida en la de la API. **Novedades de la v1.1**: una línea de contrato
->   sin `ctrpro_ide` (respaldo que no usáis) se vincula **solo por partida y precio unitario**; si casan varias,
->   `linea_ambigua` con sus `candidatos`: desempatáis por la descripción y reenviáis con `ctrpro_ide` (la misma regla
->   decide entre contratos); `otra_del_mes` registra aunque haya una del mismo importe; reenviar una ya grabada da
->   `idempotente` con `origen` nulo y `avisos` vacío; una referencia de otro contrato o que no es proforma da
+>   sin `ctrpro_ide` (respaldo que no usáis) se vincula **solo por partida y precio unitario**; sin `partida` no casa
+>   ninguna, y si no casa ninguna da `linea_no_es_del_contrato`; si casan varias, `linea_ambigua` con sus
+>   `candidatos`: desempatáis por la descripción y reenviáis con `ctrpro_ide` (la misma regla decide entre
+>   contratos); `otra_del_mes` registra aunque haya una del mismo importe; reenviar una ya grabada da `idempotente`
+>   con `origen` nulo y `avisos` vacío; una referencia de otro contrato o que no es proforma da
 >   `referencia_en_conflicto` también bajo el applock; el IVA de una nueva con producto del contrato sale de su línea
->   de contrato; un contrato sin CIF en Sigrid da `proveedor_no_encontrado`; con la llave cerrada, el 400 dice
->   «Escritura de proformas desactivada». Siguen abiertas las tres preguntas de design §Preguntas (CIF o nombre;
->   solo MES ≠ 0; qué avisos bloquean la aprobación).
+>   de contrato; con la llave cerrada, el 400 dice «Escritura de proformas desactivada». **Códigos nuevos en §4**:
+>   `contrato_no_encontrado` (un `cod_contrato` que no está en la obra: revisadlo) y `proveedor_no_encontrado` (un
+>   contrato sin CIF en Sigrid, o con `sin_contrato` un CIF sin proveedor vivo: corregir en Sigrid o alta a mano),
+>   más una fila con los heredados de `sigrid/albaran`. Siguen abiertas las tres preguntas de design §Preguntas (CIF
+>   o nombre; solo MES ≠ 0; qué avisos bloquean la aprobación).
 > - **facturas**: las proformas que registre la API serán `tip 14` de la serie `PROF<aa>/` (`cla 141`) con
 >   `dca.entref` = `PROF<MMAA>_<cod_obra>`, el mismo de las `AC` de hoy. Si buscáis proformas por `con.cod` `AC…`,
 >   añadid la serie `PROF`. Ver `azure-apps/sigrid_api.md` §8.10 y §10.

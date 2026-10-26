@@ -41,7 +41,7 @@ contrato completo o las hojas de varios contratos en una llamada, hay que partir
 
 | Fichero | Qué cambia |
 |---|---|
-| `application/use_cases/create_albaran_compra_use_case.py` | §Costuras 1, 3 y 4: literales a `PerfilAlta` **con los mismos valores** (guardas, serie y error por el perfil); gancho `_comprobar_dentro`; `_Catalogo` con productos del contrato si el perfil lo pide |
+| `application/use_cases/create_albaran_compra_use_case.py` | §Costuras 1, 3 y 4: literales a `PerfilAlta` **con los mismos valores** (guardas, serie, error y `documentos` por el perfil); ganchos `_comprobar_dentro(cursor, request, cabecera, existente)` y `_cargar_contrato(request, ctride)`; `_Catalogo` con productos del contrato si el perfil lo pide |
 | `application/use_cases/albaran_compra_statements.py` | §Costuras 2: `prefijo_de_serie(fecha, prefijo=PREFIJO_SERIE)`, `sellos_del_alta(..., prefijo=PREFIJO_SERIE)` y `siguiente_cod(prefijo, maximo, *, cifras=0)`; ninguna constante SQL cambia |
 | `domain/models/albaran_compra_models.py` | §Costuras 5: `AlbaranCompraError` y `FalloLinea` validan contra atributos de clase (por defecto los conjuntos de hoy) |
 | `config/settings.py`, `local.settings.sample.json` | las cinco claves de R4, con `parse_string_list`/`parse_string_dict` de F-009 |
@@ -57,25 +57,28 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
 
 ## Costuras en el núcleo (D12; sin cambio de conducta)
 
-1. `PerfilAlta` (dataclass congelada): `endpoint` (traza); `prefijo_serie` y `cifras_serie` (ancho del número, 0 = sin
-   relleno); `cla`; `codigo_llave`; los nombres de los campos de `Settings` `campo_llave`, `campo_prefijos`,
-   `campo_max_lineas`, `campo_productos` y `campo_naturalezas`; `productos_del_contrato: bool`, y `error`, la clase que
-   lanzan las guardas (defecto `AlbaranCompraError`). `_comprobar_guardas` lee los campos con `getattr(settings, …)` y
-   lanza `perfil.error` con `perfil.codigo_llave`. `PERFIL_ALBARAN` reproduce los literales de hoy (`AC`, 0, `cla` 0
-   que el núcleo no lee, `sigrid_albaran_*`); `PERFIL_PROFORMA`: `PROF`, 5, 141, `sigrid_proforma_*`, `ProformaError`.
-   `CreateAlbaranCompraUseCase.perfil = PERFIL_ALBARAN`. Un test comprueba que todos los nombres existen en `Settings`.
+1. `PerfilAlta` (dataclass congelada): `endpoint` (traza); `prefijo_serie` y `cifras_serie` (ancho, 0 = sin relleno);
+   `cla`; `codigo_llave`; los campos de `Settings` `campo_llave`, `campo_prefijos`, `campo_max_lineas`,
+   `campo_productos` y `campo_naturalezas`; `productos_del_contrato: bool`; `error`, la clase de las guardas (defecto
+   `AlbaranCompraError`), y `documentos`, el nombre en el mensaje de la llave (defecto `"albaranes"`).
+   `_comprobar_guardas` lee los campos con `getattr` y lanza `perfil.error` con `perfil.codigo_llave`. `PERFIL_ALBARAN`
+   son los literales de hoy (`AC`, 0, `cla` 0 que el núcleo no lee, `sigrid_albaran_*`, `documentos` por defecto);
+   `PERFIL_PROFORMA`: `PROF`, 5, 141, `sigrid_proforma_*`, `ProformaError`, `"proformas"`. Es el `perfil` de clase de
+   `CreateAlbaranCompraUseCase`; un test comprueba que todos los nombres existen en `Settings`.
 2. Serie como parámetro con el defecto de hoy: prefijo (`AC`) y `siguiente_cod(..., cifras=)` (`zfill`; 0 da el
    `AC<aa>/N` de hoy), con `perfil.cifras_serie` en la previa y en la reserva dentro de la transacción.
-3. `_comprobar_dentro(cursor, request, cabecera)`: se llama en `work` tras E1 (bajo `SIGRID_REFEXT_14`); en la base no
-   lee nada. Para R28 (enmienda 1) la subclase debe ver la fila que encuentre E1 **antes** de su salida idempotente:
-   la relee con LP5 por el `cursor` y, si no es proforma del contrato resuelto, `referencia_en_conflicto`.
+3. Ganchos. `_comprobar_dentro(cursor, request, cabecera, existente)`, en `work` tras E1 (bajo `SIGRID_REFEXT_14`) y
+   **antes** de su salida idempotente, con la fila de E1 o `None`; en la base, vacío. La subclase (R28) relee esa fila
+   con LP5 por el `cursor`: si no es UNA proforma del contrato resuelto, `referencia_en_conflicto`. Y
+   `_cargar_contrato(request, ctride)`: `ctr` y `ctrpro` por `pos` (o `None`), extraído de `_resolver_contrato`.
 4. `_Catalogo`: si `perfil.productos_del_contrato`, una sin vincular cuyo producto es el de alguna línea del contrato
    se admite fuera de la lista y toma naturaleza, cuenta y analítica de su plantilla de línea (L8b, L8; sin ella, 0) y
-   el IVA de esa línea del contrato **también sin plantilla** (R17); con `False` (albarán), igual que hoy.
+   el IVA de esa línea del contrato **también sin plantilla** (R17); si dos líneas del contrato tienen el producto,
+   el de la primera por `pos`. Con `False` (albarán), igual que hoy.
 5. Códigos: conjuntos cerrados como atributo de clase, para que `ProformaError` y `FalloLineaProforma` los amplíen.
 
-`CreateProformaUseCase` sobrescribe `run` (su flujo y su traza R33), `_construir` (`super()` y después `dca.cla` =
-`perfil.cla`) y `_comprobar_dentro` (R28). Todo lo demás es el núcleo, llamado con la petición traducida.
+`CreateProformaUseCase` sobrescribe `run` (flujo y traza R33), `_construir` (`super()` y `dca.cla` = `perfil.cla`),
+`_comprobar_dentro` (R28) y `_resolver_contrato` (el resuelto, por `ide`). El resto es el núcleo, con la petición traducida.
 
 ## Flujo
 
@@ -102,7 +105,8 @@ Los casos de uso y modelos del clásico y de `albaran-directo`; **los tests y do
   el respaldo de `identificar_linea` (R8 = R14) → uno → `lineas`. Si ninguno las contiene todas pero
   cada una está en exactamente un candidato → `hoja_de_varios_contratos` con `reparto` (referencia de línea → `cod`);
   si no, `contrato_ambiguo` o `contrato_no_resuelto`. M32 (medido con partida y medición): 94,6 % único, 0,5 % mal.
-- Elegido el contrato, el núcleo lo vuelve a localizar con `cod_contrato` + obra + `ctr.entcif` (`locate_contract`).
+- Elegido el contrato, el núcleo lo carga por su `ide` (`_cargar_contrato`, sin relocalizarlo por CIF; O4). Con
+  contrato, `traducir` toma su `ctr.entcif` normalizado y, vacío, da `proveedor_no_encontrado` (O8).
 
 ## Líneas (R13-R17; D6)
 
@@ -190,10 +194,9 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
   quedan varios, las líneas de contrato** (94,6 %, 0,5 % mal, 4,9 % a la persona; M32), devolviendo
   `contrato.resuelto_por` y `candidatos`. Un `ctrpro_ide` de otro contrato es error (D6), nunca cambia el resuelto.
   Alternativas: contrato obligatorio (la hoja lo trae a veces); nombre solo en el llamante (frágil, M32).
-- **D5 · Hoja de dos contratos** (1,7 %, M32). **Error `hoja_de_varios_contratos` con el reparto línea → contrato**, y
-  `proformas` manda una petición por contrato con el mismo `periodo` (dos proformas, dos referencias); R24 va por
-  contrato, así que la segunda no salta por la primera. Alternativa: dos documentos en una llamada (rompe «una proforma
-  por petición», la idempotencia y la previa).
+- **D5 · Hoja de dos contratos** (1,7 %, M32). **Error `hoja_de_varios_contratos` con el reparto línea → contrato**:
+  `proformas` manda una petición por contrato con el mismo `periodo`; R24 va por contrato, así que la segunda no salta
+  por la primera. Alternativa: dos documentos en una llamada (rompe «una por petición», la idempotencia y la previa).
 - **D6 · Casado en `proformas`** *(decidido, 2026-10-25)*. `proformas` manda **siempre `ctrpro_ide`** en las líneas de
   contrato y **siempre `producto`** en las nuevas, que elige una persona. La API **solo valida** que el `ctrpro_ide` es
   del contrato resuelto (`linea_no_es_del_contrato` si no, también si es de otro contrato de la obra); no re-identifica
@@ -204,16 +207,14 @@ no hace falta uno nuevo. El escritorio no toma applocks (riesgo residual, §Ries
   la 0719 (M29), pero facturas vio diferencias por «bis» y anulaciones (1 de 4 exacta). Alternativa: error con
   `forzar`. ORIGEN = ANTERIOR + MES de la propia hoja sí es error (R19).
 - **D8 · Avisos de Administración** (correo del 2026-10-21). **En F-007, avisos informativos `supera_contrato`
-  (> 100 %) y `supera_contrato_10` (> 110 %)** sobre Σ `ctrpro.tot` (= «IMPORTE TOTAL» de la hoja; `ctr.tot` es neto
-  de retención o con IVA, M29); medido 2,2 % y 3,5 % de los contratos (M35). **Avisar al administrativo o al jefe de
-  obra y frenar la aprobación es de `proformas` (en su bandeja) y bloquear la factura, de `facturas` o F-008**, que
-  deciden con estos avisos.
+  (> 100 %) y `supera_contrato_10` (> 110 %)** sobre Σ `ctrpro.tot` (= «IMPORTE TOTAL»; `ctr.tot` es neto de retención
+  o con IVA, M29); medido 2,2 % y 3,5 % de los contratos (M35). **Avisar al administrativo o al jefe de obra y frenar
+  la aprobación es de `proformas` y bloquear la factura, de `facturas` o F-008**, que deciden con estos avisos.
 - **D9 · Fecha y cabecera**: la de la v2 (M36: 96,4 % en el mes) y la lista blanca de F-015 sin más cambios que D3.
 - **D10 · Ya registrada**: **`existente` (200, sin escribir) si hay una del mismo contrato y mes con el mismo total**
-  (±0,05), con sus líneas (LP6: `dcapro.ide`, `linoriide`, producto, cantidad, precio, importe) para que `proformas`
-  enlace sin otra lectura; con otro total, error salvo `otra_del_mes` (3,9 % de los meses llevan dos, M36). Por
-  contrato, nunca por obra ni subcontratista (D5). Alternativa: confiar en la idempotencia (duplicaría las que
-  Administración dé de alta a mano en la transición).
+  (±0,05), con sus líneas (LP6: `dcapro.ide`, `linoriide`, producto, cantidad, precio, importe) para enlazarla sin
+  otra lectura; con otro total, error salvo `otra_del_mes` (3,9 % de los meses llevan dos, M36). Por contrato, nunca
+  por obra ni subcontratista (D5). Alternativa: confiar en la idempotencia (duplicaría las altas a mano de la transición).
 - **D11 · Configuración**: llave propia y listas propias; despliegue propuesto `SM9999`, `SB9999`, `SM370001` (los tres
   más usados sin contrato, M34; `SM370001` sin `mov`, `tipmov` 0), **pendiente de Administración (V8)**; tope 500.
   **Sin endpoint de lista de productos** (como albaranes): `proformas` tiene su App Setting, contenida en
