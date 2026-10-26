@@ -106,36 +106,91 @@ def test_f007_r14_respaldo_suministro_elaboracion_colocacion_por_precio(
     assert identificar_linea(pedida, lineas_de("CTSB26/0417")).ide == IDES_0417[esperada]
 
 
-def test_f007_r14_respaldo_misma_partida_por_medicion() -> None:
+def test_f007_r14_respaldo_misma_partida_por_precio() -> None:
     # «02.02.02»: DESBROCE 3700 M2 a 0,6 y EXCAVACION 5180 M3 a 2,8.
     pedida = linea(partida="02.02.02", medicion_contrato=5180, unidad="M3", precio=2.8)
     assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[1]
-    pedida = linea(partida="02.02.02", medicion_contrato=3700.0004, precio=9)
-    assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[0]
-
-
-def test_f007_r14_respaldo_la_medicion_que_no_casa_no_descarta_y_sigue_por_unidad() -> None:
-    pedida = linea(partida="02.02.02", medicion_contrato=5000, unidad="m3", precio=9)
-    assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[1]
-
-
-def test_f007_r14_respaldo_por_precio_cuando_lo_demas_no_deshace() -> None:
     pedida = linea(partida="02.02.02", medicion_contrato=1, precio=0.6)
     assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[0]
 
 
-def test_f007_r14_respaldo_una_sola_con_esa_partida_basta() -> None:
-    # 02.02.04 solo tiene una linea: no se mira ni la medicion ni el precio.
-    pedida = linea(partida="02.02.04", medicion_contrato=1, unidad="KG", precio=99)
-    assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[4]
+@pytest.mark.parametrize(
+    "otros",
+    [
+        {"medicion_contrato": 3700, "unidad": "M2"},     # la medicion y la unidad de la otra
+        {"medicion_contrato": 1, "unidad": "KG"},        # ni una ni otra casan
+        {"medicion_contrato": 5180, "producto": "SM9999"},
+    ],
+)
+def test_f007_r14_respaldo_medicion_unidad_y_producto_no_cuentan(otros: dict[str, Any]) -> None:
+    # Precio de la EXCAVACION (2,8): da esa, digan lo que digan los demas campos.
+    pedida = linea(partida="02.02.02", precio=2.8, **otros)
+    assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[1]
 
 
-def test_f007_r14_respaldo_varias_que_casan_es_linea_ambigua_con_candidatos() -> None:
-    pedida = linea(partida="02.03.02.03", medicion_contrato=20140.26, unidad="KG", precio=0.5)
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"partida": "02.02.02", "medicion_contrato": 3700.0004, "precio": 9},  # casaba la medicion
+        {"partida": "02.02.02", "medicion_contrato": 5000, "unidad": "m3", "precio": 9},  # y la unidad
+        {"partida": "02.02.04", "medicion_contrato": 1123.2, "precio": 99},  # una sola con la partida
+        {"partida": "02.03.02.03", "medicion_contrato": 20140.26, "precio": 0.5},  # tres por partida
+    ],
+)
+def test_f007_r14_respaldo_sin_precio_que_case_no_vuelve_atras(campos: dict[str, Any]) -> None:
+    """Partida y precio son filtros estrictos: si el precio deja cero, no se
+    vuelve a las de la partida (enmienda 1, R14)."""
     with pytest.raises(FalloIdentificacion) as exc:
-        identificar_linea(pedida, lineas_de("CTSB26/0417"))
-    assert exc.value.codigo == "linea_ambigua"
-    assert exc.value.candidatos == IDES_0417[:3]
+        identificar_linea(linea(**campos), lineas_de(
+            "CTSB26/0417" if campos["partida"] == "02.03.02.03" else "CTSB26/0369"))
+    assert (exc.value.codigo, exc.value.candidatos) == ("linea_no_es_del_contrato", [])
+
+
+@pytest.mark.parametrize("precio", [10.8, 8.8, 2.8])
+def test_f007_r14_respaldo_sin_partida_no_casa_ninguna(precio: float) -> None:
+    # 10,8 es de UNA sola linea de CTSB26/0369; aun asi, sin partida no hay linea.
+    pedida = linea(medicion_contrato=1258.39, unidad="M3", precio=precio)
+    with pytest.raises(FalloIdentificacion) as exc:
+        identificar_linea(pedida, lineas_de("CTSB26/0369"))
+    assert exc.value.codigo == "linea_no_es_del_contrato"
+
+
+def test_f007_r14_sonda_d4_una_sola_linea_que_no_casa_no_se_vincula() -> None:
+    """La sonda D4 de `review_F-007_proforma.md`: contrato de UNA linea, sin
+    `partida`, medicion, unidad y precio distintos y con `producto`."""
+    unica = [LineaContrato(ide=1, docide=1, paride=1, partida="07.01", can=100.0, pre=10.0,
+                           tot=1000.0, unimed="M3", proide=1, producto="SM1004")]
+    pedida = linea(producto="SM1004", medicion_contrato=55, unidad="UD", precio=99)
+    assert pedida.de_contrato
+    with pytest.raises(FalloIdentificacion) as exc:
+        identificar_linea(pedida, unica)
+    assert exc.value.codigo == "linea_no_es_del_contrato"
+
+
+def _dos_iguales() -> list[LineaContrato]:
+    """Dos lineas de la misma partida y el mismo precio (el desempate es semantico)."""
+    return [
+        LineaContrato(ide=11, docide=1, paride=1, partida="02.02.10", can=8368.15, pre=4.0,
+                      tot=33472.6, unimed="M3", proide=1, producto="SM1026"),
+        LineaContrato(ide=12, docide=1, paride=1, partida="02.02.10", can=769.87, pre=4.0,
+                      tot=3079.48, unimed="M2", proide=1, producto="SM1026"),
+        LineaContrato(ide=13, docide=1, paride=1, partida="02.02.10", can=769.87, pre=21.8,
+                      tot=16783.166, unimed="M3", proide=1, producto="SM1026"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "otros", [{}, {"medicion_contrato": 769.87, "unidad": "M2"}, {"medicion_contrato": 8368.15}]
+)
+def test_f007_r14_respaldo_varias_que_casan_es_linea_ambigua_con_candidatos(
+    otros: dict[str, Any]
+) -> None:
+    # Ni la medicion ni la unidad deshacen el empate de partida y precio.
+    pedida = linea(partida="02.02.10", precio=4, **{"medicion_contrato": 1, **otros})
+    with pytest.raises(FalloIdentificacion) as exc:
+        identificar_linea(pedida, _dos_iguales())
+    assert (exc.value.codigo, exc.value.candidatos) == ("linea_ambigua", [11, 12])
+    assert "partida y el precio" in exc.value.mensaje
 
 
 def test_f007_r14_respaldo_partida_que_no_es_del_contrato() -> None:
@@ -146,7 +201,7 @@ def test_f007_r14_respaldo_partida_que_no_es_del_contrato() -> None:
 
 
 def test_f007_r14_respaldo_partida_comparada_como_el_erp() -> None:
-    pedida = linea(partida=" 02.02.04 ", medicion_contrato=1123.2)
+    pedida = linea(partida=" 02.02.04 ", medicion_contrato=1123.2, precio=8.8)
     assert identificar_linea(pedida, lineas_de("CTSB26/0369")).ide == IDES_0369[4]
 
 
@@ -178,10 +233,9 @@ def test_f007_r14_r16_revisar_lineas_junta_todos_los_fallos_de_la_etapa_1() -> N
 
 
 def test_f007_r14_revisar_lineas_lleva_los_candidatos_de_la_ambigua() -> None:
-    lineas = [linea(referencia_linea="C", partida="02.03.02.03", medicion_contrato=20140.26,
-                    precio=0.5)]
-    _identificadas, fallos = revisar_lineas(lineas, lineas_de("CTSB26/0417"), sin_contrato=False)
-    assert [(f.codigo, f.candidatos) for f in fallos] == [("linea_ambigua", IDES_0417[:3])]
+    lineas = [linea(referencia_linea="C", partida="02.02.10", medicion_contrato=1, precio=4)]
+    _identificadas, fallos = revisar_lineas(lineas, _dos_iguales(), sin_contrato=False)
+    assert [(f.codigo, f.candidatos) for f in fallos] == [("linea_ambigua", [11, 12])]
 
 
 def test_f007_r16_sin_producto_es_obligatorio_aunque_el_contrato_tenga_uno_solo() -> None:

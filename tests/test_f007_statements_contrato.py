@@ -28,11 +28,13 @@ from application.use_cases.proforma_statements import (
     LP5_REFERENCIA,
     LP6_LINEAS_DE_PROFORMA,
     ContratoCandidato,
+    FalloIdentificacion,
     LineaContrato,
     ProformaStatements,
     candidatos_de_contrato,
     contrato_pedido,
     fin_de_periodo,
+    identificar_linea,
     normalizar_nombre,
     primer_dia_de_periodo,
     resolver_contrato,
@@ -394,34 +396,82 @@ def test_f007_r8_varios_candidatos_las_lineas_con_ctrpro_ide_deshacen() -> None:
     )
 
 
-def test_f007_r8_varios_candidatos_por_partida_y_medicion_sin_ctrpro_ide() -> None:
-    gemelo, lineas = _gemelo(7001, "CTSB26/0701", "CTSB26/0472")
-    respaldo = [
-        LineaProformaIn(referencia_linea="F01", partida="02.03.02.01", medicion_contrato=403.0585,
-                        unidad="M3", descripcion="VERTIDO", cantidad=10, precio=11),
+def _respaldo(partida: str | None, precio: float, **otros: Any) -> list[LineaProformaIn]:
+    """Una linea de contrato sin `ctrpro_ide` y una nueva (que no cuenta para R8)."""
+    return [
+        LineaProformaIn(referencia_linea="F01", partida=partida, precio=precio, descripcion="X",
+                        cantidad=10, **{"medicion_contrato": 1, **otros}),
         LineaProformaIn(referencia_linea="F02", producto="SM1004", descripcion="EXTRA",
                         cantidad=1, precio=1),
     ]
-    resuelto = resolver_contrato(
+
+
+def _resolver_con_el_gemelo(lineas: list[LineaProformaIn]) -> ContratoResuelto:
+    gemelo, de_gemelo = _gemelo(7001, "CTSB26/0701", "CTSB26/0472")
+    return resolver_contrato(
         [gemelo, candidato("CTSB26/0472")],
-        {**por_contrato("CTSB26/0472"), gemelo.ide: lineas},
-        respaldo,
+        {**por_contrato("CTSB26/0472"), gemelo.ide: de_gemelo},
+        lineas,
     )
-    assert (resuelto.cod, resuelto.resuelto_por) == ("CTSB26/0472", "lineas")
+
+
+@pytest.mark.parametrize(
+    ("partida", "precio", "cod"),
+    [("07.01", 5, "CTSB26/0701"), ("07.01", 5.0001, "CTSB26/0701"),
+     ("02.03.02.04", 26, "CTSB26/0472"), ("02.03.02.04", 25.9999, "CTSB26/0472")],
+)
+def test_f007_r8_varios_candidatos_por_partida_y_precio_sin_ctrpro_ide(
+    partida: str, precio: float, cod: str
+) -> None:
+    resuelto = _resolver_con_el_gemelo(_respaldo(partida, precio))
+    assert (resuelto.cod, resuelto.resuelto_por) == (cod, "lineas")
     assert resuelto.candidatos == ["CTSB26/0701", "CTSB26/0472"]
 
 
-def test_f007_r8_medicion_fuera_de_la_tolerancia_no_contiene() -> None:
-    gemelo, lineas = _gemelo(7001, "CTSB26/0701", "CTSB26/0472")
-    respaldo = [LineaProformaIn(referencia_linea="F01", partida="02.03.02.01",
-                                medicion_contrato=403.0595, descripcion="X", cantidad=1, precio=11)]
+@pytest.mark.parametrize(
+    ("partida", "precio", "otros"),
+    [
+        ("07.01", 5.00011, {}),                                    # precio fuera del borde
+        ("02.03.02.01", 12, {"medicion_contrato": 403.058}),        # la medicion no basta
+        (None, 5, {"medicion_contrato": 10, "unidad": "UD"}),       # sin partida, ninguna
+    ],
+)
+def test_f007_r8_sin_partida_y_precio_que_casen_no_esta_en_ninguno(
+    partida: str | None, precio: float, otros: dict[str, Any]
+) -> None:
     with pytest.raises(ProformaError) as exc:
-        resolver_contrato(
-            [candidato("CTSB26/0472"), gemelo],
-            {**por_contrato("CTSB26/0472"), gemelo.ide: lineas},
-            respaldo,
-        )
+        _resolver_con_el_gemelo(_respaldo(partida, precio, **otros))
     assert codigo_de(exc) == "contrato_no_resuelto"
+
+
+def test_f007_r8_la_medicion_no_desempata_entre_contratos() -> None:
+    # 02.03.02.01 a 11 esta en los dos; la medicion 403,058 es la de CTSB26/0472, pero no cuenta.
+    with pytest.raises(ProformaError) as exc:
+        _resolver_con_el_gemelo(_respaldo("02.03.02.01", 11, medicion_contrato=403.058, unidad="M3"))
+    assert codigo_de(exc) == "contrato_ambiguo"
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"partida": "02.02.02", "precio": 2.8}, {"partida": "02.02.02", "precio": 9},
+        {"partida": "02.02.04", "precio": 99}, {"partida": None, "precio": 10.8},
+        {"partida": " 02.02.10 ", "precio": 21.8}, {"partida": "02.02.10", "precio": 21.80011},
+        {"ctrpro_ide": 281002}, {"ctrpro_ide": 262990},
+    ],
+)
+def test_f007_r8_r14_un_candidato_o_varios_deciden_igual(campos: dict[str, Any]) -> None:
+    """R8 = R14: la linea «esta» en el contrato si y solo si `identificar_linea`
+    no la rechaza por no ser del contrato (una o varias, `linea_ambigua`)."""
+    pedida = LineaProformaIn(referencia_linea="F01", descripcion="X", cantidad=1,
+                             **{"medicion_contrato": 1, "precio": 1, **campos})
+    lineas = lineas_de("CTSB26/0369")
+    try:
+        identificar_linea(pedida, lineas)
+        esta = True
+    except FalloIdentificacion as exc:
+        esta = exc.codigo == "linea_ambigua"
+    assert modulo._contiene(lineas, pedida) is esta
 
 
 def test_f007_r9_varios_que_contienen_todas_las_lineas_es_ambiguo() -> None:

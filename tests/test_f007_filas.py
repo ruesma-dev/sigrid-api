@@ -6,8 +6,9 @@ las piezas pequenas de `proforma_statements` y del caso de uso:
 - las filas de LP1, LP3, LP4 y LP2 con columnas a NULL se leen como 0 o como
   texto vacio, nunca como otro numero (un `paride` 1 seria una partida real);
 - las filas leidas y el contexto de R28 son inmutables por el camino;
-- las tolerancias de R14 incluyen el borde, y el respaldo sin `ctrpro_ide`
-  nombra la partida que no esta y da ambigua con dos;
+- la tolerancia del precio de R14 incluye el borde y, fuera de el, no hay
+  vuelta atras; el respaldo sin `ctrpro_ide` nombra la partida que no esta y
+  da ambigua con dos;
 - R20 (la del primer dia del periodo no es anterior), R21 (contrato de 1 euro),
   R23 (`es_proforma` con nulos) y R24 (lineas del existente con nulos).
 
@@ -26,7 +27,6 @@ from application.use_cases.proforma_statements import (
     FalloIdentificacion,
     LineaContrato,
     ProformaRegistrada,
-    _casa_medicion,
     anterior_por_linea,
     anterior_y_origen,
     es_proforma,
@@ -85,16 +85,6 @@ def test_f007_t18_lo_leido_y_el_contexto_no_cambian_por_el_camino(nombre: str) -
 # =====================================================================================
 
 
-@pytest.mark.parametrize(
-    ("can", "medicion", "casa"),
-    [(10.0, 10.001, True), (10.0, 9.999, True), (10.0, 10.0011, False), (10.0, None, False)],
-)
-def test_f007_t18_r14_la_medicion_casa_con_el_borde(
-    can: float, medicion: float | None, casa: bool
-) -> None:
-    assert _casa_medicion(can, medicion) is casa
-
-
 # =====================================================================================
 # R14, respaldo sin `ctrpro_ide`
 # =====================================================================================
@@ -111,9 +101,18 @@ def _pedida(**campos: Any) -> LineaProformaIn:
                               "medicion_contrato": 10.0, **campos})
 
 
-def test_f007_t18_r14_el_precio_casa_con_el_borde() -> None:
+@pytest.mark.parametrize("precio", [11.0001, 10.9999])
+def test_f007_t18_r14_el_precio_casa_con_el_borde(precio: float) -> None:
     contrato = [_de_contrato(1, pre=11.0), _de_contrato(2, pre=12.0)]
-    assert identificar_linea(_pedida(precio=11.0001), contrato).ide == 1
+    assert identificar_linea(_pedida(precio=precio), contrato).ide == 1
+
+
+@pytest.mark.parametrize("precio", [11.00011, 10.99989])
+def test_f007_t18_r14_el_precio_fuera_del_borde_no_casa_ni_vuelve_atras(precio: float) -> None:
+    # La unica de la partida «01.01» no se toma si el precio no casa (enmienda 1).
+    with pytest.raises(FalloIdentificacion) as exc:
+        identificar_linea(_pedida(precio=precio), [_de_contrato(1, pre=11.0)])
+    assert exc.value.codigo == "linea_no_es_del_contrato"
 
 
 def test_f007_t18_r14_dos_que_casan_son_ambiguas() -> None:
