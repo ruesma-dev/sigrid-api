@@ -132,3 +132,29 @@ tests que no incluye los que lo matan).
 
 **Rondas anteriores**: ronda 1 (`a3acbd7`), 375 / 67; ronda 2 (`7cbff6b`), 374 / 2. Detalle de su resolución en
 `progress/impl_F-007.md` §T18 y en el historial de este fichero (`git log -p progress/mutacion_F-007.md`).
+
+## Mutantes manuales reproducibles (T36)
+
+Ficheros con ≤ 2 mutantes automáticos (`domain/models/albaran_compra_models.py` 0, `config/settings.py` 2) y el
+`setdefault` de N7. Medidos en el worktree desechable `../sigrid-api-mut007-p1` (HEAD `4a94da0`, **nunca** en el
+árbol compartido; borrado al acabar) con `python -m pytest tests/test_f007_*.py tests/test_f009_*.py
+tests/test_f015_*.py -q --tb=no -p no:cacheprovider -rf`; base `1327 passed`. Cada uno: sustitución **exacta** del
+texto (que aparece una sola vez), suite y `git checkout --` del fichero. **11 de 11 mueren.**
+
+| Id | Fichero:línea | Original → mutado | Resultado (primer test que cae) |
+|---|---|---|---|
+| N7 | `application/use_cases/create_albaran_compra_use_case.py:1325` | `por_proide.setdefault(_entero(ctrpro.get("proide")), ctrpro)` → `por_proide[_entero(ctrpro.get("proide"))] = ctrpro` | 1 failed (`test_f007_r17_dos_lineas_del_contrato_con_el_producto_el_iva_es_el_de_la_primera_por_pos`) |
+| A1 | `domain/models/albaran_compra_models.py:64` | tras `"linea_no_es_del_contrato",` se añade `"linea_ambigua",` (código de proforma en `CODIGOS_LINEA`) | 2 failed (`test_f007_r6_los_nuevos_no_entran_en_los_conjuntos_de_albaranes`) |
+| A2 | `domain/models/albaran_compra_models.py:36` | entre `"peticion_mixta",` y `"escritura_albaranes_deshabilitada",` se añade `"proforma_del_mes_existente",` | 1 failed (`test_f009_r9_codigos_cerrados_de_design`) |
+| A3 | `domain/models/albaran_compra_models.py:136` | en `_codigo_de_linea`, `if value not in cls.codigos:` → `if value not in CODIGOS_LINEA:` | 8 failed (`test_f007_r6_lineas_no_validas_con_candidatos`) |
+| A4 | `domain/models/albaran_compra_models.py:158` | `if codigo not in type(self).codigos:` → `if codigo not in CODIGOS_CABECERA:` | 38 failed (`test_f007_r6_proforma_error_es_un_error_de_albaran`) |
+| A5 | `domain/models/albaran_compra_models.py:330` | en `_codigo_de_aviso`, `if value not in cls.codigos:` → `if value not in CODIGOS_AVISO:` | 49 failed (`test_f007_r6_avisos_de_proforma[contrato_a_origen]`) |
+| S1 | `config/settings.py:141` | `Field(False, alias="SIGRID_PROFORMA_WRITE_ENABLED")` → `Field(True, alias="SIGRID_PROFORMA_WRITE_ENABLED")` | 1 failed (`test_f007_r4_los_cinco_ajustes_arrancan_con_defecto_cerrado`) |
+| S2 | `config/settings.py:167` | se quita `"sigrid_proforma_prefijos_referencia",` de los campos de `parse_string_list` | 4 failed (`test_f007_r4_las_listas_usan_parse_string_list[...]`) |
+| S3 | `config/settings.py:253` | se quita `"sigrid_proforma_naturaleza_por_producto",` de los campos de `parse_string_dict` | 8 failed (`test_f007_r4_los_valores_de_despliegue_llegan_por_el_entorno`) |
+| S4 | `config/settings.py:152` | `Field(500, alias="SIGRID_PROFORMA_MAX_LINEAS")` → `Field(100, alias="SIGRID_PROFORMA_MAX_LINEAS")` | 1 failed (`test_f007_r4_los_cinco_ajustes_arrancan_con_defecto_cerrado`) |
+| S5 | `config/settings.py:146` | alias `"SIGRID_PROFORMA_PRODUCTOS_SIN_CONTRATO"` → `"SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO"` | 6 failed (`test_f007_r4_los_valores_de_despliegue_llegan_por_el_entorno`) |
+
+`interface_adapters/http/http_response_factory.py` (0 automáticos) solo cambia un docstring: no hay código que mutar.
+**Límite conocido de la herramienta**: no muta literales de texto ni argumentos con nombre; el SQL de LP1-LP6 lo fijan
+los tests carácter a carácter.
