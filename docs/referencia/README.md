@@ -40,6 +40,9 @@ posterior.
 |---|---|
 | [`postventa_pasos_crear_parte.md`](postventa_pasos_crear_parte.md) | Instrucciones internas de Posventa para crear un parte de reclamación en Sigrid. Referencia principal de F-006 |
 | [`postventa_manual_sigrid.md`](postventa_manual_sigrid.md) | Manual del fabricante de Sigrid y el Portal Postventa (2021): conceptos, unidades postventa, oficios, alta y seguimiento de reclamaciones |
+| [`proforma_ejemplo_bau_siglo_xxi.md`](proforma_ejemplo_bau_siglo_xxi.md), [`proforma_ejemplo_montaferro.md`](proforma_ejemplo_montaferro.md), [`proforma_ejemplo_nortobrama.md`](proforma_ejemplo_nortobrama.md), [`proforma_ejemplo_zanela.md`](proforma_ejemplo_zanela.md) | Cuatro hojas Excel de proforma del jefe de obra (obra 719, junio-septiembre de 2026), una pestaña por mes: medición y importe ORIGEN / ANTERIOR / MES por partida. Referencia de F-007 y de su plantilla |
+| [`proformas_correo_flujo_2026-10-21.md`](proformas_correo_flujo_2026-10-21.md) | Correo de Administración (redactado) sobre el flujo de proformas y facturas: líneas de contrato vinculadas como «documento origen», avisos por exceso sobre contrato |
+| [`proformas_correo_origen_2026-10-15.md`](proformas_correo_origen_2026-10-15.md) | Correo de Administración (redactado, sin las capturas) sobre el albarán y la factura a origen en Sigrid |
 
 **Puntero fijo:** la documentación completa del microservicio y de su entorno
 Azure vive en el repositorio `azure-apps` (`sigrid_api.md`, `sigrid_tablas.md`,

@@ -30,7 +30,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
-  `sigrid/partes-reclamacion`, `documents/read`, `diagnostics/tcp`.
+  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007), `documents/read`,
+  `diagnostics/tcp`.
   `build_dependencies()` devuelve una tupla de **ocho** posiciones (la 6 es el
   albarán clásico y la 7 el modo extendido, F-009); las rutas que no la usan
   entera la desempaquetan igual.
@@ -39,7 +40,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
     `sigrid_domain_models` (líneas de contrato), `albaran_domain_models`,
     `albaran_directo_models`, `albaran_compra_models` (modo extendido de
     `sigrid/albaran`, F-009), `concepto_grafico_models` (adjuntar documentos),
-    `parte_reclamacion_models` (alta en lote de partes de Posventa).
+    `parte_reclamacion_models` (alta en lote de partes de Posventa),
+    `proforma_models` (proforma de mes, F-007).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
@@ -48,12 +50,14 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   `create_albaran_compra_use_case` (modo extendido de `sigrid/albaran`, con su
   constructor puro `albaran_compra_statements`; F-009),
   `create_partes_reclamacion_use_case` (una transacción por parte, con su
-  constructor puro de sentencias `parte_reclamacion_statements`).
+  constructor puro de sentencias `parte_reclamacion_statements`),
+  `create_proforma_use_case` (subclase del modo extendido, con su constructor
+  puro `proforma_statements`; F-007).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
 - **`interface_adapters/http/http_response_factory.py`** — construcción
-  uniforme de respuestas HTTP. El 400 de Pydantic de las 9 rutas lo construye
+  uniforme de respuestas HTTP. El 400 de Pydantic de las 10 rutas lo construye
   `validation_error_response(exc)` (F-012): `details = {type, validation}`, con
   `exc.errors()` pasado por `json.dumps(..., default=str)`, de modo que lo no
   serializable (la excepción de una regla con mensaje propio, en `ctx.error`)
@@ -117,6 +121,51 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
   códigos y duración; nunca textos, precios ni datos bancarios). Lo que la ruta
   corta antes del caso de uso (`peticion_mixta`, Pydantic, R8) deja solo su
   `warning` de ruta, sin esa traza.
+
+### `sigrid/proforma` (F-007): el núcleo del modo extendido con otro perfil
+
+Alta idempotente de UNA proforma de mes de un subcontratista como albarán de compra
+(`con.tip` 14) de la serie `PROF<aa>/` (5 cifras) con `dca.cla` 141. No hay núcleo
+nuevo: `CreateProformaUseCase` **hereda** de `CreateAlbaranCompraUseCase` y cambia
+solo lo que pasan cinco costuras, que en el albarán valen lo de antes (R31; su
+dorado y sus tests no se tocan):
+
+1. **`PerfilAlta`** (`PERFIL_ALBARAN` / `PERFIL_PROFORMA`): endpoint de la traza,
+   prefijo y cifras de la serie, `cla`, la llave y su código, los nombres de las
+   App Settings (prefijos, tope de líneas, productos y naturalezas) y la clase del
+   error (`AlbaranCompraError` / `ProformaError`).
+2. **Serie**: `prefijo_de_serie` y `sellos_del_alta` reciben el prefijo; las
+   constantes SQL no cambian.
+3. **`_comprobar_dentro`**: gancho tras E1 bajo `SIGRID_REFEXT_14`, vacío en el
+   albarán; en la proforma repite LP1 por el cursor (R28) y, si alguien registró la
+   del mes entre la previa y el commit, responde `existente` (o
+   `proforma_del_mes_existente`) sin escribir.
+4. **Catálogo**: con `productos_del_contrato`, una línea sin vincular admite además
+   los productos de las líneas del contrato (R17).
+5. **Códigos de clase**: `FalloLinea`, `AlbaranCompraError` y `AvisoAlbaran` validan
+   contra su `codigos`; las subclases de proforma los amplían.
+
+Lo propio de la proforma, por capa:
+
+- *domain*: `proforma_models` — `ProformaRequest` (`periodo` entero `AAAAMM`,
+  números estrictos, `extra="forbid"`), `LineaProformaIn` (`ctrpro_ide` o
+  `producto`, nunca juntos), `ProformaResponse` (la del modo extendido más
+  `existente`, `contrato` y `origen`), `ProformaError` (con `reparto` solo en
+  `hoja_de_varios_contratos`) y `FalloLineaProforma` (con `candidatos`).
+- *application*: `proforma_statements` — LP1-LP6, SQL constante con `?` validado con
+  `DatabaseReferenceGuard` (solo `SELECT`), y funciones puras: resolver el contrato
+  (R7-R9: por petición, por proveedor —el CIF manda sobre el nombre— o por las
+  líneas), identificar las líneas (R14), la fecha del periodo, cuadrar la hoja
+  (R19), anterior y origen sobre las proformas del contrato (R20-R22), buscar la del
+  mes (R24) y traducir la petición a un `AlbaranCompraRequest` del núcleo.
+  `create_proforma_use_case` orquesta: obra, referencia (R23), contrato, líneas,
+  existente o idempotente, y el resto por el flujo del núcleo; el contexto de R28
+  viaja en un `PrivateAttr` de una subclase interna de la petición del núcleo.
+- *infrastructure*: nada nuevo.
+- **Ruta**: la llave `SIGRID_PROFORMA_WRITE_ENABLED` (R5) solo con `commit`,
+  después de validar y antes del caso de uso; la de albaranes no la abre.
+  `ProformaError` → 400 `details:{type, codigo[, lineas][, reparto]}`. Una traza por
+  petición (R33) sin textos, nombres, CIF ni importes.
 
 ## Semántica de dominio imprescindible
 

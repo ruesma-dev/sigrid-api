@@ -1,0 +1,1168 @@
+{
+ "_nota": "F-007 (M29): obra 0719, tres hojas de agosto de 2026 con contrato. cod, partidas, mediciones, precios e importes de las hojas de docs/referencia y de M29; ide sinteticos salvo los de contrato_proformas.md; proveedores y CIF ficticios.",
+ "obra": {
+  "ide": 7190,
+  "emp": 1,
+  "cod": "0719"
+ },
+ "partidas": [
+  {
+   "ide": 355001,
+   "cod": "02.03.02.01"
+  },
+  {
+   "ide": 355002,
+   "cod": "02.03.02.02"
+  },
+  {
+   "ide": 355003,
+   "cod": "02.03.02.04"
+  },
+  {
+   "ide": 355004,
+   "cod": "02.03.03.02"
+  },
+  {
+   "ide": 355005,
+   "cod": "02.03.03.03"
+  },
+  {
+   "ide": 355006,
+   "cod": "02.03.03.05"
+  },
+  {
+   "ide": 355007,
+   "cod": "02.03.03.06"
+  },
+  {
+   "ide": 355008,
+   "cod": "02.03.03.08"
+  },
+  {
+   "ide": 355009,
+   "cod": "02.20.02.02.01"
+  },
+  {
+   "ide": 355010,
+   "cod": "02.20.02.02.02"
+  },
+  {
+   "ide": 355011,
+   "cod": "02.20.02.02.04"
+  },
+  {
+   "ide": 355012,
+   "cod": "02.20.02.02.05"
+  },
+  {
+   "ide": 355013,
+   "cod": "02.20.02.02.11"
+  },
+  {
+   "ide": 355014,
+   "cod": "02.04.01.07"
+  },
+  {
+   "ide": 355015,
+   "cod": "02.03.02.03"
+  },
+  {
+   "ide": 355016,
+   "cod": "02.03.03.04"
+  },
+  {
+   "ide": 355017,
+   "cod": "02.03.04.02"
+  },
+  {
+   "ide": 355018,
+   "cod": "02.04.01.09"
+  },
+  {
+   "ide": 355019,
+   "cod": "02.20.02.02.06"
+  },
+  {
+   "ide": 355020,
+   "cod": "02.20.02.02.13"
+  },
+  {
+   "ide": 355021,
+   "cod": "02.20.02.02.03"
+  },
+  {
+   "ide": 355022,
+   "cod": "02.02.02"
+  },
+  {
+   "ide": 355023,
+   "cod": "02.02.03"
+  },
+  {
+   "ide": 355024,
+   "cod": "02.02.04"
+  },
+  {
+   "ide": 355025,
+   "cod": "02.02.05"
+  },
+  {
+   "ide": 355026,
+   "cod": "02.02.10"
+  },
+  {
+   "ide": 355027,
+   "cod": "02.02.12"
+  },
+  {
+   "ide": 355028,
+   "cod": "02.02.13"
+  },
+  {
+   "ide": 355029,
+   "cod": "9.01"
+  }
+ ],
+ "contratos": [
+  {
+   "ide": 2793879,
+   "cod": "CTSB26/0472",
+   "fec": 20260615,
+   "entcif": "B00000472",
+   "entres": "HORMIGONES DEL SIGLO SL",
+   "nlin": 14
+  },
+  {
+   "ide": 2790417,
+   "cod": "CTSB26/0417",
+   "fec": 20260601,
+   "entcif": "B00000417",
+   "entres": "FERRALLAS DEL CENTRO SA",
+   "nlin": 21
+  },
+  {
+   "ide": 2790369,
+   "cod": "CTSB26/0369",
+   "fec": 20260520,
+   "entcif": "B00000369",
+   "entres": "MOVIMIENTOS DE TIERRA NORTE SL",
+   "nlin": 11
+  },
+  {
+   "ide": 2790609,
+   "cod": "CTSB26/0609",
+   "fec": 20260910,
+   "entcif": "B00000609",
+   "entres": "ENCOFRADOS ZETA SL",
+   "nlin": 4
+  }
+ ],
+ "ctrpro": {
+  "CTSB26/0472": [
+   {
+    "ide": 262990,
+    "docide": 2793879,
+    "paride": 355001,
+    "partida": "02.03.02.01",
+    "can": 403.058,
+    "pre": 11,
+    "tot": 4433.638,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262991,
+    "docide": 2793879,
+    "paride": 355002,
+    "partida": "02.03.02.02",
+    "can": 264.682,
+    "pre": 11,
+    "tot": 2911.502,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262992,
+    "docide": 2793879,
+    "paride": 355003,
+    "partida": "02.03.02.04",
+    "can": 397.94,
+    "pre": 26,
+    "tot": 10346.44,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262993,
+    "docide": 2793879,
+    "paride": 355004,
+    "partida": "02.03.03.02",
+    "can": 28.049,
+    "pre": 11,
+    "tot": 308.539,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262994,
+    "docide": 2793879,
+    "paride": 355005,
+    "partida": "02.03.03.03",
+    "can": 86.427,
+    "pre": 11,
+    "tot": 950.697,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262995,
+    "docide": 2793879,
+    "paride": 355006,
+    "partida": "02.03.03.05",
+    "can": 149.2,
+    "pre": 26,
+    "tot": 3879.2,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262996,
+    "docide": 2793879,
+    "paride": 355007,
+    "partida": "02.03.03.06",
+    "can": 37.22,
+    "pre": 10,
+    "tot": 372.2,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262997,
+    "docide": 2793879,
+    "paride": 355008,
+    "partida": "02.03.03.08",
+    "can": 372.19,
+    "pre": 21,
+    "tot": 7815.99,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262998,
+    "docide": 2793879,
+    "paride": 355009,
+    "partida": "02.20.02.02.01",
+    "can": 48.594,
+    "pre": 11,
+    "tot": 534.534,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 262999,
+    "docide": 2793879,
+    "paride": 355010,
+    "partida": "02.20.02.02.02",
+    "can": 244.882,
+    "pre": 11,
+    "tot": 2693.702,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 263000,
+    "docide": 2793879,
+    "paride": 355011,
+    "partida": "02.20.02.02.04",
+    "can": 267.36,
+    "pre": 26,
+    "tot": 6951.36,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 263001,
+    "docide": 2793879,
+    "paride": 355012,
+    "partida": "02.20.02.02.05",
+    "can": 92.67,
+    "pre": 10,
+    "tot": 926.7,
+    "unimed": "M3",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 263002,
+    "docide": 2793879,
+    "paride": 355013,
+    "partida": "02.20.02.02.11",
+    "can": 741.36,
+    "pre": 21,
+    "tot": 15568.56,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   },
+   {
+    "ide": 263003,
+    "docide": 2793879,
+    "paride": 355014,
+    "partida": "02.04.01.07",
+    "can": 1801.08,
+    "pre": 4,
+    "tot": 7204.32,
+    "unimed": "M2",
+    "proide": 610004,
+    "producto": "SM1004"
+   }
+  ],
+  "CTSB26/0417": [
+   {
+    "ide": 271001,
+    "docide": 2790417,
+    "paride": 355015,
+    "partida": "02.03.02.03",
+    "can": 20140.26,
+    "pre": 1,
+    "tot": 20140.26,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271002,
+    "docide": 2790417,
+    "paride": 355015,
+    "partida": "02.03.02.03",
+    "can": 20140.26,
+    "pre": 0.2,
+    "tot": 4028.052,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271003,
+    "docide": 2790417,
+    "paride": 355015,
+    "partida": "02.03.02.03",
+    "can": 20140.26,
+    "pre": 0.27,
+    "tot": 5437.8702,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271004,
+    "docide": 2790417,
+    "paride": 355016,
+    "partida": "02.03.03.04",
+    "can": 4321.64,
+    "pre": 1,
+    "tot": 4321.64,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271005,
+    "docide": 2790417,
+    "paride": 355016,
+    "partida": "02.03.03.04",
+    "can": 4321.64,
+    "pre": 0.2,
+    "tot": 864.328,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271006,
+    "docide": 2790417,
+    "paride": 355016,
+    "partida": "02.03.03.04",
+    "can": 4321.64,
+    "pre": 0.27,
+    "tot": 1166.8428,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271007,
+    "docide": 2790417,
+    "paride": 355017,
+    "partida": "02.03.04.02",
+    "can": 660.99,
+    "pre": 1,
+    "tot": 660.99,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271008,
+    "docide": 2790417,
+    "paride": 355017,
+    "partida": "02.03.04.02",
+    "can": 660.99,
+    "pre": 0.2,
+    "tot": 132.198,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271009,
+    "docide": 2790417,
+    "paride": 355017,
+    "partida": "02.03.04.02",
+    "can": 660.99,
+    "pre": 0.27,
+    "tot": 178.4673,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271010,
+    "docide": 2790417,
+    "paride": 355018,
+    "partida": "02.04.01.09",
+    "can": 1223.25,
+    "pre": 1,
+    "tot": 1223.25,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271011,
+    "docide": 2790417,
+    "paride": 355018,
+    "partida": "02.04.01.09",
+    "can": 1223.25,
+    "pre": 0.2,
+    "tot": 244.65,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271012,
+    "docide": 2790417,
+    "paride": 355018,
+    "partida": "02.04.01.09",
+    "can": 1223.25,
+    "pre": 0.27,
+    "tot": 330.2775,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271013,
+    "docide": 2790417,
+    "paride": 355019,
+    "partida": "02.20.02.02.06",
+    "can": 8524.66,
+    "pre": 1,
+    "tot": 8524.66,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271014,
+    "docide": 2790417,
+    "paride": 355019,
+    "partida": "02.20.02.02.06",
+    "can": 8524.66,
+    "pre": 0.2,
+    "tot": 1704.932,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271015,
+    "docide": 2790417,
+    "paride": 355019,
+    "partida": "02.20.02.02.06",
+    "can": 8524.66,
+    "pre": 0.27,
+    "tot": 2301.6582,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271016,
+    "docide": 2790417,
+    "paride": 355020,
+    "partida": "02.20.02.02.13",
+    "can": 973.5,
+    "pre": 1,
+    "tot": 973.5,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271017,
+    "docide": 2790417,
+    "paride": 355020,
+    "partida": "02.20.02.02.13",
+    "can": 973.5,
+    "pre": 0.2,
+    "tot": 194.7,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271018,
+    "docide": 2790417,
+    "paride": 355020,
+    "partida": "02.20.02.02.13",
+    "can": 973.5,
+    "pre": 0.27,
+    "tot": 262.845,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271019,
+    "docide": 2790417,
+    "paride": 355021,
+    "partida": "02.20.02.02.03",
+    "can": 14169.27,
+    "pre": 1,
+    "tot": 14169.27,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271020,
+    "docide": 2790417,
+    "paride": 355021,
+    "partida": "02.20.02.02.03",
+    "can": 14169.27,
+    "pre": 0.2,
+    "tot": 2833.854,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 271021,
+    "docide": 2790417,
+    "paride": 355021,
+    "partida": "02.20.02.02.03",
+    "can": 14169.27,
+    "pre": 0.27,
+    "tot": 3825.7029,
+    "unimed": "KG",
+    "proide": 610026,
+    "producto": "SM1026"
+   }
+  ],
+  "CTSB26/0369": [
+   {
+    "ide": 281001,
+    "docide": 2790369,
+    "paride": 355022,
+    "partida": "02.02.02",
+    "can": 3700,
+    "pre": 0.6,
+    "tot": 2220,
+    "unimed": "M2",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281002,
+    "docide": 2790369,
+    "paride": 355022,
+    "partida": "02.02.02",
+    "can": 5180,
+    "pre": 2.8,
+    "tot": 14504.0,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281003,
+    "docide": 2790369,
+    "paride": 355023,
+    "partida": "02.02.03",
+    "can": 2973.46,
+    "pre": 2.8,
+    "tot": 8325.688,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281004,
+    "docide": 2790369,
+    "paride": 355023,
+    "partida": "02.02.03",
+    "can": 3698.98,
+    "pre": 0.84,
+    "tot": 3107.1432,
+    "unimed": "M2",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281005,
+    "docide": 2790369,
+    "paride": 355024,
+    "partida": "02.02.04",
+    "can": 1123.2,
+    "pre": 8.8,
+    "tot": 9884.16,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281006,
+    "docide": 2790369,
+    "paride": 355025,
+    "partida": "02.02.05",
+    "can": 1276.8,
+    "pre": 8.8,
+    "tot": 11235.84,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281007,
+    "docide": 2790369,
+    "paride": 355026,
+    "partida": "02.02.10",
+    "can": 8368.15,
+    "pre": 4,
+    "tot": 33472.6,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281008,
+    "docide": 2790369,
+    "paride": 355027,
+    "partida": "02.02.12",
+    "can": 1258.39,
+    "pre": 10.8,
+    "tot": 13590.612,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281009,
+    "docide": 2790369,
+    "paride": 355026,
+    "partida": "02.02.10",
+    "can": 769.87,
+    "pre": 21.8,
+    "tot": 16783.166,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281010,
+    "docide": 2790369,
+    "paride": 355028,
+    "partida": "02.02.13",
+    "can": 1258.39,
+    "pre": 4,
+    "tot": 5033.56,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   },
+   {
+    "ide": 281011,
+    "docide": 2790369,
+    "paride": 355028,
+    "partida": "02.02.13",
+    "can": 115.772,
+    "pre": 21.8,
+    "tot": 2523.8296,
+    "unimed": "M3",
+    "proide": 610026,
+    "producto": "SM1026"
+   }
+  ]
+ },
+ "proformas": {
+  "CTSB26/0472": [
+   {
+    "ide": 2822961,
+    "cod": "AC26/22961",
+    "fec": 20260731,
+    "entref": "PROF0726_0719",
+    "totbas": 2651.0,
+    "docoritip": 0
+   },
+   {
+    "ide": 2831541,
+    "cod": "AC26/25548",
+    "fec": 20260831,
+    "entref": "PROF0826_0719",
+    "totbas": 17024.28,
+    "docoritip": 0
+   }
+  ],
+  "CTSB26/0417": [
+   {
+    "ide": 2822962,
+    "cod": "AC26/22962",
+    "fec": 20260731,
+    "entref": "PROF0726_0719",
+    "totbas": 36249.3,
+    "docoritip": 0
+   },
+   {
+    "ide": 2825552,
+    "cod": "AC26/25552",
+    "fec": 20260831,
+    "entref": "PROF0826_0719-1",
+    "totbas": 31291.06,
+    "docoritip": 0
+   }
+  ],
+  "CTSB26/0369": [
+   {
+    "ide": 2822980,
+    "cod": "AC26/22980",
+    "fec": 20260731,
+    "entref": "PROF0726_0719",
+    "totbas": 6056.0,
+    "docoritip": 0
+   },
+   {
+    "ide": 2825551,
+    "cod": "AC26/25551",
+    "fec": 20260831,
+    "entref": "PROF0826_0719",
+    "totbas": 7991.0,
+    "docoritip": 0
+   }
+  ]
+ },
+ "anterior": {
+  "CTSB26/0472": {
+   "262990": 241.0
+  },
+  "CTSB26/0417": {
+   "271001": 21995.66,
+   "271002": 21995.66,
+   "271003": 10000.0,
+   "271004": 5399.97,
+   "271005": 5399.97
+  },
+  "CTSB26/0369": {
+   "281001": 3700.0,
+   "281003": 1370.0
+  }
+ },
+ "existentes": {
+  "AC26/25548": [
+   {
+    "ide": 1352729,
+    "linoriide": 262990,
+    "producto": "SM1004",
+    "can": 620.0,
+    "pre": 11.0,
+    "tot": 6820.0
+   },
+   {
+    "ide": 1352731,
+    "linoriide": 262992,
+    "producto": "SM1004",
+    "can": 117.5,
+    "pre": 26.0,
+    "tot": 3055.0
+   },
+   {
+    "ide": 1352733,
+    "linoriide": 262996,
+    "producto": "SM1004",
+    "can": 38.57,
+    "pre": 10.0,
+    "tot": 385.7
+   },
+   {
+    "ide": 1352735,
+    "linoriide": 262997,
+    "producto": "SM1004",
+    "can": 261.4335,
+    "pre": 21.0,
+    "tot": 5490.1
+   },
+   {
+    "ide": 1352737,
+    "linoriide": 263002,
+    "producto": "SM1004",
+    "can": 48.0,
+    "pre": 21.0,
+    "tot": 1008.0
+   },
+   {
+    "ide": 1352739,
+    "linoriide": 0,
+    "producto": "SM1004",
+    "can": 75.85,
+    "pre": 3.5,
+    "tot": 265.48
+   }
+  ],
+  "AC26/25552": [
+   {
+    "ide": 1360001,
+    "linoriide": 271001,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 1.0,
+    "tot": 18492.48
+   },
+   {
+    "ide": 1360003,
+    "linoriide": 271002,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 0.2,
+    "tot": 3698.5
+   },
+   {
+    "ide": 1360005,
+    "linoriide": 271003,
+    "producto": "SM1026",
+    "can": 18492.48,
+    "pre": 0.27,
+    "tot": 4992.97
+   },
+   {
+    "ide": 1360007,
+    "linoriide": 271004,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 1.0,
+    "tot": 871.21
+   },
+   {
+    "ide": 1360009,
+    "linoriide": 271005,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 0.2,
+    "tot": 174.24
+   },
+   {
+    "ide": 1360011,
+    "linoriide": 271006,
+    "producto": "SM1026",
+    "can": 871.21,
+    "pre": 0.27,
+    "tot": 235.23
+   },
+   {
+    "ide": 1360013,
+    "linoriide": 271007,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 1.0,
+    "tot": 871.51
+   },
+   {
+    "ide": 1360015,
+    "linoriide": 271008,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 0.2,
+    "tot": 174.3
+   },
+   {
+    "ide": 1360017,
+    "linoriide": 271009,
+    "producto": "SM1026",
+    "can": 871.51,
+    "pre": 0.27,
+    "tot": 235.31
+   },
+   {
+    "ide": 1360019,
+    "linoriide": 0,
+    "producto": "SM1026",
+    "can": 20235.2,
+    "pre": 0.036,
+    "tot": 728.47
+   },
+   {
+    "ide": 1360021,
+    "linoriide": 0,
+    "producto": "SM1026",
+    "can": 816.84,
+    "pre": 1.0,
+    "tot": 816.84
+   }
+  ],
+  "AC26/25551": [
+   {
+    "ide": 1361001,
+    "linoriide": 281002,
+    "producto": "SM1026",
+    "can": 1250.467,
+    "pre": 2.8,
+    "tot": 3501.31
+   },
+   {
+    "ide": 1361003,
+    "linoriide": 281003,
+    "producto": "SM1026",
+    "can": 1603.46,
+    "pre": 2.8,
+    "tot": 4489.69
+   }
+  ]
+ },
+ "hojas": {
+  "CTSB26/0472": {
+   "cod_obra": "0719",
+   "periodo": 202608,
+   "nombre_proveedor": "HORMIGONES DEL SIGLO",
+   "numero_orden": 2,
+   "importe_mes": 17024.28,
+   "importe_anterior": 2651.0,
+   "importe_origen": 19675.28,
+   "lineas": [
+    {
+     "referencia_linea": "F09",
+     "ctrpro_ide": 262990,
+     "unidad": "M3",
+     "descripcion": "VERTIDO HORMIGON CIMENTACION LIMPIEZA",
+     "cantidad": 620,
+     "precio": 11,
+     "cantidad_anterior": 241,
+     "cantidad_origen": 861
+    },
+    {
+     "referencia_linea": "F11",
+     "ctrpro_ide": 262992,
+     "unidad": "M2",
+     "descripcion": "ENCOFRADO CIMENTACION",
+     "cantidad": 117.5,
+     "precio": 26,
+     "cantidad_origen": 117.5
+    },
+    {
+     "referencia_linea": "F15",
+     "ctrpro_ide": 262996,
+     "unidad": "M3",
+     "descripcion": "VERTIDO HORMIGON MUROS",
+     "cantidad": 38.57,
+     "precio": 10,
+     "cantidad_origen": 38.57
+    },
+    {
+     "referencia_linea": "F16",
+     "ctrpro_ide": 262997,
+     "unidad": "M2",
+     "descripcion": "ENCOFRADO MURO 2 CARA . MUROS DE CONTENCION",
+     "cantidad": 261.4335,
+     "precio": 21,
+     "cantidad_origen": 261.4335
+    },
+    {
+     "referencia_linea": "F21",
+     "ctrpro_ide": 263002,
+     "unidad": "M2",
+     "descripcion": "ENCOFRADO MURO 2 CARA (MED X2)",
+     "cantidad": 48,
+     "precio": 21,
+     "cantidad_origen": 48
+    },
+    {
+     "referencia_linea": "F23",
+     "producto": "SM1004",
+     "partida": "02.20.02.02.11",
+     "unidad": "M2",
+     "descripcion": "BERENJENO",
+     "cantidad": 75.85,
+     "precio": 3.5
+    }
+   ]
+  },
+  "CTSB26/0417": {
+   "cod_obra": "0719",
+   "periodo": 202608,
+   "nombre_proveedor": "FERRALLAS DEL CENTRO",
+   "numero_orden": 2,
+   "importe_mes": 31291.05,
+   "importe_anterior": 36249.31,
+   "importe_origen": 67540.36,
+   "lineas": [
+    {
+     "referencia_linea": "M09",
+     "ctrpro_ide": 271001,
+     "unidad": "KG",
+     "descripcion": "SUMINISTRO FERRALLA 02.03.02.03",
+     "cantidad": 18492.48,
+     "precio": 1,
+     "cantidad_anterior": 21995.66,
+     "cantidad_origen": 40488.14
+    },
+    {
+     "referencia_linea": "M10",
+     "ctrpro_ide": 271002,
+     "unidad": "KG",
+     "descripcion": "ELABORACION DE FERRALLA 02.03.02.03",
+     "cantidad": 18492.48,
+     "precio": 0.2,
+     "cantidad_anterior": 21995.66,
+     "cantidad_origen": 40488.14
+    },
+    {
+     "referencia_linea": "M11",
+     "ctrpro_ide": 271003,
+     "unidad": "KG",
+     "descripcion": "COLOCACION DE FERRALLA 02.03.02.03",
+     "cantidad": 18492.48,
+     "precio": 0.27,
+     "cantidad_anterior": 10000,
+     "cantidad_origen": 28492.48
+    },
+    {
+     "referencia_linea": "M12",
+     "ctrpro_ide": 271004,
+     "unidad": "KG",
+     "descripcion": "SUMINISTRO FERRALLA 02.03.03.04",
+     "cantidad": 871.21,
+     "precio": 1,
+     "cantidad_anterior": 5399.97,
+     "cantidad_origen": 6271.18
+    },
+    {
+     "referencia_linea": "M13",
+     "ctrpro_ide": 271005,
+     "unidad": "KG",
+     "descripcion": "ELABORACION DE FERRALLA 02.03.03.04",
+     "cantidad": 871.21,
+     "precio": 0.2,
+     "cantidad_anterior": 5399.97,
+     "cantidad_origen": 6271.18
+    },
+    {
+     "referencia_linea": "M14",
+     "ctrpro_ide": 271006,
+     "unidad": "KG",
+     "descripcion": "COLOCACION DE FERRALLA 02.03.03.04",
+     "cantidad": 871.21,
+     "precio": 0.27,
+     "cantidad_anterior": 0,
+     "cantidad_origen": 871.21
+    },
+    {
+     "referencia_linea": "M15",
+     "ctrpro_ide": 271007,
+     "unidad": "KG",
+     "descripcion": "SUMINISTRO FERRALLA 02.03.04.02",
+     "cantidad": 871.51,
+     "precio": 1,
+     "cantidad_anterior": 0,
+     "cantidad_origen": 871.51
+    },
+    {
+     "referencia_linea": "M16",
+     "ctrpro_ide": 271008,
+     "unidad": "KG",
+     "descripcion": "ELABORACION DE FERRALLA 02.03.04.02",
+     "cantidad": 871.51,
+     "precio": 0.2,
+     "cantidad_anterior": 0,
+     "cantidad_origen": 871.51
+    },
+    {
+     "referencia_linea": "M17",
+     "ctrpro_ide": 271009,
+     "unidad": "KG",
+     "descripcion": "COLOCACION DE FERRALLA 02.03.04.02",
+     "cantidad": 871.51,
+     "precio": 0.27,
+     "cantidad_anterior": 0,
+     "cantidad_origen": 871.51
+    },
+    {
+     "referencia_linea": "M31",
+     "producto": "SM1026",
+     "partida": "02.03.02.03",
+     "descripcion": "Regularizacion precio acero agosto",
+     "cantidad": 20235.2,
+     "precio": 0.036
+    },
+    {
+     "referencia_linea": "M33",
+     "producto": "SM1026",
+     "partida": "9.01",
+     "descripcion": "Seguridad y replanteo. Agosto",
+     "cantidad": 816.84,
+     "precio": 1
+    }
+   ]
+  },
+  "CTSB26/0369": {
+   "cod_obra": "0719",
+   "periodo": 202608,
+   "nombre_proveedor": "MOVIMIENTOS DE TIERRA NORTE",
+   "numero_orden": 2,
+   "importe_mes": 7991.0,
+   "importe_anterior": 6056.0,
+   "importe_origen": 14047.0,
+   "lineas": [
+    {
+     "referencia_linea": "N10",
+     "ctrpro_ide": 281002,
+     "unidad": "M3",
+     "descripcion": "EXCAVACION DESBROCE A BORDE DE EXCAVACION",
+     "cantidad": 1250.467,
+     "precio": 2.8,
+     "cantidad_anterior": 0,
+     "cantidad_origen": 1250.467
+    },
+    {
+     "referencia_linea": "N11",
+     "ctrpro_ide": 281003,
+     "unidad": "M3",
+     "descripcion": "EXCAVACION GENERAL A BORDE DE EXCAVACION",
+     "cantidad": 1603.46,
+     "precio": 2.8,
+     "cantidad_anterior": 1370,
+     "cantidad_origen": 2973.46
+    }
+   ]
+  }
+ }
+}

@@ -5,18 +5,20 @@
 
 Resumen: **15 features**, 6 abiertas, 9 terminadas.
 
-En curso: **F-015**.
+En curso: **F-007**.
+
+Bloqueadas: **F-015**.
 
 ## Trabajo abierto
 
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-007 | Endpoint de dominio para registrar proformas | 8 | pendiente | critico | `feature/F-007-registrar-proforma` |
+| F-007 | Endpoint de dominio para registrar proformas | 8 | en curso | critico | `feature/F-007-registrar-proforma` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
-| F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | en curso | critico | `feature/F-015-albaran-plantilla-y-retencion` |
+| F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | bloqueada | critico | `feature/F-015-albaran-plantilla-y-retencion` |
 
 ## Terminadas
 
@@ -42,9 +44,9 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-007 · Endpoint de dominio para registrar proformas
 
-estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
+estado **en curso** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
 
-Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.
+Alta del 2026-09-24 por petición del humano; spec v3 (2026-10-25) y enmienda 1 (2026-10-26). POST /api/sigrid/proforma registra UNA proforma de mes de un subcontratista —la hoja del jefe de obra ya leída y casada por el microservicio proformas (su F-005), que la llama desde su bandeja: previa antes de aprobar y grabación al aprobar— como un albarán de compra tip 14 de la serie PROF<aa>/ con dca.cla 141, solo con las partidas de MES ≠ 0: las de contrato vinculadas a su ctrpro (ctrpro_ide), las nuevas sin vincular con su producto. El contrato lo resuelve la API (obra + proveedor y, con varios, las líneas) o lo fija cod_contrato; cabecera y retención como F-015; existente si la proforma del contrato y mes ya está en Sigrid; idempotente por la referencia PRF-<id>. Reutiliza el núcleo del modo extendido de sigrid/albaran (F-009) con otro perfil, sin cambiar su conducta. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con su propia llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. facturas lee lo registrado por el entref PROF<MMAA>_<cod_obra>. Contrato: specs/F-007-registrar-proforma/contrato_proformas.md.
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
@@ -66,7 +68,7 @@ Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F
 
 ### F-015 · El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato
 
-estado **en curso** · prioridad 15 · rigor `critico` · SDD sí · rama `feature/F-015-albaran-plantilla-y-retencion`
+estado **bloqueada** · prioridad 15 · rigor `critico` · SDD sí · rama `feature/F-015-albaran-plantilla-y-retencion`
 
 Alta del 2026-10-18 a petición del humano: O1 y O2 medidos por la spec de F-007 (progress/explore_F-007.md §M10 y §M14, en la rama feature/F-007-registrar-proforma). F-009 está desplegada con SIGRID_ALBARAN_WRITE_ENABLED=true y la usará F-053 de albaranes en real: conviene cerrarla antes. O1: la plantilla de cabecera (L5 de F-009, último dca del proveedor sin filtrar serie) es una proforma PROF<aa>/ en 17 de 831 proveedores con AC26; el albarán nacería con dca.cla 141, docoritip/docoriide, ivadif y campos de facturación de la proforma. O2: F-009 no escribe dcarec; el 88,5 % de los AC26 de contratos con ctrrec la llevan (RET5: bas = totbas, cuo = round(bas·valpor, 2), dca.tot = totdoc − cuo). La spec decide de dónde sale la plantilla (solo serie AC, sercon 87) y cómo se copia la retención del contrato (ctrrec → dcarec, cueide/valpor/pos), mide los casos raros (4,6 % con cueide distinto, retenciones sobre total) y deja a verificación del humano lo que solo se ve en la UI. Toca el contrato con albaranes (§2-§4 congelado): avisar a la sesión de albaranes ANTES de cambiarlo.
 

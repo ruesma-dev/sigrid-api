@@ -1,66 +1,78 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-015 en `in_progress` (2026-10-24)
+## F-007 `in_progress` (2026-10-26): correcciones de la pasada 1 de la revisión hechas
 
-Spec v2 aprobada por el humano (D1-D12; orden contrato → albarán anterior → proveedor en todas las columnas). T0 cerrada:
-albaranes acusa la v8.3 el 2026-10-24 ([`t0_F-015_albaranes.md`](t0_F-015_albaranes.md) §Acuse). **Antes de desplegar:
-avisar a albaranes** (sv9 y sv4 con los mapeos nuevos van antes o a la vez). Redactados (commit sin código): la
-resolución del `usu` que confirma albaranes (contrato §2.1, §2.4.9, H1, §7) y, en design §Limpieza, el filtro por
-`synckey LIKE 'ALB-%'` más su lista de `con.ide` en vez de `empide`; sin corregir `empide`. Mientras no se
-despliegue, las altas reales siguen copiando columnas de la plantilla (~4 al día); el humano no ha pedido pausarlas.
+Rama `feature/F-007-registrar-proforma` (con `dev` fusionado: F-015 dentro). `POST /api/sigrid/proforma` registra
+UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, `docoritip 0`, solo las partidas con MES ≠ 0;
+las de contrato, vinculadas a su `ctrpro` como la vinculada de F-009. La llama el microservicio **`proformas` (su
+F-005)** desde su bandeja: previa antes de aprobar y grabación al aprobar. `facturas` solo lee lo registrado por
+`sql/read`, por el `entref` `PROF<MMAA>_<cod_obra>`. Caso de uso: subclase del de F-009 con costuras sin cambio de
+conducta. Spec v3 y enmienda 1 en `specs/F-007-registrar-proforma/`; contrato con `proformas` **v1.1**
+([`contrato_proformas.md`](../specs/F-007-registrar-proforma/contrato_proformas.md)); medición en
+[`explore_F-007.md`](explore_F-007.md) §v3.
 
-### Implementación (implementer, 2026-10-24)
+**Hecho:**
+- Implementación T1-T19 (2026-10-25) y, tras la pasada 1 de la revisión troceada (`review_F-007_*.md`), las
+  correcciones que el humano aprobó el 2026-10-26 (enmienda 1, [`spec_F-007_enmienda1.md`](spec_F-007_enmienda1.md)):
+  lote E, T25-T40. Informe: [`impl_F-007.md`](impl_F-007.md) §«Correcciones pasada 1»; mutación:
+  [`mutacion_F-007.md`](mutacion_F-007.md); comandos de T21-T22:
+  [`verificacion_manual.md`](../specs/F-007-registrar-proforma/verificacion_manual.md).
+- `azure-apps` (sin remoto): `af81713` (T19) y `0072629` (pasada 1: riesgo O3 y contrato v1.1 en §8.10).
 
-- **Terminada la parte del implementer**: T1-T18 y T22 hechas, informe en [`impl_F-015.md`](impl_F-015.md)
-  (init.sh en verde, cobertura 100 % de las líneas cambiadas, mutación 104/104 muertos). **Quedan T19-T21
-  MANUALES** (despliegue tras avisar a albaranes, dry-runs R29, grabación autorizada, limpieza) y la revisión.
-  T8 antes que T7: el caso de uso lanza los códigos nuevos y `AlbaranCompraError` rechaza los que no están en la
-  lista cerrada. La parte de caso de uso de T3 (R6, R7) va en T7, que la necesita entera.
-- **Decisiones de T9-T18** (detalle en el informe, §Decisiones): E6b justo tras E6 y el `INSERT` de `dcarec` tras
-  los de `mov` (R21); E12 de `dcarec` siempre, esperando 0 o 1 (R23); `n_retenciones` solo en las trazas de
-  `previsto`/`creado` (R19); L16 como lectura de lista; el `''` de L5 (spec) es el único literal admitido por el
-  control negativo; `numerar` rechaza más de una `dcarec` (la campaña midió el `+ n` como código muerto).
-- **`azure-apps`** `49dfb36` (local, sin push): `sigrid_api.md` con notas «PENDIENTE DE DESPLIEGUE» que hay que
-  quitar al desplegar.
-- **Decisión (R5)**: para saber si el efecto escrito es de confirming o transferencia se lee el `auxefp` del `efeide`
-  con `read_full_row` (como el `ctr`, el `prv` y el `auxpag`) y se compara su `cod` con `CC`, `CT`, `TR` (M22). Solo
-  cuando el banco no tiene fuente y hay `efeide`. La spec dice qué avisar pero no nombra esa lectura; no es SQL
-  nuevo. Sin fila de `auxefp`, `ValueError` como con `prv` y `auxpag`.
-- **Decisión (R5, R10)**: el aviso y la comprobación de columnas se hacen una vez, tras `conest`/`usu`, con
-  `resolver_cascada` (la parte de `construir_dca` que lee filas), fuera de la transacción.
-- **Revisión troceada**: pasada 1 en `5da4e85` (seis informes `review_F-015_*.md`; retención y transacción
-  aprobadas). Arreglos de la pasada 1 hechos por el implementer (sección «Pasada 2» del informe), uno por commit.
-  **Pasada 2: APROBADO** (`review_F-015.md`, `e5eb1f9`). Lo siguiente: merge a `dev`, aviso a albaranes, despliegue
-  y T19-T21.
-- **Ampliación de R14 ordenada por el líder (pasada 2, retencion O2)**: un `ctrrec` con `valpor` NULL da 400
-  `retencion_no_soportada` en vez de un 500 (`InvalidOperation`). R14 no lo listaba; no contradice nada de la spec
-  (mismo código, mismo mapeo en sv9). Recogido en el contrato con albaranes §3.3 y en la nota de la v8.3, y en
-  `azure-apps/sigrid_api.md` §8.6. R14 lo nombra desde `87abd53`. Se le dice a albaranes en el aviso previo al despliegue.
-- **Verificación manual**: comandos literales de T19-T21 (dry-runs V1-V4, grabación V5, limpieza V6) en
-  [`verificacion_manual.md`](../specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md) (anexo de design
-  §Verificación manual, aparte por el tope de 250 líneas de design).
-- **F-009 que cambian** (T14): lista viva en el informe.
-- **Desviación de orden**: T2 antes que T1, porque las filas completas del doble (T1) se construyen con
-  `DCA_COLUMNAS` (T2). Y los nombres de las sentencias nuevas en el doble (L17, L16, E6b, `INSERT` y relectura de
-  `dcarec`) entran con la tarea que crea cada sentencia (T3, T9, T13): antes no existen.
+**Lo siguiente, por orden:**
+1. **T23**: pasada 2 de la revisión troceada.
+2. **Avisos** a `proformas`, `facturas` y albaranes: los manda el líder (texto en `impl_F-007.md`, ya en v1.1).
+3. Merge a `dev` (el líder, en local) y push (el humano).
+4. **T20** (humano, con Administración y `proformas`): V8 y las preguntas abiertas (abajo).
+5. **T21**: App Settings en JSON con la llave de proformas **cerrada** y despliegue (los lanza el humano; `func publish`
+   con `!`); lo primero, un dry-run de `sigrid/albaran` (riesgo O3); después los dry-runs de las tres hojas de la 0719,
+   que deben dar `existente` sobre `AC26/25548`, `/25552` y `/25551` (los lanza el líder con autorización).
+6. **T22**: un único `commit:true`, autorizado por el humano para esa llamada; repetido (`idempotente`) y, si es de
+   prueba, anulado desde la UI de Sigrid (nunca `DELETE`).
+7. **T24**: `init.sh` final, `done` y `history.md`.
+
+**Decisiones aprobadas** (design §Decisiones; PARADA 1 del 2026-10-25): D4 (quien cambia el contrato es la persona de
+la bandeja de `proformas`, que reenvía con `cod_contrato`), D5 (hoja de dos contratos → error con el reparto), D7, D8
+(avisos `supera_contrato` y `supera_contrato_10`), D10 (`existente`), D11 (productos `SM9999`, `SB9999`, `SM370001`),
+D13 (aviso `contrato_a_origen`) y D14 (`sin_contrato` explícito). Enmienda 1 (2026-10-26): R14 y R8 estrictos por
+partida y precio, IVA del `ctrpro` también sin plantilla, R28 repite R23 bajo el applock, `otra_del_mes` registra
+aunque haya una del mismo importe. **R31 se mantiene**: tests y dorados de F-009 y F-015 intactos.
+
+**Abierto (T20):** `proformas` aceptó el 2026-10-25 los nueve puntos del alta (su commit `ea7e7ca`: endpoint, serie,
+`ctrpro_ide` y `producto` obligatorios, una petición por contrato, `existente` con sus líneas, previa desde la
+bandeja). **Siguen abiertas** las tres de design §Preguntas: ¿CIF o solo el nombre?, ¿solo partidas con MES ≠ 0?, ¿qué
+avisos bloquean la aprobación? Con Administración (V8): si el registro de mes vale en los contratos que ya van a
+origen (mientras, aviso `contrato_a_origen`), y confirmar la lista de productos.
+
+**Riesgos que vigilar:** O3 (las App Settings `SIGRID_PROFORMA_*` mal formadas impiden arrancar y tumban todas las
+rutas, también `sigrid/albaran`: JSON validado con `Settings` antes de subirlo y dry-run de albaranes tras desplegar);
+el núcleo de F-009 cambia por costuras de solo extracción, con la llave de albaranes abierta en producción.
+
+## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
+
+**Por qué `blocked`:** solo falta el cierre manual. Administración tiene que revisar `AC26/30670` (`con.ide` 2860439,
+grabación V5 autorizada en la obra 0404) y anularla desde la UI de Sigrid (nunca `DELETE`). Lectura del 2026-10-25:
+sigue en Sigrid (1 `dcapro`, 1 `dcarec`, `ctrpro` 104172 con `canser` 70). Se pasa a `blocked` para liberar el único
+`in_progress` a F-007. Al desbloquear: lecturas de comprobación (sin `con`, `dca` ni `dcarec` de 2860439, `canser` de
+vuelta a 69), quitar las notas «PENDIENTE DE DESPLIEGUE» de F-015 en `azure-apps` (`49dfb36`), `done`, `history.md` y
+merge de la rama de F-015 a `dev` (4 commits de documentación; el humano hace el push).
+
+Detalle: [`impl_F-015.md`](impl_F-015.md) (decisiones y desviaciones), [`review_F-015.md`](review_F-015.md)
+(pasada 2 APROBADA) y [`verificacion_manual.md`](../specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md).
+La ampliación de R14 de F-015 (`ctrrec` con `valpor` NULL → 400 `retencion_no_soportada`) está en el contrato con
+albaranes §3.3 y en `azure-apps/sigrid_api.md` §8.6.
 
 ## F-012 cerrada, desplegada y verificada (2026-10-19)
 
 Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
 Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas vuelcan `input` de la petición.
 
-## F-007 con spec v1 en su rama; F-008 espera (2026-10-19)
+## F-008 espera (2026-10-19)
 
-- **F-007** (`spec_ready` en `feature/F-007-registrar-proforma`, no en `dev`): D1 resuelta por el humano: la llamará
-  la app de facturas (su F-063); la proforma puede estar ya en Sigrid o no, y **en el futuro todas se registrarán por
-  la app vía la API**. Respuesta de facturas (2026-10-19, detalle en `facturas/progress/explore_alta_sigrid.md`): la
-  hoja no trae CIF, fecha, retención ni contrato estructurado; trae MES, ORIGEN y ANTERIOR por partida; pide que el
-  endpoint resuelva la cadena a origen. **La spec v1 hay que rehacerla** (contrato exigido o identificable, cadena
-  dentro del endpoint, detectar una PROF ya dada de alta a mano). D3-D7 sin aprobar.
 - **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
-  origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas para los dos: dry-run, idempotencia, `con.cod` e
-  `ide` en la respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
+  origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas: dry-run, idempotencia, `con.cod` e `ide` en la
+  respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
 
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
@@ -190,22 +202,19 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-015 está `in_progress`** (arriba): implementación y arreglos de la pasada 1 hechos; sigue la **pasada 2 de la
-revisión**; después, **avisar a albaranes** (lo hace el líder), el **despliegue** (el humano) y las MANUALES T19-T21
-(`specs/F-015-albaran-plantilla-y-retencion/verificacion_manual.md`). Hasta cerrarla no se arranca otra feature (máximo una `in_progress`).
-
-F-009 solo espera T24 (con F-053 en real). Después de F-015: F-007 (proformas) y F-008 (facturas de compra),
-`pending` con `sdd` y rigor `critico`; F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la consulta)
-y F-014 (el hueco residual del dry-run de dominio). Del arnés:
-actualizar `sigrid-api` a la versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la
-mutación paralela.
+**F-007 está `in_progress`** (arriba): pasada 2 de la revisión, avisos, merge, despliegue y T20-T22. **F-015 está
+`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-007:
+F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-001 (calentamiento); F-013 (`sql/read` fija el tope
+real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
+versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-015 está `in_progress`** en `feature/F-015-albaran-plantilla-y-retencion`:
-> implementada (`impl_F-015.md`) y con los arreglos de la pasada 1 de la revisión hechos; toca la **pasada 2 de la
-> revisión** troceada. Después: avisar a albaranes antes de desplegar, el despliegue (lo lanza el humano) y T19-T21
-> con los comandos de `verificacion_manual.md` de su spec (dry-runs el líder con autorización; grabación y limpieza el
-> humano, con autorización expresa para cada escritura). F-009 está desplegada con la llave abierta; solo queda T24
-> cuando F-053 esté en real. F-007 tiene spec v1 en su rama que hay que rehacer con la respuesta de facturas. No
-> arranques otra feature sin cerrar F-015 ni sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-007 está `in_progress`** en `feature/F-007-registrar-proforma`:
+> implementada y con las correcciones de la pasada 1 de la revisión hechas (`impl_F-007.md` §«Correcciones pasada
+> 1»); toca la **pasada 2 de la revisión** troceada (T23). Después: los avisos a `proformas`, `facturas` y albaranes
+> (texto en el informe; los manda el líder), merge a `dev`, despliegue con la llave de proformas cerrada (lo lanza el
+> humano) y T20-T22 con `specs/F-007-registrar-proforma/verificacion_manual.md` (dry-runs el líder con autorización;
+> la grabación, el humano con autorización expresa para esa llamada). **F-015 está `blocked`** a la espera de que
+> Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24. No
+> arranques otra feature sin cerrar F-007 ni sin preguntar.
