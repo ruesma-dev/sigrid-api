@@ -91,8 +91,9 @@ def test_f007_perfil_de_proforma() -> None:
     assert CreateProformaUseCase.perfil is PERFIL_PROFORMA
     assert (PERFIL_PROFORMA.endpoint, PERFIL_PROFORMA.prefijo_serie, PERFIL_PROFORMA.cifras_serie,
             PERFIL_PROFORMA.cla, PERFIL_PROFORMA.codigo_llave, PERFIL_PROFORMA.productos_del_contrato,
-            PERFIL_PROFORMA.error) == (
+            PERFIL_PROFORMA.error, PERFIL_PROFORMA.documentos) == (
         "sigrid/proforma", "PROF", 5, 141, "escritura_proformas_deshabilitada", True, ProformaError,
+        "proformas",
     )
     settings = SettingsProforma()
     for campo in ("campo_llave", "campo_prefijos", "campo_max_lineas", "campo_productos",
@@ -530,7 +531,11 @@ def test_f007_r26_la_llave_del_albaran_no_abre_la_proforma() -> None:
     settings = SettingsProforma(sigrid_proforma_write_enabled=False, sigrid_albaran_write_enabled=True)
     error = fallo(peticion(commit=True), settings=settings)
     assert error.codigo == "escritura_proformas_deshabilitada"
-    assert "SIGRID_PROFORMA_WRITE_ENABLED" in str(error)
+    # Revision C3 (obs. 1): el mensaje habla de proformas, no de albaranes.
+    assert str(error) == (
+        "Escritura de proformas desactivada: hacen falta SIGRID_DOMAIN_WRITE_ENABLED, "
+        "SIGRID_PROFORMA_WRITE_ENABLED y credenciales de escritura."
+    )
     # Y en dry-run la llave cerrada no cambia nada (R5).
     respuesta, _repo = ejecutar(peticion(), settings=settings)
     assert respuesta.estado == "existente"

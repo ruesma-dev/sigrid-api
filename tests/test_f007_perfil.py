@@ -94,6 +94,7 @@ def test_f007_r31_perfil_albaran_con_los_literales_de_hoy() -> None:
         campo_naturalezas="sigrid_albaran_naturaleza_por_producto",
         productos_del_contrato=False,
         error=AlbaranCompraError,
+        documentos="albaranes",
     )
     assert CreateAlbaranCompraUseCase.perfil is PERFIL_ALBARAN
 
