@@ -31,6 +31,7 @@ from f009_dobles import (
     IntegrityError,
     RepositorioDoble,
     SettingsDoble,
+    ctrpro,
     plantilla_dcapro,
 )
 
@@ -404,6 +405,21 @@ def test_f007_r17_producto_del_contrato_con_plantilla_de_otro_proveedor_sin_avis
     # L8 (de otro proveedor): `plantilla_dcapro(55)` trae natide 999, cueide 888, caaide 1.
     assert (fila["natide"], fila["cueide"], fila["caaide"], fila["ivaide"]) == (999, 888, 1, 3)
     assert respuesta.lineas[0].avisos == []
+
+
+def test_f007_r17_dos_lineas_del_contrato_con_el_producto_el_iva_es_el_de_la_primera_por_pos(
+) -> None:
+    """N7 (`review_F-007_mutacion.md`): si el producto esta en dos lineas del
+    contrato con distinto IVA, manda la PRIMERA por `pos` (el nucleo las lee
+    ordenadas por `pos`; `_productos_del_contrato` se queda con la primera)."""
+    otra = {**ctrpro()[0], "ide": 9004, "pos": 256, "ivaide": 4, "ivacuo": 105.0}
+    repo = RepositorioDoble({"productos": _PRODUCTOS_CON_EL_DEL_CONTRATO},
+                            ctrpro_filas=[*ctrpro(), otra])
+    caso = CasoConProductosDelContrato(repo, SettingsDoble(), ahora_utc=lambda: AHORA)
+    respuesta = caso.run(peticion([sin_vincular()]))
+    fila = respuesta.filas["dcapro"][0]
+    # 9001 (`pos` 64, IVA 3 al 21 %) y no 9004 (`pos` 256, IVA 4 al 10 %).
+    assert (fila["proide"], fila["ivaide"], fila["ivacuo"]) == (55, 3, 1.58)
 
 
 def test_f007_r17_un_producto_de_la_lista_que_es_del_contrato_va_por_el_contrato() -> None:
