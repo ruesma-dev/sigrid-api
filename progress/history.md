@@ -336,3 +336,45 @@ datamart-seg-anual (F-139) y mcp-bbdd (F-023), verificada por el líder con lect
   (en grabación el caso pasa de `incierto` a `error`, como ya prometía su contrato §3.4).
 - **Lecciones:** la primera campaña corrió en paralelo con un informe que decía `--workers 1` (a `arnes-base`,
   `35b2749`). Un `!` al inicio de la segunda línea de un `! …` multilínea niega el código de salida en bash.
+
+---
+
+## F-007 · `POST /api/sigrid/proforma`: la proforma de mes del jefe de obra
+
+**Cerrada el 2026-10-28, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama
+`feature/F-007-registrar-proforma`, mergeada a `dev` (`0e9aa8d` y el commit de cierre). Spec v3.1, enmiendas 1 y 2
+(`spec_F-007_enmienda*.md`), contrato con `proformas` **v1.1** (`specs/F-007-registrar-proforma/contrato_proformas.md`).
+
+**Por qué:** `proformas` (su F-005) aprueba en su bandeja la hoja mensual del jefe de obra y tiene que registrarla en
+Sigrid. `facturas` lee lo registrado por `entref` `PROF<MMAA>_<cod_obra>`.
+
+**Qué hace:** registra UNA proforma **de mes** como `tip 14`, serie `PROF<aa>/` (5 cifras), `dca.cla 141`, solo con
+las partidas de MES ≠ 0. Las de contrato van vinculadas a su `ctrpro` (`docoritip 44`, `linoriide`), con la cuenta
+analítica y el IVA del contrato. Las nuevas van sin vincular, con producto de la lista `SM9999`/`SB9999`/`SM370001`
+o del contrato. El contrato lo resuelve la API (obra + proveedor y, con varios, las líneas) o lo fija
+`cod_contrato`. La línea sin `ctrpro_ide` se busca por partida + precio unitario; si hay varias, `linea_ambigua` con
+`candidatos`, y `proformas` desempata por la descripción (regla del humano: el producto no cuenta). Responde
+`existente` si la del contrato y mes ya está (±0,05), salvo `otra_del_mes`, e `idempotente` por `PRF-<id>`. Fecha
+según R18 y retención como F-015. Reutiliza el núcleo de F-009 con cinco costuras y un perfil, con los dorados de
+F-009 y F-015 intactos. Llave propia `SIGRID_PROFORMA_WRITE_ENABLED` (cerrada) y cuatro App Settings más en JSON.
+
+**Evidencias:** 3.393 tests; cobertura 100 % de 736 líneas cambiadas; mutación en serie 381 / 5 supervivientes, todos
+aceptados (uno, `cifras: int = 0`, por el humano). Revisión troceada en tres pasadas, APROBADO (`review_F-007.md`).
+Verificación en `verificacion_F-007.md`: dry-run de `sigrid/albaran` tras publicar; `existente` sobre las tres `AC`
+reales de la 0719; `otra_del_mes` y el respaldo por partida y precio con las mismas líneas de contrato y totales a
+±0,01. Grabación autorizada de una hoja sintética en la 0404: `PROF26/01360`, `creado`, repetida `idempotente`, con la
+llave abierta solo durante la prueba.
+
+**Decisiones de negocio (V8, 2026-10-28):** los productos sin contrato, confirmados. A origen o por meses según el
+jefe de obra → **F-016**. Códigos de partida repetidos («no debería haber»; 4 de 16 obras) → **F-017**.
+
+**Lecciones:**
+- Los guiones de verificación deben sacar los datos de la hoja real: `9.01` frente a `09.01` y la medición de
+  contrato no enviada parecían fallos de la API y eran del guion.
+- El clasificador de la sesión bloquea cualquier `commit:true` contra producción, aunque la llave esté cerrada. V1
+  va con la grabación autorizada.
+- La 0404 de pruebas tiene el presupuesto cargado cinco veces: no sirve para probar líneas sin contrato.
+
+**Queda (operativo, humano):** revisar `PROF26/01360` en la UI (ficha, impresión, paso a factura) y **anularla desde
+la UI**; después, lecturas (sin `con` 2861898, `canser` de los `ctrpro` 258782 y 258783 a 0). La llave de proformas
+sigue **cerrada**; abrirla es decisión del humano, y se avisa a `proformas`.

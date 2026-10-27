@@ -1,53 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-007 `in_progress` (2026-10-26): correcciones de la pasada 1 de la revisión hechas
+## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
 
-Rama `feature/F-007-registrar-proforma` (con `dev` fusionado: F-015 dentro). `POST /api/sigrid/proforma` registra
-UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, `docoritip 0`, solo las partidas con MES ≠ 0;
-las de contrato, vinculadas a su `ctrpro` como la vinculada de F-009. La llama el microservicio **`proformas` (su
-F-005)** desde su bandeja: previa antes de aprobar y grabación al aprobar. `facturas` solo lee lo registrado por
-`sql/read`, por el `entref` `PROF<MMAA>_<cod_obra>`. Caso de uso: subclase del de F-009 con costuras sin cambio de
-conducta. Spec v3 y enmienda 1 en `specs/F-007-registrar-proforma/`; contrato con `proformas` **v1.1**
-([`contrato_proformas.md`](../specs/F-007-registrar-proforma/contrato_proformas.md)); medición en
-[`explore_F-007.md`](explore_F-007.md) §v3.
+Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
+origen o por meses según indique el jefe de obra**, y por defecto por meses. Lanzado el **spec-author**; al terminar,
+`spec_ready` y PARADA para la aprobación del humano. Material: `progress/explore_F-007.md` §M11 y §M16-M26 (el
+modelo a origen ya medido) y la spec de F-007.
 
-**Hecho:**
-- Implementación T1-T19 (2026-10-25) y, tras la pasada 1 de la revisión troceada (`review_F-007_*.md`), las
-  correcciones que el humano aprobó el 2026-10-26 (enmienda 1, [`spec_F-007_enmienda1.md`](spec_F-007_enmienda1.md)):
-  lote E, T25-T40. Informe: [`impl_F-007.md`](impl_F-007.md) §«Correcciones pasada 1»; mutación:
-  [`mutacion_F-007.md`](mutacion_F-007.md); comandos de T21-T22:
-  [`verificacion_manual.md`](../specs/F-007-registrar-proforma/verificacion_manual.md).
-- `azure-apps` (sin remoto): `af81713` (T19) y `0072629` (pasada 1: riesgo O3 y contrato v1.1 en §8.10).
+## F-007 cerrada (2026-10-28): pendiente operativo
 
-**Lo siguiente, por orden:**
-1. **T23**: pasada 2 de la revisión troceada.
-2. **Avisos** a `proformas`, `facturas` y albaranes: los manda el líder (texto en `impl_F-007.md`, ya en v1.1).
-3. Merge a `dev` (el líder, en local) y push (el humano).
-4. **T20** (humano, con Administración y `proformas`): V8 y las preguntas abiertas (abajo).
-5. **T21**: App Settings en JSON con la llave de proformas **cerrada** y despliegue (los lanza el humano; `func publish`
-   con `!`); lo primero, un dry-run de `sigrid/albaran` (riesgo O3); después los dry-runs de las tres hojas de la 0719,
-   que deben dar `existente` sobre `AC26/25548`, `/25552` y `/25551` (los lanza el líder con autorización).
-6. **T22**: un único `commit:true`, autorizado por el humano para esa llamada; repetido (`idempotente`) y, si es de
-   prueba, anulado desde la UI de Sigrid (nunca `DELETE`).
-7. **T24**: `init.sh` final, `done` y `history.md`.
-
-**Decisiones aprobadas** (design §Decisiones; PARADA 1 del 2026-10-25): D4 (quien cambia el contrato es la persona de
-la bandeja de `proformas`, que reenvía con `cod_contrato`), D5 (hoja de dos contratos → error con el reparto), D7, D8
-(avisos `supera_contrato` y `supera_contrato_10`), D10 (`existente`), D11 (productos `SM9999`, `SB9999`, `SM370001`),
-D13 (aviso `contrato_a_origen`) y D14 (`sin_contrato` explícito). Enmienda 1 (2026-10-26): R14 y R8 estrictos por
-partida y precio, IVA del `ctrpro` también sin plantilla, R28 repite R23 bajo el applock, `otra_del_mes` registra
-aunque haya una del mismo importe. **R31 se mantiene**: tests y dorados de F-009 y F-015 intactos.
-
-**Abierto (T20):** `proformas` aceptó el 2026-10-25 los nueve puntos del alta (su commit `ea7e7ca`: endpoint, serie,
-`ctrpro_ide` y `producto` obligatorios, una petición por contrato, `existente` con sus líneas, previa desde la
-bandeja). **Siguen abiertas** las tres de design §Preguntas: ¿CIF o solo el nombre?, ¿solo partidas con MES ≠ 0?, ¿qué
-avisos bloquean la aprobación? Con Administración (V8): si el registro de mes vale en los contratos que ya van a
-origen (mientras, aviso `contrato_a_origen`), y confirmar la lista de productos.
-
-**Riesgos que vigilar:** O3 (las App Settings `SIGRID_PROFORMA_*` mal formadas impiden arrancar y tumban todas las
-rutas, también `sigrid/albaran`: JSON validado con `Settings` antes de subirlo y dry-run de albaranes tras desplegar);
-el núcleo de F-009 cambia por costuras de solo extracción, con la llave de albaranes abierta en producción.
+Resumen en `history.md`. Queda del humano: V6 en la UI y **anular `PROF26/01360`** (`con_ide` 2861898, obra 0404)
+desde la UI; después, lecturas (sin `con` 2861898; `canser` de los `ctrpro` 258782 y 258783 de vuelta a 0). En
+producción, `SIGRID_PROFORMA_WRITE_ENABLED=false`: abrirla es decisión del humano, y se avisa a `proformas`.
+**F-017** (`pending`): códigos de partida repetidos en las obras, sacado de V8.
 
 ## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
 
@@ -202,19 +168,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-007 está `in_progress`** (arriba): pasada 2 de la revisión, avisos, merge, despliegue y T20-T22. **F-015 está
-`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-007:
-F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-001 (calentamiento); F-013 (`sql/read` fija el tope
+**F-016** (arriba): spec de la proforma a origen. **F-015 está
+`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-016:
+F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope
 real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
 versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-007 está `in_progress`** en `feature/F-007-registrar-proforma`:
-> implementada y con las correcciones de la pasada 1 de la revisión hechas (`impl_F-007.md` §«Correcciones pasada
-> 1»); toca la **pasada 2 de la revisión** troceada (T23). Después: los avisos a `proformas`, `facturas` y albaranes
-> (texto en el informe; los manda el líder), merge a `dev`, despliegue con la llave de proformas cerrada (lo lanza el
-> humano) y T20-T22 con `specs/F-007-registrar-proforma/verificacion_manual.md` (dry-runs el líder con autorización;
-> la grabación, el humano con autorización expresa para esa llamada). **F-015 está `blocked`** a la espera de que
-> Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24. No
-> arranques otra feature sin cerrar F-007 ni sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está en spec, en
+> `feature/F-016-proforma-a-origen`: si `specs/F-016-*/` ya existe y está en `spec_ready`, espera la aprobación del
+> humano. F-007 está cerrada; queda que el humano anule `PROF26/01360` y las lecturas posteriores. **F-015 está
+> `blocked`** a la espera de que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave
+> abierta; solo queda T24. No arranques otra feature sin preguntar.
