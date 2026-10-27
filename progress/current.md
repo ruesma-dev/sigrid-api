@@ -1,53 +1,31 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-007 `in_progress` (2026-10-26): correcciones de la pasada 1 de la revisión hechas
+## F-007 `in_progress` (2026-10-27): revisada (APPROVED), mergeada y desplegada; falta T22
 
-Rama `feature/F-007-registrar-proforma` (con `dev` fusionado: F-015 dentro). `POST /api/sigrid/proforma` registra
-UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, `docoritip 0`, solo las partidas con MES ≠ 0;
-las de contrato, vinculadas a su `ctrpro` como la vinculada de F-009. La llama el microservicio **`proformas` (su
-F-005)** desde su bandeja: previa antes de aprobar y grabación al aprobar. `facturas` solo lee lo registrado por
-`sql/read`, por el `entref` `PROF<MMAA>_<cod_obra>`. Caso de uso: subclase del de F-009 con costuras sin cambio de
-conducta. Spec v3 y enmienda 1 en `specs/F-007-registrar-proforma/`; contrato con `proformas` **v1.1**
-([`contrato_proformas.md`](../specs/F-007-registrar-proforma/contrato_proformas.md)); medición en
-[`explore_F-007.md`](explore_F-007.md) §v3.
+Rama `feature/F-007-registrar-proforma`, mergeada en `dev` (`0e9aa8d`, sin push: lo hace el humano). `POST
+/api/sigrid/proforma` registra UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, solo partidas
+con MES ≠ 0, las de contrato vinculadas a su `ctrpro`. La llama **`proformas` (su F-005)**; `facturas` solo lee por
+`entref` `PROF<MMAA>_<cod_obra>`. Spec v3.1 y contrato **v1.1** en `specs/F-007-registrar-proforma/`.
 
 **Hecho:**
-- Implementación T1-T19 (2026-10-25) y, tras la pasada 1 de la revisión troceada (`review_F-007_*.md`), las
-  correcciones que el humano aprobó el 2026-10-26 (enmienda 1, [`spec_F-007_enmienda1.md`](spec_F-007_enmienda1.md)):
-  lote E, T25-T40. Informe: [`impl_F-007.md`](impl_F-007.md) §«Correcciones pasada 1»; mutación:
-  [`mutacion_F-007.md`](mutacion_F-007.md); comandos de T21-T22:
-  [`verificacion_manual.md`](../specs/F-007-registrar-proforma/verificacion_manual.md).
-- `azure-apps` (sin remoto): `af81713` (T19) y `0072629` (pasada 1: riesgo O3 y contrato v1.1 en §8.10).
+- Implementación T1-T19 y correcciones T25-T40 ([`impl_F-007.md`](impl_F-007.md)); enmiendas
+  [`1`](spec_F-007_enmienda1.md) y [`2`](spec_F-007_enmienda2.md); mutación en [`mutacion_F-007.md`](mutacion_F-007.md).
+- **T23**: revisión troceada en tres pasadas, veredicto **APPROVED** en [`review_F-007.md`](review_F-007.md).
+- Avisos a `proformas`, `facturas` y `albaranes` (2026-10-26); `proformas` contestó las tres preguntas de design.
+- **T21** (2026-10-26/27): App Settings en JSON con la llave de proformas **cerrada**, publicación desde `dev`, dry-run
+  de `sigrid/albaran` en verde y previas V2-V4 de las tres hojas de la 0719 conformes. Detalle en
+  [`verificacion_F-007.md`](verificacion_F-007.md).
 
-**Lo siguiente, por orden:**
-1. **T23**: pasada 2 de la revisión troceada.
-2. **Avisos** a `proformas`, `facturas` y albaranes: los manda el líder (texto en `impl_F-007.md`, ya en v1.1).
-3. Merge a `dev` (el líder, en local) y push (el humano).
-4. **T20** (humano, con Administración y `proformas`): V8 y las preguntas abiertas (abajo).
-5. **T21**: App Settings en JSON con la llave de proformas **cerrada** y despliegue (los lanza el humano; `func publish`
-   con `!`); lo primero, un dry-run de `sigrid/albaran` (riesgo O3); después los dry-runs de las tres hojas de la 0719,
-   que deben dar `existente` sobre `AC26/25548`, `/25552` y `/25551` (los lanza el líder con autorización).
-6. **T22**: un único `commit:true`, autorizado por el humano para esa llamada; repetido (`idempotente`) y, si es de
-   prueba, anulado desde la UI de Sigrid (nunca `DELETE`).
-7. **T24**: `init.sh` final, `done` y `history.md`.
+**Lo siguiente:**
+1. **T22**: el humano elige una hoja real que no esté en Sigrid y autoriza un único `commit:true` (antes, V1 con la
+   llave cerrada); abrir solo `SIGRID_PROFORMA_WRITE_ENABLED`, grabar, repetir (`idempotente`) y cerrar; revisión en
+   la UI y anulación desde la UI si es de prueba (nunca `DELETE`).
+2. **T20**: queda V8 con Administración (si el registro de mes vale en los contratos a origen).
+3. **T24**: `init.sh` final, `done`, `history.md`; quitar «PENDIENTE DE DESPLIEGUE (F-007)» de `azure-apps` §8.10;
+   avisar a `proformas` cuando la escritura quede abierta, si el humano la abre.
 
-**Decisiones aprobadas** (design §Decisiones; PARADA 1 del 2026-10-25): D4 (quien cambia el contrato es la persona de
-la bandeja de `proformas`, que reenvía con `cod_contrato`), D5 (hoja de dos contratos → error con el reparto), D7, D8
-(avisos `supera_contrato` y `supera_contrato_10`), D10 (`existente`), D11 (productos `SM9999`, `SB9999`, `SM370001`),
-D13 (aviso `contrato_a_origen`) y D14 (`sin_contrato` explícito). Enmienda 1 (2026-10-26): R14 y R8 estrictos por
-partida y precio, IVA del `ctrpro` también sin plantilla, R28 repite R23 bajo el applock, `otra_del_mes` registra
-aunque haya una del mismo importe. **R31 se mantiene**: tests y dorados de F-009 y F-015 intactos.
-
-**Abierto (T20):** `proformas` aceptó el 2026-10-25 los nueve puntos del alta (su commit `ea7e7ca`: endpoint, serie,
-`ctrpro_ide` y `producto` obligatorios, una petición por contrato, `existente` con sus líneas, previa desde la
-bandeja). **Siguen abiertas** las tres de design §Preguntas: ¿CIF o solo el nombre?, ¿solo partidas con MES ≠ 0?, ¿qué
-avisos bloquean la aprobación? Con Administración (V8): si el registro de mes vale en los contratos que ya van a
-origen (mientras, aviso `contrato_a_origen`), y confirmar la lista de productos.
-
-**Riesgos que vigilar:** O3 (las App Settings `SIGRID_PROFORMA_*` mal formadas impiden arrancar y tumban todas las
-rutas, también `sigrid/albaran`: JSON validado con `Settings` antes de subirlo y dry-run de albaranes tras desplegar);
-el núcleo de F-009 cambia por costuras de solo extracción, con la llave de albaranes abierta en producción.
+**Estado en producción:** ruta desplegada, `SIGRID_PROFORMA_WRITE_ENABLED=false`.
 
 ## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
 

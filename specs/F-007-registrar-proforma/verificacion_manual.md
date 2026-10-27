@@ -125,7 +125,7 @@ $hojas = @{
       @("M17", "02.03.04.02", 871.51, 0.27, "COLOCACION DE FERRALLA 02.03.04.02"))
     nuevas = @(
       @{ referencia_linea = "M31"; producto = "SM1026"; partida = "02.03.02.03"; cantidad = 20235.2; precio = 0.036; descripcion = "Regularizacion precio acero agosto" },
-      @{ referencia_linea = "M33"; producto = "SM1026"; partida = "9.01"; cantidad = 816.84; precio = 1; descripcion = "Seguridad y replanteo. Agosto" }) }
+      @{ referencia_linea = "M33"; producto = "SM1026"; partida = "09.01"; cantidad = 816.84; precio = 1; descripcion = "Seguridad y replanteo. Agosto" }) }
   "CTSB26/0369" = @{ mes = 7991.0; anterior = 6056.0; origen = 14047.0; existente = "AC26/25551"; contrato = @(
       @("N10", "02.02.02", 1250.467, 2.8, "EXCAVACION DESBROCE A BORDE DE EXCAVACION"),
       @("N11", "02.02.03", 1603.46, 2.8, "EXCAVACION GENERAL A BORDE DE EXCAVACION"))
@@ -134,7 +134,8 @@ function Cuerpo($cod, $ref, $otra = $false, $conIde = $true) {
   $h = $hojas[$cod]; $ctride = Ctr $cod; $lineas = @()
   foreach ($l in $h.contrato) {
     $x = @{ referencia_linea = $l[0]; cantidad = $l[2]; precio = $l[3]; descripcion = $l[4] }
-    if ($conIde) { $x.ctrpro_ide = Vinc $ctride $l[1] $l[3] } else { $x.partida = $l[1] }
+    if ($conIde) { $x.ctrpro_ide = Vinc $ctride $l[1] $l[3] }
+    else { $x.partida = $l[1]; $x.medicion_contrato = (Fila "SELECT can FROM dbo.ctrpro WHERE ide = ?" @(Vinc $ctride $l[1] $l[3]))[0] }
     $lineas += $x }
   @{ database = "ruesma"; usu = "prueba"; referencia_externa = $ref; cod_obra = "0719"; periodo = 202608
      cod_contrato = $cod; importe_mes = $h.mes; importe_anterior = $h.anterior; importe_origen = $h.origen
