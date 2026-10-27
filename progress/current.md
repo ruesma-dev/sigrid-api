@@ -1,7 +1,7 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-007 `in_progress` (2026-10-27): revisada (APPROVED), mergeada y desplegada; falta T22
+## F-007 `in_progress` (2026-10-27): revisada (APPROVED), desplegada y grabada en real; falta V6 y anular la prueba
 
 Rama `feature/F-007-registrar-proforma`, mergeada en `dev` (`0e9aa8d`, sin push: lo hace el humano). `POST
 /api/sigrid/proforma` registra UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, solo partidas
@@ -16,16 +16,19 @@ con MES ≠ 0, las de contrato vinculadas a su `ctrpro`. La llama **`proformas` 
 - **T21** (2026-10-26/27): App Settings en JSON con la llave de proformas **cerrada**, publicación desde `dev`, dry-run
   de `sigrid/albaran` en verde y previas V2-V4 de las tres hojas de la 0719 conformes. Detalle en
   [`verificacion_F-007.md`](verificacion_F-007.md).
+- **T22** (2026-10-27, autorizada): hoja sintética en la 0404 (`CTSU16/0206`). V1 da 400 con la llave cerrada. Se
+  abrió la llave y se grabó **`PROF26/01360`** (`con_ide` 2861898, `creado`); la repetición da `idempotente`; la llave
+  se volvió a cerrar. Todo conforme.
 
 **Lo siguiente:**
-1. **T22**: el humano elige una hoja real que no esté en Sigrid y autoriza un único `commit:true` (antes, V1 con la
-   llave cerrada); abrir solo `SIGRID_PROFORMA_WRITE_ENABLED`, grabar, repetir (`idempotente`) y cerrar; revisión en
-   la UI y anulación desde la UI si es de prueba (nunca `DELETE`).
+1. **Cierre de T22 (humano):** V6 en la UI (ficha, impresión, paso a factura) y **anular `PROF26/01360`** desde la UI.
+   Después, lecturas: sin `con` 2861898 y `canser` de los `ctrpro` 258782 y 258783 de vuelta a 0.
 2. **T20**: queda V8 con Administración (si el registro de mes vale en los contratos a origen).
 3. **T24**: `init.sh` final, `done`, `history.md`; quitar «PENDIENTE DE DESPLIEGUE (F-007)» de `azure-apps` §8.10;
    avisar a `proformas` cuando la escritura quede abierta, si el humano la abre.
 
-**Estado en producción:** ruta desplegada, `SIGRID_PROFORMA_WRITE_ENABLED=false`.
+**Estado en producción:** ruta desplegada, `SIGRID_PROFORMA_WRITE_ENABLED=false`. `PROF26/01360` (prueba) sigue viva
+hasta que se anule.
 
 ## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
 
@@ -180,7 +183,7 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-007 está `in_progress`** (arriba): pasada 2 de la revisión, avisos, merge, despliegue y T20-T22. **F-015 está
+**F-007 está `in_progress`** (arriba): falta V6 y anular la prueba `PROF26/01360`, V8 de T20 y T24. **F-015 está
 `blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-007:
 F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-001 (calentamiento); F-013 (`sql/read` fija el tope
 real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
@@ -189,10 +192,9 @@ versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico
 ## Prompt para retomar
 
 > Lee `CLAUDE.md` y `progress/current.md`. **F-007 está `in_progress`** en `feature/F-007-registrar-proforma`:
-> implementada y con las correcciones de la pasada 1 de la revisión hechas (`impl_F-007.md` §«Correcciones pasada
-> 1»); toca la **pasada 2 de la revisión** troceada (T23). Después: los avisos a `proformas`, `facturas` y albaranes
-> (texto en el informe; los manda el líder), merge a `dev`, despliegue con la llave de proformas cerrada (lo lanza el
-> humano) y T20-T22 con `specs/F-007-registrar-proforma/verificacion_manual.md` (dry-runs el líder con autorización;
-> la grabación, el humano con autorización expresa para esa llamada). **F-015 está `blocked`** a la espera de que
+> revisada (APPROVED), mergeada en `dev`, desplegada con la llave de proformas **cerrada** y grabada en real (T22,
+> `PROF26/01360` de prueba en la 0404; detalle en `progress/verificacion_F-007.md`). Falta: V6 en la UI y la anulación
+> de `PROF26/01360` desde la UI (humano), con sus lecturas; V8 de T20 con Administración; T24 (`init.sh`, `done`,
+> `history.md`, `azure-apps` §8.10, merge a `dev` de los commits de registro). **F-015 está `blocked`** a la espera de que
 > Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24. No
 > arranques otra feature sin cerrar F-007 ni sin preguntar.

@@ -60,6 +60,43 @@ lista de R4 (`SM9999`, `SB9999`, `SM370001`) los decidió el humano el 2026-10-2
    sale `producto_obligatorio`, que también es lo correcto. Ahora manda la medición del contrato, que es la columna de
    la hoja.
 
-## T22 · Grabación autorizada
+## T22 · Grabación autorizada (2026-10-27)
 
-Pendiente. El humano elige una hoja real que no esté en Sigrid y autoriza esa llamada. V1 se hará junto con ella.
+**Autorización.** El humano no tenía hoja real sin registrar. Autorizó la grabación de una **hoja sintética** en la
+obra 0404, contrato de pruebas `CTSU16/0206` (`ctr.ide` 1035535, sin retenciones), referencia
+`PRF-prueba-F007-T22`, periodo `202610`, usuario `prueba`. La hoja trae dos líneas de contrato, `ctrpro_ide` 258782
+(2 × 30) y 258783 (1 × 45). Importes: mes 105, anterior 0 y origen 105.
+
+**La línea sin contrato no entró.** Con `partida` `13.01` y con `02.04.01.01`, la previa respondió 400
+`partida_ambigua`: «Hay 5 partidas imputables … en la obra: indica paride». La proforma no admite `paride`
+(contrato v1.1), así que en una obra con códigos de partida repetidos las líneas sin contrato no se pueden imputar. En
+la 0719 no pasó. Queda como observación para `proformas`. No se reintentó con otra partida: la hoja se quedó en las
+dos líneas de contrato.
+
+- **Previa:** `200 previsto PROF26/01360`, `cla 141`, `ctride` 1035535, `entref` `PROF1026_0404`, `synckey` la
+  referencia. Totales: `totbas` 105, `totiva` 22.05, `totdoc`/`tot` 127.05. Las dos `dcapro` llevan `docoritip` 44 y
+  `linoriide` = su `ctrpro_ide`; no hay `dcarec`. Antes de grabar, `canser` es 0 en las dos líneas y `count` por
+  `synckey` es 0.
+- **V1** (`commit:true` con la llave cerrada): 400 `escritura_proformas_deshabilitada`, «Escritura de proformas
+  desactivada (SIGRID_PROFORMA_WRITE_ENABLED=false): no se ha escrito nada.». `canser` y `count`, sin cambios.
+- **Llave:** se abrió solo `SIGRID_PROFORMA_WRITE_ENABLED=true` por `@json`. `SIGRID_DOMAIN_WRITE_ENABLED` siguió en
+  `true`, sin tocar.
+- **V5 · grabación:** `200 creado`, `con_ide` **2861898**, `PROF26/01360`, `dry_run False`, aviso `cabecera_sin_dato`
+  (bancos vacíos, como el alta a mano). Lecturas:
+  - `con.fec` 20261027: el mes en curso toma la fecha de hoy (R18). `cla` 141, `ctride`, `entref`, `synckey` y
+    totales como en la previa.
+  - `dcapro`: (64, `S1`, 44, 258782, 2, 30, 60) y (128, `S2`, 44, 258783, 1, 45, 45). `dcarec` 0.
+  - `canser` 0→2 y 0→1. `ctr.estser`/`estfac` 0/0, porque el contrato no queda servido entero.
+  - `dbo.log`: ope 1, usuario `prueba`, `tab` `con`.
+- **Repetición:** `200 idempotente`, mismo `con_ide` 2861898, `origen` nulo, `avisos` vacío, y `canser` sin cambios.
+- **Llave cerrada** después de la repetición: `SIGRID_PROFORMA_WRITE_ENABLED=false` (comprobado con `appsettings list`).
+
+**El código `PROF26/01360` ya se había usado.** En `dbo.log` consta una `PROF26/01360` anterior, de otra obra y otro
+proveedor: alta (ope 1) y baja (ope 2) de un usuario de Administración el mismo día a las 08:54-08:55. Al grabar ya no
+existía. Hoy hay **una sola** `con` con ese código, la nuestra. Es el MAX+1 de Sigrid, que también reutiliza el número
+tras una baja.
+
+**Queda de T22 (humano):**
+- V6 en la UI: la ficha (serie, clase, líneas vinculadas, totales, servido), la impresión y el paso a factura.
+- **Anular `PROF26/01360` desde la UI** (es de prueba; nunca `DELETE`).
+- Después, las lecturas de V5: sin `con` 2861898, `count` por `synckey` 0 y `canser` de 258782 y 258783 de vuelta a 0.
