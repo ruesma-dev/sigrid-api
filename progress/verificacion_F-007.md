@@ -15,8 +15,19 @@ Llegaron de la sesión `proformas` (su humano). Han recibido el contrato v1.1 y 
    `otra_del_mes`…) se enseñan en su bandeja como informativos.
 4. Las líneas de contrato irán **siempre con `ctrpro_ide`**, así que no usarán el respaldo por partida y precio.
 
-**Queda de T20:** V8 con Administración (los contratos a origen). Los productos de las partidas sin contrato y la
-lista de R4 (`SM9999`, `SB9999`, `SM370001`) los decidió el humano el 2026-10-25 (D11).
+**V8 (2026-10-27/28, respuestas del humano a las preguntas para Administración):**
+
+1. **Contratos a origen:** se tiene que poder registrar **a origen o por meses, según indique el jefe de obra**, y por
+   defecto por meses. F-007 queda como está, solo por meses, y el aviso `contrato_a_origen` se mantiene. El modo a
+   origen va a una feature nueva, **F-016**.
+2. **Productos sin contrato** (`SM9999`, `SB9999`, `SM370001`): confirmados.
+3. **Códigos de partida repetidos:** «no debería haber». De las 16 obras con PROF26, 4 los tienen: 0677
+   (`40.04.01` y `40.04.02`), 0672 (`20.02.05`), 0692 (`CI.6.1`-`CI.6.7`, en los capítulos `CI.6` y `CI.06`) y 0404
+   (pruebas, 79 códigos). Solo afectan a las líneas sin contrato (`partida_ambigua`). Se tratan en otra feature,
+   **F-017**.
+
+Además, **la cuenta analítica se arrastra como en el albarán**: en `PROF26/01360`, `dcapro.caaide` = `ctrpro.caaide`
+(829001). En 2026, las líneas vinculadas a mano coinciden en el 100 % de las PROF26 (14.812) y en 26.343 de 26.346 `AC`.
 
 ## T21 · Despliegue y previas (2026-10-26/27)
 
@@ -96,7 +107,7 @@ proveedor: alta (ope 1) y baja (ope 2) de un usuario de Administración el mismo
 existía. Hoy hay **una sola** `con` con ese código, la nuestra. Es el MAX+1 de Sigrid, que también reutiliza el número
 tras una baja.
 
-**Queda de T22 (humano):**
+**Queda de T22 (humano), como pendiente operativo tras el cierre de F-007 (orden del humano del 2026-10-28):**
 - V6 en la UI: la ficha (serie, clase, líneas vinculadas, totales, servido), la impresión y el paso a factura.
 - **Anular `PROF26/01360` desde la UI** (es de prueba; nunca `DELETE`).
 - Después, las lecturas de V5: sin `con` 2861898, `count` por `synckey` 0 y `canser` de 258782 y 258783 de vuelta a 0.

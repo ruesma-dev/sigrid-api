@@ -143,7 +143,7 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "in_progress",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 8,
@@ -281,6 +281,39 @@
       "rigor": "critico",
       "priority": 15,
       "branch": "feature/F-015-albaran-plantilla-y-retencion"
+    },
+    {
+      "id": "F-016",
+      "title": "sigrid/proforma registra también proformas a origen, según indique el jefe de obra",
+      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. La spec decide cómo se elige la anterior, qué pasa al cambiar de modo en un contrato y qué cambia en el contrato con proformas (v1.2). Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.",
+      "acceptance": [
+        "Spec aprobada por el humano con el modelo a origen medido en producción (solo lectura)",
+        "Sin el campo de modo, la petición se comporta exactamente como en F-007 (dorados de F-007, F-009 y F-015 intactos)",
+        "Una proforma a origen queda encadenada a su anterior y con sus líneas y cantidades a origen como las que deja Sigrid",
+        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED, SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa",
+        "contrato_proformas.md (v1.2) y azure-apps/sigrid_api.md actualizados y proformas avisado en el mismo trabajo",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 8,
+      "branch": "feature/F-016-proforma-a-origen"
+    },
+    {
+      "id": "F-017",
+      "title": "Partidas con el código repetido en la obra: líneas sin contrato de sigrid/proforma",
+      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007, punto 3). Una línea sin contrato de sigrid/proforma con un código de partida que la obra tiene repetido entre sus imputables da 400 partida_ambigua, y la petición no admite paride. Según el humano «no debería haber». Medido el 2026-10-28 (solo lectura): 4 de las 16 obras con PROF26 — 0677 (40.04.01 y 40.04.02, partidas distintas con compras), 0672 (20.02.05), 0692 (CI.6.1-CI.6.7 en los capítulos CI.6 y CI.06) y 0404 (pruebas, presupuesto cargado 5 veces). Las líneas de contrato no se ven afectadas (llevan el paride del ctrpro). La spec decide entre detectarlo y avisar para que se corrija en Sigrid, admitir paride o una regla de desempate, con Administración.",
+      "acceptance": [
+        "Spec aprobada por el humano con el alcance decidido y medido en producción (solo lectura)",
+        "Las líneas de contrato y las obras sin códigos repetidos se comportan igual que antes",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 16,
+      "branch": "feature/F-017-partidas-repetidas"
     }
   ]
 }

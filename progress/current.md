@@ -1,34 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-007 `in_progress` (2026-10-27): revisada (APPROVED), desplegada y grabada en real; falta V6 y anular la prueba
+## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
 
-Rama `feature/F-007-registrar-proforma`, mergeada en `dev` (`0e9aa8d`, sin push: lo hace el humano). `POST
-/api/sigrid/proforma` registra UNA proforma **de mes** del jefe de obra: serie `PROF<aa>/`, `cla 141`, solo partidas
-con MES ≠ 0, las de contrato vinculadas a su `ctrpro`. La llama **`proformas` (su F-005)**; `facturas` solo lee por
-`entref` `PROF<MMAA>_<cod_obra>`. Spec v3.1 y contrato **v1.1** en `specs/F-007-registrar-proforma/`.
+Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
+origen o por meses según indique el jefe de obra**, y por defecto por meses. Lanzado el **spec-author**; al terminar,
+`spec_ready` y PARADA para la aprobación del humano. Material: `progress/explore_F-007.md` §M11 y §M16-M26 (el
+modelo a origen ya medido) y la spec de F-007.
 
-**Hecho:**
-- Implementación T1-T19 y correcciones T25-T40 ([`impl_F-007.md`](impl_F-007.md)); enmiendas
-  [`1`](spec_F-007_enmienda1.md) y [`2`](spec_F-007_enmienda2.md); mutación en [`mutacion_F-007.md`](mutacion_F-007.md).
-- **T23**: revisión troceada en tres pasadas, veredicto **APPROVED** en [`review_F-007.md`](review_F-007.md).
-- Avisos a `proformas`, `facturas` y `albaranes` (2026-10-26); `proformas` contestó las tres preguntas de design.
-- **T21** (2026-10-26/27): App Settings en JSON con la llave de proformas **cerrada**, publicación desde `dev`, dry-run
-  de `sigrid/albaran` en verde y previas V2-V4 de las tres hojas de la 0719 conformes. Detalle en
-  [`verificacion_F-007.md`](verificacion_F-007.md).
-- **T22** (2026-10-27, autorizada): hoja sintética en la 0404 (`CTSU16/0206`). V1 da 400 con la llave cerrada. Se
-  abrió la llave y se grabó **`PROF26/01360`** (`con_ide` 2861898, `creado`); la repetición da `idempotente`; la llave
-  se volvió a cerrar. Todo conforme.
+## F-007 cerrada (2026-10-28): pendiente operativo
 
-**Lo siguiente:**
-1. **Cierre de T22 (humano):** V6 en la UI (ficha, impresión, paso a factura) y **anular `PROF26/01360`** desde la UI.
-   Después, lecturas: sin `con` 2861898 y `canser` de los `ctrpro` 258782 y 258783 de vuelta a 0.
-2. **T20**: queda V8 con Administración (si el registro de mes vale en los contratos a origen).
-3. **T24**: `init.sh` final, `done`, `history.md`; quitar «PENDIENTE DE DESPLIEGUE (F-007)» de `azure-apps` §8.10;
-   avisar a `proformas` cuando la escritura quede abierta, si el humano la abre.
-
-**Estado en producción:** ruta desplegada, `SIGRID_PROFORMA_WRITE_ENABLED=false`. `PROF26/01360` (prueba) sigue viva
-hasta que se anule.
+Resumen en `history.md`. Queda del humano: V6 en la UI y **anular `PROF26/01360`** (`con_ide` 2861898, obra 0404)
+desde la UI; después, lecturas (sin `con` 2861898; `canser` de los `ctrpro` 258782 y 258783 de vuelta a 0). En
+producción, `SIGRID_PROFORMA_WRITE_ENABLED=false`: abrirla es decisión del humano, y se avisa a `proformas`.
+**F-017** (`pending`): códigos de partida repetidos en las obras, sacado de V8.
 
 ## F-015 `blocked` (2026-10-25): desplegada y verificada; espera la anulación de `AC26/30670`
 
@@ -183,18 +168,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-007 está `in_progress`** (arriba): falta V6 y anular la prueba `PROF26/01360`, V8 de T20 y T24. **F-015 está
-`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-007:
-F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-001 (calentamiento); F-013 (`sql/read` fija el tope
+**F-016** (arriba): spec de la proforma a origen. **F-015 está
+`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-016:
+F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope
 real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
 versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-007 está `in_progress`** en `feature/F-007-registrar-proforma`:
-> revisada (APPROVED), mergeada en `dev`, desplegada con la llave de proformas **cerrada** y grabada en real (T22,
-> `PROF26/01360` de prueba en la 0404; detalle en `progress/verificacion_F-007.md`). Falta: V6 en la UI y la anulación
-> de `PROF26/01360` desde la UI (humano), con sus lecturas; V8 de T20 con Administración; T24 (`init.sh`, `done`,
-> `history.md`, `azure-apps` §8.10, merge a `dev` de los commits de registro). **F-015 está `blocked`** a la espera de que
-> Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24. No
-> arranques otra feature sin cerrar F-007 ni sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está en spec, en
+> `feature/F-016-proforma-a-origen`: si `specs/F-016-*/` ya existe y está en `spec_ready`, espera la aprobación del
+> humano. F-007 está cerrada; queda que el humano anule `PROF26/01360` y las lecturas posteriores. **F-015 está
+> `blocked`** a la espera de que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave
+> abierta; solo queda T24. No arranques otra feature sin preguntar.
