@@ -139,3 +139,13 @@ FAILED tests/test_f016_route.py::test_f016_r4_commit_a_origen_con_la_llave_cerra
 > son el importe del mes. Al facturar una a origen, el escritorio pone `canoriant`/`imporiant` en la `dcfpro`: si
 > llegáis a registrar facturas por la API (F-008 de sigrid-api), se tratará allí. Detalle: §6 de
 > `sigrid-api/specs/F-007-registrar-proforma/contrato_proformas.md` v1.2 y §8.10.1 de `azure-apps/sigrid_api.md`.
+
+## T16 · Verificación manual
+
+[`verificacion_manual.md`](../specs/F-016-proforma-a-origen/verificacion_manual.md), con el modelo de F-007: V0 (las
+dos consultas de §2.3 copiadas tal cual, `truncated` = parar), D1-D3 (App Setting `false` validada con `Settings`,
+publish con `!`, dry-run de `sigrid/albaran` primero), V1-V6 (llaves, puntas y líneas con tiempos, `existente`, la del
+mes siguiente encadenada, aviso R10, sin `modo` = F-007, `anterior_con_sucesora`/`anterior_no_valida`/
+`linea_anterior_no_valida`) y G1-G3 en la 0404 (la llave de origen se mira tras la de F-007; primera y encadenada con
+una arrastrada; lecturas de `ctrprodes`, `mov` y `canser`; V9 en la UI y anulación en orden inverso). Sin URL ni clave
+(variables de entorno; comprobado con `grep`). **No ejecutado**: es MANUAL (T17-T18, humano/líder).
