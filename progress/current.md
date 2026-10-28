@@ -1,6 +1,17 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-018 spec escrita (2026-10-28): descuento por línea, espera la PARADA 1
+
+Rama `feature/F-018-descuento-por-linea` desde `dev` (worktree del spec-author). Spec en
+`specs/F-018-descuento-por-linea/` y medición en producción (solo lecturas) en `progress/explore_F-018.md` (M45-M51).
+**Hallazgo que cambia el encargo:** Sigrid guarda el unitario original en `dcapro.tar` («P.Bruto») y en `pre` el neto
+= `tot`/`can`; `tot` = ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2) en el 99,99 % (M46), y `mov`/PMP van con el neto
+(M48). Decisiones abiertas para el humano (design §Preguntas): **P1 bloqueante** (`tar` o `pre` para el unitario
+original), P2 redondeo, P3 aviso o error si el dto no es el del contrato, P4 dejar `sigrid/proforma` fuera y
+preguntar a `proformas`, P5 no tocar el camino de la opción C con dto en el `ctrpro`, P6 `dto` 100, P7 corregir el
+motivo de ARCHITECTURE §Semántica 9. Precondición de `in_progress`: T0 (contrato con albaranes v8.4 y su acuse).
+
 ## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
