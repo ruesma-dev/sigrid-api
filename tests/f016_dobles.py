@@ -85,8 +85,8 @@ def fila_lp1(cod: str) -> tuple[Any, ...]:
     return (d["ide"], d["cod"], d["fec"], d["entref"], d["totbas"], d["docoritip"])
 
 
-def fila_lp7(cod: str, **cambios: Any) -> tuple[Any, ...]:
-    d = {**DOCUMENTOS[cod], **cambios}
+def fila_lp7(documento: str, **cambios: Any) -> tuple[Any, ...]:
+    d = {**DOCUMENTOS[documento], **cambios}
     return (d["ide"], d["cod"], d["fec"], d["docoritip"])
 
 
