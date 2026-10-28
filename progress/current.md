@@ -1,7 +1,7 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
+## F-016 `spec_ready` (2026-10-28): proforma a origen, spec escrita; espera la aprobación del humano
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
 origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`

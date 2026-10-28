@@ -294,7 +294,7 @@
         "contrato_proformas.md (v1.2) y azure-apps/sigrid_api.md actualizados y proformas avisado en el mismo trabajo",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "pending",
+      "status": "spec_ready",
       "sdd": true,
       "rigor": "critico",
       "priority": 8,
