@@ -24,6 +24,9 @@ deducción del ANTERIOR, los avisos de comparación con la cadena y P2 (D7, del 
 - **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
 - Además validar D3 (sin casar por `ctrpro` único; aviso `linea_nueva_ya_en_la_anterior`), D10 (llave propia) y D11.
 
+**Implementación (implementer, 2026-10-28)**: T1-T16 en curso; T17-T18 manuales del humano, T19 revisión, T20 líder.
+Tarea en curso, decisiones y desviaciones en [`impl_F-016.md`](impl_F-016.md).
+
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
 Resumen en `history.md`. Queda del humano: V6 en la UI y **anular `PROF26/01360`** (`con_ide` 2861898, obra 0404)
