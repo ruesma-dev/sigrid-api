@@ -83,3 +83,59 @@ tests\test_f016_route.py:90: AssertionError
 FAILED tests/test_f016_route.py::test_f016_r4_commit_a_origen_con_la_llave_cerrada_antes_del_caso_de_uso
 1 failed, 15 passed, 1 warning in 1.82s
 ```
+
+## T13-T14 (resumen; detalle en los commits y en `mutacion_F-016.md`)
+
+- **T13** (`93bbce3`, `06ffcb6`): llave `SIGRID_PROFORMA_ORIGEN_ENABLED` en `function_app.py` tras la de F-007 y antes
+  del caso de uso; imports de los tests nuevos ordenados con ruff. `git diff dev` de los tests de F-007/F-009/F-015 y
+  de `fixtures/f009_caracterizacion.json`: vacío.
+- **T14** (`eca4629`): campaña completa, **116 mutantes, 102 muertos, 14 supervivientes**; 13 eran huecos reales y
+  tienen test nuevo (`test_f016_t14_*`), medidos muertos con él; el 4 era un falso superviviente de la campaña
+  (aplicado a mano: `1 failed`). **0 supervivientes no aceptados**, ningún equivalente. Ver
+  [`mutacion_F-016.md`](mutacion_F-016.md).
+
+## T15 · Documentación (R25)
+
+- `specs/F-007-registrar-proforma/contrato_proformas.md` → **v1.2**: campos nuevos (§2.1 con la nota ³ de las
+  combinaciones que dan 400 sin `codigo`, §2.2 `linea_anterior`), **§2.3** con las dos consultas `sql/read` completas
+  (puntas a origen del contrato con su importe de cadena, la de M44 con `NOT EXISTS` de sucesora; líneas de la punta
+  con partida y producto) y lo que comprueba la API, §3.1 respuesta a origen, §4 códigos nuevos con qué hace
+  `proformas`, §6 `facturas`, §7 y §8. Compatible hacia atrás.
+- `docs/ARCHITECTURE.md`: capas (`proforma_origen_models`, `proforma_origen_statements`) y sección propia del modo.
+- `CLAUDE.md`: solo la línea del mapa de `function_app.py` (`sigrid/proforma` de mes o a origen).
+- `azure-apps/sigrid_api.md`: `3744877` (de la sesión anterior) revisado contra R25: App Setting en §4.1, punto 10 de
+  §7, tabla de escrituras, §8.10.1 (remite a §2.3 del contrato, que ya existe), consumidores `proformas` y `facturas`
+  y §13. Faltaba una cosa: el riesgo de despliegue de §8.10 seguía diciendo «cinco» App Settings; corregido en
+  **`7afe9e9`** (seis; la booleana tampoco arranca con un valor malo; enlace a la verificación manual de F-016).
+- `local.settings.sample.json`: hecho en T5.
+- **PENDIENTE (humano/líder; no se ha llamado a la red)**: probar en lectura las dos consultas de §2.3 sobre una cadena
+  real (T15 «Verificación»). Están en `verificacion_manual.md` V2 listas para lanzar.
+
+### Aviso a `proformas` (lo envía el líder)
+
+> sigrid-api F-016 (implementada, pendiente de revisión y de despliegue): `POST /api/sigrid/proforma` registra también
+> proformas **a origen**. El contrato pasa a **v1.2** (`sigrid-api/specs/F-007-registrar-proforma/contrato_proformas.md`)
+> y es **compatible hacia atrás**: sin `modo` todo sigue como la v1.1 y la respuesta no trae claves nuevas, así que no
+> tenéis que cambiar nada para seguir registrando de mes.
+> Para registrar a origen (cuando el jefe de obra lo indique al cargar la proforma): mandad `modo: "origen"` y
+> **exactamente uno** de `proforma_anterior` (`con.cod` de la anterior) o `primera_de_cadena: true`, y en cada línea que
+> continúe una de la anterior su `linea_anterior` (`dcapro.ide`). **Elegirlos es vuestro**: la API no busca ni deduce,
+> solo valida que la anterior es del contrato, a origen, no posterior y la punta, y que cada `linea_anterior` es de ella
+> y del mismo `ctrpro`. Las dos lecturas `sql/read` para enseñar a la persona las puntas (con la sugerencia por el
+> ANTERIOR de la hoja) y las líneas de la elegida están escritas en §2.3. Las líneas de la anterior que no continuéis
+> las arrastra la API a 0. Respuesta a origen: `cadena` e importes de cadena para cotejar con la hoja (§3.1). Códigos
+> nuevos (§4): `anterior_no_valida`, `anterior_con_sucesora`, `linea_anterior_no_valida`,
+> `escritura_proformas_origen_deshabilitada` (la grabación a origen tiene llave propia, que se despliega cerrada) y el
+> aviso `linea_nueva_ya_en_la_anterior`. `contrato_a_origen` ya solo sale en las de mes. Ni a origen sin contrato ni
+> con la anterior en otro contrato. Os avisamos cuando esté desplegada.
+
+### Aviso a `facturas` (lo envía el líder)
+
+> sigrid-api F-016 (implementada, pendiente de despliegue): `sigrid/proforma` podrá registrar proformas **a origen**
+> (`dca.docoritip` 1). No cambia nada de lo que la API expone para vosotros ni el contrato de lectura (`dca.entref`
+> `PROF<MMAA>_<cod_obra>`, serie `PROF<aa>/` o `AC<aa>/`), pero una proforma a origen trae **todas** las líneas de la
+> cadena: las arrastradas de la anterior con `can` 0 y `tot` 0, y `dca.totbas` sigue siendo **el MES**. Al leer sus
+> `dcapro` por `docide`, **solo pasan a factura las de `can` ≠ 0**; las columnas a origen (`canoriori`, `canorilin`) no
+> son el importe del mes. Al facturar una a origen, el escritorio pone `canoriant`/`imporiant` en la `dcfpro`: si
+> llegáis a registrar facturas por la API (F-008 de sigrid-api), se tratará allí. Detalle: §6 de
+> `sigrid-api/specs/F-007-registrar-proforma/contrato_proformas.md` v1.2 y §8.10.1 de `azure-apps/sigrid_api.md`.

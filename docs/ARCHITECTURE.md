@@ -30,7 +30,7 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
-  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007), `documents/read`,
+  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007; a origen, F-016), `documents/read`,
   `diagnostics/tcp`.
   `build_dependencies()` devuelve una tupla de **ocho** posiciones (la 6 es el
   albarán clásico y la 7 el modo extendido, F-009); las rutas que no la usan
@@ -41,7 +41,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
     `albaran_directo_models`, `albaran_compra_models` (modo extendido de
     `sigrid/albaran`, F-009), `concepto_grafico_models` (adjuntar documentos),
     `parte_reclamacion_models` (alta en lote de partes de Posventa),
-    `proforma_models` (proforma de mes, F-007).
+    `proforma_models` (proforma de mes, F-007), `proforma_origen_models`
+    (códigos y respuesta de la proforma a origen, F-016).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
@@ -52,7 +53,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   `create_partes_reclamacion_use_case` (una transacción por parte, con su
   constructor puro de sentencias `parte_reclamacion_statements`),
   `create_proforma_use_case` (subclase del modo extendido, con su constructor
-  puro `proforma_statements`; F-007).
+  puro `proforma_statements`; F-007; y `proforma_origen_statements` para el
+  modo a origen, F-016).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
@@ -166,6 +168,36 @@ Lo propio de la proforma, por capa:
   después de validar y antes del caso de uso; la de albaranes no la abre.
   `ProformaError` → 400 `details:{type, codigo[, lineas][, reparto]}`. Una traza por
   petición (R33) sin textos, nombres, CIF ni importes.
+
+### `sigrid/proforma` a origen (F-016): un modo de la misma ruta, sin tocar el núcleo
+
+Con `modo: "origen"` la proforma se registra a origen (`dca.docoritip` 1, `docoriide`
+= la anterior; por línea `canorilin` y `canoriori` acumulado). Sin `modo`, F-007
+exacta: cada rama nueva es inerte en mes y la respuesta no trae claves nuevas (R1).
+La API **registra y valida**; elegir el modo, la anterior y qué línea continúa cada
+una es del llamante (`proformas`), que lee Sigrid por `sql/read`
+(`contrato_proformas.md` v1.2 §2.3). No toca el núcleo de F-009 ni `proforma_statements`:
+
+- *domain*: `ProformaRequest` y `LineaProformaIn` ganan `modo`,
+  `proforma_anterior`, `primera_de_cadena` y `linea_anterior` (combinaciones de R3
+  → 400 sin `codigo`). `proforma_origen_models` amplía por **subclases** los códigos,
+  el error, el fallo de línea, el aviso y la respuesta (`cadena`, campos de línea);
+  los conjuntos y clases de F-007 no cambian.
+- *application*: `proforma_origen_statements` — LP7 (la anterior por `cod` en el
+  contrato), LP8 (sus sucesoras), LP9 (sus `dcapro`, `SELECT *` como plantilla),
+  constantes con `?` validadas con `DatabaseReferenceGuard`, y funciones puras
+  (validar la anterior y las continuaciones, aviso de R10, superponer las columnas a
+  origen, construir las **arrastradas**, cabecera a origen, la del mes a origen e
+  importe de cadena). `create_proforma_use_case` ramifica por `modo`: valida fuera
+  (LP7-LP9), en `_construir` superpone la cadena y añade las arrastradas **al final**
+  de `filas.dcapro` (así numeración, previa, `INSERT` y relectura E12 las cuentan sin
+  cambiar el núcleo; no generan `ctrprodes`, `mov` ni `UPDATE`), en
+  `_comprobar_dentro` relee LP8 por el cursor bajo el applock (R17) y en `_convertir`
+  devuelve `ProformaOrigenResponse`.
+- **Ruta**: tercera llave `SIGRID_PROFORMA_ORIGEN_ENABLED` (defecto `false`) solo con
+  `commit` y `modo: "origen"`, después de la de F-007 y antes del caso de uso. La
+  traza añade `modo`, `primera_de_cadena`, la anterior y los nº de continuadas y
+  arrastradas.
 
 ## Semántica de dominio imprescindible
 
