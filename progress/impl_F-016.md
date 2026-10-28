@@ -59,3 +59,18 @@ FAILED tests/test_f016_use_case.py::test_f016_r14_tope_con_las_arrastradas_aun_e
       1 E       AssertionError: assert ['cod_provisi...ato_a_origen'] == ['cod_provisi...to_de_sigrid']
 ```
 Las 9 que pasan son las de R1 (mes) y las que solo miran errores de F-007 (`importe_mes_no_cuadra`, `proforma_del_mes_existente`).
+
+**T10** `python -m pytest tests/test_f016_transaccion.py -q` (T9 ya hecha: la parte de fuera pasa):
+```
+E       AssertionError: assert ['referencia'...rprodes', ...] == ['referencia'..._dcapro', ...]
+E         At index 2 diff: 'reservar_cod' != 'lp8_sucesoras'
+E       assert [] == [[14, 2793879, 2850201]]
+E       Failed: DID NOT RAISE ProformaOrigenError
+E       domain.models.proforma_models.ProformaError: El contrato ya tiene proforma de este mes con otro importe: PROF26/00401. Si es una segunda, otra_del_mes.
+FAILED tests/test_f016_transaccion.py::test_f016_r18_orden_de_las_sentencias_y_applocks_de_f015
+FAILED tests/test_f016_transaccion.py::test_f016_r17_lp8_por_el_cursor_tras_lp1
+FAILED tests/test_f016_transaccion.py::test_f016_r17_sucesora_aparecida_dentro_no_escribe
+FAILED tests/test_f016_transaccion.py::test_f016_r17_a_origen_del_mes_con_otro_total_aparecida_dentro_sigue
+FAILED tests/test_f016_transaccion.py::test_f016_r18_reintento_reentrante_con_las_mismas_filas
+5 failed, 7 passed, 1 warning in 2.25s
+```
