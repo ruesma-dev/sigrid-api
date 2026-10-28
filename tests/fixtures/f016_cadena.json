@@ -1,0 +1,25 @@
+{
+  "_nota": "F-016: cadena sintetica a origen del contrato CTSB26/0472 de la obra 0719 (fixture de F-007) con la forma de M44: una primera (mayo), una de mes en medio (junio, docoritip 0), la encadenada que es la punta (julio, cuelga de mayo) y otra cadena paralela de una sola proforma (punta 2). ide, cod, cantidades e importes sinteticos; sin proveedores, personas ni CIF.",
+  "contrato": "CTSB26/0472",
+  "documentos": [
+    {"ide": 2850101, "cod": "PROF26/00101", "fec": 20260531, "entref": "PROF0526_0719", "totbas": 1210.0, "docoritip": 1, "docoriide": 0},
+    {"ide": 2850151, "cod": "AC26/20001", "fec": 20260615, "entref": "PROF0626_0719", "totbas": 300.0, "docoritip": 0, "docoriide": 0},
+    {"ide": 2850201, "cod": "PROF26/00201", "fec": 20260731, "entref": "PROF0726_0719", "totbas": 2311.0, "docoritip": 1, "docoriide": 2850101},
+    {"ide": 2850301, "cod": "PROF26/00301", "fec": 20260630, "entref": "PROF0626_0719-2", "totbas": 105.0, "docoritip": 1, "docoriide": 0}
+  ],
+  "lineas": {
+    "2850101": [
+      {"ide": 1300001, "pos": 64, "linoriide": 262990, "can": 110.0, "pre": 11.0, "canoriori": 110.0, "imporiori": 4433.64, "canorilin": 0, "refent": "F09", "res": "VERTIDO HORMIGON CIMENTACION LIMPIEZA"}
+    ],
+    "2850201": [
+      {"ide": 1400001, "pos": 64, "linoriide": 262990, "can": 131.0, "pre": 11.0, "canoriori": 241.0, "imporiori": 4433.64, "canorilin": 1300001, "refent": "F09", "res": "VERTIDO HORMIGON CIMENTACION LIMPIEZA"},
+      {"ide": 1400002, "pos": 128, "linoriide": 262994, "can": 50.0, "pre": 11.0, "canoriori": 50.0, "imporiori": 950.7, "canorilin": 0, "refent": "F13", "res": "VERTIDO HORMIGON ZAPATAS"},
+      {"ide": 1400003, "pos": 192, "linoriide": 0, "can": 30.0, "pre": 3.5, "canoriori": 30.0, "imporiori": 0.0, "canorilin": 0, "refent": "F23", "res": "BERENJENO"},
+      {"ide": 1400004, "pos": 256, "linoriide": 262990, "can": 10.0, "pre": 11.0, "canoriori": 10.0, "imporiori": 4433.64, "canorilin": 0, "refent": "F09B", "res": "VERTIDO HORMIGON CIMENTACION LIMPIEZA (2)"},
+      {"ide": 1400005, "pos": 320, "linoriide": 263002, "can": 5.0, "pre": 21.0, "canoriori": 5.0, "imporiori": 15568.56, "canorilin": 0, "refent": "F21", "res": "ENCOFRADO MURO 2 CARA (MED X2)"}
+    ],
+    "2850301": [
+      {"ide": 1500001, "pos": 64, "linoriide": 262997, "can": 5.0, "pre": 21.0, "canoriori": 5.0, "imporiori": 7815.99, "canorilin": 0, "refent": "F16", "res": "ENCOFRADO MURO 2 CARA . MUROS DE CONTENCION"}
+    ]
+  }
+}

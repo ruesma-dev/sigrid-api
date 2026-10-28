@@ -33,3 +33,12 @@ FAILED tests/test_f016_settings.py::test_f016_r4_se_lee_de_su_alias_como_boolean
 FAILED tests/test_f016_settings.py::test_f016_r4_un_valor_que_no_es_booleano_no_arranca[quizas]
 10 failed, 1 passed in 2.01s (la que pasa: ninguna existente cambia)
 ```
+
+**T6** `python -m pytest tests/test_f016_statements.py -q`:
+```
+tests/f016_dobles.py:26: in <module>
+    from application.use_cases.proforma_origen_statements import ProformaOrigenStatements
+E   ModuleNotFoundError: No module named 'application.use_cases.proforma_origen_statements'
+ERROR tests/test_f016_statements.py
+1 error in 2.57s
+```
