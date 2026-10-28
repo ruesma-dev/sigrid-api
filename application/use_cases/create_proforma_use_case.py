@@ -505,8 +505,10 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         contrato resuelto (o sin contrato, si lo era la peticion); si no,
         `referencia_en_conflicto`. Si no, R24 con LP1: una del mes con el mismo
         total aparecida entre tanto es `existente`; con otro total, el error de
-        R24; con `otra_del_mes`, sigue (sin contrato no hay R24). Lo que se
-        lance aqui revierte la transaccion sin escribir."""
+        R24; con `otra_del_mes`, sigue (sin contrato no hay R24). A origen
+        (F-016 R17), R5 en lugar de R24 y, con anterior, LP8: si ya tiene
+        sucesora, `anterior_con_sucesora`. Lo que se lance aqui revierte la
+        transaccion sin escribir."""
         assert isinstance(request, _AltaDeProforma)
         contexto = request._contexto
         assert contexto is not None
@@ -523,12 +525,20 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         sql, params = lecturas.leer_proformas_del_contrato(contexto.ctride)
         cursor.execute(sql, *params)
         proformas = [ProformaRegistrada.de_fila(fila) for fila in cursor.fetchall()]
-        existente, _avisos = buscar_del_mes(
+        cadena = contexto.cadena
+        # F-016 R17: a origen, R5 en lugar de R24 y, con anterior, LP8 otra vez.
+        existente, _avisos = (buscar_del_mes_origen if cadena is not None else buscar_del_mes)(
             proformas, periodo=contexto.periodo, importe_mes=contexto.importe_mes,
             otra_del_mes=contexto.otra_del_mes,
         )
         if existente is not None:
             raise _ExistenteDentro(existente)
+        if cadena is not None and cadena.anterior is not None:
+            sql, params = ProformaOrigenStatements(database=request.database).leer_sucesoras(
+                contexto.ctride, cadena.anterior.ide
+            )
+            cursor.execute(sql, *params)
+            comprobar_sucesoras(list(cursor.fetchall()))
 
     def _construir(
         self,
