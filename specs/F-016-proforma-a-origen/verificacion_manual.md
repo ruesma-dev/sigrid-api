@@ -215,7 +215,18 @@ Se mira: 400 `anterior_con_sucesora` con el `cod` de `$p[1]` en el mensaje; 400 
 En la obra de pruebas 0404, sobre el contrato de los `ctrpro` 258782 y 258783 (los de la grabación de F-007 T22; otros
 si el humano lo prefiere). Una **primera de cadena** con las dos líneas y otra **encadenada** que continúa solo la
 258782 (la 258783 se arrastra). Mes pasado (fecha = su último día), con `otra_del_mes` para que ninguna proforma
-real de ese mes la convierta en `existente`. Antes, las lecturas de partida:
+real de ese mes la convierta en `existente`.
+
+**Regla de parada en G1-G3.** Ante **cualquier** resultado distinto del que dice «Se mira» (un código, un estado, una
+lectura o un 500 inesperados), se cierran **en el acto las dos llaves** (`SIGRID_PROFORMA_WRITE_ENABLED` y
+`SIGRID_PROFORMA_ORIGEN_ENABLED`), **se para** y se avisa al humano. No se sigue con el resto de pasos:
+
+```powershell
+'[{"name":"SIGRID_PROFORMA_ORIGEN_ENABLED","value":"false","slotSetting":false},{"name":"SIGRID_PROFORMA_WRITE_ENABLED","value":"false","slotSetting":false}]' | Set-Content -Encoding ascii -NoNewline "$env:TEMP\f016_cerrar.json"
+az functionapp config appsettings set -g $env:SIGRID_API_RG -n $env:SIGRID_API_APP --settings "@$env:TEMP\f016_cerrar.json"
+```
+
+Antes, las lecturas de partida:
 
 ```powershell
 $ctrG = (Fila "SELECT docide FROM dbo.ctrpro WHERE ide = ?" @(258782))[0]; $cG = Ctr $ctrG

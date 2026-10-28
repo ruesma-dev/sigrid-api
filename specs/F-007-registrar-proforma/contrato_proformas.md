@@ -106,7 +106,10 @@ que no tienen MES, a `can` 0) y lleva por línea la cantidad a origen (`dcapro.c
 continúa (`dcapro.canorilin`). La cadena es lineal: cada proforma tiene como mucho una sucesora. Elegir la anterior y
 las continuaciones es de `proformas`; para eso lee Sigrid por **`sql/read`**, con marcadores `?`, `database` `ruesma`
 y **comprobando `truncated`** (si viene `true`, la lectura no vale). Las dos consultas son orientativas (`proformas`
-las adapta), pero están medidas así sobre cadenas reales (M44 de `progress/explore_F-016.md`: ~4 s por contrato).
+las adapta). La 1 deriva de la lectura de la cadena medida en M44 de `progress/explore_F-016.md` (~4 s por contrato),
+que se midió **sin** el `NOT EXISTS` de sucesora; la 2 no se ha medido. Las dos se prueban en lectura sobre cadenas
+reales en la verificación de F-016 (T17, V0/V2 de `specs/F-016-proforma-a-origen/verificacion_manual.md`), antes del
+despliegue.
 `<ctride>` es el `contrato.ide` que devuelve la previa (o el del `cod_contrato` que la persona eligió).
 
 **1. Puntas a origen del contrato** (candidatas a `proforma_anterior`): los `tip 14` del contrato con `docoritip` 1, de
@@ -265,6 +268,13 @@ su `linea_anterior` y `canoriori` = el de esa línea + `cantidad`; por línea nu
 decisión D6 de F-016, se comprueba en la UI).
 
 ## 4. Errores (400 con `details.codigo`) y avisos
+
+**Orden a origen (v1.2).** En mes, los fallos de línea (`lineas_no_validas`) salen antes que las comprobaciones de la
+hoja y de lo registrado. A origen se aplazan para darlos junto con los de `linea_anterior` en un solo
+`lineas_no_validas`, así que antes salen, por este orden: `importe_mes_no_cuadra`/`hoja_descuadrada`,
+`proforma_del_mes_existente`, `existente` (200, sin escribir), `anterior_no_valida` y `anterior_con_sucesora`. Por
+ejemplo, una hoja a origen con una línea que no es del contrato y el mismo total que una proforma del mes ya registrada
+recibe `existente`, no 400.
 
 | Código | Tipo | Cuándo | Qué hace `proformas` (propuesta) |
 |---|---|---|---|

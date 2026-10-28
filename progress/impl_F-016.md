@@ -157,6 +157,7 @@ una arrastrada; lecturas de `ctrprodes`, `mov` y `canser`; V9 en la UI y anulaci
 - **MANUAL pendiente (humano/líder)**: las dos consultas de §2.3 en lectura sobre una cadena real (verificación de T15,
   V2); T17 (despliegue con la llave `false` y previas V1-V6) y T18 (G1-G3 y V9 en la UI, con autorización expresa).
 - **Líder**: enviar los dos avisos de arriba; T19 (reviewer) y marcar T20 al cierre.
+- Ronda de correcciones de la revisión (solo texto): §2.3 sin «medidas así», orden de errores a origen en §4, regla de parada en G, nota en T15.
 
 ## Evidencias (T20, 2026-10-28, `bash harness/init.sh` tal cual)
 
