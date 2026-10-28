@@ -11,3 +11,14 @@ nada: **1328 passed** en 15,5 s. Ficheros (sin modificar en todo el trabajo):
 `test_f009_{caracterizacion,equivalencia,models,mutacion,route,settings,statements,use_case}.py`,
 `test_f015_{statements,use_case}.py`, los dobles `f007_dobles.py` y `f009_dobles.py` y los dorados
 `fixtures/f007_obra0719.json` y `fixtures/f009_caracterizacion.json`.
+
+## Fase RED (salidas reales, recortadas a lo que falla)
+
+**T2** `python -m pytest tests/test_f016_models.py -q`:
+```
+tests	est_f016_models.py:31: in <module>
+    from domain.models.proforma_origen_models import (
+E   ModuleNotFoundError: No module named 'domain.models.proforma_origen_models'
+ERROR tests/test_f016_models.py
+1 error in 1.47s
+```
