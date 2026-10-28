@@ -30,6 +30,8 @@ from domain.models.albaran_compra_models import (
 )
 
 EstadoProforma = Literal["previsto", "creado", "idempotente", "existente"]
+#: F-016 (D1): de mes por defecto (F-007 exacta) o a origen.
+ModoProforma = Literal["mes", "origen"]
 ResueltoPor = Literal["peticion", "proveedor", "lineas"]
 
 #: Errores de cabecera (design §Codigos): los de F-009/F-015 y los nuevos.
@@ -133,6 +135,7 @@ class LineaProformaIn(BaseModel):
     ctrpro_ide: int | None = Field(default=None, ge=1, strict=True)
     producto: str | None = Field(default=None, min_length=1, max_length=24)
     partida_imputacion: str | None = Field(default=None, min_length=1, max_length=24)
+    linea_anterior: int | None = Field(default=None, ge=1, strict=True)       # F-016: dcapro.ide
 
     @field_validator(
         "referencia_linea", "descripcion", "partida", "producto", "partida_imputacion",
@@ -197,9 +200,14 @@ class ProformaRequest(BaseModel):
     importe_origen: float | None = Field(default=None, strict=True)
     numero_orden: int | None = Field(default=None, ge=0, strict=True)          # solo traza
     commit: bool = False
+    # F-016 (R3): la proforma a origen y su cadena, las decide el llamante.
+    modo: ModoProforma = "mes"
+    proforma_anterior: str | None = Field(default=None, min_length=1, max_length=24)
+    primera_de_cadena: bool = False
 
     @field_validator(
         "database", "usu", "referencia_externa", "cod_obra", "cod_contrato", "nombre_proveedor",
+        "proforma_anterior",
         mode="before",
     )
     @classmethod
@@ -250,7 +258,29 @@ class ProformaRequest(BaseModel):
                 raise ValueError("'sin_contrato' no va con 'cod_contrato'.")
             if any(linea.ctrpro_ide is not None for linea in self.lineas):
                 raise ValueError("'sin_contrato' no admite lineas con 'ctrpro_ide'.")
+        self._reglas_de_origen()
         return self
+
+    def _reglas_de_origen(self) -> None:
+        """F-016 R3: a origen, exactamente uno de `proforma_anterior` y
+        `primera_de_cadena`, nunca `sin_contrato`, y `linea_anterior` solo con
+        anterior y sin repetir; de mes, ninguno de los campos de la cadena."""
+        continuadas = [l.linea_anterior for l in self.lineas if l.linea_anterior is not None]
+        if self.modo != "origen":
+            if self.proforma_anterior is not None or self.primera_de_cadena or continuadas:
+                raise ValueError(
+                    "'proforma_anterior', 'primera_de_cadena' y 'linea_anterior' van solo con "
+                    "'modo' 'origen'."
+                )
+            return
+        if (self.proforma_anterior is not None) == self.primera_de_cadena:
+            raise ValueError("A origen va 'proforma_anterior' o 'primera_de_cadena' (uno de los dos).")
+        if self.sin_contrato:
+            raise ValueError("A origen no va 'sin_contrato'.")
+        if continuadas and self.primera_de_cadena:
+            raise ValueError("'linea_anterior' no va con 'primera_de_cadena'.")
+        if len(set(continuadas)) != len(continuadas):
+            raise ValueError("Dos lineas continuan la misma 'linea_anterior'.")
 
 
 class ContratoResuelto(BaseModel):
