@@ -4,9 +4,26 @@
 ## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
-origen o por meses según indique el jefe de obra**, y por defecto por meses. Lanzado el **spec-author**; al terminar,
-`spec_ready` y PARADA para la aprobación del humano. Material: `progress/explore_F-007.md` §M11 y §M16-M26 (el
-modelo a origen ya medido) y la spec de F-007.
+origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`
+§M11 y §M16-M26 (el modelo a origen ya medido) y la spec de F-007.
+
+**Spec escrita (spec-author, 2026-10-28)**: [`specs/F-016-proforma-a-origen/`](../specs/F-016-proforma-a-origen/)
+(requirements 121 líneas, design 178, tasks T0-T20) y medición nueva M41-M44 (solo lecturas) en
+[`explore_F-016.md`](explore_F-016.md). Resumen: `modo: "origen"` en la petición (sin él, F-007 exacta, sin claves
+nuevas en la respuesta); la anterior es la punta a origen del contrato cuyo Σ round(`canoriori`·`pre`, 2) = ANTERIOR
+de la hoja (o la pide `proformas` con `proforma_anterior` / `primera_de_cadena`); arrastre de todas las líneas de la
+anterior; sin tocar el núcleo de F-009 ni los tests de F-007; llave propia `SIGRID_PROFORMA_ORIGEN_ENABLED`.
+
+**Decisiones abiertas para el humano** (design §Preguntas):
+- **P1 (D6)**: las arrastradas se escriben **solo como `dcapro`**, sin la `ctrprodes` ni el `mov` a 0 que pone Sigrid
+  (no cambian servido ni stock; escribirlos obliga a tocar el núcleo). Recomendación: solo `dcapro` y V9 en la UI.
+- **P2 (D7)**: al pasar de mes a origen, hoy se retoma la cadena vieja (22 de 29, M43) y Sigrid no siembra el origen
+  (M41). Recomendación: que la persona elija (`proforma_anterior` o `primera_de_cadena`) y sin sembrar; V10 con
+  Administración.
+- **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
+- Además validar D2 (elegir la anterior por importe), D10 (llave propia) y D11 (sin tocar núcleo ni F-007).
+- Para `proformas` (P4-P6): cómo indica el modo el jefe de obra, `importe_anterior` obligatorio a origen y la elección
+  en su bandeja de `details.puntas` y de `linea_anterior`.
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
