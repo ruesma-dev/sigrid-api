@@ -14,7 +14,16 @@ núcleo; recomendación: no heredar, con un campo de `PerfilAlta`) y P9 (añadir
 dto llevan textos que Sigrid no escribe (`10+2,5`, `5`, `7`), que R14 da por no legibles (design §Compatibilidad).
 Después, T0 (contrato con albaranes v8.4 y su acuse).
 
-## F-016 `in_progress` (2026-10-28): proforma a origen; spec v2 APROBADA por el humano (PARADA 1, con D6 y D12)
+## F-016 `blocked` (2026-10-28): proforma a origen DESPLEGADA; espera T17-T18 del humano
+
+**Desplegada el 2026-10-28** (`dev` `6735a75`, orden del humano) con `SIGRID_PROFORMA_ORIGEN_ENABLED=false`; D1-D3
+en [`verificacion_F-016.md`](verificacion_F-016.md). Revisión APROBADA (`review_F-016.md`); avisos a `proformas` y
+`facturas` enviados (`proformas` lo usará en su F-005). **Motivo del `blocked`**: quedan T17 (previas sobre cadenas
+reales, que lanza el líder con el visto bueno del humano, y avisar a `proformas` del resultado de §2.3) y T18
+(grabaciones con autorización expresa); se pasa a `blocked` para dejar sitio a F-018 (una sola `in_progress`).
+T20 y `done` tras T17-T18.
+
+### Historia de F-016
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
 origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`
@@ -207,7 +216,7 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-016** (arriba): revisión T19, merge, despliegue y T17-T18. **F-018** (descuento por línea, `dto`, petición de
+**F-016** (arriba): desplegada; T17-T18. **F-018** (descuento por línea, `dto`, petición de
 `albaranes` F-110) es la **siguiente** por decisión del humano (2026-10-28; prioridad 9): su spec se está redactando en
 un worktree aparte (`.claude/worktrees/`, rama `feature/F-018-descuento-por-linea` desde `dev`); se pasa a
 `spec_ready` y se enseña al humano cuando F-016 esté cerrada o en espera de T17-T18. **F-015 está `blocked`** hasta que
@@ -218,10 +227,9 @@ consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actual
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está `in_progress` en
-> `feature/F-016-proforma-a-origen`: spec v2 aprobada, T1-T16 hechas y revisión troceada T19 en curso (informes
-> `progress/review_F-016_*.md`). Al aprobarse: `review_F-016.md` consolidado, avisos a `proformas`/`facturas`
-> (texto en `impl_F-016.md`), merge a `dev`, despliegue con la llave de origen cerrada y T17-T18 con el humano.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está `blocked`: desplegada el 2026-10-28
+> con la llave de origen cerrada; quedan T17 (previas, las lanza el líder con el visto bueno del humano) y T18
+> (grabaciones autorizadas una a una), guion en `specs/F-016-proforma-a-origen/verificacion_manual.md`.
 > **F-018** (descuento por línea) es la siguiente: spec en redacción en un worktree; enséñala al humano antes de
 > implementar. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de
 > que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.
