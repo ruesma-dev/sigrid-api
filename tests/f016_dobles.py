@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import f007_dobles
-from f007_dobles import CursorProforma, RepositorioProforma, ctride_de
+from f007_dobles import CursorProforma, RepositorioProforma, SettingsProforma, ctride_de
 from f009_dobles import IntegrityError, plantilla_dcapro
 
 from application.use_cases.proforma_origen_statements import ProformaOrigenStatements
@@ -114,6 +115,13 @@ def lecturas_cadena() -> dict[str, Any]:
         "lp8_sucesoras": _lp8,
         "lp9_lineas": _lp9,
     }
+
+
+@dataclass
+class SettingsOrigen(SettingsProforma):
+    """Las de F-007 mas la llave de R4, abierta para los tests."""
+
+    sigrid_proforma_origen_enabled: bool = True
 
 
 class CursorOrigen(CursorProforma):

@@ -74,3 +74,12 @@ FAILED tests/test_f016_transaccion.py::test_f016_r17_a_origen_del_mes_con_otro_t
 FAILED tests/test_f016_transaccion.py::test_f016_r18_reintento_reentrante_con_las_mismas_filas
 5 failed, 7 passed, 1 warning in 2.25s
 ```
+
+**T12** `python -m pytest tests/test_f016_route.py -q` (R3 y los códigos ya pasan por T2/T5; falta la llave):
+```
+>       assert estado == 400
+E       assert 200 == 400
+tests\test_f016_route.py:90: AssertionError
+FAILED tests/test_f016_route.py::test_f016_r4_commit_a_origen_con_la_llave_cerrada_antes_del_caso_de_uso
+1 failed, 15 passed, 1 warning in 1.82s
+```
