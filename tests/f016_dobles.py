@@ -98,7 +98,7 @@ def _lp7(params: list[Any]) -> list[tuple[Any, ...]]:
 def _lp8(params: list[Any]) -> list[tuple[Any, ...]]:
     _tip, ctride, ide = params
     return [(d["ide"], d["cod"]) for d in DOCUMENTOS.values()
-            if d["docoriide"] == ide and d["docoritip"] == 1 and ctride == CTR_0472]
+            if d["docoriide"] == ide and ctride == CTR_0472]
 
 
 def _lp9(params: list[Any]) -> list[dict[str, Any]]:

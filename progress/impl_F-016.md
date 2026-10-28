@@ -42,3 +42,20 @@ E   ModuleNotFoundError: No module named 'application.use_cases.proforma_origen_
 ERROR tests/test_f016_statements.py
 1 error in 2.57s
 ```
+
+**T8** `python -m pytest tests/test_f016_use_case.py -q` (motivos agrupados con `grep "^E  " | sort | uniq -c`):
+```
+FAILED tests/test_f016_use_case.py::test_f016_r8_r13_previa_de_una_primera
+FAILED tests/test_f016_use_case.py::test_f016_r11_r12_previa_encadenada_lee_y_escribe_la_cadena
+FAILED tests/test_f016_use_case.py::test_f016_r5_existente_antes_de_validar_la_anterior
+FAILED tests/test_f016_use_case.py::test_f016_r7_anterior_con_sucesora - Fail...
+FAILED tests/test_f016_use_case.py::test_f016_r9_los_fallos_de_r9_y_de_la_etapa_1_juntos
+FAILED tests/test_f016_use_case.py::test_f016_r14_tope_con_las_arrastradas_aun_en_previa
+20 failed, 9 passed, 1 warning in 1.66s
+      6 E       Failed: DID NOT RAISE AlbaranCompraError
+      3 E       AssertionError: assert <class '...ProformaResponse'> is ProformaOrigenResponse
+      2 E       KeyError: 'modo'
+      1 E       domain.models.proforma_models.ProformaError: El contrato ya tiene proforma de este mes con otro importe: PROF26/00401. ...
+      1 E       AssertionError: assert ['cod_provisi...ato_a_origen'] == ['cod_provisi...to_de_sigrid']
+```
+Las 9 que pasan son las de R1 (mes) y las que solo miran errores de F-007 (`importe_mes_no_cuadra`, `proforma_del_mes_existente`).
