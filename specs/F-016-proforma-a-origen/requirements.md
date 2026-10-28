@@ -1,5 +1,5 @@
 <!-- specs/F-016-proforma-a-origen/requirements.md -->
-# F-016 · Requisitos (v1, 2026-10-28)
+# F-016 · Requisitos (v1.1: enmienda 1 del 2026-10-28, respuestas del humano a P4-P6)
 
 **`POST /api/sigrid/proforma` registra también proformas A ORIGEN cuando `proformas` lo pide con `modo: "origen"`**
 (lo indica el jefe de obra); sin `modo`, o con `"mes"`, es **exactamente F-007**, que está desplegada. A origen, la
@@ -24,7 +24,7 @@ líneas y acumula las cantidades a origen línea a línea, como las que deja Sig
   `dcapro.ide` de la línea de la anterior que continúa). SI `proforma_anterior`, `primera_de_cadena` o `linea_anterior`
   vienen sin `modo` `"origen"`; o vienen juntos `proforma_anterior` y `primera_de_cadena`; o `linea_anterior` con
   `primera_de_cadena`; o dos líneas con el mismo `linea_anterior`; o `modo` `"origen"` con `sin_contrato` o sin
-  `importe_anterior`, ENTONCES 400 `Solicitud invalida.` sin `codigo` (F-012).
+  `importe_origen` (enmienda 1: `importe_anterior` es opcional), ENTONCES 400 `Solicitud invalida.` sin `codigo` (F-012).
 - **R4.** El sistema debe leer `SIGRID_PROFORMA_ORIGEN_ENABLED` (defecto `false`, validador de booleano de F-009).
   CUANDO llegue `commit:true` con `modo` `"origen"` y esa llave cerrada, el sistema debe responder 400
   `escritura_proformas_origen_deshabilitada`, **después** de la llave de F-007 R5 y antes del caso de uso. La previa no
@@ -39,6 +39,10 @@ líneas y acumula las cantidades a origen línea a línea, como las que deja Sig
 
 ## La anterior (D2)
 
+- **R5b.** A origen, el sistema debe usar como **ANTERIOR** de la hoja `importe_anterior` o, si no viene, la
+  **deducida** `importe_origen` − `importe_mes`, redondeada a 2 decimales en `Decimal`; y por línea, `cantidad_anterior`
+  o, si no viene y sí `cantidad_origen`, `cantidad_origen` − `cantidad` (sin ninguna, la línea no tiene anterior). R9,
+  R10 y R16 usan esas. F-007 R19 (ORIGEN = ANTERIOR + MES) solo se comprueba con los dos datos en la petición.
 - **R6.** El sistema debe leer las **candidatas** (LP7): los `tip 14` del contrato con `docoritip 1`, de cualquier serie,
   con `con.fec` ≤ la fecha de F-007 R18 y, de cada una, su **importe de cadena** = Σ round(`canoriori`·`pre`, 2) de sus
   líneas. **Punta** = candidata que no es `docoriide` de ninguna otra del contrato.
@@ -46,12 +50,12 @@ líneas y acumula las cantidades a origen línea a línea, como las que deja Sig
   `peticion`): SI no es una candidata del contrato, ENTONCES `anterior_no_valida`; SI no es punta, ENTONCES
   `anterior_con_sucesora` con el `cod` de su sucesora en el mensaje.
 - **R8.** CUANDO venga `primera_de_cadena`, el sistema debe registrarla sin anterior (`elegida_por` `primera`).
-- **R9.** Sin ninguno de los dos, el sistema debe elegirla así: con `importe_anterior` ≤ 0,05, primera (`primera`); si
-  no, las puntas con |importe de cadena − `importe_anterior`| ≤ 0,05 y sin contradicción (R10): una, esa (`importe`);
+- **R9.** Sin ninguno de los dos, el sistema debe elegirla así: con la ANTERIOR (R5b) ≤ 0,05, primera (`primera`); si
+  no, las puntas con |importe de cadena − ANTERIOR| ≤ 0,05 y sin contradicción (R10): una, esa (`importe`);
   varias, `anterior_ambigua`; ninguna, `anterior_con_sucesora` si casa una candidata que no es punta (con su sucesora),
   o si no `anterior_no_resuelta`. Los tres errores llevan `details.puntas` (`cod`, `ide`, `fec`, importe de cadena).
-- **R10.** Hay **contradicción** con una candidata si una línea de contrato de la petición trae `cantidad_anterior`, su
-  `ctrpro_ide` está en una sola línea de la candidata y difieren `canoriori` y `cantidad_anterior` en más de 0,001.
+- **R10.** Hay **contradicción** con una candidata si una línea de contrato de la petición tiene anterior (R5b), su
+  `ctrpro_ide` está en una sola línea de la candidata y difieren `canoriori` y esa anterior en más de 0,001.
 
 ## Líneas (D3-D6)
 
@@ -77,9 +81,9 @@ líneas y acumula las cantidades a origen línea a línea, como las que deja Sig
 
 ## Cuadre y avisos (D9)
 
-- **R16.** F-007 R19 se aplica igual. A origen, el sistema debe sustituir los avisos de anterior de F-007 R20 por estos,
-  informativos: `anterior_distinto_de_sigrid` de cabecera si |`importe_anterior` − importe de cadena de la anterior (0 en
-  primera)| > 0,05, y de línea si |`cantidad_anterior` − `canoriori` de su línea anterior (0 si es nueva)| > 0,001; y
+- **R16.** F-007 R19 se aplica igual (a origen, solo con los dos datos: R5b). A origen, el sistema debe sustituir los avisos de anterior de F-007 R20 por estos,
+  informativos: `anterior_distinto_de_sigrid` de cabecera si |ANTERIOR (R5b) − importe de cadena de la anterior (0 en
+  primera)| > 0,05, y de línea si |su anterior (R5b) − `canoriori` de su línea anterior (0 si es nueva)| > 0,001; y
   `origen_distinto_de_sigrid` de cabecera si viene `importe_origen` y difiere del importe de cadena de la nueva en más de
   0,05, y de línea si viene `cantidad_origen` y difiere de su `canoriori` escrito en más de 0,001. `origen` (F-007 R20,
   R21) se calcula igual que en F-007, con `supera_contrato` y `supera_contrato_10`.
@@ -97,11 +101,11 @@ líneas y acumula las cantidades a origen línea a línea, como las que deja Sig
 ## Respuesta, trazas, pruebas y documentación
 
 - **R20.** A origen, el sistema debe responder lo de F-007 R30 más `cadena` (`anterior` con `cod` e `ide` o `null`,
-  `elegida_por`, `importe_anterior_cadena`, `importe_origen_cadena`, `puntas`, `n_arrastradas`) y, por línea,
+  `elegida_por`, `anterior_de` (`peticion` o `deducido`, R5b), `importe_anterior_cadena`, `importe_origen_cadena`, `puntas`, `n_arrastradas`) y, por línea,
   `linea_anterior`, `arrastrada`, `cantidad_anterior_cadena` y `cantidad_origen_cadena`; las arrastradas, detrás de las
   de la petición. En `existente` e `idempotente`, `cadena` es `null`.
 - **R21.** Los códigos nuevos (design §Códigos) deben vivir en subclases: los conjuntos y clases de F-007 no cambian.
-- **R22.** La traza de F-007 R33 debe añadir `modo`, `elegida_por`, el `cod` de la anterior y el nº de arrastradas;
+- **R22.** La traza de F-007 R33 debe añadir `modo`, `elegida_por`, `anterior_de`, el `cod` de la anterior y el nº de arrastradas;
   nunca textos, nombres, CIF, precios ni importes.
 - **R23.** Todo el SQL nuevo debe ser constante con `?`, de lectura y validado con `DatabaseReferenceGuard`; ningún
   `DELETE`, `MERGE`, DDL ni `UPDATE` nuevo (control negativo en tests).

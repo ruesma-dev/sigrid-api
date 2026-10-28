@@ -1,5 +1,5 @@
 <!-- specs/F-016-proforma-a-origen/design.md -->
-# F-016 · Diseño (v1, 2026-10-28)
+# F-016 · Diseño (v1.1: enmienda 1 del 2026-10-28, P4-P6 respondidas por el humano)
 
 Medición: [`explore_F-016.md`](../../progress/explore_F-016.md) (M41-M44) sobre lo ya medido en
 [`explore_F-007.md`](../../progress/explore_F-007.md) (M11, M16-M26, M37). Base: F-007 tal como quedó cerrada (spec
@@ -49,7 +49,7 @@ Sin ficheros `NN_nombre.sql`: SQL constante.
 
 1-4. Como F-007 (guardas, fecha, obra, referencia, contrato, etapa 1 de líneas). La llave de R4 va en la ruta.
 5. Con contrato, `comprobar_hoja`, LP1, LP2 y `origen` como F-007. **Mes**: `buscar_del_mes` y avisos de F-007.
-   **Origen**: `buscar_del_mes_origen` (R5; `existente` sale aquí, como F-007), LP7 → `elegir_anterior` (R6-R10), LP8 de
+   **Origen**: `anteriores_de_la_hoja` (R5b), `buscar_del_mes_origen` (R5; `existente` sale aquí, como F-007), LP7 → `elegir_anterior` (R6-R10), LP8 de
    la anterior → `casar_con_anterior` (R11; sus fallos, en un `lineas_no_validas`), tope R15 y `avisos_de_cadena` (R16,
    R17). Lo elegido viaja en `_Contexto.cadena` (`CadenaElegida`: la anterior, sus filas y el casado).
 6. Traducción y núcleo como F-007. Con `cadena`, `_construir` llama a `super()` y después `superponer_cadena` (R12,
@@ -63,7 +63,9 @@ Sin ficheros `NN_nombre.sql`: SQL constante.
 
 - `DocumentoCadena.de_fila` (LP7: `ide`, `cod`, `fec`, `docoriide`, `totbas`, `importe_cadena`) y
   `puntas(documentos)`: las que no son `docoriide` de otra.
-- `elegir_anterior(documentos, *, fecha, importe_anterior, proforma_anterior, primera, lineas_peticion,
+- `anteriores_de_la_hoja(request) -> AnterioresHoja` (R5b): la ANTERIOR de cabecera y la de cada línea, dadas o
+  deducidas (ORIGEN − MES en `Decimal`, a 2 decimales en el importe), con `anterior_de` `peticion` o `deducido`.
+- `elegir_anterior(documentos, *, fecha, anterior_hoja, proforma_anterior, primera, lineas_peticion,
   lineas_por_documento) -> AnteriorElegida`: R6-R10. La contradicción (R10) necesita las líneas (LP8) de las puntas
   que casan por importe; con una, son las que hacen falta para casar, sin otra lectura. `None` = primera.
 - `casar_con_anterior(lineas, identificadas, filas_anterior) -> (dict[indice, fila], list[FalloLineaProformaOrigen])`:
@@ -90,6 +92,8 @@ obligaría a recorrer `dca`): riesgo residual anotado.
 ## Contrato v1.2 con `proformas` (compatible hacia atrás)
 
 - **Petición**: `modo`, `proforma_anterior`, `primera_de_cadena`, `linea_anterior` (R3). Sin ellos, v1.1 tal cual.
+  A origen es obligatorio `importe_origen`; `importe_anterior` y `cantidad_anterior` son opcionales y, sin ellos, la
+  API los deduce de ORIGEN − MES (R5b) y lo dice en `cadena.anterior_de`.
 - **Respuesta a origen**: `cadena` y los cuatro campos de línea (R20); las arrastradas al final con `arrastrada: true`,
   `referencia_linea` la de su fila y `indice` ≥ nº de líneas pedidas. En mes, la respuesta de v1.1 sin claves nuevas.
 - **Códigos**: los de §Códigos, con qué hace `proformas` (§4 del contrato).
@@ -107,7 +111,7 @@ obligaría a recorrer `dca`): riesgo residual anotado.
 ## Decisiones (para el humano; recomendación en negrita)
 
 - **D1 · Modo por petición, de mes por defecto** *(decidido, 2026-10-28)*. **`modo: "origen"`** en cada petición; sin
-  él, F-007 exacta (R1). Lo elige el jefe de obra en `proformas`; la API no lo deduce del contrato.
+  él, F-007 exacta (R1). Lo elige el jefe de obra al cargar la hoja en `proformas`, por hoja y no por contrato (P4); la API no lo deduce.
 - **D2 · Elegir la anterior.** Problema: cadenas paralelas (M18: 158 pares en el mismo mes; M44: dos puntas), serie
   mezclada (M19: 92 anteriores `AC`), la primera y dos certificaciones del mismo mes (M18: 18). **Puntas a origen del
   contrato, de cualquier serie, cuyo importe de cadena = ANTERIOR de la hoja (±0,05) sin contradicción de líneas**:
@@ -116,6 +120,9 @@ obligaría a recorrer `dca`): riesgo residual anotado.
   Dos del mismo mes en la misma cadena salen solas: la segunda cuelga de la primera, que es la punta. Ramificar una
   cadena nunca (M19: lineal): una candidata con sucesora es `anterior_con_sucesora`. Alternativas: anterior obligatoria
   en la petición (`proformas` no ve las altas a mano ni las `AC`); la última por fecha (falla con paralelas).
+  **Enmienda 1 (humano, P5)**: la hoja trae ORIGEN y MES como mínimo, así que la ANTERIOR se toma de la petición o se
+  deduce (R5b), y «la anterior siempre estará en Sigrid»: `anterior_no_resuelta` se espera rara (alta mal hecha o
+  cambio de modo, D7). La regla no cambia.
 - **D3 · Casar la línea con la de la anterior**, con la regla del humano para el contrato (2026-10-28): por `ctrpro`
   (vinculadas) o por **partida y precio** (sin vincular), **el producto no cuenta**, y el desempate por descripción es
   de `proformas` (`linea_anterior_ambigua` con `candidatos` → reenvía con `linea_anterior`). M20: 2 % de pares con dos
@@ -162,16 +169,17 @@ Para el humano o Administración (V10):
    Recomendación: la persona elige entre las dos; sin sembrar.
 3. **P3 (D12)**: ¿importa el orden impreso de las líneas? Recomendación: no, salvo que V9 diga lo contrario.
 
-Para `proformas` (con su humano):
-4. ¿Cómo indica el jefe de obra el modo, y es por hoja o por contrato?
-5. ¿Pueden mandar siempre `importe_anterior` (y `cantidad_anterior` por línea) a origen? Sin ella no se elige la
-   anterior (R3).
-6. ¿Pueden enseñar `details.puntas` y los `candidatos` de `linea_anterior_ambigua` para que la persona elija?
+Para `proformas`, **decididas por el humano el 2026-10-28** (enmienda 1):
+4. **P4**: el jefe de obra indica el modo **al cargar la proforma**, **por hoja** y no por contrato: es `modo` por
+   petición (D1).
+5. **P5**: a origen mandarán **ORIGEN y MES como mínimo**; la ANTERIOR se deduce y la anterior siempre estará en
+   Sigrid. Obligatorio `importe_origen`, no `importe_anterior` (R3, R5b; D2).
+6. **P6**: `proformas` enseña `details.puntas` y los `candidatos` de `linea_anterior_ambigua` y la persona elige.
 
 ## Riesgos
 
 - **Escritura en producción con la cadena**: una anterior mal elegida encadena mal la proforma. Mitigan R9 (solo con
-  importe y líneas), la previa con `cadena`, R18 dentro y la llave propia (D10). Se anula desde la UI.
+  importe y líneas; con la ANTERIOR deducida, un ORIGEN mal leído desplaza la elección y suele dar `anterior_no_resuelta`), la previa con `cadena`, R18 dentro y la llave propia (D10). Se anula desde la UI.
 - **Carrera con el escritorio**: si Administración encadena otra a la misma punta entre la previa y el commit, R18 lo
   ve dentro; contra un alta del escritorio en el mismo instante no hay applock común (residual, como F-007).
 - **Lecturas**: LP7 y LP8 van por contrato y por documento (M44: ≤ 4,1 s); nada global sobre `ctrpro` ni `dcapro`.

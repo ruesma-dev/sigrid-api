@@ -22,8 +22,8 @@ anterior; sin tocar el núcleo de F-009 ni los tests de F-007; llave propia `SIG
   Administración.
 - **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
 - Además validar D2 (elegir la anterior por importe), D10 (llave propia) y D11 (sin tocar núcleo ni F-007).
-- Para `proformas` (P4-P6): cómo indica el modo el jefe de obra, `importe_anterior` obligatorio a origen y la elección
-  en su bandeja de `details.puntas` y de `linea_anterior`.
+**Enmienda 1 (2026-10-28)**: P4-P6 decididas por el humano: modo por hoja al cargarla; a origen es obligatorio `importe_origen` y la
+ANTERIOR se deduce (ORIGEN − MES, R5b, `anterior_de`) si no viene; `proformas` enseña puntas y candidatos. P1-P3 siguen abiertas.
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
