@@ -164,7 +164,7 @@
       "status": "pending",
       "sdd": true,
       "rigor": "critico",
-      "priority": 9,
+      "priority": 10,
       "branch": "feature/F-008-registrar-factura"
     },
     {
@@ -314,6 +314,22 @@
       "rigor": "critico",
       "priority": 16,
       "branch": "feature/F-017-partidas-repetidas"
+    },
+    {
+      "id": "F-018",
+      "title": "Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma",
+      "description": "Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110).",
+      "acceptance": [
+        "Spec aprobada por el humano con el comportamiento de Sigrid medido en producción (solo lectura)",
+        "Sin dto o con dto 0, sigrid/albaran (los dos modos), sigrid/albaran-directo y sigrid/proforma se comportan exactamente igual que antes (tests y dorados de F-007, F-009, F-015 y F-016 sin tocar)",
+        "Contrato publicado en azure-apps/sigrid_api.md y aviso a albaranes",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 9,
+      "branch": "feature/F-018-descuento-por-linea"
     }
   ]
 }
