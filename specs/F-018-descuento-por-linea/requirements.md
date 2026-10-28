@@ -1,16 +1,16 @@
-# F-018 · Requisitos (v1.1)
+# F-018 · Requisitos (v1.2)
 
 **El modo extendido de `POST /api/sigrid/albaran` (F-009/F-015) acepta un descuento simple por línea, `lineas[].dto`, y
 registra la línea como la registra Sigrid: unitario original, cantidad, porcentaje e importe neto.** Lo pide albaranes
 (su F-110; obra 0692): hoy sv9 manda `precio` = importe/cantidad y el descuento se pierde. Medidas **Mn**:
 [`progress/explore_F-018.md`](../../progress/explore_F-018.md) (M45-M51). Decisiones **Dn** y preguntas **Pn**: design
-§Decisiones y §Preguntas. F-009, F-015 y F-016 mandan en lo que aquí no se repite.
+§Decisiones y §Preguntas. F-007, F-009, F-015 y F-016 mandan en lo que aquí no se repite.
 
-> **v1.1 (humano, 2026-10-28): «Todo lo propuesto, pero P5 se corrige aquí; rango de 0 a 100».** Decididas P1-P4,
-> P6 y P7 como se proponían (design §Decisiones). P5 entra en alcance (R15): una vinculada sin `dto` que copia el dto
-> del contrato queda también como la deja Sigrid. Sigrid guarda el unitario original en **`tar`** («P.Bruto») y en
-> `pre` el **neto** = `tot`/`can` (M46: 23.990 de 23.993 líneas; `ctrpro` igual, M49h); `mov` y PMP, con el neto (M48).
-> **Abierta P8 (bloqueante)**: si la proforma hereda R15 (design §Preguntas).
+> **v1.2 (2026-10-28).** P1-P9 **decididas por el humano, 2026-10-28** (design §Decisiones): P1 = D1 (`tar` bruto,
+> `pre` neto), P2 `ROUND_HALF_UP` sobre el producto exacto, P3 = D3 (dos avisos informativos), P4 (la proforma no
+> admite `dto`), P5 (se corrige aquí, R15), P6 (0 a 100), P7 (motivo de la Semántica 9), **P8 = (a): la proforma, de
+> mes y a origen, hereda R15 sin interruptor (R21, R22)** y P9 (R17). **Abierta P10 (bloqueante)**: el aviso nuevo
+> rompe además `tests/test_f016_models.py` (design §Preguntas, medido).
 
 ## La línea con descuento (objetivo del humano)
 
@@ -36,7 +36,7 @@ registra la línea como la registra Sigrid: unitario original, cantidad, porcent
 - **R7.** CUANDO una línea venga sin `dto` en la petición (ausente, `null` o 0) **y** no copie del `ctrpro` un dto
   legible (R14) mayor que 0, el sistema debe construirla exactamente como hoy (mismas funciones con los mismos
   argumentos, mismas filas, mismo SQL, misma respuesta y misma traza, sin claves nuevas); los tests y dorados de F-007,
-  F-009, F-015 y F-016 deben pasar sin modificarlos, salvo la lista cerrada de avisos de R17 (P9).
+  F-009, F-015 y F-016 deben pasar sin modificarlos, salvo los conjuntos cerrados de avisos de R17 (P9 y P10).
 
 ## Cabecera, `mov` y contrato
 
@@ -72,43 +72,57 @@ registra la línea como la registra Sigrid: unitario original, cantidad, porcent
 - **R16.** En `previsto` y `creado`, una línea con dto efectivo debe llevar además `dto` (el porcentaje, R14) y
   `precio_bruto` (= `tar` escrito); `precio` (= `pre`, neto) y `total` (= `tot`) son los de la fila. Las demás
   líneas, y todas en `idempotente` (L11 no cambia), no llevan esas claves en el JSON.
-- **R17.** `CODIGOS_AVISO` debe aceptar `dto_distinto_del_contrato`; los demás conjuntos cerrados no cambian.
-- **R18.** CUANDO alguna línea tenga dto efectivo, el sistema debe trazar (F-009 R32) además `n_lineas_con_dto`; nunca
-  porcentajes, precios ni importes. Sin ninguna, la traza no cambia.
+- **R17.** `CODIGOS_AVISO` debe aceptar `dto_distinto_del_contrato`; los demás conjuntos cerrados de `sigrid/albaran` no
+  cambian. `tests/test_f009_models.py:413` lo añade a su conjunto (P9); los de la proforma, según P10.
+- **R18.** CUANDO alguna línea de `sigrid/albaran` tenga dto efectivo, el sistema debe trazar (F-009 R32) además
+  `n_lineas_con_dto`; nunca porcentajes, precios ni importes. Sin ninguna, la traza no cambia.
 
-## Alcance de las demás rutas (D2)
+## Alcance de las demás rutas (D2, D10)
 
 - **R19.** El modo clásico de `sigrid/albaran` y `sigrid/albaran-directo` no cambian: ni modelo, ni caso de uso, ni
   sentencias, ni dorado (`tests/fixtures/f009_caracterizacion.json`).
-- **R20.** `sigrid/proforma` (de mes y a origen) no admite `dto` en sus líneas (`LineaProformaIn`, `extra="forbid"`:
-  400 sin código, como hoy) y su traducción al núcleo no lo pasa. Si hereda R15 lo decide P8; hasta entonces, nada
-  de F-018 cambia sus filas, su respuesta ni su traza.
+- **R20.** `sigrid/proforma` (de mes y a origen) no debe admitir `dto` en sus líneas (`LineaProformaIn`,
+  `extra="forbid"`: 400 sin código, como hoy) y su traducción al núcleo no lo pasa (P4).
+- **R21.** CUANDO una línea de `sigrid/proforma`, de mes o a origen, case por la opción C con un `ctrpro` de dto legible
+  mayor que 0 y `tar` ≠ 0, el sistema debe aplicarle R15 como al albarán (P8 = (a), sin interruptor): `tot`, `pre` e `ivacuo` de
+  Sigrid en su `dcapro`, `impbru` bruto y totales de la cabecera sobre esos `tot` (R8), el `mov` con ese neto si la
+  línea lo genera (R9) y, en su línea de respuesta, `dto` y `precio_bruto` (R16); a origen, `importe_origen_cadena`
+  (Σ round(`canoriori`·`pre`, 2)) se calcula con ese `pre` neto.
+- **R22.** En `sigrid/proforma` el sistema no debe cambiar por F-018: las comprobaciones de la hoja (F-007 R19,
+  `comprobar_hoja`, sobre la petición), `origen`, la búsqueda de `existente` y su tolerancia de 0,05 (sobre `totbas`
+  leído), `anterior_distinto_de_sigrid`, `cantidad_anterior_cadena`, `cantidad_origen_cadena`,
+  `importe_anterior_cadena` (filas leídas), las arrastradas (fila y respuesta, sin `dto`/`precio_bruto`), las
+  respuestas `existente` e `idempotente`, la traza (F-007 R33, F-016 R21) ni ninguna línea sin dto efectivo (R7).
 
 ## SQL, seguridad y escritura
 
-- **R21.** El sistema no debe añadir ni cambiar ninguna sentencia SQL (ni lecturas, ni L11, ni `INSERT`, ni `UPDATE`):
+- **R23.** El sistema no debe añadir ni cambiar ninguna sentencia SQL (ni lecturas, ni L11, ni `INSERT`, ni `UPDATE`):
   `dto` viaja en la fila clonada de `dcapro`. El control negativo de F-009 R31 sigue pasando.
-- **R22.** En `commit:true` el sistema debe escribir las filas de R1, R8, R9 y R15 en la transacción de F-009 R25, con
-  las llaves, applocks, reintento y relecturas de hoy.
+- **R24.** En `commit:true` el sistema debe escribir las filas de R1, R8, R9, R15 y R21 en la transacción de F-009 R25,
+  con las llaves, applocks, reintento y relecturas de hoy.
 
 ## Pruebas, verificación y documentación
 
-- **R23.** El sistema debe cubrir R1-R22 con tests sin red ni BBDD (`test_f018_rN_*`), con fase RED en R1-R4, R7, R8,
-  R9, R11-R16, y campaña de mutación completa (rigor `critico`) sin supervivientes no aceptados por el humano.
-- **R24.** Un test de **compatibilidad** debe recorrer las peticiones de caso de uso de F-009, F-015, F-007 y F-016
+- **R25.** El sistema debe cubrir R1-R24 con tests sin red ni BBDD (`test_f018_rN_*`), con fase RED en R1-R4, R7, R8,
+  R9, R11-R16 y R21, y campaña de mutación completa (rigor `critico`) sin supervivientes no aceptados por el humano.
+- **R26.** Un test de **compatibilidad** debe recorrer las peticiones de caso de uso de F-009, F-015, F-007 y F-016
   (sus dobles: `ctrpro` con dto no legible o vacío) y comprobar que con `dto` ausente, `null` o 0 las filas, el SQL
   grabado, la respuesta (`model_dump(mode="json")`) y la traza son idénticos; y otro, que con un `ctrpro` de dto legible
-  solo cambian `tot`, `pre`, `ivacuo` de esa línea, `impbru`/totales de la cabecera, el `mov` y las claves de R16.
-- **R25.** MANUAL (humano), tras desplegar: previa de un albarán con dto de la obra 0692 (sin vincular), de una
-  vinculada con dto y de una vinculada sin dto contra un `ctrpro` con dto (R15), comparadas con albaranes del
-  escritorio; y, con autorización expresa para esa escritura, un `commit:true` revisado en la UI (P.Bruto, Dto, Precio,
-  Importe, totales, `mov`), repetido (`idempotente`) y anulado desde la UI (nunca `DELETE`). Comandos: design §V.
-- **R26.** El sistema debe actualizar **antes de implementar** el contrato con albaranes a la v8.4 (design §Contrato) y
-  avisar a albaranes; y en el mismo trabajo `azure-apps/sigrid_api.md` (§8.6, §9.4 y §12: el motivo de «`canfac·pre`»,
-  P7), `docs/ARCHITECTURE.md` (§Semántica 9 y el modo extendido) y el docstring de `sigrid_albaran`.
+  solo cambian `tot`, `pre`, `ivacuo` de esa línea, `impbru`/totales de la cabecera, el `mov` y las claves de R16 (en
+  la proforma a origen, además `importe_origen_cadena`).
+- **R27.** MANUAL (humano), tras desplegar: previa de un albarán con dto de la obra 0692 (sin vincular), de una
+  vinculada con dto, de una vinculada sin dto contra un `ctrpro` con dto (R15) y de una proforma de mes contra un
+  contrato con dto (R21), comparadas con documentos del escritorio; y, con autorización expresa para esa escritura, un
+  `commit:true` de albarán revisado en la UI (P.Bruto, Dto, Precio, Importe, totales, `mov`), repetido (`idempotente`)
+  y anulado desde la UI (nunca `DELETE`). Comandos: design §V.
+- **R28.** El sistema debe actualizar **antes de implementar** el contrato con albaranes a la v8.4 y el de proformas a
+  la v1.3 (design §Contratos) y avisar a las dos sesiones; y en el mismo trabajo `azure-apps/sigrid_api.md` (§8.6,
+  §8.10, §9.4 y §12: el motivo de «`canfac·pre`», P7), `docs/ARCHITECTURE.md` (§Semántica 9, el modo extendido y la
+  proforma) y el docstring de `sigrid_albaran`.
 
 ## Fuera de alcance
 
-Descuentos en cascada y de cabecera (`impdes`); `dto` en el clásico, `albaran-directo` y `sigrid/proforma` (P4);
-recargos (`dto` negativo); leer el `dto` en `idempotente`; las 100 cabeceras con `totiva` ≠ Σ `ivacuo` (M47); las
-arrastradas a 0 de F-016 (copian su fila anterior tal cual); `dcf`/`dcfpro` (F-008).
+Descuentos en cascada y de cabecera (`impdes`); `dto` en el clásico, `albaran-directo` y en la petición de
+`sigrid/proforma` (P4); recargos (`dto` negativo); leer el `dto` en `idempotente`; las 100 cabeceras con `totiva` ≠
+Σ `ivacuo` (M47); las arrastradas de F-016 (copian su fila anterior tal cual); cambiar la tolerancia de `existente`;
+`dcf`/`dcfpro` (F-008).

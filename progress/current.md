@@ -1,18 +1,19 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-018 spec v1.1 (2026-10-28): descuento por línea, PARADA 1 respondida
+## F-018 spec v1.2 (2026-10-28): descuento por línea; P1-P9 decididas, P10 abierta (bloqueante)
 
-Rama `feature/F-018-descuento-por-linea` (worktree del spec-author), al día con `dev` (F-016 incluida). Spec en
-`specs/F-018-descuento-por-linea/` y medición en producción (solo lecturas) en `progress/explore_F-018.md` (M45-M51).
-Sigrid guarda el unitario original en `dcapro.tar` («P.Bruto») y en `pre` el neto = `tot`/`can`; `tot` =
-ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2) en el 99,99 % (M46), y `mov`/PMP van con el neto (M48).
-**Humano, 2026-10-28**: «todo lo propuesto pero P5 corrige aquí; rango 0 a 100» (design §Decisiones del humano).
-Abiertas en design §Preguntas: **P8 bloqueante** (la proforma, de mes y a origen, hereda P5 por la opción C del
-núcleo; recomendación: no heredar, con un campo de `PerfilAlta`) y P9 (añadir el aviso nuevo a la lista cerrada de
-`tests/test_f009_models.py:413`, único test existente que cambia). Ningún test ni dorado fija hoy P5: sus `ctrpro` con
-dto llevan textos que Sigrid no escribe (`10+2,5`, `5`, `7`), que R14 da por no legibles (design §Compatibilidad).
-Después, T0 (contrato con albaranes v8.4 y su acuse).
+Rama `feature/F-018-descuento-por-linea`, al día con `dev` (`6aca027`, F-016 desplegada y `blocked`). Spec en
+`specs/F-018-descuento-por-linea/` y medición (solo lecturas) en `progress/explore_F-018.md` (M45-M51). **Humano,
+2026-10-28**: P1-P9 decididas (design §Decisiones); **P8 = (a)**: la proforma, de mes y a origen, hereda P5 sin
+interruptor (R21, R22; design §La proforma): cambian `tot`/`pre`/`ivacuo` de la vinculada con `ctrpro` `N%`, `impbru`,
+totales, `dto`/`precio_bruto` en su línea y, a origen, `importe_origen_cadena`; no cambian la hoja (F-007 R19),
+`existente`, cantidades de cadena, arrastradas ni trazas. Medido: ningún test ni dorado de F-007/F-016 tiene un
+`ctrpro` con dto legible (`grep`, design §Compatibilidad).
+**Abierta P10 (bloqueante, design §Preguntas)**: medido en una copia aislada, el aviso nuevo rompe además dos tests de
+`tests/test_f016_models.py` (`_AVISO_F007`, l. 204-210), no solo `test_f009_models.py:413` (P9). Opciones: (a) una línea
+más en `_AVISO_F007` (recomendada); (b) quitarlo de los conjuntos de proforma (rompe `test_f007_models.py:275`);
+(c) reutilizar `precio_distinto_del_contrato`. Después, T0: contratos v8.4 (albaranes) y v1.3 (proformas) y sus acuses.
 
 ## F-016 `blocked` (2026-10-28): proforma a origen DESPLEGADA; espera T17-T18 del humano
 
