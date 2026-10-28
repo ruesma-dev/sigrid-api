@@ -5,6 +5,8 @@
 
 Resumen: **17 features**, 7 abiertas, 10 terminadas.
 
+En curso: **F-016**.
+
 Bloqueadas: **F-015**.
 
 ## Trabajo abierto
@@ -12,7 +14,7 @@ Bloqueadas: **F-015**.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | spec lista | critico | `feature/F-016-proforma-a-origen` |
+| F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | en curso | critico | `feature/F-016-proforma-a-origen` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
@@ -44,7 +46,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-016 · sigrid/proforma registra también proformas a origen, según indique el jefe de obra
 
-estado **spec lista** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-016-proforma-a-origen`
+estado **en curso** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-016-proforma-a-origen`
 
 Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. La spec decide cómo se elige la anterior, qué pasa al cambiar de modo en un contrato y qué cambia en el contrato con proformas (v1.2). Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.
 

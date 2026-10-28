@@ -140,7 +140,7 @@ obligaría a recorrer `dca`): riesgo residual anotado.
   contrato»). El arrastre es mecánica del registro: lo hace la API.
 - **D5 · Columnas a origen como Sigrid** (M41, M11, M23): `canoriori` acumulado por línea y `= can` en la primera y en
   las nuevas; `canorilin` a la línea anterior; `canoriant`/`imporiant` 0; `imporiori` del `ctrpro` o de la anterior.
-- **D6 · Arrastradas: solo `dcapro`.** Sigrid escribe además una `ctrprodes` a 0 por vinculada (M6) y un `mov` a 0 si
+- **D6 · Arrastradas: solo `dcapro`** *(aprobado por el humano, 2026-10-28)*. Sigrid escribe además una `ctrprodes` a 0 por vinculada (M6) y un `mov` a 0 si
   `tipmov` 1 (M6: 96,8 %). No cambian servido, stock ni PMP, y escribirlas obliga a reservar `ide` y balances para
   líneas que no son del núcleo (costura nueva en F-009, en producción). **Solo `dcapro`, y V9 en la UI** (ficha,
   impresión, factura y anulación). Alternativa: paridad completa (tocar el núcleo; partir la feature). Pregunta P1.
@@ -161,7 +161,7 @@ obligaría a recorrer `dca`): riesgo residual anotado.
 - **D11 · Sin tocar el núcleo ni F-007**: las arrastradas se añaden en `_construir` (costura de F-007) y los códigos y
   respuestas nuevos viven en subclases, como F-007 amplió los de F-009 (costura 5). Así R1 y R2 se cumplen por
   construcción. Descartado: un modo dentro del núcleo; una ruta nueva.
-- **D12 · Orden de las líneas**: las de la petición en su orden y después las arrastradas en el de la anterior
+- **D12 · Orden de las líneas** *(aprobado por el humano, 2026-10-28)*: las de la petición en su orden y después las arrastradas en el de la anterior
   (`pos` de 64 en 64). Sigrid conserva `pos` en el 84 % (M23); aquí el orden impreso cambia cada mes. Pregunta P3.
 - **D13 · `facturas`**: no cambia lo que la API expone para ella, pero lee líneas a 0 y, al facturar una a origen,
   Sigrid pone `canoriant`/`imporiant` en la `dcfpro` (M30): es de F-008. Aviso escrito a `facturas` y a `proformas`.
@@ -171,9 +171,9 @@ obligaría a recorrer `dca`): riesgo residual anotado.
 
 ## Preguntas (para el humano o Administración)
 
-1. **P1 (D6)**: ¿basta con las `dcapro` arrastradas o hay que escribir también `ctrprodes` y `mov` a 0? Recomendación:
+1. **P1 (D6), aprobada: solo `dcapro`.** ¿Basta con las `dcapro` arrastradas o hay que escribir también `ctrprodes` y `mov` a 0? Recomendación:
    solo `dcapro`, y lo confirma V9 en la UI.
-2. **P3 (D12)**: ¿importa el orden impreso de las líneas? Recomendación: no, salvo que V9 diga lo contrario.
+2. **P3 (D12), aprobada: el orden propuesto.** ¿Importa el orden impreso de las líneas? Recomendación: no, salvo que V9 diga lo contrario.
 
 ## Riesgos
 
