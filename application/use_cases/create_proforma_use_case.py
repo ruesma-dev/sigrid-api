@@ -20,6 +20,13 @@ Flujo (design §Flujo):
 Solo lecturas con credenciales de lectura hasta el commit, que es la
 transaccion del nucleo. El SQL es el constante de `ProformaStatements` y de
 `AlbaranCompraStatements`.
+
+F-016: con `modo` `origen`, la proforma A ORIGEN sobre el mismo flujo. En 5,
+la ya registrada es la de R5 y, despues, la cadena que manda el llamante
+(LP7-LP9: la anterior, sus sucesoras y sus lineas), con las continuaciones y
+el tope (R6-R10, R14); en 6, las columnas a origen y las arrastradas al final
+de las `dcapro` (R11-R13) y LP8 otra vez bajo el applock (R17); en 7, la
+respuesta con `cadena` (R19). En mes, cada rama es inerte (R1).
 """
 from __future__ import annotations
 
@@ -30,6 +37,7 @@ from typing import Any
 from pydantic import PrivateAttr
 
 from application.use_cases.albaran_compra_statements import (
+    POS_PASO,
     AlbaranCompraStatements,
     SellosAlbaran,
 )
@@ -42,6 +50,19 @@ from application.use_cases.create_albaran_compra_use_case import (
     _Contrato,
     _Linea,
     _Obra,
+)
+from application.use_cases.proforma_origen_statements import (
+    CadenaValidada,
+    ProformaOrigenStatements,
+    avisos_de_nuevas,
+    buscar_del_mes_origen,
+    cabecera_a_origen,
+    comprobar_sucesoras,
+    filas_arrastradas,
+    importe_de_cadena,
+    superponer_cadena,
+    validar_anterior,
+    validar_continuadas,
 )
 from application.use_cases.proforma_statements import (
     ContratoCandidato,
@@ -79,16 +100,26 @@ from domain.models.proforma_models import (
     ProformaRequest,
     ProformaResponse,
 )
+from domain.models.proforma_origen_models import (
+    AnteriorCadena,
+    AvisoProformaOrigen,
+    CadenaProforma,
+    LineaProformaOrigenResultado,
+    ProformaOrigenError,
+    ProformaOrigenResponse,
+)
 
 
 @dataclass(frozen=True)
 class _Contexto:
-    """Lo que `_comprobar_dentro` necesita de la proforma (R28)."""
+    """Lo que `_comprobar_dentro` necesita de la proforma (R28) y, a origen, la
+    cadena validada para `_construir` y para R17 (F-016; `None` en mes)."""
 
     ctride: int
     periodo: int
     importe_mes: float
     otra_del_mes: bool
+    cadena: CadenaValidada | None = None
 
 
 class _AltaDeProforma(AlbaranCompraRequest):
@@ -161,6 +192,14 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
             "n_lineas_contrato": de_contrato,
             "n_lineas_sin_contrato": len(request.lineas) - de_contrato,
         }
+        if request.modo == "origen":
+            # F-016 R21: solo a origen (la de mes no cambia, R1); sin importes.
+            traza.update(
+                modo=request.modo, primera_de_cadena=request.primera_de_cadena,
+                anterior=request.proforma_anterior,
+                n_continuadas=sum(1 for l in request.lineas if l.linea_anterior is not None),
+                n_arrastradas=None,
+            )
         try:
             respuesta = self._proforma(request, traza)
         except AlbaranCompraError as exc:
@@ -206,14 +245,16 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         ctride = contrato.ide if contrato is not None else 0
         if referencias:
             if len(referencias) == 1 and es_proforma(referencias[0], ctride):
-                return self._idempotente(request, sentencias, resuelto)
+                return self._a_origen(request, self._idempotente(request, sentencias, resuelto))
             raise _conflicto_de_referencia(referencias)
 
-        # 4. Etapa 1 de las lineas: todos sus fallos juntos.
+        # 4. Etapa 1 de las lineas: todos sus fallos juntos. A origen (F-016 R9)
+        # salen despues, con los de las continuaciones, en un solo error.
+        a_origen = request.modo == "origen"
         identificadas, fallos = revisar_lineas(
             request.lineas, lineas_contrato, sin_contrato=request.sin_contrato
         )
-        if fallos:
+        if fallos and not a_origen:
             raise ProformaError(
                 f"{len({f.indice for f in fallos})} linea(s) no validas: no se ha escrito nada.",
                 codigo="lineas_no_validas",
@@ -225,6 +266,7 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         avisos: list[AvisoProforma] = []
         anterior: dict[int, float] = {}
         avisos_linea: dict[int, AvisoProforma] = {}
+        cadena: CadenaValidada | None = None
         if contrato is not None:
             comprobar_hoja(request)
             proformas = self._proformas_del_contrato(request, lecturas, ctride)
@@ -241,39 +283,102 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
                 importe_contrato=importe_de_contrato(lineas_contrato),
                 importe_anterior=request.importe_anterior,
             )
-            existente, avisos_mes = buscar_del_mes(
+            # F-016 R5: a origen, otra a origen del mes con otro total es aviso.
+            existente, avisos_mes = (buscar_del_mes_origen if a_origen else buscar_del_mes)(
                 proformas, periodo=request.periodo, importe_mes=request.importe_mes,
                 otra_del_mes=request.otra_del_mes,
             )
+            if a_origen:
+                # F-016 R16: «se registra de mes» seria falso.
+                avisos_origen = [a for a in avisos_origen if a.codigo != "contrato_a_origen"]
             avisos = [*avisos_origen, *avisos_mes]
             for indice, ctrpro in identificadas.items():
                 aviso = aviso_anterior_de_linea(request.lineas[indice], anterior.get(ctrpro.ide, 0.0))
                 if aviso is not None:
                     avisos_linea[indice] = aviso
             if existente is not None:
-                return self._existente(request, lecturas, existente, resuelto, origen, avisos)
+                return self._a_origen(
+                    request, self._existente(request, lecturas, existente, resuelto, origen, avisos)
+                )
+            if a_origen:
+                cadena = self._cadena(request, ctride, fecha, identificadas, fallos)
+                traza["n_arrastradas"] = cadena.n_arrastradas
 
         # 6. Traduccion y nucleo, con lo que R28 repite bajo el applock de referencias.
         traducida = traducir(request, contrato=contrato, identificadas=identificadas, fecha=fecha)
         alta = _AltaDeProforma.model_validate(traducida.model_dump())
         alta._contexto = _Contexto(
             ctride=ctride, periodo=request.periodo, importe_mes=request.importe_mes,
-            otra_del_mes=request.otra_del_mes,
+            otra_del_mes=request.otra_del_mes, cadena=cadena,
         )
         try:
             nucleo = self._ejecutar(alta)
         except _ExistenteDentro as dentro:
             # La transaccion ya se ha revertido sin escribir nada (R28).
-            return self._existente(request, lecturas, dentro.proforma, resuelto, origen, avisos)
+            return self._a_origen(request, self._existente(
+                request, lecturas, dentro.proforma, resuelto, origen, avisos
+            ))
         if nucleo.estado == "idempotente":
             # R28 (D3): la misma referencia aparecio bajo el applock; como la de
             # fuera (R23), sin `origen` ni los avisos de la hoja.
             origen, avisos = None, []
-        # 7. Respuesta (R30).
-        return self._convertir(
+        # 7. Respuesta (R30; F-016 R19).
+        return self._a_origen(request, self._convertir(
             request, nucleo, resuelto=resuelto, origen=origen, avisos=avisos,
             avisos_linea=avisos_linea, anterior=anterior,
+        ), cadena)
+
+    # ------------------------------------------------------------------ #
+    # F-016 · la cadena a origen (R6-R10, R14)
+    # ------------------------------------------------------------------ #
+    def _cadena(
+        self,
+        request: ProformaRequest,
+        ctride: int,
+        fecha: int,
+        identificadas: Mapping[int, LineaContrato],
+        fallos: Sequence[Any],
+    ) -> CadenaValidada:
+        """Con `proforma_anterior`: LP7 (R6), LP8 (R7) y LP9; en la primera,
+        nada que leer (R8). Despues las continuaciones (R9), con los fallos de
+        la etapa 1 en el mismo `lineas_no_validas`, el aviso de R10 y el tope
+        de R14 con las arrastradas, aun en previa."""
+        lecturas = ProformaOrigenStatements(database=request.database)
+        anterior = None
+        filas: list[dict[str, Any]] = []
+        if request.proforma_anterior is not None:
+            _c, encontradas = self._leer(
+                request, lecturas.leer_proforma_anterior(ctride, request.proforma_anterior)
+            )
+            anterior = validar_anterior(encontradas, cod=request.proforma_anterior, fecha=fecha)
+            _c, sucesoras = self._leer(
+                request, lecturas.leer_sucesoras(ctride, anterior.ide), muchas=True
+            )
+            comprobar_sucesoras(sucesoras)
+            columnas, leidas = self._leer(
+                request, lecturas.leer_lineas_anterior(anterior.ide), muchas=True
+            )
+            filas = [dict(zip(columnas, fila, strict=True)) for fila in leidas]
+        continuadas, fallos_cadena = validar_continuadas(request.lineas, identificadas, filas)
+        todos = [*fallos, *fallos_cadena]
+        if todos:
+            raise ProformaOrigenError(
+                f"{len({f.indice for f in todos})} linea(s) no validas: no se ha escrito nada.",
+                codigo="lineas_no_validas",
+                lineas=todos,
+            )
+        cadena = CadenaValidada(
+            anterior=anterior, filas=filas, continuadas=continuadas,
+            avisos=avisos_de_nuevas(request.lineas, identificadas, filas, continuadas),
         )
+        tope = getattr(self._settings, self.perfil.campo_max_lineas)
+        if len(request.lineas) + cadena.n_arrastradas > tope:
+            raise ProformaOrigenError(
+                f"La proforma trae {len(request.lineas)} lineas y {cadena.n_arrastradas} "
+                f"arrastradas y el tope es {tope}: alta a mano.",
+                codigo="demasiadas_lineas",
+            )
+        return cadena
 
     # ------------------------------------------------------------------ #
     # Contrato (R7-R10)
@@ -433,9 +538,22 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
         sellos: SellosAlbaran,
         vigentes: Mapping[tuple[int, int], tuple[float, float]],
     ) -> _Construido:
-        """Las filas del nucleo con la clase de proforma en la `dca` (R12, M31)."""
+        """Las filas del nucleo con la clase de proforma en la `dca` (R12, M31)
+        y, a origen (F-016 R11-R13), las columnas a origen de las lineas de la
+        peticion, las arrastradas AL FINAL de las `dcapro` (asi `numerar`, la
+        previa, el `INSERT` y la relectura E12 las cuentan sin tocar el nucleo;
+        no son `_Linea`: sin `ctrprodes`, `mov` ni `UPDATE`, D6) y la `dca`
+        encadenada a la anterior."""
         construido = super()._construir(request, cabecera, lineas, sellos, vigentes)
         filas = replace(construido.filas, dca={**construido.filas.dca, "cla": self.perfil.cla})
+        assert isinstance(request, _AltaDeProforma)
+        assert request._contexto is not None
+        cadena = request._contexto.cadena
+        if cadena is not None:
+            dcapro = superponer_cadena(filas.dcapro, cadena.continuadas)
+            usadas = {int(fila["ide"]) for fila in cadena.continuadas.values()}
+            dcapro += filas_arrastradas(cadena.filas, usadas, (len(dcapro) + 1) * POS_PASO)
+            filas = replace(filas, dca=cabecera_a_origen(filas.dca, cadena.anterior), dcapro=dcapro)
         return replace(construido, filas=filas)
 
     # ------------------------------------------------------------------ #
@@ -477,3 +595,94 @@ class CreateProformaUseCase(CreateAlbaranCompraUseCase):
             avisos=[*(AvisoProforma(**a.model_dump()) for a in nucleo.avisos), *avisos],
             lineas=lineas,
         )
+
+    # ------------------------------------------------------------------ #
+    # F-016 · respuesta a origen (R19)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _a_origen(
+        request: ProformaRequest,
+        respuesta: ProformaResponse,
+        cadena: CadenaValidada | None = None,
+    ) -> ProformaResponse:
+        """En mes, la de F-007 tal cual (R1). A origen, `ProformaOrigenResponse`:
+        si se ha construido (previsto o creado), con `cadena`, los campos de la
+        cadena por linea, el aviso de R10 y las arrastradas detras, leidas de
+        `filas.dcapro` a partir de las de la peticion; en `existente` e
+        `idempotente` (lineas LEIDAS), `cadena` null y nada de eso."""
+        if request.modo != "origen":
+            return respuesta
+        construida = cadena is not None and respuesta.estado in ("previsto", "creado")
+        lineas: list[LineaProformaOrigenResultado] = []
+        for linea in respuesta.lineas:
+            propios = [AvisoProformaOrigen(**aviso.model_dump()) for aviso in linea.avisos]
+            extra: dict[str, Any] = {}
+            if construida:
+                assert cadena is not None
+                continuada = cadena.continuadas.get(linea.indice)
+                if linea.indice in cadena.avisos:
+                    propios.append(cadena.avisos[linea.indice])
+                extra = {
+                    "linea_anterior": request.lineas[linea.indice].linea_anterior,
+                    "arrastrada": False,
+                    "cantidad_anterior_cadena": (
+                        float(continuada.get("canoriori") or 0) if continuada is not None else 0.0
+                    ),
+                    "cantidad_origen_cadena": respuesta.filas["dcapro"][linea.indice]["canoriori"],
+                }
+            lineas.append(LineaProformaOrigenResultado(
+                **linea.model_dump(exclude={"avisos"}), avisos=propios, **extra
+            ))
+        resumen: CadenaProforma | None = None
+        if construida:
+            assert cadena is not None
+            escritas = respuesta.filas["dcapro"]
+            pedidas = len(request.lineas)
+            lineas.extend(
+                _linea_arrastrada(indice, fila)
+                for indice, fila in enumerate(escritas[pedidas:], start=pedidas)
+            )
+            resumen = CadenaProforma(
+                anterior=(
+                    AnteriorCadena(cod=cadena.anterior.cod, ide=cadena.anterior.ide)
+                    if cadena.anterior is not None else None
+                ),
+                primera_de_cadena=request.primera_de_cadena,
+                importe_anterior_cadena=importe_de_cadena(cadena.filas),
+                importe_origen_cadena=importe_de_cadena(escritas),
+                n_arrastradas=len(escritas) - pedidas,
+            )
+        return ProformaOrigenResponse(
+            **respuesta.model_dump(exclude={"avisos", "lineas", "warnings"}),
+            avisos=[AvisoProformaOrigen(**aviso.model_dump()) for aviso in respuesta.avisos],
+            lineas=lineas,
+            cadena=resumen,
+        )
+
+
+def _linea_arrastrada(indice: int, fila: Mapping[str, Any]) -> LineaProformaOrigenResultado:
+    """F-016 R19: una arrastrada en la respuesta, de su fila escrita (R12)."""
+    vinculo = int(fila.get("linoriide") or 0)
+    origen = float(fila.get("canoriori") or 0)
+    return LineaProformaOrigenResultado(
+        indice=indice,
+        referencia_linea=str(fila.get("refent") or "").strip(),
+        tipo="vinculada" if vinculo else "sin_vincular",
+        ctrpro_ide=vinculo,
+        linoriide=vinculo,
+        proide=int(fila.get("proide") or 0),
+        res=fila.get("res"),
+        unimed=fila.get("unimed"),
+        cantidad=float(fila["can"]),
+        precio=float(fila.get("pre") or 0),
+        total=float(fila["tot"]),
+        iva_cuota=float(fila["ivacuo"]),
+        almide=int(fila.get("almide") or 0),
+        cenide=fila.get("cenide"),
+        paride=int(fila.get("paride") or 0),
+        de_contrato=vinculo > 0,
+        linea_anterior=int(fila["canorilin"]),
+        arrastrada=True,
+        cantidad_anterior_cadena=origen,
+        cantidad_origen_cadena=origen,
+    )
