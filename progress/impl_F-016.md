@@ -31,5 +31,5 @@ E   AssertionError: assert None == 'false'
 FAILED tests/test_f016_settings.py::test_f016_r4_la_llave_de_origen_arranca_cerrada
 FAILED tests/test_f016_settings.py::test_f016_r4_se_lee_de_su_alias_como_booleano[true-True]
 FAILED tests/test_f016_settings.py::test_f016_r4_un_valor_que_no_es_booleano_no_arranca[quizas]
-10 failed, 2 passed (las dos que pasan: ninguna existente cambia)
+10 failed, 1 passed in 2.01s (la que pasa: ninguna existente cambia)
 ```
