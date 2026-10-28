@@ -24,8 +24,11 @@ deducción del ANTERIOR, los avisos de comparación con la cadena y P2 (D7, del 
 - **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
 - Además validar D3 (sin casar por `ctrpro` único; aviso `linea_nueva_ya_en_la_anterior`), D10 (llave propia) y D11.
 
-**Implementación (implementer, 2026-10-28)**: T1-T16 en curso; T17-T18 manuales del humano, T19 revisión, T20 líder.
-Tarea en curso, decisiones y desviaciones en [`impl_F-016.md`](impl_F-016.md).
+**Implementación (implementer, 2026-10-28)**: T1-T16 **hechas** y commiteadas; `bash harness/init.sh` en verde
+(3549 passed, cobertura 100 % de 270 líneas, mutación sin supervivientes no aceptados). `azure-apps` `3744877` y
+`7afe9e9`. Queda: los avisos a `proformas` y `facturas` (texto en el informe, los envía el líder), T17-T18 manuales
+del humano (`specs/F-016-proforma-a-origen/verificacion_manual.md`, con la prueba en lectura de las consultas del
+contrato v1.2 §2.3), T19 revisión y T20 al cierre. Detalle en [`impl_F-016.md`](impl_F-016.md).
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 

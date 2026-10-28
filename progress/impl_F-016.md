@@ -149,3 +149,24 @@ mes siguiente encadenada, aviso R10, sin `modo` = F-007, `anterior_con_sucesora`
 `linea_anterior_no_valida`) y G1-G3 en la 0404 (la llave de origen se mira tras la de F-007; primera y encadenada con
 una arrastrada; lecturas de `ctrprodes`, `mov` y `canser`; V9 en la UI y anulación en orden inverso). Sin URL ni clave
 (variables de entorno; comprobado con `grep`). **No ejecutado**: es MANUAL (T17-T18, humano/líder).
+
+## Qué queda fuera y qué falta
+
+- **Fuera (spec §Fuera de alcance)**: elegir modo, anterior y continuaciones (del llamante, contrato §2.3); a origen sin
+  contrato o con la anterior en otro contrato; sembrar el origen; `ctrprodes`/`mov` de las arrastradas (D6); F-017.
+- **MANUAL pendiente (humano/líder)**: las dos consultas de §2.3 en lectura sobre una cadena real (verificación de T15,
+  V2); T17 (despliegue con la llave `false` y previas V1-V6) y T18 (G1-G3 y V9 en la UI, con autorización expresa).
+- **Líder**: enviar los dos avisos de arriba; T19 (reviewer) y marcar T20 al cierre.
+
+## Evidencias (T20, 2026-10-28, `bash harness/init.sh` tal cual)
+
+| Evidencia | Valor real |
+|---|---|
+| Resultado de `bash harness/init.sh` | **ENTORNO LISTO** (avisos previos: F-015 `blocked`, 158 de ruff de deuda previa) |
+| Tests de la suite | **3549 passed, 1 skipped**, 1 warning (el de `DocumentReadRequest.schema`, previo) |
+| Tests de F-016 | 116 funciones en `tests/test_f016_{models 23, route 8, settings 6, statements 39, transaccion 12, use_case 28}.py` |
+| Cobertura de líneas cambiadas | **PUERTA COBERTURA: 100.0 % de 270 líneas (270/270, umbral 80 %, nivel critico)** |
+| Mutación | **116 generados, 102 muertos, 14 supervivientes → 13 con test nuevo y medidos muertos, 1 falso de la campaña; 0 no aceptados** ([`mutacion_F-016.md`](mutacion_F-016.md)) |
+| Tiempo de la suite | 199,23 s (3 min 19 s) |
+| Tamaño | PUERTA TAMAÑO: requirements 118/150, design 186/250, impl 151/220 (antes de esta sección) |
+| R1/R2 | `git diff dev` de los tests y dorados de F-007/F-009/F-015, del núcleo de F-009, de `proforma_statements.py` y de `infrastructure/`: **vacío** |
