@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from typing import Any
 
@@ -460,3 +460,29 @@ def test_f016_r19_cadena_validada_cuenta_las_arrastradas() -> None:
     filas = lineas_de(PUNTA)
     cadena = CadenaValidada(anterior=None, filas=filas, continuadas={0: filas[0]}, avisos={})
     assert cadena.n_arrastradas == 4
+
+
+# =====================================================================================
+# T14 · huecos de la campana de mutacion (progress/mutacion_F-016.md)
+# =====================================================================================
+
+
+def test_f016_t14_continuada_imporiori_del_ctrpro_o_de_la_anterior_cuando_difieren() -> None:
+    """R11: la vinculada conserva el `imporiori` del `ctrpro` aunque la anterior
+    traiga otro; la sin vincular toma el de la anterior aunque el nucleo haya
+    puesto otro (con valores distintos, para que no coincidan por casualidad)."""
+    vinculada = {**lineas_de(PUNTA)[0], "imporiori": 999.0}
+    sin_vincular = {**lineas_de(PUNTA)[2], "imporiori": 105.0}
+    dcapro = [_fila_construida(262990, 1.0), _fila_construida(0, 2.0, imporiori=7.0)]
+    resultado = superponer_cadena(dcapro, {0: vinculada, 1: sin_vincular})
+    assert [f["imporiori"] for f in resultado] == [4433.64, 105.0]
+
+
+def test_f016_t14_los_documentos_validados_son_inmutables() -> None:
+    """Lo validado fuera viaja intacto a la transaccion y a cada reintento."""
+    documento = DocumentoCadena(ide=IDE_PUNTA, cod=PUNTA, fec=20260731, docoritip=1)
+    cadena = CadenaValidada(anterior=documento, filas=[], continuadas={}, avisos={})
+    with pytest.raises(FrozenInstanceError):
+        documento.ide = 1  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        cadena.anterior = None  # type: ignore[misc]

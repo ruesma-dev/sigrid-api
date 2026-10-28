@@ -28,6 +28,7 @@ from f016_dobles import (
     RepositorioOrigen,
     fila_lp1,
     fila_lp7,
+    lineas_de,
 )
 
 from application.use_cases.create_proforma_use_case import CreateProformaUseCase
@@ -459,3 +460,59 @@ def test_f016_t8_los_datos_de_la_fixture_son_coherentes() -> None:
     """La punta cuelga de la primera y la de mes no es de la cadena (M44)."""
     assert DOCUMENTOS[PUNTA]["docoriide"] == DOCUMENTOS[PRIMERA]["ide"]
     assert DOCUMENTOS[DE_MES]["docoritip"] == 0
+
+
+# =====================================================================================
+# T14 · huecos de la campana de mutacion (progress/mutacion_F-016.md)
+# =====================================================================================
+
+
+def test_f016_t14_lp8_y_lp9_piden_el_tope_de_filas() -> None:
+    """LP8 y LP9 pueden traer muchas filas (una anterior grande): piden
+    `max_allowed_rows`, como LP1-LP6 de F-007; LP7 trae una y va con el defecto."""
+    _respuesta, repo = ejecutar(encadenada())
+    topes = {datos[0]: datos[2] for tipo, datos in repo.llamadas if tipo == "leer"}
+    tope = SettingsProforma().max_allowed_rows
+    assert (topes["lp7_anterior"], topes["lp8_sucesoras"], topes["lp9_lineas"]) == (
+        None, tope, tope)
+
+
+class _RepositorioColumnasDeMas(RepositorioOrigen):
+    """LP9 con una columna mas que valores: una lectura mal formada."""
+
+    def execute_read_query(self, request: Any) -> tuple[list[str], list[tuple[Any, ...]], bool]:
+        columnas, filas, truncado = super().execute_read_query(request)
+        if columnas and columnas[0] == "ide" and "canoriori" in columnas:
+            return [*columnas, "sobrante"], filas, truncado
+        return columnas, filas, truncado
+
+
+def test_f016_t14_una_lp9_mal_formada_no_se_trunca_en_silencio() -> None:
+    """Las filas de la anterior son la plantilla de las arrastradas: si las
+    columnas no casan con los valores, falla en vez de escribir filas cortadas."""
+    with pytest.raises(ValueError):
+        ejecutar(encadenada(), repo=_RepositorioColumnasDeMas())
+
+
+def test_f016_t14_ceros_de_la_anterior_llegan_como_ceros_a_la_respuesta() -> None:
+    """R19: lo que la respuesta cuenta de la cadena es lo de las filas, tambien
+    cuando vale 0 (una continuada con `canoriori` 0, una arrastrada sin precio,
+    producto, almacen ni partida) y con el `ctrpro` de `ide` 1 (vinculada)."""
+    def lp9(params: list[Any]) -> list[dict[str, Any]]:
+        filas = [dict(f) for f in lineas_de(PUNTA)] if params[0] == IDE_PUNTA else []
+        for fila in filas:
+            if fila["ide"] == 1400001:
+                fila["canoriori"] = 0.0
+            if fila["ide"] == 1400002:
+                fila.update(canoriori=0.0, proide=0, pre=0.0, almide=0, paride=0, linoriide=1)
+        return filas
+
+    respuesta, _repo = ejecutar(encadenada(), repo=RepositorioOrigen({"lp9_lineas": lp9}))
+    por_anterior = {l.linea_anterior: l for l in respuesta.lineas}
+    f09 = por_anterior[1400001]
+    assert (f09.cantidad_anterior_cadena, f09.cantidad_origen_cadena) == (0.0, 620.0)
+    f13 = por_anterior[1400002]
+    assert f13.arrastrada is True
+    assert (f13.cantidad_anterior_cadena, f13.cantidad_origen_cadena) == (0.0, 0.0)
+    assert (f13.proide, f13.precio, f13.almide, f13.paride) == (0, 0.0, 0, 0)
+    assert (f13.de_contrato, f13.tipo, f13.ctrpro_ide) == (True, "vinculada", 1)
