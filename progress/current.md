@@ -18,17 +18,21 @@ los tests de F-007; llave propia `SIGRID_PROFORMA_ORIGEN_ENABLED`.
 anterior, las continuaciones y los importes a buscar en Sigrid son del portal. Fuera la elección por importe, la
 deducción del ANTERIOR, los avisos de comparación con la cadena y P2 (D7, del llamante); P4-P6 decididas (D14).
 
-**Decisiones abiertas para el humano** (design §Preguntas):
-- **P1 (D6)**: las arrastradas se escriben **solo como `dcapro`**, sin la `ctrprodes` ni el `mov` a 0 que pone Sigrid
-  (no cambian servido ni stock; escribirlos obliga a tocar el núcleo). Recomendación: solo `dcapro` y V9 en la UI.
-- **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
-- Además validar D3 (sin casar por `ctrpro` único; aviso `linea_nueva_ya_en_la_anterior`), D10 (llave propia) y D11.
+**Decisiones del humano (2026-10-28, aprobadas con la spec v2)**: P1 (D6) las arrastradas solo como `dcapro`, sin
+`ctrprodes` ni `mov` a 0 (se comprueba en la UI, V9); P3 (D12) primero las líneas pedidas y después las arrastradas;
+D3, D10 y D11 aceptadas con la spec.
 
 **Implementación (implementer, 2026-10-28)**: T1-T16 **hechas** y commiteadas; `bash harness/init.sh` en verde
 (3549 passed, cobertura 100 % de 270 líneas, mutación sin supervivientes no aceptados). `azure-apps` `3744877` y
 `7afe9e9`. Queda: los avisos a `proformas` y `facturas` (texto en el informe, los envía el líder), T17-T18 manuales
 del humano (`specs/F-016-proforma-a-origen/verificacion_manual.md`, con la prueba en lectura de las consultas del
 contrato v1.2 §2.3), T19 revisión y T20 al cierre. Detalle en [`impl_F-016.md`](impl_F-016.md).
+
+**Revisión troceada T19 (2026-10-28)**: aprobados `origen`, `C3C4ter`, `C4red` y `mutacion`; cambios de texto pedidos
+en `docs` (contrato §2.3 y §4, regla de parada en §G de la verificación manual) y en `C1C2C5` (este fichero,
+`features.json` y T15), en corrección. Después: veredicto consolidado en `review_F-016.md`, avisos a `proformas`
+y `facturas` (los manda el líder), merge a `dev`, despliegue con `SIGRID_PROFORMA_ORIGEN_ENABLED=false` (lo lanza
+el humano) y T17-T18 (el humano, con autorización expresa para cada grabación). T20 y `done` después de T17-T18.
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
@@ -190,16 +194,21 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-016** (arriba): spec de la proforma a origen. **F-015 está
-`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-016:
-F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope
-real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
-versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
+**F-016** (arriba): revisión T19, merge, despliegue y T17-T18. **F-018** (descuento por línea, `dto`, petición de
+`albaranes` F-110) es la **siguiente** por decisión del humano (2026-10-28; prioridad 9): su spec se está redactando en
+un worktree aparte (`.claude/worktrees/`, rama `feature/F-018-descuento-por-linea` desde `dev`); se pasa a
+`spec_ready` y se enseña al humano cuando F-016 esté cerrada o en espera de T17-T18. **F-015 está `blocked`** hasta que
+Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-018: F-008 (facturas de
+compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
+consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
+`arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está en spec, en
-> `feature/F-016-proforma-a-origen`: si `specs/F-016-*/` ya existe y está en `spec_ready`, espera la aprobación del
-> humano. F-007 está cerrada; queda que el humano anule `PROF26/01360` y las lecturas posteriores. **F-015 está
-> `blocked`** a la espera de que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave
-> abierta; solo queda T24. No arranques otra feature sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está `in_progress` en
+> `feature/F-016-proforma-a-origen`: spec v2 aprobada, T1-T16 hechas y revisión troceada T19 en curso (informes
+> `progress/review_F-016_*.md`). Al aprobarse: `review_F-016.md` consolidado, avisos a `proformas`/`facturas`
+> (texto en `impl_F-016.md`), merge a `dev`, despliegue con la llave de origen cerrada y T17-T18 con el humano.
+> **F-018** (descuento por línea) es la siguiente: spec en redacción en un worktree; enséñala al humano antes de
+> implementar. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de
+> que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.
