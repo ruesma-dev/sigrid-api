@@ -34,8 +34,7 @@ veredicto (criterio de F-010/F-011/F-015/F-007, ver C5).
 2. **H2 · C5, `harness/features.json` (F-016, `acceptance[3]`)**: «commit:true exige SIGRID_DOMAIN_WRITE_ENABLED,
    SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa». A origen exige además `SIGRID_PROFORMA_ORIGEN_ENABLED`
    (R4, D10). La `description` aún dice «La spec decide cómo se elige la anterior», cuando v2 decidió que la elige el
-   llamante. Requerido: añadir la llave al criterio (y una frase de v2 a la descripción) y regenerar `BACKLOG.md`
-   con `harness/backlog.py`. El `status` sí es correcto.
+   llamante. Requerido: añadir la llave al criterio (y una frase de v2) y regenerar `BACKLOG.md` (`backlog.py`).
 3. **H3 · C5, `specs/F-016-proforma-a-origen/tasks.md:21` (T15)** marcada `[x]` con parte de su «Verificación» sin
    hacer: «las dos consultas del contrato probadas en lectura sobre una cadena real» está PENDIENTE
    (`impl_F-016.md:111-112`, `:157`) y se movió a V0/V2 de `verificacion_manual.md` y a T17. Se acepta el
