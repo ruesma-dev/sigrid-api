@@ -26,7 +26,10 @@ from f016_dobles import PUNTA, RepositorioOrigen, SettingsOrigen
 import function_app
 from application.use_cases.create_proforma_use_case import CreateProformaUseCase
 from domain.models.proforma_models import ProformaRequest
-from domain.models.proforma_origen_models import FalloLineaProformaOrigen, ProformaOrigenError
+from domain.models.proforma_origen_models import (
+    FalloLineaProformaOrigen,
+    ProformaOrigenError,
+)
 
 
 class RepositorioIntocable:

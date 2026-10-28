@@ -16,13 +16,23 @@ from typing import Any
 import pytest
 from f007_dobles import DATOS, SettingsProforma, peticion
 from f009_dobles import AHORA, IntegrityError, _columnas_del_insert
-from f016_dobles import CTR_0472, DOCUMENTOS, IDE_PUNTA, PUNTA, RepositorioOrigen, fila_lp1
+from f016_dobles import (
+    CTR_0472,
+    DOCUMENTOS,
+    IDE_PUNTA,
+    PUNTA,
+    RepositorioOrigen,
+    fila_lp1,
+)
 
 from application.use_cases.albaran_compra_statements import APPLOCKS, DCA_COLUMNAS
 from application.use_cases.create_proforma_use_case import CreateProformaUseCase
 from domain.models.albaran_compra_models import AlbaranCompraError
 from domain.models.proforma_models import ProformaError, ProformaRequest
-from domain.models.proforma_origen_models import ProformaOrigenError, ProformaOrigenResponse
+from domain.models.proforma_origen_models import (
+    ProformaOrigenError,
+    ProformaOrigenResponse,
+)
 
 HOJA = DATOS["hojas"]["CTSB26/0472"]
 CONTINUAN = {"F09": 1400001, "F21": 1400005, "F23": 1400003}
