@@ -22,3 +22,14 @@ E   ModuleNotFoundError: No module named 'domain.models.proforma_origen_models'
 ERROR tests/test_f016_models.py
 1 error in 1.47s
 ```
+
+**T4** `python -m pytest tests/test_f016_settings.py -q`:
+```
+E   AttributeError: 'Settings' object has no attribute 'sigrid_proforma_origen_enabled'. Did you mean: 'sigrid_proforma_write_enabled'?
+E   Failed: DID NOT RAISE ValidationError
+E   AssertionError: assert None == 'false'
+FAILED tests/test_f016_settings.py::test_f016_r4_la_llave_de_origen_arranca_cerrada
+FAILED tests/test_f016_settings.py::test_f016_r4_se_lee_de_su_alias_como_booleano[true-True]
+FAILED tests/test_f016_settings.py::test_f016_r4_un_valor_que_no_es_booleano_no_arranca[quizas]
+10 failed, 2 passed (las dos que pasan: ninguna existente cambia)
+```
