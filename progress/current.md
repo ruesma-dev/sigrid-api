@@ -1,12 +1,38 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-016 `pending` (2026-10-28): proforma a origen, spec en curso
+## F-016 `in_progress` (2026-10-28): proforma a origen; spec v2 APROBADA por el humano (PARADA 1, con D6 y D12)
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
-origen o por meses según indique el jefe de obra**, y por defecto por meses. Lanzado el **spec-author**; al terminar,
-`spec_ready` y PARADA para la aprobación del humano. Material: `progress/explore_F-007.md` §M11 y §M16-M26 (el
-modelo a origen ya medido) y la spec de F-007.
+origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`
+§M11 y §M16-M26 (el modelo a origen ya medido) y la spec de F-007.
+
+**Spec escrita (spec-author, 2026-10-28), v2**: [`specs/F-016-proforma-a-origen/`](../specs/F-016-proforma-a-origen/)
+(tasks T0-T20) y medición nueva M41-M44 (solo lecturas) en [`explore_F-016.md`](explore_F-016.md). Resumen:
+`modo: "origen"` en la petición (sin él, F-007 exacta, sin claves nuevas); el llamante manda `proforma_anterior` o
+`primera_de_cadena` y `linea_anterior` por línea; la API valida (del contrato, a origen, punta; línea de la anterior y
+del mismo tipo), arrastra el resto a 0 y escribe las columnas a origen como Sigrid; sin tocar el núcleo de F-009 ni
+los tests de F-007; llave propia `SIGRID_PROFORMA_ORIGEN_ENABLED`.
+
+**Cambio de alcance (humano, 2026-10-28; sustituye a la enmienda 1)**: la API solo registra y valida; el modo, la
+anterior, las continuaciones y los importes a buscar en Sigrid son del portal. Fuera la elección por importe, la
+deducción del ANTERIOR, los avisos de comparación con la cadena y P2 (D7, del llamante); P4-P6 decididas (D14).
+
+**Decisiones del humano (2026-10-28, aprobadas con la spec v2)**: P1 (D6) las arrastradas solo como `dcapro`, sin
+`ctrprodes` ni `mov` a 0 (se comprueba en la UI, V9); P3 (D12) primero las líneas pedidas y después las arrastradas;
+D3, D10 y D11 aceptadas con la spec.
+
+**Implementación (implementer, 2026-10-28)**: T1-T16 **hechas** y commiteadas; `bash harness/init.sh` en verde
+(3549 passed, cobertura 100 % de 270 líneas, mutación sin supervivientes no aceptados). `azure-apps` `3744877` y
+`7afe9e9`. Queda: los avisos a `proformas` y `facturas` (texto en el informe, los envía el líder), T17-T18 manuales
+del humano (`specs/F-016-proforma-a-origen/verificacion_manual.md`, con la prueba en lectura de las consultas del
+contrato v1.2 §2.3), T19 revisión y T20 al cierre. Detalle en [`impl_F-016.md`](impl_F-016.md).
+
+**Revisión troceada T19 (2026-10-28)**: aprobados `origen`, `C3C4ter`, `C4red` y `mutacion`; cambios de texto pedidos
+en `docs` (contrato §2.3 y §4, regla de parada en §G de la verificación manual) y en `C1C2C5` (este fichero,
+`features.json` y T15), en corrección. Después: veredicto consolidado en `review_F-016.md`, avisos a `proformas`
+y `facturas` (los manda el líder), merge a `dev`, despliegue con `SIGRID_PROFORMA_ORIGEN_ENABLED=false` (lo lanza
+el humano) y T17-T18 (el humano, con autorización expresa para cada grabación). T20 y `done` después de T17-T18.
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
@@ -168,16 +194,21 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-016** (arriba): spec de la proforma a origen. **F-015 está
-`blocked`** hasta que Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-016:
-F-008 (facturas de compra, `pending`, `sdd`, rigor `critico`); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope
-real de la consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la
-versión de `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
+**F-016** (arriba): revisión T19, merge, despliegue y T17-T18. **F-018** (descuento por línea, `dto`, petición de
+`albaranes` F-110) es la **siguiente** por decisión del humano (2026-10-28; prioridad 9): su spec se está redactando en
+un worktree aparte (`.claude/worktrees/`, rama `feature/F-018-descuento-por-linea` desde `dev`); se pasa a
+`spec_ready` y se enseña al humano cuando F-016 esté cerrada o en espera de T17-T18. **F-015 está `blocked`** hasta que
+Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-018: F-008 (facturas de
+compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
+consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
+`arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está en spec, en
-> `feature/F-016-proforma-a-origen`: si `specs/F-016-*/` ya existe y está en `spec_ready`, espera la aprobación del
-> humano. F-007 está cerrada; queda que el humano anule `PROF26/01360` y las lecturas posteriores. **F-015 está
-> `blocked`** a la espera de que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave
-> abierta; solo queda T24. No arranques otra feature sin preguntar.
+> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está `in_progress` en
+> `feature/F-016-proforma-a-origen`: spec v2 aprobada, T1-T16 hechas y revisión troceada T19 en curso (informes
+> `progress/review_F-016_*.md`). Al aprobarse: `review_F-016.md` consolidado, avisos a `proformas`/`facturas`
+> (texto en `impl_F-016.md`), merge a `dev`, despliegue con la llave de origen cerrada y T17-T18 con el humano.
+> **F-018** (descuento por línea) es la siguiente: spec en redacción en un worktree; enséñala al humano antes de
+> implementar. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de
+> que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.

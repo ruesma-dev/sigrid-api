@@ -3,7 +3,9 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **17 features**, 7 abiertas, 10 terminadas.
+Resumen: **18 features**, 8 abiertas, 10 terminadas.
+
+En curso: **F-016**.
 
 Bloqueadas: **F-015**.
 
@@ -12,8 +14,9 @@ Bloqueadas: **F-015**.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | pendiente | critico | `feature/F-016-proforma-a-origen` |
-| F-008 | Endpoint de dominio para registrar facturas de compra | 9 | pendiente | critico | `feature/F-008-registrar-factura` |
+| F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | en curso | critico | `feature/F-016-proforma-a-origen` |
+| F-018 | Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma | 9 | pendiente | critico | `feature/F-018-descuento-por-linea` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 10 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
 | F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | bloqueada | critico | `feature/F-015-albaran-plantilla-y-retencion` |
@@ -44,13 +47,19 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-016 · sigrid/proforma registra también proformas a origen, según indique el jefe de obra
 
-estado **pendiente** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-016-proforma-a-origen`
+estado **en curso** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-016-proforma-a-origen`
 
-Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. La spec decide cómo se elige la anterior, qué pasa al cambiar de modo en un contrato y qué cambia en el contrato con proformas (v1.2). Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.
+Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. Spec v2 (cambio de alcance del humano, 2026-10-28): el modo, la anterior y qué línea continúa cada una los decide y los busca en Sigrid el llamante (proformas); la API solo registra y valida la integridad de la cadena. Cambios en el contrato con proformas: v1.2. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED (y, a origen, SIGRID_PROFORMA_ORIGEN_ENABLED) y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.
+
+### F-018 · Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma
+
+estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-018-descuento-por-linea`
+
+Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110).
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **pendiente** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **pendiente** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 

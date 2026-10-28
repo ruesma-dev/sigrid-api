@@ -164,7 +164,7 @@
       "status": "pending",
       "sdd": true,
       "rigor": "critico",
-      "priority": 9,
+      "priority": 10,
       "branch": "feature/F-008-registrar-factura"
     },
     {
@@ -285,16 +285,16 @@
     {
       "id": "F-016",
       "title": "sigrid/proforma registra también proformas a origen, según indique el jefe de obra",
-      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. La spec decide cómo se elige la anterior, qué pasa al cambiar de modo en un contrato y qué cambia en el contrato con proformas (v1.2). Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.",
+      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. Spec v2 (cambio de alcance del humano, 2026-10-28): el modo, la anterior y qué línea continúa cada una los decide y los busca en Sigrid el llamante (proformas); la API solo registra y valida la integridad de la cadena. Cambios en el contrato con proformas: v1.2. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED (y, a origen, SIGRID_PROFORMA_ORIGEN_ENABLED) y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.",
       "acceptance": [
         "Spec aprobada por el humano con el modelo a origen medido en producción (solo lectura)",
         "Sin el campo de modo, la petición se comporta exactamente como en F-007 (dorados de F-007, F-009 y F-015 intactos)",
         "Una proforma a origen queda encadenada a su anterior y con sus líneas y cantidades a origen como las que deja Sigrid",
-        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED, SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa",
+        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED, SIGRID_PROFORMA_WRITE_ENABLED, a origen además SIGRID_PROFORMA_ORIGEN_ENABLED, y autorización expresa",
         "contrato_proformas.md (v1.2) y azure-apps/sigrid_api.md actualizados y proformas avisado en el mismo trabajo",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "sdd": true,
       "rigor": "critico",
       "priority": 8,
@@ -314,6 +314,22 @@
       "rigor": "critico",
       "priority": 16,
       "branch": "feature/F-017-partidas-repetidas"
+    },
+    {
+      "id": "F-018",
+      "title": "Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma",
+      "description": "Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110).",
+      "acceptance": [
+        "Spec aprobada por el humano con el comportamiento de Sigrid medido en producción (solo lectura)",
+        "Sin dto o con dto 0, sigrid/albaran (los dos modos), sigrid/albaran-directo y sigrid/proforma se comportan exactamente igual que antes (tests y dorados de F-007, F-009, F-015 y F-016 sin tocar)",
+        "Contrato publicado en azure-apps/sigrid_api.md y aviso a albaranes",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 9,
+      "branch": "feature/F-018-descuento-por-linea"
     }
   ]
 }
