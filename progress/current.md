@@ -8,7 +8,11 @@ Rama `feature/F-018-descuento-por-linea` (worktree del spec-author), al día con
 Sigrid guarda el unitario original en `dcapro.tar` («P.Bruto») y en `pre` el neto = `tot`/`can`; `tot` =
 ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2) en el 99,99 % (M46), y `mov`/PMP van con el neto (M48).
 **Humano, 2026-10-28**: «todo lo propuesto pero P5 corrige aquí; rango 0 a 100» (design §Decisiones del humano).
-Pendiente lo que diga design §Preguntas (si queda alguna abierta) y T0 (contrato con albaranes v8.4 y su acuse).
+Abiertas en design §Preguntas: **P8 bloqueante** (la proforma, de mes y a origen, hereda P5 por la opción C del
+núcleo; recomendación: no heredar, con un campo de `PerfilAlta`) y P9 (añadir el aviso nuevo a la lista cerrada de
+`tests/test_f009_models.py:413`, único test existente que cambia). Ningún test ni dorado fija hoy P5: sus `ctrpro` con
+dto llevan textos que Sigrid no escribe (`10+2,5`, `5`, `7`), que R14 da por no legibles (design §Compatibilidad).
+Después, T0 (contrato con albaranes v8.4 y su acuse).
 
 ## F-016 `in_progress` (2026-10-28): proforma a origen; spec v2 APROBADA por el humano (PARADA 1, con D6 y D12)
 
