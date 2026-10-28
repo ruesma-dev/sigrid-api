@@ -7,23 +7,22 @@ Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-
 origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`
 §M11 y §M16-M26 (el modelo a origen ya medido) y la spec de F-007.
 
-**Spec escrita (spec-author, 2026-10-28)**: [`specs/F-016-proforma-a-origen/`](../specs/F-016-proforma-a-origen/)
-(requirements 121 líneas, design 178, tasks T0-T20) y medición nueva M41-M44 (solo lecturas) en
-[`explore_F-016.md`](explore_F-016.md). Resumen: `modo: "origen"` en la petición (sin él, F-007 exacta, sin claves
-nuevas en la respuesta); la anterior es la punta a origen del contrato cuyo Σ round(`canoriori`·`pre`, 2) = ANTERIOR
-de la hoja (o la pide `proformas` con `proforma_anterior` / `primera_de_cadena`); arrastre de todas las líneas de la
-anterior; sin tocar el núcleo de F-009 ni los tests de F-007; llave propia `SIGRID_PROFORMA_ORIGEN_ENABLED`.
+**Spec escrita (spec-author, 2026-10-28), v2**: [`specs/F-016-proforma-a-origen/`](../specs/F-016-proforma-a-origen/)
+(tasks T0-T20) y medición nueva M41-M44 (solo lecturas) en [`explore_F-016.md`](explore_F-016.md). Resumen:
+`modo: "origen"` en la petición (sin él, F-007 exacta, sin claves nuevas); el llamante manda `proforma_anterior` o
+`primera_de_cadena` y `linea_anterior` por línea; la API valida (del contrato, a origen, punta; línea de la anterior y
+del mismo tipo), arrastra el resto a 0 y escribe las columnas a origen como Sigrid; sin tocar el núcleo de F-009 ni
+los tests de F-007; llave propia `SIGRID_PROFORMA_ORIGEN_ENABLED`.
+
+**Cambio de alcance (humano, 2026-10-28; sustituye a la enmienda 1)**: la API solo registra y valida; el modo, la
+anterior, las continuaciones y los importes a buscar en Sigrid son del portal. Fuera la elección por importe, la
+deducción del ANTERIOR, los avisos de comparación con la cadena y P2 (D7, del llamante); P4-P6 decididas (D14).
 
 **Decisiones abiertas para el humano** (design §Preguntas):
 - **P1 (D6)**: las arrastradas se escriben **solo como `dcapro`**, sin la `ctrprodes` ni el `mov` a 0 que pone Sigrid
   (no cambian servido ni stock; escribirlos obliga a tocar el núcleo). Recomendación: solo `dcapro` y V9 en la UI.
-- **P2 (D7)**: al pasar de mes a origen, hoy se retoma la cadena vieja (22 de 29, M43) y Sigrid no siembra el origen
-  (M41). Recomendación: que la persona elija (`proforma_anterior` o `primera_de_cadena`) y sin sembrar; V10 con
-  Administración.
 - **P3 (D12)**: orden de líneas (las pedidas y después las arrastradas). Recomendación: aceptarlo salvo que V9 diga otra cosa.
-- Además validar D2 (elegir la anterior por importe), D10 (llave propia) y D11 (sin tocar núcleo ni F-007).
-**Enmienda 1 (2026-10-28)**: P4-P6 decididas por el humano: modo por hoja al cargarla; a origen es obligatorio `importe_origen` y la
-ANTERIOR se deduce (ORIGEN − MES, R5b, `anterior_de`) si no viene; `proformas` enseña puntas y candidatos. P1-P3 siguen abiertas.
+- Además validar D3 (sin casar por `ctrpro` único; aviso `linea_nueva_ya_en_la_anterior`), D10 (llave propia) y D11.
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 

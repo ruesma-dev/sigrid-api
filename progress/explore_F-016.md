@@ -64,5 +64,5 @@ en subconsulta por `docide`. Tiempos: 3,8 s (24 documentos), 4,1 s (10) y ~4 s (
 - **V9**: una proforma a origen dada de alta por la API (arrastradas solo como `dcapro`, sin `ctrprodes` ni `mov` a 0;
   design D6) se ve, se imprime con unidades ORIGEN/ANTERIOR, se factura con sus «hojitas» y se anula desde la UI como
   las de hoy.
-- **V10**: con Administración, si en los cambios de mes a origen se retoma la cadena vieja (lo que hacen hoy, M43) o se
-  empieza una nueva, y si el origen debería sembrarse con los meses de mes (Sigrid no lo hace, M41).
+- ~~V10~~: cerrada por el cambio de alcance del 2026-10-28: retomar la cadena vieja o empezar otra al pasar de mes a
+  origen lo decide el llamante (`proforma_anterior` o `primera_de_cadena`); la API no siembra el origen (M41).
