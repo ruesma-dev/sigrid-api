@@ -41,6 +41,7 @@ from domain.models.parte_reclamacion_models import (
     ParteReclamacionError,
 )
 from domain.models.proforma_models import ProformaError, ProformaRequest
+from domain.models.proforma_origen_models import ProformaOrigenError
 from domain.models.sigrid_domain_models import AddContractLinesRequest
 from domain.models.sql_models import DocumentReadRequest, SqlReadRequest, SqlWriteRequest
 from infrastructure.repositories.sql_server_repository import SqlServerRepository
@@ -307,10 +308,18 @@ def sigrid_proforma(req: func.HttpRequest) -> func.HttpResponse:
     extendido de `sigrid/albaran` como albaran de compra (con.tip 14) de la
     serie `PROF<aa>/` y `dca.cla 141`, con `entref` `PROF<MMAA>_<obra>`.
 
+    Con `modo` `origen` (F-016) registra tambien la proforma A ORIGEN: la
+    primera de su cadena (`primera_de_cadena`) o la que continua la anterior
+    que manda el llamante (`proforma_anterior`, con `linea_anterior` en las
+    lineas que continuan). La API registra y valida la cadena; no la busca ni
+    la deduce. Sin `modo`, la proforma de mes de F-007 exacta.
+
     DRY-RUN por defecto (commit=false). El commit exige ademas
-    SIGRID_PROFORMA_WRITE_ENABLED (R5), comprobada aqui antes del caso de uso.
-    Los fallos de negocio son 400 con `details.codigo` (y `details.lineas`, con
-    `candidatos`, o `details.reparto`); el cuerpo invalido, 400 de F-012.
+    SIGRID_PROFORMA_WRITE_ENABLED (R5) y, a origen,
+    SIGRID_PROFORMA_ORIGEN_ENABLED (F-016 R4), comprobadas aqui y en ese orden
+    antes del caso de uso. Los fallos de negocio son 400 con `details.codigo`
+    (y `details.lineas`, con `candidatos`, o `details.reparto`); el cuerpo
+    invalido, 400 de F-012.
     """
     try:
         deps = build_dependencies()
@@ -326,6 +335,7 @@ def sigrid_proforma(req: func.HttpRequest) -> func.HttpResponse:
             )
             return validation_error_response(exc)
         _exigir_escritura_de_proformas(settings, request_model.commit)
+        _exigir_escritura_de_proformas_origen(settings, request_model)
         use_case = CreateProformaUseCase(repository, settings)
         return json_response(use_case.run(request_model))
     except AlbaranCompraError as exc:
@@ -355,6 +365,18 @@ def _exigir_escritura_de_proformas(settings: Settings, commit: bool) -> None:
             "Escritura de proformas desactivada (SIGRID_PROFORMA_WRITE_ENABLED=false): "
             "no se ha escrito nada.",
             codigo="escritura_proformas_deshabilitada",
+        )
+
+
+def _exigir_escritura_de_proformas_origen(settings: Settings, request: ProformaRequest) -> None:
+    """F-016 R4: la llave propia del commit a origen, DESPUES de la de F-007 (que
+    no abre esta, ni esta aquella) y ANTES del caso de uso. Ni el dry-run ni la
+    proforma de mes la miran."""
+    if request.commit and request.modo == "origen" and not settings.sigrid_proforma_origen_enabled:
+        raise ProformaOrigenError(
+            "Escritura de proformas a origen desactivada (SIGRID_PROFORMA_ORIGEN_ENABLED=false): "
+            "no se ha escrito nada.",
+            codigo="escritura_proformas_origen_deshabilitada",
         )
 
 
