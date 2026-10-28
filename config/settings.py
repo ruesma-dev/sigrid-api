@@ -150,6 +150,10 @@ class Settings(BaseSettings):
         default_factory=dict, alias="SIGRID_PROFORMA_NATURALEZA_POR_PRODUCTO"
     )
     sigrid_proforma_max_lineas: int = Field(500, alias="SIGRID_PROFORMA_MAX_LINEAS")
+    # F-016 (R4, D10): llave PROPIA del commit a origen, ademas de las de F-007.
+    # Con la de proformas abierta para el mes, el modo a origen no graba hasta
+    # verificarlo en la UI (V9). Defecto CERRADO.
+    sigrid_proforma_origen_enabled: bool = Field(False, alias="SIGRID_PROFORMA_ORIGEN_ENABLED")
 
     model_config = SettingsConfigDict(
         extra="ignore",
