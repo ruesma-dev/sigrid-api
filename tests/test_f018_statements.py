@@ -57,7 +57,7 @@ def test_f018_r14_porcentaje_legible(texto: str | None, esperado: Decimal) -> No
 @pytest.mark.parametrize(
     "texto",
     ["10+2,5", "5", "1.5%", "5+5", "-5%", "40%%", "%", ",5%", "5,%", "1,5,5%", "40% 2", "4 0%",
-     "x%", "1.000%"],
+     "x%", "1.000%", "٤٠%"],  # el último, cifras no ASCII
 )
 def test_f018_r14_porcentaje_no_legible(texto: str) -> None:
     assert porcentaje_de_dto(texto) is None
