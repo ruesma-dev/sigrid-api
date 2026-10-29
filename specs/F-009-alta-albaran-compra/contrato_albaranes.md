@@ -51,8 +51,10 @@ acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del prove
 §4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía). §3.3 añade a
 `retencion_no_soportada` el recargo sin porcentaje (`valpor` vacío), que antes acababa en un 500: mismo código,
 mismo mapeo.
-**v8.4** (2026-10-29, **F-018 v1.2** de sigrid-api, aprobada por el humano; **pendiente de acuse de albaranes**, su
-F-110): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué tiene que hacer albaranes:
+**v8.4** (2026-10-29, **F-018 v1.2** de sigrid-api, aprobada por el humano; acusada por albaranes el 2026-10-29, su
+F-110; **pendiente de despliegue** de sigrid-api: hasta entonces la API no admite `dto` y sv9 lo mantiene apagado con
+`ALTA_SIGRID_ENVIAR_DTO`): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué tiene que hacer
+albaranes:
 
 1. **Línea con descuento**: mandar `lineas[].dto` (el porcentaje, número JSON de 0 a 100, como mucho 2 decimales) y
    `precio` = el unitario **bruto** (§2.2). Sin descuento, como hoy: sin `dto` y `precio` = importe/cantidad. Nunca el
@@ -65,14 +67,19 @@ F-110): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué
 3. **Admitir dos claves nuevas en la línea de respuesta**, `dto` y `precio_bruto`, que solo traen las líneas con
    descuento (nunca en `idempotente`).
 4. **Vinculada sin `dto` que casa con un `ctrpro` con descuento** (cambia sin que sv9 cambie nada): se escribe como
-   Sigrid con el dto del contrato; su `total` puede diferir **un céntimo** de `round(cantidad·precio, 2)` (dentro de
-   la tolerancia de 0,05 de la comparación) y la línea trae `dto` y `precio_bruto`.
+   Sigrid con el dto del contrato y la línea trae `dto` y `precio_bruto`. Su `total` puede diferir **un céntimo** de
+   `round(cantidad·precio, 2)` (dentro de la tolerancia de 0,05 de la comparación) **solo con `cantidad` ≤
+   `ctrpro.can` y un `ctrpro` que cumple `pre` = `tot`/`can`**. Fuera de eso la diferencia puede ser mayor y sv9 verá
+   `importe_distinto` ⇒ `revisar` (medido con un `ctrpro` de 36 uds a `tar` 4,278 al 40 %: una vinculada de 1.000
+   uds casa por la opción C y da 2.566,80 frente a 2.566,67, 0,13 > 0,05).
 5. **Mapear el aviso nuevo `dto_distinto_del_contrato`** (informativo) y saber que, con `dto`,
    `precio_distinto_del_contrato` compara el bruto con `ctrpro.tar` (§3.2).
 6. **Poner al día lo suyo de este documento**: la columna «Origen en albaranes» de `precio` y de `dto` (§2.2) y la
-   regla 4 de §2.4.
+   regla 4 de §2.4. **Hecho** por albaranes el 2026-10-29 (`7aae0ba`).
 
 Lo escrito por sigrid-api para la v8.4: §2.2, §2.3, §3.1, §3.2, §3.4, §4.2, §4.3 y H8 (§5).
+**Corrección de texto de la v8.4** (2026-10-29, tras la revisión de F-018; sin cambio de versión ni de lo que hace la
+API): el estado (acuse y despliegue), el punto 6 hecho y la condición de la cota de un céntimo (punto 4 y §3.1).
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -354,7 +361,9 @@ leída de `dcapro.refent` (**H18**, F-009 R30c, v6): sv9 puede casarlas como en 
 código en `ALTA_SIGRID_AVISOS_BLOQUEANTES` ⇒ `aviso_bloqueante`. Cualquiera ⇒ `revisar`.
 **v8.4**: con descuento se compara igual, por `total` (no por `precio`, que en la respuesta es el neto). En una
 vinculada **sin** `dto` que casa con un `ctrpro` con descuento (§2.2), `total` puede diferir un céntimo de
-`round(cantidad·precio, 2)`: la tolerancia de 0,05 lo cubre.
+`round(cantidad·precio, 2)`, que la tolerancia de 0,05 cubre, **solo con `cantidad` ≤ `ctrpro.can` y un `ctrpro` con
+`pre` = `tot`/`can`**; fuera de eso puede salir `importe_distinto` (medido con un `ctrpro` de 36 uds a `tar` 4,278 al
+40 %: una vinculada de 1.000 uds casa por la opción C y da 2.566,80 frente a 2.566,67, 0,13 > 0,05).
 
 ### 3.2. Avisos (no impiden el alta; viajan en `avisos[]` de cabecera o de línea)
 

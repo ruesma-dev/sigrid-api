@@ -7,15 +7,17 @@
 cual, sin ninguna clave nueva en la respuesta. Lo nuevo de la v1.2: §2.1 y §2.2 (campos de cadena), **§2.3** (a origen:
 lo que el llamante lee de Sigrid, con sus dos consultas), §3.1 (respuesta a origen), §4 (códigos nuevos), §6 y §8.
 **v1.3** (2026-10-29, **F-018 v1.2** de sigrid-api, [spec](../F-018-descuento-por-linea/requirements.md), aprobada
-por el humano; **pendiente de acuse de `proformas`**): las líneas de contrato cuyo `ctrpro` tiene descuento se
+por el humano; acusada por `proformas` el 2026-10-29; **pendiente de despliegue** de sigrid-api: hasta entonces la
+API escribe esas líneas como la v1.2): las líneas de contrato cuyo `ctrpro` tiene descuento se
 escriben como Sigrid, de mes y a origen. Compatible hacia atrás salvo esas líneas; la petición no cambia. Qué tiene que
 hacer `proformas` (detalle en §8):
 
 1. **Nada en la petición**: sigue sin `dto` (mandarlo da 400 sin código, §2.2) y el `precio` de una línea de
    contrato sigue siendo el de la hoja (el `ctrpro.pre`, neto).
-2. **Esperar hasta un céntimo por línea con descuento del contrato** entre la hoja y lo registrado: entre
-   `importe_mes` y `totales.totbas` y, a origen, entre el ORIGEN de la hoja y `cadena.importe_origen_cadena` (§3,
-   §3.1). La comprobación de la hoja (`importe_mes_no_cuadra`) no cambia.
+2. **Esperar diferencias en las líneas con descuento del contrato** entre la hoja y lo registrado. De mes, hasta un
+   céntimo por línea entre `importe_mes` y `totales.totbas` (con `cantidad` ≤ `ctrpro.can` y un `ctrpro` con `pre` =
+   `tot`/`can`; §3). A origen, entre el ORIGEN de la hoja y `cadena.importe_origen_cadena`, **más de un céntimo**:
+   crece con `canoriori`/`cantidad` (§3.1). La comprobación de la hoja (`importe_mes_no_cuadra`) no cambia.
 3. **Admitir dos claves nuevas en la línea de respuesta**, `dto` y `precio_bruto`, solo en esas líneas, también de
    mes (§3.1).
 4. **Reenviar siempre con la misma `referencia_externa`** (sale `idempotente`): con otra, una proforma con más de unas
@@ -261,9 +263,14 @@ contrato con descuento del `ctrpro` traen `dto` y `precio_bruto` (§3). Las dem�
   la primera), `primera_de_cadena`, `importe_anterior_cadena` (Σ round(`canoriori`·`pre`, 2) de las líneas de la
   anterior), `importe_origen_cadena` (lo mismo de las líneas que se escriben, arrastradas incluidas) y `n_arrastradas`.
   `proformas` puede cotejar `importe_anterior_cadena` con el ANTERIOR de la hoja y `importe_origen_cadena` con el ORIGEN.
-  **v1.3**: `importe_origen_cadena` usa el `pre` neto de las líneas con descuento del contrato (§3), así que su cotejo
-  con el ORIGEN debe admitir esos céntimos; `importe_anterior_cadena`, `cantidad_anterior_cadena` y
-  `cantidad_origen_cadena` no cambian.
+  **v1.3**: `importe_origen_cadena` usa el `pre` neto de las líneas con descuento del contrato (§3). A origen la
+  diferencia **no** está acotada a un céntimo: `importe_origen_cadena` = Σ round(`canoriori`·`pre`, 2) y el `pre`
+  neto sale de la cantidad del MES, así que la desviación de esa línea se multiplica por `canoriori`/`cantidad`. Es
+  la forma de Sigrid, que escribe `pre` = `tot`/`can` (M46, 99,99 % de las líneas), no un error de la API. Medido
+  con un `ctrpro` de 36 uds a `tar` 4,278 al 40 % (el `tot` del MES es el de la v1.2): MES 1 y `canoriori` 30, 77,10
+  frente a 77,00 (10 céntimos); MES 0,5 y 30, 76,80 frente a 77,00 (20); MES 2 y 36, 92,34 frente a 92,40 (6). El
+  `importe_anterior_cadena` de la proforma siguiente lo hereda, porque lee esos `pre`.
+  En esta proforma, `importe_anterior_cadena`, `cantidad_anterior_cadena` y `cantidad_origen_cadena` no cambian.
 - Por línea, además: `linea_anterior` (el `dcapro.ide` que continúa; `null` en las nuevas), `arrastrada` (`false`),
   `cantidad_anterior_cadena` (el `canoriori` de la línea continuada; 0 en las nuevas) y `cantidad_origen_cadena`
   (anterior + `cantidad`). En `existente` e `idempotente` (líneas leídas) estos cuatro van a `null`.
@@ -421,7 +428,10 @@ proforma a origen. `contrato_a_origen` sale solo en la proforma de mes. Desplega
 tiene descuento**: la petición no cambia y sigue sin `dto` (§2.2). Esas líneas, de mes y a origen, se escriben como
 Sigrid: `tar` y `dto` del contrato, `tot` = ROUND_HALF_UP(`cantidad`·`tar`·(1 − d/100), 2), `pre` = `tot`/`cantidad`,
 `impbru` bruto y `totales` sobre esos `tot`, con hasta un céntimo por línea frente a `importe_mes` (§3); su línea de
-respuesta trae `dto` y `precio_bruto`, también en la de mes (§3.1); a origen, `importe_origen_cadena` con ese `pre`
-(§3.1). `existente`, `idempotente` y las arrastradas, sin las claves nuevas. §4: el aviso heredado
+respuesta trae `dto` y `precio_bruto`, también en la de mes (§3.1); a origen, `importe_origen_cadena` con ese `pre`,
+con una diferencia que crece con `canoriori`/`cantidad` (§3.1). **Pendiente de despliegue**; acusada por `proformas` el
+2026-10-29. **Corrección de texto** (2026-10-29, tras la revisión de F-018; sin cambio de versión ni de lo que hace la
+API): el estado y la cota a origen, que antes decía «hasta un céntimo».
+`existente`, `idempotente` y las arrastradas, sin las claves nuevas. §4: el aviso heredado
 `dto_distinto_del_contrato` (hoy no sale en la proforma) y el efecto en `existente` de reenviar con otra referencia.
 §6: cómo lee `facturas` esas líneas.

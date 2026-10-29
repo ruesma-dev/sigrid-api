@@ -114,8 +114,8 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     `retencion_no_soportada`. En el commit, su `ide` (E6b) va bajo el applock
     `SIGRID_IDE_dcarec`, el `INSERT` tras los `mov` y su relectura en E12.
   - **Descuento por línea (F-018)**: `LineaAlbaranIn.dto` opcional (0-100, como
-    mucho 2 decimales; 0 o ausente = sin descuento, `con_dto`). Con descuento
-    efectivo, `precio` es el bruto: `dcapro.tar` = bruto, `dcapro.dto` = texto de
+    mucho 2 decimales; 0 o ausente = sin descuento, `con_dto`). Con `dto`
+    pedido, `precio` es el bruto: `dcapro.tar` = bruto, `dcapro.dto` = texto de
     Sigrid (`40%`, `1,5%`), `tot` = `redondear_euros(can·tar·(1 − dto/100))`,
     `pre` = `tot`/`can` (neto, el de `mov` y del PMP) e `ivacuo` sobre `tot`;
     `dca.impbru` suma los brutos (sin ninguna línea con descuento, = `totbas`
@@ -127,7 +127,11 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     `dto_distinto_del_contrato`). La línea de respuesta lleva `dto` y
     `precio_bruto` solo con descuento (un serializador omite las dos claves
     cuando valen `None`); la traza, `n_lineas_con_dto` si hay alguna. Sin SQL
-    nuevo; el clásico y `albaran-directo` no admiten `dto`.
+    nuevo. El clásico y `albaran-directo` **ignoran** `dto`: sus líneas
+    (`ReceivedLine`, `DirectLine`) no llevan `extra="forbid"`, así que la clave
+    se descarta en silencio. Riesgo: quien mande el bruto con `dto` a esas rutas
+    graba la línea sin descuento y sin error; solo el modo extendido lo aplica
+    (y `sigrid/proforma` lo rechaza con 400).
   - *infrastructure*: nada nuevo; reutiliza los métodos del repositorio.
 - **Ruta**: la guarda `SIGRID_ALBARAN_WRITE_ENABLED` (R8) va en `sigrid/albaran`
   (los dos modos) y en `sigrid/albaran-directo`, **después** de validar el modelo

@@ -104,9 +104,14 @@ foreach ($r in @($r1, $r2, $r3)) { $r.estado; Lineas $r; $r.filas.dcapro | Selec
 
 Se mira: **r1** (su bruto y su dto) sin avisos de precio ni de dto, `tot` = `$B[9]` del albarán del escritorio para
 esa cantidad; **r2** (otro dto) con `dto_distinto_del_contrato` (los dos porcentajes en el mensaje) y sin
-`precio_distinto_del_contrato`; **r3** (sin `dto`, con su `pre` neto, R15) sin avisos, `tar`/`dto` del `ctrpro`, `tot`
-= `$B[9]` y `pre` = `$B[8]` (±1 céntimo en `tot` solo si el albarán del escritorio se hizo con otro `pre`), y la línea
-de respuesta con `dto` y `precio_bruto`.
+`precio_distinto_del_contrato`; **r3** (sin `dto`, con su `pre` neto, R15) sin avisos de precio ni de dto,
+`tar`/`dto` del `ctrpro`, `tot` = `$B[9]` y `pre` = `$B[8]` (±1 céntimo en `tot` solo si el albarán del escritorio se
+hizo con otro `pre`), y la línea de respuesta con `dto` y `precio_bruto`.
+
+En r1, r2 y r3 pueden salir además dos avisos **ajenos a F-018**, que no cuentan como fallo:
+`sin_partida_en_linea_con_partida` (los cuerpos no llevan `partida` y el `ctrpro` puede tenerla) y `supera_pendiente`
+(`$B[7]` es la cantidad de un albarán pasado y puede superar lo que queda pendiente del `ctrpro`). Se anotan y se
+mira solo `precio_distinto_del_contrato` y `dto_distinto_del_contrato`.
 
 ## V5 · Previa de proforma de mes contra el contrato de V1c
 
@@ -129,10 +134,16 @@ respuesta, `filas.dca.impbru` = Σ round(`can`·`tar`, 2) y `totbas` = Σ `tot`;
 
 ## V4 · Grabación (T20; el humano, con autorización expresa para esta escritura)
 
-El cuerpo de V2 (o el de r1 de V3) con otra referencia y `commit:true`:
+**La obra y el proveedor los fija el humano antes de autorizar** (design §V: «en la obra que diga el humano»); no se
+graba en la 0692 ni con el proveedor de V1a salvo que él lo diga. Primero, la previa de ese cuerpo (`commit:false`),
+igual que V2. Después, el mismo cuerpo con otra referencia y `commit:true`:
 
 ```powershell
-$cuerpoG = $cuerpoA.Clone(); $cuerpoG.referencia_externa = "ALB-prueba-F018-5"; $cuerpoG.su_referencia = "prueba-F018-5"; $cuerpoG.commit = $true
+$obraG = "<obra que fija el humano>"; $cifG = "<CIF del proveedor que fija el humano>"
+$cuerpoG = $cuerpoA.Clone(); $cuerpoG.cod_obra = $obraG; $cuerpoG.cif_proveedor = $cifG
+$cuerpoG.referencia_externa = "ALB-prueba-F018-5"; $cuerpoG.su_referencia = "prueba-F018-5"
+$p = Llamar "sigrid/albaran" $cuerpoG; $p.estado; Lineas $p; $p.avisos   # previa: `previsto`, nada escrito
+$cuerpoG.commit = $true
 $g = Llamar "sigrid/albaran" $cuerpoG
 $g.estado; $g.con_ide; $g.cod; Lineas $g
 Q "SELECT ide, pos, tar, dto, pre, tot, ivacuo FROM dbo.dcapro WHERE docide = ? ORDER BY pos" @($g.con_ide)
