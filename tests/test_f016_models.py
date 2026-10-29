@@ -207,6 +207,7 @@ _AVISO_F007 = frozenset({
     "precio_distinto_del_contrato", "producto_sin_historico", "retencion_del_contrato",
     "servido_negativo", "sin_partida_en_linea_con_partida", "stock_negativo", "supera_contrato",
     "supera_contrato_10", "supera_pendiente",
+    "dto_distinto_del_contrato",
 })
 
 
