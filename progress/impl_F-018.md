@@ -69,7 +69,8 @@ route, settings, statements, transaccion, use_case}`.
 
 Ninguna respecto a la spec. Fuera de T15: cabecera de `azure-apps` §8.10 (F-016 desplegada) y, por encargo del
 líder, cabecera y §8 de `contrato_proformas.md` (`6d11dcd`).
-**Corrección de `review_F-018_docs.md`** (cambios 1-7 y O1, solo texto): `260cd2f` aquí y `d53a4f6` en `azure-apps`.
+**Revisión (solo texto):** docs 1-7 y O1 `260cd2f`/`d53a4f6` (azure-apps); pasada 3 `ddcb04f`/`6ceabb0`. `grep` céntimo|tolerancia|cinco en contratos, ARCHITECTURE,
+`verificacion_manual` y `sigrid_api.md`: + «más de unas cinco líneas» (proformas); el resto ya condicionado o ajeno (H14, H33, V3/V5).
 
 ## Fase RED (salidas reales, filtradas a las líneas `E`/`FAILED`/resumen; el texto completo, en la sesión)
 
