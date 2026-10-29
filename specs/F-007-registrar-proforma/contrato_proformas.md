@@ -21,7 +21,8 @@ hacer `proformas` (detalle en §8):
 3. **Admitir dos claves nuevas en la línea de respuesta**, `dto` y `precio_bruto`, solo en esas líneas, también de
    mes (§3.1).
 4. **Reenviar siempre con la misma `referencia_externa`** (sale `idempotente`): con otra, una proforma con más de unas
-   cinco de esas líneas puede no reconocerse como `existente` (§3, §4).
+   cinco de esas líneas (menos si alguna no cumple las dos condiciones del punto 2) puede no reconocerse como
+   `existente` (§3, §4).
 5. **Mapear el aviso `dto_distinto_del_contrato`** si vuestro conjunto de avisos es cerrado: lo hereda la proforma,
    aunque hoy no puede salir (§4).
 
@@ -215,7 +216,8 @@ ninguna continúa **las arrastra la API** (§3.1): no hay que mandarlas.
   `tar` · (1 − d/100), 2) sobre el producto exacto, `pre` = `tot`/`cantidad` sin redondear, `ivacuo` sobre ese `tot`
   y, si la línea mueve stock, el `mov` con ese `pre`. La cabecera suma esos `tot`: `totales` y `dca.totbas` pueden
   diferir de `importe_mes` hasta **un céntimo por línea así** (más si el propio `ctrpro` no cumple `pre` =
-  `tot`/`can`), y `dca.impbru` es el bruto (Σ `round(can·tar, 2)` en esas líneas y `tot` en las demás). Su línea de
+  `tot`/`can` o si `cantidad` > `ctrpro.can`), y `dca.impbru` es el bruto (Σ `round(can·tar, 2)` en esas líneas
+  y `tot` en las demás). Su línea de
   respuesta trae `precio` = el `pre` neto, `total` = ese `tot` y dos claves más: `dto` (el porcentaje, número) y
   `precio_bruto` (`tar`). Un `ctrpro.dto` en otra forma (cascada, sin `%`) o `tar` 0: la línea es la de la v1.2.
   Ejemplo: `tar` 4,278 al 40 % en un contrato de 36 uds (`tot` 92,40), proforma de 12,5 uds → `tot` 32,09 (con la v1.2,
@@ -350,8 +352,10 @@ recibe `existente`, no 400.
 
 **v1.3 · `existente` y lo registrado.** `existente` (±0,05 sobre el total del documento) y `anterior_distinto_de_sigrid`
 comparan con el `totbas` **registrado**, que en las líneas con descuento del contrato sigue la regla de Sigrid (§3).
-Con más de unas cinco de esas líneas, una hoja **reenviada con otra `referencia_externa`** puede no reconocerse: de mes
-daría `proforma_del_mes_existente` (sin escribir) y a origen el aviso `otra_del_mes` y un alta en una cadena paralela.
+Con más de unas cinco de esas líneas (o con menos si alguna no cumple `cantidad` ≤ `ctrpro.can` y `pre` =
+`tot`/`can`, porque entonces difiere más de un céntimo), una hoja **reenviada con otra `referencia_externa`** puede no
+reconocerse: de mes daría `proforma_del_mes_existente` (sin escribir) y a origen el aviso `otra_del_mes` y un alta en
+una cadena paralela.
 Con la misma referencia sale `idempotente`: reenviad siempre con ella. La tolerancia no cambia.
 
 ## 5. Productos y líneas del contrato: sin endpoint nuevo (como albaranes)
@@ -427,7 +431,8 @@ proforma a origen. `contrato_a_origen` sale solo en la proforma de mes. Desplega
 **v1.3 (2026-10-29), F-018 (descuento por línea), compatible hacia atrás salvo las líneas de contrato cuyo `ctrpro`
 tiene descuento**: la petición no cambia y sigue sin `dto` (§2.2). Esas líneas, de mes y a origen, se escriben como
 Sigrid: `tar` y `dto` del contrato, `tot` = ROUND_HALF_UP(`cantidad`·`tar`·(1 − d/100), 2), `pre` = `tot`/`cantidad`,
-`impbru` bruto y `totales` sobre esos `tot`, con hasta un céntimo por línea frente a `importe_mes` (§3); su línea de
+`impbru` bruto y `totales` sobre esos `tot`, con hasta un céntimo por línea frente a `importe_mes` con `cantidad` ≤
+`ctrpro.can` y `pre` = `tot`/`can` (§3); su línea de
 respuesta trae `dto` y `precio_bruto`, también en la de mes (§3.1); a origen, `importe_origen_cadena` con ese `pre`,
 con una diferencia que crece con `canoriori`/`cantidad` (§3.1). **Pendiente de despliegue**; acusada por `proformas` el
 2026-10-29. **Corrección de texto** (2026-10-29, tras la revisión de F-018; sin cambio de versión ni de lo que hace la
