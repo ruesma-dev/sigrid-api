@@ -176,7 +176,8 @@ def test_f018_r20_proforma_con_dto_es_400_sin_codigo(monkeypatch: pytest.MonkeyP
     dependencias_de_proforma(monkeypatch)
     construidos = con_caso_de_proforma(monkeypatch)
     cuerpo = peticion_de_proforma()
-    cuerpo["lineas"][0] = {**cuerpo["lineas"][0], "dto": 10}
+    # Lista nueva: la de la hoja es la de la fixture compartida y no se toca.
+    cuerpo["lineas"] = [{**cuerpo["lineas"][0], "dto": 10}, *cuerpo["lineas"][1:]]
     estado, respuesta = llamar_a_proforma(cuerpo)
     assert estado == 400
     assert respuesta["error"] == "Solicitud invalida."

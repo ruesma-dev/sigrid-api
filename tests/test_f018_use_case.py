@@ -249,7 +249,7 @@ def test_f018_r8_retencion_sobre_el_neto() -> None:
     respuesta, _ = ejecutar([sin_vincular(cantidad=1.0, precio=18.625, dto=40.0)], repo=repo)
     dcarec = respuesta.filas["dcarec"][0]
     assert (dcarec["bas"], dcarec["cuo"]) == (11.18, 0.56)  # 11,18 · 0,05 = 0,559
-    assert respuesta.filas["dca"]["tot"] == 13.53 - 0.56
+    assert respuesta.filas["dca"]["tot"] == 12.97  # 13,53 - 0,56
     assert respuesta.filas["dca"]["impbru"] == 18.63
 
 

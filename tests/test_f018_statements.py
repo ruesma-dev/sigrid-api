@@ -14,6 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from test_f009_statements import _ctrpro, _dca_por_lista, _sin_vincular, _vinculada
 
 from application.use_cases.albaran_compra_statements import (
     bruto_de_linea,
@@ -173,7 +174,6 @@ def test_f018_r13_dto_coincide(pedido: float, texto: str | None, esperado: bool 
 # T6 · las filas: R1, R7, R8, R11, R15 (design §Filas)
 # =====================================================================================
 # Los ayudantes de F-009 se importan sin tocarlos: misma plantilla, mismo `ctrpro`.
-from test_f009_statements import _ctrpro, _dca_por_lista, _sin_vincular, _vinculada  # noqa: E402
 
 _DE_LA_LINEA = {"pre", "tar", "dto", "tot", "ivacuo"}
 
