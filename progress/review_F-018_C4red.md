@@ -26,13 +26,9 @@ Revisión completa (pasada 1) sobre `7ce2240` (rama `feature/F-018-descuento-por
 | T8 | `007f965` | `test_f018_use_case.py`, `tasks.md` | T10 `09ba32d` (`create_albaran_compra_use_case.py`) |
 | T9 | `bfa2b38` | `test_f018_proforma.py`, `tasks.md` | T10 `09ba32d` |
 
-Ningún commit de test toca producción. Los retoques de tests dentro de commits verdes **no debilitan nada**:
-
-- T5 añade un caso no legible (`"٤٠%"`).
-- T10 deja de mutar la lista de la fixture compartida de F-007 y sube un import.
-- T10 cambia `13.53 - 0.56` por `12.97`. En float, esa resta vale `12.969999…`, y la spec pide 12,97.
-
-T11 y T12 son tests posteriores al código, con su RED hecho rompiendo el código en una copia aislada, como admite
+Ningún commit de test toca producción. Los retoques de tests en commits verdes **no debilitan nada**: T5 añade un
+caso no legible (`"٤٠%"`); T10 deja de mutar la fixture compartida de F-007, sube un import y cambia `13.53 - 0.56`
+(en float `12.969999…`) por `12.97`, que es lo que pide la spec. T11 y T12 son tests posteriores al código, con su RED hecho rompiendo el código en una copia aislada, como admite
 C4 bis.
 
 ## 2. Reproducción de las salidas RED (los 5 commits de test)
@@ -52,15 +48,9 @@ Coinciden los números, los mensajes y los valores concretos: son salidas reales
 reproducible desde git, porque se hizo en copias con el código revertido o roto. Su relato es coherente: en T11, R23
 pasa porque fija un SQL que no cambia; en T12 caen 16 casos de albarán con `dto` 0 y 5 de proforma con `"5"`.
 
-**Requisitos centrales de R25 con RED pegado:**
-
-- R1, R7, R8, R11 y R15 (con la aserción fuerte de D9): T6.
-- R4, R16 y R17: T2.
-- R8, R9, R12, R13, R16 y R18: T8.
-- R21: T9.
-- R7: también T12.
-- R2, R3, R5 y R14: el `ImportError` de T4. Es legítimo porque las funciones no existían, aunque es el RED más débil
-  (obs. 3).
+**Requisitos centrales de R25 con RED pegado:** R1, R7, R8, R11 y R15 (con la aserción fuerte de D9) en T6; R4,
+R16 y R17 en T2; R8, R9, R12, R13, R16 y R18 en T8; R21 en T9; R7 también en T12. R2, R3, R5 y R14 tienen el
+`ImportError` de T4: legítimo porque las funciones no existían, aunque es el RED más débil (obs. 3).
 
 ## 3. Calidad de los tests (comportamiento, no implementación)
 
@@ -73,8 +63,7 @@ He leído enteros los 5 ficheros `tests/test_f018_*.py` (1.369 líneas, 87 funci
   los totales, `mov`/PMP, los parámetros del INSERT en la transacción, el reintento, la traza y el JSON. La
   compatibilidad (R7, R26) compara la foto completa (respuesta, lecturas, SQL con parámetros y traza) contra una
   lista blanca de rutas.
-- **Acoplamientos legítimos.** El sha256 del SQL de `dev` es la letra de R23. `pre == tot / can` en float exacto es
-  R1. Las funciones puras son la interfaz de `design.md`.
+- **Acoplamientos legítimos:** el sha256 del SQL de `dev` es R23; `pre == tot / can` exacto es R1.
 - **Sin dependencias de orden.** `test_f018_*` delante de `test_f007_route`, `test_f007_use_case`,
   `test_f009_use_case` y `test_f016_use_case`: 520 passed.
 - **Sin red ni BBDD.** No hay imports de `pyodbc`, `requests`, `httpx`, `socket`, `urllib`, `azure` ni
@@ -85,19 +74,12 @@ He leído enteros los 5 ficheros `tests/test_f018_*.py` (1.369 líneas, 87 funci
 
 Según `harness/init.sh` §7 y §7b y `harness/cobertura.py`:
 
-- La suite corre como `coverage run -m pytest tests -q -x`. El `coverage.json` se borra antes y se regenera después.
-- La puerta toma el alcance de `harness.alcance` (el mismo que la mutación: `git diff merge-base..rama`, solo
-  producción) y lo cruza con `executed_lines` y `missing_lines`.
-- Un fichero que coverage no mide cuenta como no cubierto.
-- Mide líneas, no ramas, y solo las que inician una sentencia. El umbral es 80 %.
+`coverage run -m pytest tests -q -x` (con `coverage.json` borrado antes); el alcance es el de `harness.alcance`
+(el mismo de la mutación, `git diff merge-base..rama`, solo producción), cruzado con `executed_lines`/`missing_lines`.
+Lo no medido cuenta como no cubierto. Mide líneas que inician sentencia, no ramas. Umbral 80 %.
 
-**Recálculo:**
-
-1. Worktree en `7ce2240`: `coverage run -m pytest tests -q --tb=short -x` → **3793 passed, 1 skipped** (174 s).
-2. `coverage json`.
-3. `cobertura_lineas_cambiadas()` con el alcance (refs `6aca027..feature/F-018-…`, 245 líneas de diff de
-   producción).
-
+**Recálculo:** worktree en `7ce2240`, `coverage run -m pytest tests -q --tb=short -x` → **3793 passed, 1 skipped**
+(174 s); `coverage json`; `cobertura_lineas_cambiadas()` con el alcance (`6aca027..feature/F-018-…`, 245 líneas).
 Resultado: **102/102 = 100,0 %**, igual que el informe.
 
 | Fichero | Líneas que cuentan | Sin cubrir |
