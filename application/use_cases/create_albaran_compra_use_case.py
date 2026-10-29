@@ -44,6 +44,7 @@ from application.use_cases.albaran_compra_statements import (
     FilasAlbaran,
     RetencionNoSoportada,
     SellosAlbaran,
+    bruto_de_linea,
     calcular_retencion,
     codigo_analitica,
     construir_con,
@@ -54,17 +55,22 @@ from application.use_cases.albaran_compra_statements import (
     construir_dcarec,
     construir_log,
     construir_mov,
+    dto_coincide,
+    dto_del_contrato,
     encadenar_balances,
     estados_contrato,
     importe_linea,
     numerar,
     pago_del_proveedor,
+    porcentaje_de_dto,
+    precio_coincide,
     redondear_euros,
     resolver_cascada,
     resolver_retencion,
     sellos_del_alta,
     siguiente_cod,
     sumar_importes,
+    texto_de_dto,
     usa_precio_del_contrato,
 )
 from domain.models.albaran_compra_models import (
@@ -321,6 +327,11 @@ class CreateAlbaranCompraUseCase:
         if "n_retenciones" in respuesta.totales:
             # F-015 R19: cuantas, nunca `bas`, `cuo` ni `valpor` (no en `idempotente`).
             traza["n_retenciones"] = respuesta.totales["n_retenciones"]
+        # F-018 R18: cuantas lineas llevan descuento, solo si alguna; nunca el
+        # porcentaje, el bruto ni los importes.
+        con_dto = sum(1 for linea in respuesta.lineas if linea.dto is not None)
+        if con_dto:
+            traza["n_lineas_con_dto"] = con_dto
         self._trazar(traza, arranque)
         return respuesta
 
@@ -958,8 +969,12 @@ class CreateAlbaranCompraUseCase:
         dcapro: list[dict[str, Any]] = []
         ctrprodes: list[tuple[int, dict[str, Any]]] = []
         importes = []
+        # F-018 R8: el bruto de las lineas con descuento y el `tot` de las demas.
+        brutos: list[Decimal] = []
         for linea in lineas:
             datos = linea.linea
+            # F-018: el `dto` pedido, solo por nombre y solo si es > 0 (D6).
+            dto = datos.dto if datos.con_dto else None
             if linea.vinculada:
                 fila = construir_dcapro_vinculada(
                     linea.plantilla,
@@ -978,6 +993,7 @@ class CreateAlbaranCompraUseCase:
                     paride=linea.paride,
                     iva=linea.iva,
                     prepma=0.0,
+                    dto=dto,
                 )
                 ctrprodes.append(
                     (linea.indice, construir_ctrprodes(ctrpro_ide=int(linea.ctrpro["ide"]),
@@ -1002,10 +1018,22 @@ class CreateAlbaranCompraUseCase:
                     paride=linea.paride,
                     iva=linea.iva,
                     prepma=0.0,
+                    dto=dto,
                 )
-            # Importes del `pre` ESCRITO (opcion C): fila y totales coherentes.
-            importes.append(importe_linea(datos.cantidad, fila["pre"], linea.iva))
+            if _con_dto_efectivo(linea):
+                # F-018 (Flujo 2): los importes de la FILA; recalcularlos desde el
+                # `pre` neto moveria centimos.
+                importes.append((Decimal(repr(fila["tot"])), Decimal(repr(fila["ivacuo"]))))
+                brutos.append(bruto_de_linea(datos.cantidad, fila["tar"]))
+            else:
+                # Importes del `pre` ESCRITO (opcion C): fila y totales coherentes.
+                importes.append(importe_linea(datos.cantidad, fila["pre"], linea.iva))
+                brutos.append(importes[-1][0])
             dcapro.append(fila)
+        # R8: sin ninguna linea con descuento, `impbru` = `totbas` como antes.
+        impbru = (
+            float(sum(brutos, Decimal(0))) if any(_con_dto_efectivo(l) for l in lineas) else None
+        )
 
         # R19: `mov` si y solo si `pro.tipmov` = 1, con el `pre` escrito; los
         # balances se encadenan por (producto, almacen) en el orden del albaran.
@@ -1060,6 +1088,7 @@ class CreateAlbaranCompraUseCase:
             totales=totales,
             cuo=cuo,
             referencia_externa=request.referencia_externa,
+            impbru=impbru,
         )
         con = construir_con(
             emp=cabecera.obra.emp, fec=sellos.fec, entres=dca["entres"],
@@ -1175,6 +1204,9 @@ class CreateAlbaranCompraUseCase:
                     f"{linea.almide} en negativo: se admite.",
                 ))
             ctrpro_ide = int(linea.ctrpro["ide"]) if linea.ctrpro else 0
+            # F-018 R16: con descuento efectivo, el porcentaje escrito y el `tar`.
+            con_dto = _con_dto_efectivo(linea)
+            porcentaje = porcentaje_de_dto(fila["dto"]) if con_dto else None
             resultado.append(
                 LineaResultado(
                     indice=linea.indice,
@@ -1199,6 +1231,8 @@ class CreateAlbaranCompraUseCase:
                     pmp_anterior=balance.pmp_anterior if balance else None,
                     pmp_resultante=balance.almpma if balance else None,
                     avisos=avisos_linea,
+                    dto=float(porcentaje) if porcentaje is not None else None,
+                    precio_bruto=fila["tar"] if con_dto else None,
                 )
             )
         almide, _cenide = cabecera.almacen_cabecera
@@ -1233,6 +1267,21 @@ class CreateAlbaranCompraUseCase:
             avisos=avisos,
             filas=filas.como_dict(),
         )
+
+
+def _con_dto_efectivo(linea: _Linea) -> bool:
+    """F-018: la linea lleva descuento si lo pide (`con_dto`, R1, R11) o si es una
+    vinculada sin el que casa por la opcion C con un `ctrpro` de dto legible > 0
+    y `tar` != 0 (D9, R15): la MISMA regla que decide su fila."""
+    datos = linea.linea
+    if datos.con_dto:
+        return True
+    ctrpro = linea.ctrpro
+    return (
+        ctrpro is not None
+        and usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0)
+        and dto_del_contrato(ctrpro) is not None
+    )
 
 
 def _aviso_retencion(ctrrec: Mapping[str, Any], bas: Decimal, cuo: Decimal) -> AvisoAlbaran:
@@ -1617,8 +1666,11 @@ class _Catalogo:
                     "sin_partida_en_linea_con_partida",
                     "La linea va sin partida y la de contrato tiene partida.",
                 ))
+            if datos.con_dto:
+                # F-018 R12, R13: con `dto`, validar sin pisar (D3).
+                propios.extend(_avisos_de_dto(datos, ctrpro))
             # La MISMA regla que decide la fila (opcion C).
-            if not usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0):
+            elif not usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0):
                 propios.append(_aviso(
                     "precio_distinto_del_contrato",
                     "El precio no es el de la linea de contrato: se escribe el pedido.",
@@ -1637,3 +1689,32 @@ class _Catalogo:
                     f"La devolucion deja lo servido de la linea de contrato {ide} en negativo: se admite.",
                 ))
             linea.avisos[:0] = propios
+
+
+def _avisos_de_dto(datos: LineaAlbaranIn, ctrpro: Mapping[str, Any]) -> list[AvisoAlbaran]:
+    """F-018 R12, R13 (D3): una vinculada con `dto` escribe lo pedido y avisa de
+    cada diferencia con el `ctrpro`: el bruto frente a su `tar` (H14) y el
+    porcentaje frente a su `dto` (sin dto, 0; no legible, distinto)."""
+    avisos: list[AvisoAlbaran] = []
+    if not precio_coincide(datos.precio, ctrpro.get("tar") or 0):
+        avisos.append(_aviso(
+            "precio_distinto_del_contrato",
+            "El precio bruto no es el de la linea de contrato (su P.Bruto): se escribe el pedido.",
+        ))
+    assert datos.dto is not None
+    pedido = texto_de_dto(datos.dto)
+    texto = ctrpro.get("dto")
+    coincide = dto_coincide(datos.dto, texto)
+    if coincide is None:
+        avisos.append(_aviso(
+            "dto_distinto_del_contrato",
+            f"El descuento de la linea de contrato ('{str(texto).strip()}') no se puede leer "
+            f"como un porcentaje: se escribe el pedido ({pedido}).",
+        ))
+    elif not coincide:
+        avisos.append(_aviso(
+            "dto_distinto_del_contrato",
+            f"El descuento pedido ({pedido}) no es el de la linea de contrato "
+            f"({texto_de_dto(porcentaje_de_dto(texto) or 0)}): se escribe el pedido.",
+        ))
+    return avisos

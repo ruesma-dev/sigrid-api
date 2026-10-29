@@ -1,6 +1,37 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-018 `in_progress` (2026-10-29): implementada; revisión troceada (T18) en corrección
+
+Rama `feature/F-018-descuento-por-linea`, petición de `albaranes` (su F-110). Spec v1.2
+[`specs/F-018-descuento-por-linea/`](../specs/F-018-descuento-por-linea/), aprobada por el humano (P1-P11; P11 = (a)
+en `841e291`); medición M45-M51 en [`explore_F-018.md`](explore_F-018.md). Acuses de los contratos v8.4 (`albaranes`)
+y v1.3 (`proformas`) recibidos el 2026-10-29; `albaranes` pegó su texto en `7aae0ba` y deja apagada
+`ALTA_SIGRID_ENVIAR_DTO` hasta el aviso de despliegue. T1-T17 hechas (implementer): mutación en serie 66/66 muertos,
+cobertura 100 % de 102 líneas cambiadas; informe [`impl_F-018.md`](impl_F-018.md).
+
+**T18, revisión troceada (2026-10-29)**: APROBADOS `logica`, `C3C4ter`, `C4red` y `mutacion`. Cambios de texto en
+`docs` (estado de los contratos; cota a origen de la proforma y de las vinculadas grandes; el clásico y
+`albaran-directo` ignoran `dto`; notas caducadas de `azure-apps`; V3/V4 de la verificación manual), en corrección por
+el implementer, y en `C1C2C5` (este fichero y `features.json`, corregidos por el líder). Incidencia: un revisor pasó
+el árbol principal a `dev` de 13:23:30 a 13:23:44; `init.sh` repetido después sobre `ba5abbc`, en verde (3.793 passed).
+
+**Después**: veredicto consolidado en `review_F-018.md`, merge a `dev`, despliegue (lo ordena el humano), aviso de
+despliegue a `albaranes`, `proformas` y `facturas`, T19 (previas del líder), T20 (grabación con autorización expresa)
+y T21.
+
+**Verificaciones MANUAL pendientes** (comandos literales en
+[`verificacion_manual.md`](../specs/F-018-descuento-por-linea/verificacion_manual.md); todo tras el despliegue):
+- **V0**: setup (variables de entorno, sin secretos) y previa de regresión de `sigrid/albaran` sin `dto`.
+- **V1** (líder, lecturas `sql/read`): V1a línea sin vincular con dto de la obra 0692 (`MA9999`); V1b `ctrpro` con dto
+  `N%` y un albarán del escritorio vinculado; V1c contrato con dto y proforma del escritorio desde 2025.
+- **V2** (líder, previa `commit:false`): la gemela de V1a, con `tar`/`dto`/`tot`/`pre`/`impbru`/`mov` como el escritorio.
+- **V3** (líder, previas): contra V1b con su bruto y dto (sin avisos de precio ni de dto; los de partida o pendiente son
+  ajenos a F-018), con otro dto (`dto_distinto_del_contrato`) y sin `dto` (R15: `tot`/`pre` como el escritorio).
+- **V5** (líder, previa de proforma de mes con `otra_del_mes`): contra V1c, `tot`/`pre` y `impbru` como Sigrid.
+- **V4** (humano, **solo con autorización expresa para esa escritura**, en la obra y con el proveedor que fije él):
+  `commit:true`, revisión en la UI, repetición `idempotente` y anulación desde la UI (nunca `DELETE`) (T20).
+
 ## F-016 `blocked` (2026-10-28): proforma a origen DESPLEGADA; espera T17-T18 del humano
 
 **Desplegada el 2026-10-28** (`dev` `6735a75`, orden del humano) con `SIGRID_PROFORMA_ORIGEN_ENABLED=false`; D1-D3
@@ -11,7 +42,6 @@ reales, que lanza el líder con el visto bueno del humano, y avisar a `proformas
 T20 y `done` tras T17-T18.
 
 ### Historia de F-016
-
 
 Rama `feature/F-016-proforma-a-origen` desde `dev`. El humano decidió (V8 de F-007) que la proforma se registre **a
 origen o por meses según indique el jefe de obra**, y por defecto por meses. Material: `progress/explore_F-007.md`
@@ -38,11 +68,10 @@ D3, D10 y D11 aceptadas con la spec.
 del humano (`specs/F-016-proforma-a-origen/verificacion_manual.md`, con la prueba en lectura de las consultas del
 contrato v1.2 §2.3), T19 revisión y T20 al cierre. Detalle en [`impl_F-016.md`](impl_F-016.md).
 
-**Revisión troceada T19 (2026-10-28)**: aprobados `origen`, `C3C4ter`, `C4red` y `mutacion`; cambios de texto pedidos
-en `docs` (contrato §2.3 y §4, regla de parada en §G de la verificación manual) y en `C1C2C5` (este fichero,
-`features.json` y T15), en corrección. Después: veredicto consolidado en `review_F-016.md`, avisos a `proformas`
-y `facturas` (los manda el líder), merge a `dev`, despliegue con `SIGRID_PROFORMA_ORIGEN_ENABLED=false` (lo lanza
-el humano) y T17-T18 (el humano, con autorización expresa para cada grabación). T20 y `done` después de T17-T18.
+**Revisión troceada T19 (2026-10-28)**: aprobados `origen`, `C3C4ter`, `C4red` y `mutacion`; los cambios de texto
+de `docs` y `C1C2C5` se corrigieron (`30a3d83`, `f0a870c`) y el veredicto consolidado salió APROBADO
+(`review_F-016.md`, `5690963`). Avisos a `proformas` y `facturas` enviados; merge a `dev` y despliegue el 2026-10-28
+(arriba).
 
 ## F-007 cerrada (2026-10-28): pendiente operativo
 
@@ -204,10 +233,8 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-016** (arriba): desplegada; T17-T18. **F-018** (descuento por línea, `dto`, petición de
-`albaranes` F-110) es la **siguiente** por decisión del humano (2026-10-28; prioridad 9): su spec se está redactando en
-un worktree aparte (`.claude/worktrees/`, rama `feature/F-018-descuento-por-linea` desde `dev`); se pasa a
-`spec_ready` y se enseña al humano cuando F-016 esté cerrada o en espera de T17-T18. **F-015 está `blocked`** hasta que
+**F-018** (arriba): en revisión; después merge, despliegue y T19-T21. **F-016** (arriba): desplegada; T17-T18.
+**F-015 está `blocked`** hasta que
 Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-018: F-008 (facturas de
 compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
 consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
@@ -215,9 +242,10 @@ consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actual
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-016** (proforma a origen) está `blocked`: desplegada el 2026-10-28
-> con la llave de origen cerrada; quedan T17 (previas, las lanza el líder con el visto bueno del humano) y T18
-> (grabaciones autorizadas una a una), guion en `specs/F-016-proforma-a-origen/verificacion_manual.md`.
-> **F-018** (descuento por línea) es la siguiente: spec en redacción en un worktree; enséñala al humano antes de
-> implementar. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de
+> Lee `CLAUDE.md` y `progress/current.md`. **F-018** (descuento por línea) está `in_progress`: implementada y en
+> revisión troceada (T18); después veredicto consolidado, merge a `dev`, despliegue que ordena el humano, avisos y
+> T19-T21 (guion en `specs/F-018-descuento-por-linea/verificacion_manual.md`). **F-016** (proforma a origen) está
+> `blocked`: desplegada el 2026-10-28 con la llave de origen cerrada; quedan T17 (previas, las lanza el líder con el
+> visto bueno del humano) y T18 (grabaciones autorizadas una a una), guion en
+> `specs/F-016-proforma-a-origen/verificacion_manual.md`. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de
 > que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.

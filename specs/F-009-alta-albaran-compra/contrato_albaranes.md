@@ -51,6 +51,35 @@ acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del prove
 §4.2 saca la identidad de la cascada (va entera del primer origen, aunque venga vacía). §3.3 añade a
 `retencion_no_soportada` el recargo sin porcentaje (`valpor` vacío), que antes acababa en un 500: mismo código,
 mismo mapeo.
+**v8.4** (2026-10-29, **F-018 v1.2** de sigrid-api, aprobada por el humano; acusada por albaranes el 2026-10-29, su
+F-110; **pendiente de despliegue** de sigrid-api: hasta entonces la API no admite `dto` y sv9 lo mantiene apagado con
+`ALTA_SIGRID_ENVIAR_DTO`): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué tiene que hacer
+albaranes:
+
+1. **Línea con descuento**: mandar `lineas[].dto` (el porcentaje, número JSON de 0 a 100, como mucho 2 decimales) y
+   `precio` = el unitario **bruto** (§2.2). Sin descuento, como hoy: sin `dto` y `precio` = importe/cantidad. Nunca el
+   neto junto con `dto` (descontaría dos veces). Validar antes de llamar: un `dto` en texto, en cascada (`"10+5"`),
+   fuera de 0-100 o con más de 2 decimales da 400 sin código (§3.4). Una cascada del proveedor se convierte a un
+   porcentaje único en sv9 o va a revisión (H8).
+2. **Comparar la previa por `total` de línea, como hoy** (§3.1). Con descuento, `total` = ROUND_HALF_UP(`cantidad` ·
+   `precio` · (1 − `dto`/100), 2) y el `precio` de la respuesta es el **neto** (`total`/`cantidad`, sin redondear), no
+   el pedido.
+3. **Admitir dos claves nuevas en la línea de respuesta**, `dto` y `precio_bruto`, que solo traen las líneas con
+   descuento (nunca en `idempotente`).
+4. **Vinculada sin `dto` que casa con un `ctrpro` con descuento** (cambia sin que sv9 cambie nada): se escribe como
+   Sigrid con el dto del contrato y la línea trae `dto` y `precio_bruto`. Su `total` puede diferir **un céntimo** de
+   `round(cantidad·precio, 2)` (dentro de la tolerancia de 0,05 de la comparación) **solo con `cantidad` ≤
+   `ctrpro.can` y un `ctrpro` que cumple `pre` = `tot`/`can`**. Fuera de eso la diferencia puede ser mayor y sv9 verá
+   `importe_distinto` ⇒ `revisar` (medido con un `ctrpro` de 36 uds a `tar` 4,278 al 40 %: una vinculada de 1.000
+   uds casa por la opción C y da 2.566,80 frente a 2.566,67, 0,13 > 0,05).
+5. **Mapear el aviso nuevo `dto_distinto_del_contrato`** (informativo) y saber que, con `dto`,
+   `precio_distinto_del_contrato` compara el bruto con `ctrpro.tar` (§3.2).
+6. **Poner al día lo suyo de este documento**: la columna «Origen en albaranes» de `precio` y de `dto` (§2.2) y la
+   regla 4 de §2.4. **Hecho** por albaranes el 2026-10-29 (`7aae0ba`).
+
+Lo escrito por sigrid-api para la v8.4: §2.2, §2.3, §3.1, §3.2, §3.4, §4.2, §4.3 y H8 (§5).
+**Corrección de texto de la v8.4** (2026-10-29, tras la revisión de F-018; sin cambio de versión ni de lo que hace la
+API): el estado (acuse y despliegue), el punto 6 hecho y la condición de la cota de un céntimo (punto 4 y §3.1).
 
 **Dueño**: sigrid-api (es quien expone el endpoint). albaranes lo consume y **no lo copia**: enlaza
 aquí. Si este documento y la spec de F-009 discrepan, manda la spec de F-009; si la discrepancia es
@@ -75,6 +104,7 @@ estados (columnas «Origen en albaranes», «Qué hace sv9», «Estado en F-053�
 | Medición del líder en Sigrid (solo lectura, 2026-10-05/06) y correo del director de Administración y Control de Costes (2026-10-05): analítica por naturaleza, naturaleza de las sin vincular, `cod2` y enlace DNC | resultados en H10, H34 y H35 (v7.1) |
 | albaranes F-049 `specs/F-049-partida-de-la-lista/` y `progress/spec_F-049.md` | v4 (2026-10-03) |
 | sigrid-api `specs/F-015-albaran-plantilla-y-retencion/` y `progress/explore_F-015.md` | **v2** (2026-10-24, aprobada; v8.3 de este contrato) |
+| sigrid-api `specs/F-018-descuento-por-linea/` y `progress/explore_F-018.md` | **v1.2** (2026-10-29, aprobada; v8.4 de este contrato) |
 | `azure-apps/sigrid_api.md` y `azure-apps/sigrid_tablas.md` (`con`, `dca`, `dcapro`, `ctrpro`, `ctrprodes`, `obrparpar`, `alm`, `obr`; en la v7.1 también `auxpronat`, `caa`, `dnc`, `dncpro`) | `f7da7cd` (v7.1: `02b647a`) |
 
 ---
@@ -217,10 +247,17 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 | `descripcion` | str \| null | sí en sin vincular | ≤128 | Sin vincular: `descripcion_linea` (TEXT) o la de `albaran_lines_merge`, **recortada a 128**; sin ninguna, motivo local `falta_descripcion` (H6 cerrado en F-053 v6). Vinculada: **no se manda** (H7 cerrado) | `dcapro.res` (128) | Vinculada sin ella ⇒ `ctrpro.res` |
 | `unidad` | str \| null | no | ≤8 | Sin vincular: `unidad_albaran` (VARCHAR 32) recortada a 8. Vinculada: **no se manda** (H7 cerrado en F-053 v6) | `dcapro.unimed` (8) | Vinculada sin ella ⇒ `ctrpro.unimed` |
 | `cantidad` | float ≠ 0 | sí | negativa = devolución | Vinculada: `cantidad_convertida` (unidad del contrato); sin vincular: `cantidad_albaran`. **Signo = el de `importe_calculado`** (F-053 R12). **H8** | `dcapro.can`; `mov.canent`; `ctrprodes.can`; `ctrpro.canser += cantidad` | 0 o nula ⇒ F-053 `cantidad_no_valida`; vinculada sin convertida ⇒ `cantidad_sin_convertir` |
-| `precio` | float | **sí, también en vinculadas** | — | `abs(importe_calculado) / abs(cantidad)`: unitario **neto** (el importe ya lleva el descuento), redondeado a 6 decimales (H14, F-053 v6) | `dcapro.pre`, `tar` y `dto`: los del `ctrpro` si casa con él (Notas); si no, `pre` = `tar` = `precio` y `dto = ''` (aviso) | Casa con el `ctrpro` (H14, opción C de v8.2) si \|`precio` − `ctrpro.pre`\| ≤ 0,0001 **y** `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`. `tot = round(cantidad·pre, 2)` con `Decimal` y `ROUND_HALF_UP` (H33): por esa regla es siempre el importe aprobado; < 0 ⇒ fallo de línea `precio_negativo` (H8, v5) |
+| `precio` | float | **sí, también en vinculadas** | — | Sin `dto` (sin descuento en la línea, o con `ALTA_SIGRID_ENVIAR_DTO` apagada): `round(\|I\| / \|Qs\|, 6)`, unitario **neto** (el importe ya lleva el descuento), igual que hasta ahora (H14, F-053 v6; desde F-106 de albaranes, la cantidad es Qs). **Con `dto`** (F-110 de albaranes, v8.4): el unitario **bruto**, `round(P, 6)` si con él y con `dto` se obtiene I (±0,01 €); si no, el bruto se despeja de I, Qs y `dto` (6 decimales). Una línea que no da I no se manda (`linea_no_cuadra`, local en sv9). | `dcapro.pre`, `tar` y `dto`: los del `ctrpro` si casa con él (Notas); si no, `pre` = `tar` = `precio` y `dto = ''` (aviso). **Con `dto` (v8.4)**: `tar` = `precio` (bruto) y `pre` = `tot`/`cantidad` (neto), fila `dto` | **Sin `dto`**: casa con el `ctrpro` (H14, opción C de v8.2) si \|`precio` − `ctrpro.pre`\| ≤ 0,0001 **y** `round(cantidad·precio, 2)` = `round(cantidad·ctrpro.pre, 2)`. `tot = round(cantidad·pre, 2)` con `Decimal` y `ROUND_HALF_UP` (H33): por esa regla es el importe aprobado, salvo el caso siguiente. **v8.4**: si casa y el `ctrpro` tiene un dto en el formato de Sigrid (`N%` o `N,N%`) mayor que 0 y `tar` ≠ 0, se copian `tar` y `dto` como hoy y la línea se escribe como Sigrid: `tot` = ROUND_HALF_UP(`cantidad`·`tar`·(1 − d/100), 2), `pre` = `tot`/`cantidad`. Ese `tot` puede diferir **un céntimo** de `round(cantidad·precio, 2)` con `cantidad` ≤ `ctrpro.can` (más si el propio `ctrpro` no cumple `pre` = `tot`/`can`). Un `ctrpro.dto` en otra forma (cascada, sin `%`) o `tar` 0: como hoy. **Con `dto`**: sin opción C (fila `dto`). < 0 ⇒ fallo de línea `precio_negativo`, con o sin `dto` (H8, v5) |
+| `dto` (**v8.4**) | número \| null | no | de 0 a 100, los dos incluidos; como mucho 2 decimales; número JSON (no texto); sin cascada | F-110 de albaranes: `round(d, 2)` cuando 0 < d ≤ 100 y `ALTA_SIGRID_ENVIAR_DTO` = `true` (apagada hasta que sigrid-api despliegue la v8.4), con `precio` = el unitario **bruto** de la fila `precio`. Si d = 0 o no hay descuento, o con la guarda apagada, la clave no se manda. Siempre es un porcentaje único y numérico: albaranes no guarda cascadas (el descuento de la línea es un único porcentaje), así que no se manda texto ni `"10+5"`. Las vinculadas siguen la misma regla: sv9 no compara el `dto` con el del `ctrpro`; los avisos de §3.2 se muestran en sv4. | `dcapro.dto` como lo escribe Sigrid: coma decimal, sin ceros a la derecha y con `%` (`40` → `"40%"`, `1.5` → `"1,5%"`); `dcapro.tar` = `precio`; `tot` = ROUND_HALF_UP(`cantidad`·`precio`·(1 − `dto`/100), 2) sobre el producto exacto (`Decimal`); `pre` = `tot`/`cantidad` sin redondear; `ivacuo` = ROUND_HALF_UP(`tot`·`iva`, 2) | Ausente, `null` o 0 = sin descuento: la línea es la de hoy. **Vinculada con `dto`**: se escriben el `precio` y el `dto` pedidos, sin opción C y sin copiar `pre`, `tar` ni `dto` del `ctrpro`; cada diferencia con él es un aviso informativo (§3.2). 100 da `tot` 0. Texto (`"10+5"`), booleano, fuera de rango o más de 2 decimales ⇒ 400 sin código (§3.4). Ejemplos: 1·18,625 al 40 % → `tot` 11,18; 36·4,278 al 40 % → 92,40 y `pre` 2,5666…; −0,4·1.275,68 al 2,5 % → −497,52 |
 | `partida` | str \| null | no (ausente o `null` ⇒ **sin partida**) | 1-24 | `codigo_partida_final` (VARCHAR 64) si **no está vacío** (ya es el código tal como figura en la lista de la obra, F-049 R20); vacío ⇒ no se manda, tenga o no marca de almacén (**H5 cerrado**: F-051 v4 y F-053 v6; > 24 ⇒ `campo_demasiado_largo` local) | `dcapro.paride` = `obrparpar.ide` de esa obra; sin partida, 0 | Nunca se hereda del `ctrpro` ni de otra línea (F-009 R14). **H4, H6, H17** |
 | `paride` | int ≥1 | no (opcional, v6) | — | `obrparpar.ide` de la partida elegida, que **F-049 debe conservar** (H17). F-053 v6 aún no lo manda (pregunta P4: provisionalmente `partida_ambigua` ⇒ `no_admitido`) | `dcapro.paride` | M3: 4.312 pares (obra, código) repetidos entre imputables ⇒ campo activo (F-009 R14b). Va con `partida` (sin ella, 400 sin código) y debe ser de la obra, imputable y con ese código (`paride_no_valido`); con él no hay `partida_ambigua` |
 | ~~`naturaleza`~~ | — | **no existe** (retirado en F-009 v8) | — | F-053 no la manda (v7.1) | — | El campo opcional de la v7 se retira en F-009 v8: la naturaleza de las sin vincular la fija sigrid-api por producto con `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO` (**H34**; nunca `pro.natide` ni la plantilla). Con `extra="forbid"`, mandarlo da 400 sin código |
+
+**Notación de albaranes** (F-106 y F-110 de albaranes, filas `precio` y `dto` y §2.4):
+- **I** = `importe_calculado`;
+- **P** = `precio_unitario_final` (bruto);
+- **d** = `descuento_albaran_aplicado`;
+- **Qs** = la cantidad que se manda: `cantidad_convertida` si la línea está vinculada y, si no, `cantidad_albaran`, con el signo de I.
 
 ### 2.3. Casos de línea
 
@@ -228,7 +265,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
 |---|---|---|
 | **Vinculada con partida** | `ctrpro_ide`, `cantidad` (convertida), `precio`, `partida` (y `paride` si se conserva) | `dcapro` con plantilla = última `dcapro` del producto del `ctrpro`; `proide`, `ivaide`, `unimed`, `almide`, `cenide`, `caaide` (**siempre** el del `ctrpro`, aunque cambie la partida: M16, v6), `docori*` y `res` del `ctrpro`; `cod2`, `dncide` y `dncproide` del `ctrpro` (vacíos/0 si no los tiene; nunca de la plantilla; **H35**, v7.1); `refent` = `referencia_linea`; `paride` = la pedida (si ≠ la del `ctrpro`: aviso `partida_distinta_del_contrato`, el `ctrpro` no se toca); `ctrprodes` (1 por línea, `can` con signo); `canser += cantidad`; `mov` si y solo si `pro.tipmov` = 1 (M9, v7) |
 | **Vinculada sin partida** (D4) | `ctrpro_ide`, `cantidad`, `precio`, sin `partida` | Igual que la anterior (mismo contrato, precio y servido: **consume medición**; `cod2` y DNC del `ctrpro`, H35) pero `paride = 0` (nunca la del `ctrpro`) y `almide` del `ctrpro` o del contrato. Aviso `sin_partida_en_linea_con_partida` si el `ctrpro` tiene partida (H12, v5.1) |
-| **Sin vincular con partida** | `producto` de la lista (`MA9999`, `QA9999`, `XA9999`; v6.1), `descripcion`, `unidad`, `cantidad`, `precio`, `partida` (y `paride`; no hay campo `naturaleza`, v8) | `dcapro` con plantilla = última `dcapro` del producto **de esa empresa**; `ivaide` de la última `dcapro` del producto **del mismo proveedor** o, si no hay, de la del producto con aviso `iva_de_otro_proveedor` (**H15**, v5; M11 lo justifica, v7); `natide` = la del **mapeo producto → naturaleza** de la configuración (`MA9999`→`MA99`, `QA9999`→`QA99`, `XA9999`→`XA99`; nunca la del producto ni la de la plantilla; **H34**, F-009 v8), y de ella `cueide` (la `cua` de su `cuacomcod` en la empresa del albarán; 97,9 %, P4 cerrada en la v8) y `caaide` (abajo); `mov` si y solo si `pro.tipmov` = 1 (M9); `pre` = `tar` = `precio`, `dto ''`; `refent` = `referencia_linea`; sin `docori*`, sin `ctrprodes`, sin tocar `canser`; almacén y centro del contrato o de la obra (H10, M16); `caaide` = la cuenta analítica (`con` con fila en `caa`) de código `<código de obra>.<sufijo>`, con sufijo = `caagascod` de la naturaleza **sin el prefijo `MOD.`** si lo lleva (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`; `MOD.CDQA12` ⇒ `<obra>.CDQA12`; `CDXA01` ⇒ `<obra>.CDXA01`; confirmada por negocio, H10 v7.1); si no existe, fallo de línea `analitica_no_resuelta`; `cod2`, `dncide` y `dncproide` vacíos/0 y demás columnas ajenas de la plantilla a vacío (H11, H35, M14) |
+| **Sin vincular con partida** | `producto` de la lista (`MA9999`, `QA9999`, `XA9999`; v6.1), `descripcion`, `unidad`, `cantidad`, `precio`, `partida` (y `paride`; no hay campo `naturaleza`, v8) | `dcapro` con plantilla = última `dcapro` del producto **de esa empresa**; `ivaide` de la última `dcapro` del producto **del mismo proveedor** o, si no hay, de la del producto con aviso `iva_de_otro_proveedor` (**H15**, v5; M11 lo justifica, v7); `natide` = la del **mapeo producto → naturaleza** de la configuración (`MA9999`→`MA99`, `QA9999`→`QA99`, `XA9999`→`XA99`; nunca la del producto ni la de la plantilla; **H34**, F-009 v8), y de ella `cueide` (la `cua` de su `cuacomcod` en la empresa del albarán; 97,9 %, P4 cerrada en la v8) y `caaide` (abajo); `mov` si y solo si `pro.tipmov` = 1 (M9); `pre` = `tar` = `precio`, `dto ''` (con `dto`, la regla de §2.2, v8.4); `refent` = `referencia_linea`; sin `docori*`, sin `ctrprodes`, sin tocar `canser`; almacén y centro del contrato o de la obra (H10, M16); `caaide` = la cuenta analítica (`con` con fila en `caa`) de código `<código de obra>.<sufijo>`, con sufijo = `caagascod` de la naturaleza **sin el prefijo `MOD.`** si lo lleva (`MOD.CDSB37` en la obra `0678` ⇒ `0678.CDSB37`; `MOD.CDQA12` ⇒ `<obra>.CDQA12`; `CDXA01` ⇒ `<obra>.CDXA01`; confirmada por negocio, H10 v7.1); si no existe, fallo de línea `analitica_no_resuelta`; `cod2`, `dncide` y `dncproide` vacíos/0 y demás columnas ajenas de la plantilla a vacío (H11, H35, M14) |
 | **Sin vincular sin partida** | ídem sin `partida` | `paride = 0`; almacén y centro del contrato o, sin él, de la ficha de obra (`obr.almide`/`cenide`) o de su único `alm` (orden confirmado por M16); si no sale uno ⇒ `almacen_de_obra_no_resuelto` (**H13**, v5); `natide`, `caaide`, `cod2` y DNC como la sin vincular con partida (la partida no cuenta; H10, H34, H35) |
 | **Devolución** (cantidad < 0), vinculada o no | `cantidad` negativa, `precio` ≥0 | `can`, `tot`, `ivacuo` negativos; `mov` de **entrada** con `canent` < 0 y PMP `(stock·pma + can·pre)/(stock + can)` (regla A medida en M5); vinculada: `ctrprodes.can` negativa, `canser += cantidad` aunque quede < 0 (aviso `servido_negativo`); stock < 0 ⇒ aviso `stock_negativo`; `estser` puede volver a 0 |
 | **Varias líneas al mismo `ctrpro`** (p. ej. una compuesta repartida por F-049, o la misma línea de contrato en dos partidas) | un `ctrpro_ide` repetido con distinta `referencia_linea` | Cada una su `dcapro`, su `ctrprodes` y su `mov`; **no se suman** (F-009 R12) |
@@ -252,8 +289,7 @@ La previa y la grabación llevan **el mismo cuerpo** salvo `commit`.
    `XA9999`, resto → `MA9999`; en un albarán mixto manda la familia de la línea). `SM9999`/`SB9999`
    (subcontratas) no aplican. La familia `medios_auxiliares` aún no existe en albaranes (ficha propia,
    F-053 P1): hasta entonces `XA9999` solo llega elegido a mano. Detalle: F-053 v6 R40-R44.
-4. **Precio neto y signo**: `precio = |importe| / |cantidad|`, `cantidad` con el signo del importe,
-   de modo que `cantidad·precio = importe`. Signos incoherentes: **H8**.
+4. **Precio, descuento y signo** (F-106 y F-110 de albaranes): `cantidad` = Qs con el signo del importe. Sin `dto`, `precio = round(|I| / |Qs|, 6)` (neto) y `cantidad·precio = importe` salvo el redondeo a 6 decimales. Con `dto` (guarda `ALTA_SIGRID_ENVIAR_DTO` encendida), `precio` = el unitario bruto y `dto` = el porcentaje, de modo que ROUND_HALF_UP(`cantidad`·`precio`·(1 − `dto`/100), 2) = importe (±0,01 €). sv9 comprueba antes de llamar que lo que manda da el importe aprobado: si no, `no_admitido` local con `linea_no_cuadra`. La previa se sigue comparando por `total` de línea (tolerancia 0,05 €); sv9 no lee el `precio` (neto) ni `precio_bruto` de la respuesta. Signos incoherentes: **H8**.
 5. **Con o sin partida**: `codigo_partida_final` no vacío ⇒ `partida`; vacío ⇒ sin `partida`, tenga o no
    marca de almacén (H5 cerrado: F-051 v4, F-053 v6). Nunca el literal `ALM` ni un campo `almacen`.
 6. **Longitudes** antes de llamar (F-053 v6 R10, H6): obra, CIF, contrato y partida ≤24; número ≤128;
@@ -292,7 +328,7 @@ Cabecera:
 | `avisos` | `[{codigo, mensaje}]` | avisos de cabecera (§3.2) | por **código**, nunca por texto |
 | `warnings` | `[str]` | los `mensaje` de los avisos, en orden (cada texto tiene su código; **H27**, v5) | se ignoran |
 | `contrato` | obj | `ctride`, `obride`, `entide`, `almide`, `template_ide` (v8.3: el `ide` del albarán anterior usado como respaldo, 0 sin él)… | informativo |
-| `cabecera` | obj | fila `dca` resultante **sin** columnas bancarias (`ban*`, `cpa*`; **H16**, v5). v8.3: las columnas de la lista blanca de F-015 | no se guarda (F-053 v6 R16: solo `estado`, `con_ide`, `cod`, `avisos`, `lineas`, `totales`) |
+| `cabecera` | obj | fila `dca` resultante **sin** columnas bancarias (`ban*`, `cpa*`; **H16**, v5). v8.3: las columnas de la lista blanca de F-015. v8.4: `impbru` = Σ por línea de `round(can·tar, 2)` en las líneas con descuento y de `tot` en las demás (sin ninguna, = `totbas`, como hoy); `impnet` = `totbas`; `impdes` 0 | no se guarda (F-053 v6 R16: solo `estado`, `con_ide`, `cod`, `avisos`, `lineas`, `totales`) |
 | `totales` | obj | `totbas`, `totiva`, `totdoc`, `n_lineas`… v8.3: `tot` (neto: `totdoc` − retención), `retenciones` y `n_retenciones` (0 o 1); en `idempotente`, `tot` y `retenciones` | panel de sv4. `totdoc` sigue sin retención; el neto a pagar es `tot`; la comparación de la previa es por línea y no cambia |
 | `estados_contrato` | obj | `estser`/`estfac` antes y después, sumas | panel |
 | `movimientos` | `[obj]` | filas `mov` | — |
@@ -308,10 +344,11 @@ Cada elemento de `lineas[]`:
 | `ctrpro_ide`, `linoriide` | los del `ctrpro`; 0 en sin vincular |
 | `proide`, `producto` | `ide` y código del producto |
 | `res`, `unimed` | descripción y unidad escritas |
-| `cantidad`, `precio`, `total`, `iva_cuota` | `can`, `pre`, `tot = round(can·pre, 2)`, `ivacuo = round(tot·iva, 2)` con `iva` de `dbo.iva` (`Decimal`, `ROUND_HALF_UP`, H33); con la regla de `pre` de §2.2, `tot` = `round(cantidad·precio, 2)` de la petición |
+| `cantidad`, `precio`, `total`, `iva_cuota` | `can`, `pre`, `tot = round(can·pre, 2)`, `ivacuo = round(tot·iva, 2)` con `iva` de `dbo.iva` (`Decimal`, `ROUND_HALF_UP`, H33); con la regla de `pre` de §2.2, `tot` = `round(cantidad·precio, 2)` de la petición. **v8.4, línea con descuento**: `total` = la regla de la fila `dto` de §2.2 y `precio` = `pre` **neto** (`total`/`cantidad`, sin redondear), no el pedido |
+| `dto`, `precio_bruto` (**v8.4**) | Solo en las líneas con descuento (el pedido en `dto`, o el copiado del `ctrpro` por una vinculada que casa, §2.2): `dto` = el porcentaje como número (`40`, `1.5`) y `precio_bruto` = `tar` escrito. Las demás líneas **no traen estas claves**; en `idempotente`, nunca |
 | `paride`, `partida` | `obrparpar.ide` y código; `0` y `null` sin partida |
 | `almide`, `cenide` | almacén físico y centro de coste escritos |
-| `stock_anterior`, `stock_resultante`, `pmp_anterior`, `pmp_resultante` | balance del `mov` (si lo hay) |
+| `stock_anterior`, `stock_resultante`, `pmp_anterior`, `pmp_resultante` | balance del `mov` (si lo hay); v8.4: con descuento, el PMP se calcula con el `pre` neto |
 | `avisos` | `[{codigo, mensaje}]` de esa línea (**H27**) |
 
 En `idempotente` las líneas son las **leídas** de Sigrid (`pos`, `proide`, `can`, `pre`, `tot`,
@@ -322,6 +359,11 @@ leída de `dcapro.refent` (**H18**, F-009 R30c, v6): sv9 puede casarlas como en 
 ≤ ALTA_SIGRID_TOLERANCIA_EUR` (0,05) o `importe_distinto`; faltan o sobran líneas ⇒
 `lineas_distintas`; `partida` distinta de la pedida (también nula frente a no nula) ⇒ `partida_distinta`; aviso con
 código en `ALTA_SIGRID_AVISOS_BLOQUEANTES` ⇒ `aviso_bloqueante`. Cualquiera ⇒ `revisar`.
+**v8.4**: con descuento se compara igual, por `total` (no por `precio`, que en la respuesta es el neto). En una
+vinculada **sin** `dto` que casa con un `ctrpro` con descuento (§2.2), `total` puede diferir un céntimo de
+`round(cantidad·precio, 2)`, que la tolerancia de 0,05 cubre, **solo con `cantidad` ≤ `ctrpro.can` y un `ctrpro` con
+`pre` = `tot`/`can`**; fuera de eso puede salir `importe_distinto` (medido con un `ctrpro` de 36 uds a `tar` 4,278 al
+40 %: una vinculada de 1.000 uds casa por la opción C y da 2.566,80 frente a 2.566,67, 0,13 > 0,05).
 
 ### 3.2. Avisos (no impiden el alta; viajan en `avisos[]` de cabecera o de línea)
 
@@ -330,7 +372,8 @@ código en `ALTA_SIGRID_AVISOS_BLOQUEANTES` ⇒ `aviso_bloqueante`. Cualquiera �
 | `cod_provisional` | cabecera | siempre en `previsto`: `cod`/`con_ide` son `MAX+1` sin reservar | informativo |
 | `supera_pendiente` | línea | vinculada con `cantidad` > `can − canser` del `ctrpro` | informativo |
 | `partida_distinta_del_contrato` | línea | vinculada con partida ≠ la del `ctrpro` (M4: 5,3 % en el escritorio) | informativo |
-| `precio_distinto_del_contrato` | línea | vinculada que no casa con el `ctrpro` (§2.2): `precio` a más de 0,0001 de `ctrpro.pre` o, dentro, con otro `tot` en céntimos (v8.2; escribe `pre` = `tar` = `precio`, `dto ''`) | informativo. **H14** (tolerancia, v5) |
+| `precio_distinto_del_contrato` | línea | vinculada que no casa con el `ctrpro` (§2.2): `precio` a más de 0,0001 de `ctrpro.pre` o, dentro, con otro `tot` en céntimos (v8.2; escribe `pre` = `tar` = `precio`, `dto ''`). **v8.4, vinculada con `dto`**: `precio` (bruto) a más de 0,0001 de `ctrpro.tar` (el mensaje dice que compara el bruto); se escribe lo pedido | informativo. **H14** (tolerancia, v5) |
+| `dto_distinto_del_contrato` (**v8.4**) | línea | vinculada con `dto` cuyo `ctrpro.dto` es otro porcentaje (un `ctrpro` sin dto cuenta como 0; un texto en otra forma, como una cascada, cuenta como distinto y su mensaje lo dice); el mensaje trae los dos porcentajes; se escribe lo pedido. Con el bruto y el dto distintos salen los dos avisos | propuesta: informativo, **fuera** de `ALTA_SIGRID_AVISOS_BLOQUEANTES` (en Sigrid, 2.243 de 2.244 vinculadas con dto en la línea y en el `ctrpro` llevan el mismo) |
 | `servido_negativo` | línea | devolución que deja `canser` < 0 (se admite; M6: 750 `ctrpro` así) | informativo |
 | `stock_negativo` | línea | el `mov` deja `almcan` < 0 (se admite; M15) | informativo |
 | `producto_sin_historico` | línea | producto sin `dcapro` previa en la empresa: cuenta/IVA a 0 | **bloqueante** (defecto de F-053) |
@@ -387,7 +430,7 @@ código que va a `error`, gana `error`.
 
 | Respuesta | Cuándo | F-053 |
 |---|---|---|
-| 400 **sin** `codigo` (`error: "Solicitud invalida."`, `details.validation` de Pydantic) | campo ausente, sobrante, longitud, dominio, o las reglas de R6 (dos o ninguno de `ctrpro_ide`/`producto`, `cantidad == 0`, sin vincular sin `descripcion`, `referencia_linea` repetida, vinculada sin `cod_contrato`; también una clave `almacen` o `naturaleza`, que no existen) | `error` («fallo del servicio»). sv9 debe evitarlas validando antes (H6) |
+| 400 **sin** `codigo` (`error: "Solicitud invalida."`, `details.validation` de Pydantic) | campo ausente, sobrante, longitud, dominio, o las reglas de R6 (dos o ninguno de `ctrpro_ide`/`producto`, `cantidad == 0`, sin vincular sin `descripcion`, `referencia_linea` repetida, vinculada sin `cod_contrato`; también una clave `almacen` o `naturaleza`, que no existen; v8.4: un `dto` en texto, en cascada, booleano, fuera de 0-100 o con más de 2 decimales) | `error` («fallo del servicio»). sv9 debe evitarlas validando antes (H6) |
 | 400 con texto libre | errores de lectura (`truncado`) | `error` |
 | 401/403 | clave de función | `error` |
 | 500 | inesperado | previa: `error`; grabación: `incierto` |
@@ -428,6 +471,12 @@ fechas previstas a 0), `dcarec` ×0-1 (v8.3, la retención del contrato),
 `pro.tipmov` = 1, M9; fechados en el alta, N1) y la fila de alta de `log` (`usu`, `est` 1, `ori` 0; M13). Solo si hay vinculadas (H31), `UPDATE` relativo de
 `ctrpro.canser` por vinculada y de `ctr.estser/estfac`. Sin `DELETE`, `MERGE` ni DDL; nunca `dcapropar` (M7: el escritorio no lo escribe, 0 de 272.235).
 
+**v8.4, líneas con descuento** (el pedido, o el del `ctrpro` en la vinculada que casa, §2.2), como el escritorio: en
+`dcapro`, `tar` bruto, `dto` en texto, `tot` y `pre` neto de §2.2 e `ivacuo` sobre ese `tot`; en `dca`, `totbas`,
+`totiva`, `totdoc`, `tot` y la retención sobre los `tot` netos e `impbru` bruto (§3.1); el `mov` con `pre` = `prc` =
+el `pre` neto y el PMP calculado con él; `ctrprodes.can` y `canser` por cantidad, como hoy. Las mismas sentencias:
+ninguna nueva.
+
 ### 4.3. Qué NO hace sigrid-api (lo decide albaranes o no se hace)
 
 - **No elige partida**: resuelve el código pedido entre las imputables de la obra o rechaza. No
@@ -438,8 +487,10 @@ fechas previstas a 0), `dcarec` ×0-1 (v8.3, la retención del contrato),
   una línea sin partida (al desacopiar) se hace en Sigrid.
 - **No casa líneas** con el contrato: el `ctrpro_ide` lo trae sv9 (lo eligió IA3 en sv5 y lo aprobó
   el revisor). No convierte unidades: la cantidad de una vinculada llega ya en la unidad del contrato.
-- **No calcula importes desde el contrato**: `tot = round(cantidad·precio, 2)` con el precio pedido;
-  no aplica descuentos (por eso sv9 manda el neto).
+- **No calcula importes desde el contrato**: `tot = round(cantidad·precio, 2)` con el precio pedido.
+  **v8.4**: con `dto`, `tot` sale del `precio` bruto y del `dto` pedidos (§2.2); la única excepción es la vinculada
+  sin `dto` que casa con un `ctrpro` con descuento, que se escribe con el `tar` y el dto copiados, como Sigrid. **No
+  aplica descuentos de cabecera ni en cascada** (H8).
 - **No suma** líneas repetidas del mismo `ctrpro` (el modo clásico sí).
 - **No elige producto**: el código lo trae sv9 línea a línea y debe estar en la lista blanca (v6).
 - **No recibe** almacén, centro, cuenta analítica ni IVA en la petición: los deriva (la analítica, del
@@ -480,7 +531,7 @@ según su familia o por el administrativo. **Columna «Estado tras F-009 v6»**:
 | H5 | **Cerrado** (v6.1): sin partida = `partida` ausente o `null`, sin campo `almacen`; `paride` 0, nunca heredada; `almide`/`cenide` en toda línea. F-051 v4: toda línea con partida final vacía es almacén, tenga o no marca. F-053 v6: no manda `partida` si está vacía y retira `linea_sin_partida` (R10-R12) | R6, R14, R15 |
 | H6 | **Cerrado en F-053 v6** (partida > 24 local, `descripcion` a 128, `falta_descripcion`) | — |
 | H7 | **Cerrado en F-053 v6** (vinculadas sin `unidad` ni `descripcion`); F-009 toma `ctrpro.unimed`/`res` | R12 |
-| H8 | **Decidido** en F-009: `precio_negativo` (antes `ge=0` de Pydantic, 400 sin código); descuentos, a mano. Signos en F-053: **decidido** (humano, 2026-10-06; F-053 R39): signos opuestos ⇒ `revisar` local con `signo_incoherente`, sin llamar a sigrid-api; F-053 nunca manda cantidad e importe de signo opuesto y `precio_negativo` sigue de segunda barrera | R17, design §Riesgos |
+| H8 | **Decidido** en F-009: `precio_negativo` (antes `ge=0` de Pydantic, 400 sin código); descuentos, a mano. Signos en F-053: **decidido** (humano, 2026-10-06; F-053 R39): signos opuestos ⇒ `revisar` local con `signo_incoherente`, sin llamar a sigrid-api; F-053 nunca manda cantidad e importe de signo opuesto y `precio_negativo` sigue de segunda barrera. **v8.4** (F-018): el descuento **por línea** se soporta (`dto`, §2.2); el de cabecera y el descuento en cascada, no: una cascada del proveedor se convierte a un porcentaje único en sv9 o va a revisión | R17, design §Riesgos; F-018 |
 | H9 | **Cerrado** (v7, M17b): anular **borra** el `con`. Tras la `ope` 2 de `log` el albarán no existe en el 62,6 %; el 37,2 % que «existe» es el mismo `cod` **reutilizado** por un alta posterior (el escritorio reutiliza códigos borrados, coherente con el índice único `(emp, tip, cod)`). R30 sin cambios y R30b retirada: tras `anulado`, F-053 puede repetir el alta con la **misma** `referencia_externa` (no hace falta `ALB-{id}-{n}`; responde la pregunta P3 de F-053 v6). F-053 detecta la anulación por `con.ide` (§7), no por `cod` | R30, design L11 |
 | H10 | **Resuelto** almacén y centro de toda sin vincular (orden confirmado por M16) y `caaide` de las **vinculadas** (siempre el del `ctrpro`, M16; la medición del líder da 99,8 %). `caaide` de las **sin vincular** (v7, M16b; **condicional a M16c**, T0b-ter): la cuenta analítica de código `<obra>.<sufijo del caagascod de la naturaleza de la línea>`, y `cueide` la del `cuacomcod` de esa naturaleza; naturaleza = campo opcional `naturaleza` o la del producto; sin cuenta, `analitica_no_resuelta`. Supera la propuesta v6.1 (texto de H10). Sin reparto en `dcaproana` (0 de 189.373). **v7.1**: regla **confirmada por negocio** y medida (QA9999 99,8 %, MA9999 con `MA99` 98 %, XA9999 87 %); sufijo = `caagascod` **sin el prefijo `MOD.`** (no «lo que sigue al primer `.`»: `CDXA01` de `XA99` no lleva punto); la naturaleza, la de H34 **v8 · absorbido**: sufijo = `caagascod` sin el prefijo `MOD.` (entero si no lo lleva), `caa` del centro de la línea, naturaleza del mapeo (H34) y `cueide` = la `cua` de su `cuacomcod` (97,9 %; P4 cerrada). M16c/M16d: QA9999, SB9999, SM9999 y XA9999, 98,5-100 % por grupo; MA9999 con `MA99`, 23.216 de 23.217; ninguna `caa` ni `cua` repetida; los `ctrpro` cumplen la regla el 96,3 % | R13b, R15, design §Analítica |
 | H11 | **Resuelto** (M14, v6): ninguna columna se arrastra de la plantilla; lista de reseteo ampliada, todas a 0/`''`; `cod2` pendiente de una consulta a negocio (vacío por defecto). `prepma` (v7): = `mov.prepma` de su `mov` (100 %); su valor, pregunta P1 de F-009 (M14c). **v7.1**: `cod2` **decidido** (humano): en sin vincular, vacío como `dncide`/`dncproide` (siguen en el reseteo); en vinculadas, los tres del `ctrpro` (H35); `natide` nunca de la plantilla (H34) **v8 · absorbido**: vinculadas con `cod2`, `dncide` y `dncproide` del `ctrpro`; sin vincular, vacíos (H35). `prepma`: 0 sin `mov` (99,4 %); con `mov`, el `mov.prepma`, que **v8.1** fija en el PMP del almacén antes de la línea (M14e refutó la media global; verificación manual en T22/T24) | R13, R21, design §Reseteo |
@@ -571,6 +622,10 @@ solo manda negativas si cantidad **e** importe del albarán son negativos; signo
 `revisar` (motivo `signo_incoherente`). Cómo dar de alta un descuento comercial (línea MA9999 sin
 `mov`, descuento de cabecera…) lo decide el humano; F-009 hoy no tiene descuento de cabecera (lo pone
 a 0). *F-053 + humano.*
+
+**v8.4** (F-018 de sigrid-api): el descuento **por línea** se manda en `dto` con el `precio` bruto (§2.2), sin tocar el
+signo. Siguen sin soporte el descuento de cabecera (`impdes` a 0) y el descuento en cascada (`"10+5"` da 400 sin
+código): sv9 convierte la cascada a un porcentaje único o manda la línea a revisión.
 
 **H9. Reintento después de anular.** F-053 R28 da el alta por `anulado` si `con.ide` ya no existe y
 permite «Solicitar alta» otra vez con la **misma** `referencia_externa` (`ALB-{document_id}`). Si

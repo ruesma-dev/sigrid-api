@@ -16,9 +16,18 @@ la clasica (R7).
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from domain.models.albaran_domain_models import (
     AddPurchaseAlbaranResponse,
@@ -90,6 +99,8 @@ CODIGOS_AVISO: frozenset[str] = frozenset(
         # la retencion del contrato escrita (R16).
         "cabecera_sin_dato",
         "retencion_del_contrato",
+        # F-018 R13: informativo, de linea; vinculada con `dto` y otro `ctrpro.dto`.
+        "dto_distinto_del_contrato",
     }
 )
 
@@ -117,6 +128,8 @@ COLUMNAS_BANCARIAS: tuple[str, ...] = (
 #: Las dos claves que hacen extendida una peticion, y la del clasico que no
 #: puede ir con ellas (R1).
 _CLAVES_EXTENDIDO = ("lineas", "referencia_externa")
+#: Las dos claves de la linea de respuesta que solo salen con descuento (F-018 D8).
+_CLAVES_DE_DTO = ("dto", "precio_bruto")
 _CLAVE_CLASICO = "lineas_recibidas"
 
 
@@ -219,6 +232,10 @@ class LineaAlbaranIn(BaseModel):
     Numeros como numeros JSON (`strict`): un texto o un booleano no cuelan
     como cantidad. `precio` no lleva `ge`: el negativo es un fallo de linea
     con codigo (`precio_negativo`) que decide el caso de uso.
+
+    `dto` (F-018 R4): porcentaje de descuento de la linea, de 0 a 100 con los
+    dos bordes y como mucho 2 decimales; con el, `precio` es el unitario BRUTO.
+    Sin cascada: `"10+5"` es un texto y no valida. 0 es sin descuento (D6).
     """
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -232,6 +249,7 @@ class LineaAlbaranIn(BaseModel):
     precio: float = Field(..., strict=True)
     partida: str | None = Field(default=None, min_length=1, max_length=24)   # None: sin partida
     paride: int | None = Field(default=None, ge=1, strict=True)              # R14b; exige partida
+    dto: float | None = Field(default=None, ge=0, le=100, strict=True)       # F-018: dcapro.dto
 
     @field_validator("referencia_linea", "producto", "partida", mode="before")
     @classmethod
@@ -242,6 +260,14 @@ class LineaAlbaranIn(BaseModel):
     @classmethod
     def _recortar_opcionales(cls, value: object) -> object:
         return _recortar_o_nada(value)
+
+    @field_validator("dto")
+    @classmethod
+    def _dto_con_dos_decimales(cls, value: float | None) -> float | None:
+        """R4: como mucho 2 decimales, contados sobre lo que se ve (`repr`)."""
+        if value is not None and Decimal(repr(value)).as_tuple().exponent < -2:
+            raise ValueError("'dto' admite como mucho 2 decimales.")
+        return value
 
     @model_validator(mode="after")
     def _reglas_de_linea(self) -> LineaAlbaranIn:
@@ -258,6 +284,12 @@ class LineaAlbaranIn(BaseModel):
     @property
     def tipo(self) -> TipoLinea:
         return "vinculada" if self.ctrpro_ide is not None else "sin_vincular"
+
+    @property
+    def con_dto(self) -> bool:
+        """D6: con descuento pedido si `dto` vale mas de 0; ausente, `null` o 0
+        es la linea de siempre (R7)."""
+        return self.dto is not None and self.dto > 0
 
 
 class AlbaranCompraRequest(BaseModel):
@@ -350,6 +382,21 @@ class LineaResultado(AlbaranLinePreview):
     cenide: int | None = None
     pos: int | None = None                               # solo en idempotente
     avisos: list[AvisoAlbaran] = Field(default_factory=list)
+    # F-018 R16: solo en las lineas con descuento efectivo (pedido o copiado del
+    # `ctrpro`): el porcentaje y el `tar` escrito. `precio` sigue siendo `pre` (neto).
+    dto: float | None = None
+    precio_bruto: float | None = None
+
+    @model_serializer(mode="wrap")
+    def _sin_claves_de_dto_vacias(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """D8: con `None`, `dto` y `precio_bruto` no salen en el volcado; asi una
+        linea sin descuento se vuelca igual que antes de F-018 (R7). Las
+        subclases de la proforma lo heredan."""
+        volcado = handler(self)
+        for clave in _CLAVES_DE_DTO:
+            if clave in volcado and volcado[clave] is None:
+                del volcado[clave]
+        return volcado
 
 
 class AlbaranCompraResponse(AddPurchaseAlbaranResponse):

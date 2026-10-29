@@ -423,6 +423,7 @@ def test_f009_r9_codigos_cerrados_de_design() -> None:
         # F-015 R5 (D12) y R16: informativos, de cabecera.
         "cabecera_sin_dato",
         "retencion_del_contrato",
+        "dto_distinto_del_contrato",
     }
     assert not CODIGOS_CABECERA & CODIGOS_LINEA
     assert not (CODIGOS_CABECERA | CODIGOS_LINEA) & CODIGOS_AVISO
@@ -545,6 +546,7 @@ def test_f009_r7_la_respuesta_es_superconjunto_de_la_clasica() -> None:
         "cenide",
         "pos",
         "avisos",
+        "dto", "precio_bruto",
     }
 
 
