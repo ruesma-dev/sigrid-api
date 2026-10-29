@@ -7,6 +7,25 @@
 y **pendiente de revisión y de despliegue**. Es compatible hacia atrás: sin `modo` (o con `"mes"`) todo es la v1.1 tal
 cual, sin ninguna clave nueva en la respuesta. Lo nuevo de la v1.2: §2.1 y §2.2 (campos de cadena), **§2.3** (a origen:
 lo que el llamante lee de Sigrid, con sus dos consultas), §3.1 (respuesta a origen), §4 (códigos nuevos), §6 y §8.
+**v1.3** (2026-10-29, **F-018 v1.2** de sigrid-api, [spec](../F-018-descuento-por-linea/requirements.md), aprobada
+por el humano; **pendiente de acuse de `proformas`**): las líneas de contrato cuyo `ctrpro` tiene descuento se
+escriben como Sigrid, de mes y a origen. Compatible hacia atrás salvo esas líneas; la petición no cambia. Qué tiene que
+hacer `proformas` (detalle en §8):
+
+1. **Nada en la petición**: sigue sin `dto` (mandarlo da 400 sin código, §2.2) y el `precio` de una línea de
+   contrato sigue siendo el de la hoja (el `ctrpro.pre`, neto).
+2. **Esperar hasta un céntimo por línea con descuento del contrato** entre la hoja y lo registrado: entre
+   `importe_mes` y `totales.totbas` y, a origen, entre el ORIGEN de la hoja y `cadena.importe_origen_cadena` (§3,
+   §3.1). La comprobación de la hoja (`importe_mes_no_cuadra`) no cambia.
+3. **Admitir dos claves nuevas en la línea de respuesta**, `dto` y `precio_bruto`, solo en esas líneas, también de
+   mes (§3.1).
+4. **Reenviar siempre con la misma `referencia_externa`** (sale `idempotente`): con otra, una proforma con más de unas
+   cinco de esas líneas puede no reconocerse como `existente` (§3, §4).
+5. **Mapear el aviso `dto_distinto_del_contrato`** si vuestro conjunto de avisos es cerrado: lo hereda la proforma,
+   aunque hoy no puede salir (§4).
+
+Lo de `facturas` (§6) se le avisa aparte.
+
 Traspaso de origen: `proformas/docs/referencia/01_traspaso_facturas.md`. Plantilla de hoja propuesta para los jefes de
 obra: [`plantilla_hoja.md`](plantilla_hoja.md).
 
@@ -80,7 +99,7 @@ opcionales como en la v1.1 (`importe_mes` es obligatorio en los dos modos).
 |---|---|---|---|---|
 | `referencia_linea` | texto 1-24 | sí | (la fila) | `dcapro.refent`; única en la petición |
 | `cantidad` | número ≠ 0 | sí | MEDICIÓN · MES | Cantidad de la línea (con signo) |
-| `precio` | número | sí | P. unit. | Si difiere del contrato, aviso y se escribe el de la hoja |
+| `precio` | número | sí | P. unit. | Si difiere del contrato, aviso y se escribe el de la hoja. **v1.3**: si casa con un `ctrpro` con descuento, la línea se escribe como Sigrid (§3) |
 | `descripcion` | texto ≤128 | sí | Trabajos realizados | `dcapro.res` |
 | `ctrpro_ide` | entero | **sí en las de contrato**² | (casada en la bandeja) | Solo se comprueba que es del contrato resuelto; si no, `linea_no_es_del_contrato` (también si es de otro contrato de la obra). No se corrige ni se sustituye |
 | `producto` | texto | **sí en las nuevas**² | (elegido en la bandeja) | De la lista de §5 o de los productos del contrato; sin él, `producto_obligatorio` |
@@ -90,6 +109,9 @@ opcionales como en la v1.1 (`importe_mes` es obligatorio en los dos modos).
 | `cantidad_anterior`, `cantidad_origen` | número | no | MEDICIÓN · ANTERIOR / ORIGEN | ORIGEN = ANTERIOR + MES (error); ANTERIOR frente a Sigrid (aviso) |
 | `partida_imputacion` | texto | no | — | Otra partida que la de la línea de contrato |
 | `linea_anterior` | entero ≥ 1 | no (solo a origen) | (elegida en la bandeja, §2.3) | **v1.2.** `dcapro.ide` de la línea de la proforma anterior que esta continúa. Sin él, la línea es **nueva** en la cadena (su origen empieza en su MES). La API comprueba que es de la anterior y del mismo tipo (§2.3); no casa por su cuenta |
+
+**v1.3**: la línea **no tiene campo `dto`** (a diferencia de `sigrid/albaran`); mandarlo da 400 `Solicitud invalida.`
+sin `codigo`, como cualquier clave desconocida. El descuento de una línea de contrato sale de su `ctrpro` (§3).
 
 ² `ctrpro_ide` y `producto` no van juntos. La API admite, como respaldo para otro llamante, una línea de contrato sin
 `ctrpro_ide`; `proformas` no lo usa. En Sigrid una partida de la proforma se vincula a una línea del contrato por
@@ -186,6 +208,17 @@ ninguna continúa **las arrastra la API** (§3.1): no hay que mandarlas.
 - `origen`: `importe_anterior_sigrid`, `importe_mes`, `importe_origen`, `importe_contrato`, `porcentaje_contrato`;
   nulo sin contrato.
 - Por línea: `de_contrato`, `ctrpro_ide`, `cantidad_anterior_sigrid`.
+- **v1.3, línea de contrato cuyo `ctrpro` tiene descuento** (`ctrpro.dto` en el formato de Sigrid, `N%` o `N,N%`,
+  mayor que 0, y `tar` ≠ 0) y que casa con él por precio (la regla de `sigrid/albaran`), de mes y a origen: se copian
+  `tar` (bruto) y `dto` del contrato, como hasta ahora, y se escribe como Sigrid: `tot` = ROUND_HALF_UP(`cantidad` ·
+  `tar` · (1 − d/100), 2) sobre el producto exacto, `pre` = `tot`/`cantidad` sin redondear, `ivacuo` sobre ese `tot`
+  y, si la línea mueve stock, el `mov` con ese `pre`. La cabecera suma esos `tot`: `totales` y `dca.totbas` pueden
+  diferir de `importe_mes` hasta **un céntimo por línea así** (más si el propio `ctrpro` no cumple `pre` =
+  `tot`/`can`), y `dca.impbru` es el bruto (Σ `round(can·tar, 2)` en esas líneas y `tot` en las demás). Su línea de
+  respuesta trae `precio` = el `pre` neto, `total` = ese `tot` y dos claves más: `dto` (el porcentaje, número) y
+  `precio_bruto` (`tar`). Un `ctrpro.dto` en otra forma (cascada, sin `%`) o `tar` 0: la línea es la de la v1.2.
+  Ejemplo: `tar` 4,278 al 40 % en un contrato de 36 uds (`tot` 92,40), proforma de 12,5 uds → `tot` 32,09 (con la v1.2,
+  32,08).
 
 Ejemplo (hoja de agosto de `CTSB26/0472`, obra 0719, en `docs/referencia/proforma_ejemplo_bau_siglo_xxi.md`; dos de
 sus seis líneas y BERENJENO): la proforma ya existe en Sigrid (`AC26/25548`, M29), así que la previa da `existente`.
@@ -221,12 +254,17 @@ contrato: naturaleza, cuenta e IVA de su línea de contrato) y la retención del
 
 ### 3.1. Respuesta a origen (v1.2)
 
-Sin `modo` o con `"mes"`, la respuesta de §3 **sin ninguna clave nueva**. Con `modo: "origen"`, la misma más:
+Sin `modo` o con `"mes"`, la respuesta de §3 **sin ninguna clave nueva**, con una excepción de la v1.3: las líneas de
+contrato con descuento del `ctrpro` traen `dto` y `precio_bruto` (§3). Las demás líneas, las de `existente` e
+`idempotente` (leídas) y las arrastradas no las traen nunca. Con `modo: "origen"`, la misma más:
 
 - `cadena` (objeto; **`null` en `existente` e `idempotente`**): `anterior` (`{cod, ide}` de la anterior, o `null` en
   la primera), `primera_de_cadena`, `importe_anterior_cadena` (Σ round(`canoriori`·`pre`, 2) de las líneas de la
   anterior), `importe_origen_cadena` (lo mismo de las líneas que se escriben, arrastradas incluidas) y `n_arrastradas`.
   `proformas` puede cotejar `importe_anterior_cadena` con el ANTERIOR de la hoja y `importe_origen_cadena` con el ORIGEN.
+  **v1.3**: `importe_origen_cadena` usa el `pre` neto de las líneas con descuento del contrato (§3), así que su cotejo
+  con el ORIGEN debe admitir esos céntimos; `importe_anterior_cadena`, `cantidad_anterior_cadena` y
+  `cantidad_origen_cadena` no cambian.
 - Por línea, además: `linea_anterior` (el `dcapro.ide` que continúa; `null` en las nuevas), `arrastrada` (`false`),
   `cantidad_anterior_cadena` (el `canoriori` de la línea continuada; 0 en las nuevas) y `cantidad_origen_cadena`
   (anterior + `cantidad`). En `existente` e `idempotente` (líneas leídas) estos cuatro van a `null`.
@@ -302,6 +340,13 @@ recibe `existente`, no 400.
 | `otra_del_mes` | aviso | Segunda proforma del mes, pedida con `otra_del_mes`; a origen (**v1.2**), también sin pedirla si la otra del mes es a origen con otro importe | Informativo; a origen, comprobar que la anterior elegida es la buena |
 | `linea_nueva_ya_en_la_anterior` | aviso | **v1.2**, a origen: una línea de contrato va como nueva y su `ctrpro` ya está en la anterior (`lineas_anterior` con sus `dcapro.ide`) | Casi siempre un olvido: reenviar con su `linea_anterior`, o confirmar que va nueva |
 | `precio_distinto_del_contrato`, `supera_pendiente`, `retencion_del_contrato`, `cabecera_sin_dato` | aviso | Los de `sigrid/albaran` | Informativos |
+| `dto_distinto_del_contrato` | aviso | **v1.3**, heredado de `sigrid/albaran` (línea con un `dto` pedido distinto del del `ctrpro`). En la proforma **hoy no sale**: la petición no admite `dto` (§2.2) | Mapearlo como informativo si el conjunto de avisos es cerrado |
+
+**v1.3 · `existente` y lo registrado.** `existente` (±0,05 sobre el total del documento) y `anterior_distinto_de_sigrid`
+comparan con el `totbas` **registrado**, que en las líneas con descuento del contrato sigue la regla de Sigrid (§3).
+Con más de unas cinco de esas líneas, una hoja **reenviada con otra `referencia_externa`** puede no reconocerse: de mes
+daría `proforma_del_mes_existente` (sin escribir) y a origen el aviso `otra_del_mes` y un alta en una cadena paralela.
+Con la misma referencia sale `idempotente`: reenviad siempre con ella. La tolerancia no cambia.
 
 ## 5. Productos y líneas del contrato: sin endpoint nuevo (como albaranes)
 
@@ -323,6 +368,11 @@ puede ser `PROF<aa>/` (lo que escribe F-007) o `AC<aa>/` (las de hoy). Se declar
 líneas con `can` ≠ 0. Las columnas a origen (`canoriori`, `canorilin`) no hay que sumarlas al facturar el mes. Al
 facturar una proforma a origen, el escritorio pone `canoriant`/`imporiant` en la `dcfpro`: si `facturas` llega a
 registrar facturas (F-008 de sigrid-api), eso es de esa feature, no de esta.
+
+**Líneas con descuento del contrato (v1.3, F-018).** Las líneas de contrato cuyo `ctrpro` tiene descuento se leen como
+las que deja el escritorio: `tar` es el unitario **bruto**, `dto` el porcentaje en texto (`"1%"`, `"1,5%"`), `pre` el
+unitario **neto** (`tot`/`can`) y `tot` el importe neto de la línea; `dca.impbru` es el bruto y `dca.totbas` el neto.
+El importe de la línea es `tot`; `can`·`tar` es el bruto, no el importe.
 
 ## 7. Lo que la API no hace y preguntas para `proformas`
 
@@ -366,3 +416,12 @@ códigos `anterior_no_valida`, `anterior_con_sucesora`, `escritura_proformas_ori
 `SIGRID_PROFORMA_ORIGEN_ENABLED`, desplegada `false`), `linea_anterior_no_valida` y el aviso
 `linea_nueva_ya_en_la_anterior`, y `demasiadas_lineas` contando las arrastradas; §6, lo que lee `facturas` de una
 proforma a origen. `contrato_a_origen` sale solo en la proforma de mes. Pendiente de revisión y de despliegue.
+
+**v1.3 (2026-10-29), F-018 (descuento por línea), compatible hacia atrás salvo las líneas de contrato cuyo `ctrpro`
+tiene descuento**: la petición no cambia y sigue sin `dto` (§2.2). Esas líneas, de mes y a origen, se escriben como
+Sigrid: `tar` y `dto` del contrato, `tot` = ROUND_HALF_UP(`cantidad`·`tar`·(1 − d/100), 2), `pre` = `tot`/`cantidad`,
+`impbru` bruto y `totales` sobre esos `tot`, con hasta un céntimo por línea frente a `importe_mes` (§3); su línea de
+respuesta trae `dto` y `precio_bruto`, también en la de mes (§3.1); a origen, `importe_origen_cadena` con ese `pre`
+(§3.1). `existente`, `idempotente` y las arrastradas, sin las claves nuevas. §4: el aviso heredado
+`dto_distinto_del_contrato` (hoy no sale en la proforma) y el efecto en `existente` de reenviar con otra referencia.
+§6: cómo lee `facturas` esas líneas.

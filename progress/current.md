@@ -12,6 +12,10 @@ queda como Sigrid, y la proforma lo hereda (P8 = a); `dto` de 0 a 100; P9/P10: u
 y otra en `test_f016_models.py`, únicas excepciones a no tocar tests. **Primero T0**: contratos v8.4 (albaranes) y
 v1.3 (proformas), que el líder envía antes de cualquier código.
 
+**T0 hecha (implementer, 2026-10-29)**: contratos v8.4 y v1.3 escritos en un commit sin código. Los textos de aviso a
+`albaranes` y `proformas` están en [`impl_F-018.md`](impl_F-018.md) §T0 y los manda el líder. **No se empieza T1
+hasta tener los acuses.**
+
 ## F-018 spec v1.2 (2026-10-29): descuento por línea; P1-P10 decididas, sin preguntas abiertas
 
 Rama `feature/F-018-descuento-por-linea`, al día con `dev` (`6aca027`, F-016 desplegada y `blocked`). Spec en
