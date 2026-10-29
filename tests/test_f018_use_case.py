@@ -312,3 +312,92 @@ def test_f018_d6_decimal_de_la_respuesta() -> None:
     respuesta, _ = ejecutar([sin_vincular(cantidad=1.0, precio=10.0, dto=21.45)])
     assert respuesta.lineas[0].dto == float(Decimal("21.45"))
     assert dcapro(respuesta)["dto"] == "21,45%"
+
+
+# =====================================================================================
+# T11 · R23: ninguna sentencia nueva ni cambiada; R24: el commit
+# =====================================================================================
+
+#: sha256 de `"\n".join(todas_las_sentencias())` medido en `dev` (`6aca027`) el
+#: 2026-10-29: 47 sentencias del albarán, 6 de la proforma y 3 de la cadena.
+_SQL_DE_DEV = {
+    "albaran": (47, "d494a01d1b32a4532a5b354e365df1492871bc3101842fe13277263d37b1630e"),
+    "proforma": (6, "eda6c1004d48ad40c58b933e25ba6d81d11804e9b1539b26899bd8972608387a"),
+    "origen": (3, "61e9021f140f36efdd9814bb6080da4af23dd3cc2c01d56236ef1c3e3694c484"),
+}
+
+
+def test_f018_r23_las_sentencias_son_las_de_dev() -> None:
+    import hashlib
+
+    from application.use_cases.albaran_compra_statements import AlbaranCompraStatements
+    from application.use_cases.proforma_origen_statements import ProformaOrigenStatements
+    from application.use_cases.proforma_statements import ProformaStatements
+
+    for nombre, clase in (("albaran", AlbaranCompraStatements), ("proforma", ProformaStatements),
+                          ("origen", ProformaOrigenStatements)):
+        sentencias = clase.todas_las_sentencias()
+        huella = hashlib.sha256("\n".join(sentencias).encode()).hexdigest()
+        assert (len(sentencias), huella) == _SQL_DE_DEV[nombre], nombre
+
+
+def _sql_en_transaccion(repo: RepositorioDoble) -> list[tuple[str, str]]:
+    return [(clave, sql) for _i, clave, sql, _p in repo.en_transaccion]
+
+
+def test_f018_r23_el_commit_con_dto_usa_las_mismas_sentencias_que_sin_el() -> None:
+    _con, repo_con = ejecutar([sin_vincular(cantidad=1.0, precio=18.625, dto=40.0)], commit=True)
+    _sin, repo_sin = ejecutar([sin_vincular(cantidad=1.0, precio=18.625)], commit=True)
+    assert _sql_en_transaccion(repo_con) == _sql_en_transaccion(repo_sin)
+    assert repo_con.lecturas_hechas() == repo_sin.lecturas_hechas()
+
+
+def test_f018_r24_commit_sin_vincular_con_dto() -> None:
+    respuesta, repo = ejecutar([sin_vincular(cantidad=1.0, precio=18.625, dto=40.0)], commit=True)
+    assert (respuesta.estado, respuesta.committed) == ("creado", True)
+    from application.use_cases.albaran_compra_statements import APPLOCKS, DCA_COLUMNAS
+
+    assert repo.transacciones[0]["applock_resources"] == list(APPLOCKS)
+    (insert,) = repo.parametros_en_transaccion("insert_dcapro")
+    fila = respuesta.filas["dcapro"][0]
+    assert insert == list(fila.values())
+    assert (fila["tar"], fila["dto"], fila["tot"], fila["pre"]) == (18.625, "40%", 11.18, 11.18)
+    (mov,) = repo.parametros_en_transaccion("insert_mov")
+    assert mov == list(respuesta.filas["mov"][0].values())
+    assert respuesta.filas["mov"][0]["pre"] == 11.18
+    (dca,) = repo.parametros_en_transaccion("insert_dca")
+    assert (dca[DCA_COLUMNAS.index("impbru")], dca[DCA_COLUMNAS.index("totbas")]) == (18.63, 11.18)
+    for releida in ("releer_con", "releer_dca", "releer_dcapro", "releer_mov", "releer_log"):
+        assert releida in repo.sentencias()
+    assert (respuesta.lineas[0].dto, respuesta.lineas[0].precio_bruto) == (40.0, 18.625)
+
+
+def test_f018_r24_commit_vinculada_r15() -> None:
+    respuesta, repo = ejecutar([vinculada(cantidad=12.5, precio=92.4 / 36)], commit=True,
+                               repo=con_9001(**_CTRPRO_40))
+    (insert,) = repo.parametros_en_transaccion("insert_dcapro")
+    assert insert == list(respuesta.filas["dcapro"][0].values())
+    assert (respuesta.filas["dcapro"][0]["tot"], respuesta.filas["dcapro"][0]["tar"]) == (32.09, 4.278)
+    assert repo.parametros_en_transaccion("servido") == [[12.5, 9001]]  # canser por cantidad (R10)
+    (mov,) = repo.parametros_en_transaccion("insert_mov")
+    assert respuesta.filas["mov"][0]["pre"] == 32.09 / 12.5
+    assert mov == list(respuesta.filas["mov"][0].values())
+    assert respuesta.lineas[0].dto == 40.0
+
+
+def test_f018_r24_reintento_con_los_mismos_importes() -> None:
+    from f009_dobles import IntegrityError
+
+    repo = RepositorioDoble(
+        reservas={"ide_dcapro": lambda i, _p: (8000011 + 10 * (i - 1),)},
+        fallos={"insert_dcapro": lambda i: IntegrityError("2627") if i == 1 else None},
+    )
+    respuesta, repo = ejecutar([sin_vincular(cantidad=1.0, precio=18.625, dto=40.0)], repo=repo,
+                               commit=True)
+    assert len(repo.cursores) == 2
+    (primero,) = repo.parametros_en_transaccion("insert_dcapro", intento=1)
+    (segundo,) = repo.parametros_en_transaccion("insert_dcapro", intento=2)
+    assert (primero[0], segundo[0]) == (8000011, 8000021)
+    assert primero[1:] == segundo[1:] == list(respuesta.filas["dcapro"][0].values())[1:]
+    assert respuesta.filas["dca"]["impbru"] == 18.63
+    assert respuesta.lineas[0].dto == 40.0

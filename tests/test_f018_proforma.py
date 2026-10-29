@@ -221,3 +221,35 @@ def test_f018_r22_traza_de_proforma_sin_n_lineas_con_dto(caplog: pytest.LogCaptu
         ejecutar(hoja_de_mes(), RepositorioProformaConDto())
     (mensaje,) = [r.getMessage() for r in caplog.records if '"sigrid/proforma"' in r.getMessage()]
     assert "n_lineas_con_dto" not in json.loads(mensaje)
+
+
+# =====================================================================================
+# T11 · R24: el commit de la proforma con el dto del contrato
+# =====================================================================================
+
+
+def test_f018_r24_commit_de_proforma_de_mes_con_el_dto_del_contrato() -> None:
+    from application.use_cases.albaran_compra_statements import APPLOCKS, DCA_COLUMNAS
+
+    repo = RepositorioProformaConDto()
+    respuesta = ejecutar(hoja_de_mes(commit=True), repo)
+    assert (respuesta.estado, respuesta.committed) == ("creado", True)
+    assert repo.transacciones[0]["applock_resources"] == list(APPLOCKS)
+    insertadas = repo.parametros_en_transaccion("insert_dcapro")
+    assert insertadas == [list(f.values()) for f in respuesta.filas["dcapro"]]
+    assert (respuesta.filas["dcapro"][0]["tot"], respuesta.filas["dcapro"][0]["dto"]) == (32.09, "40%")
+    (dca,) = repo.parametros_en_transaccion("insert_dca")
+    assert dca[DCA_COLUMNAS.index("impbru")] == respuesta.filas["dca"]["impbru"]
+    assert dca[DCA_COLUMNAS.index("impbru")] != dca[DCA_COLUMNAS.index("totbas")]
+    assert "releer_dcapro" in repo.sentencias()
+    assert respuesta.model_dump(mode="json")["lineas"][0]["dto"] == 40.0
+
+
+def test_f018_r24_commit_de_proforma_a_origen_con_el_dto_del_contrato() -> None:
+    repo = RepositorioOrigenConDto()
+    respuesta = ejecutar(hoja_a_origen(commit=True), repo)
+    assert respuesta.estado == "creado"
+    insertadas = repo.parametros_en_transaccion("insert_dcapro")
+    assert insertadas == [list(f.values()) for f in respuesta.filas["dcapro"]]
+    fila = respuesta.filas["dcapro"][0]
+    assert (fila["tot"], fila["canoriori"], fila["canorilin"]) == (32.09, 253.5, 1400001)
