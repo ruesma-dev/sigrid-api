@@ -3,8 +3,7 @@
 
 **F-007 de sigrid-api (`POST /api/sigrid/proforma`) ↔ F-005 del microservicio `proformas`.** **v1.2**
 (2026-10-28): la v1.1 (2026-10-26, F-007 desplegada el 2026-10-26 y cerrada el 2026-10-28) más el **modo a origen** de
-**F-016** ([spec](../F-016-proforma-a-origen/requirements.md)), implementado en la rama `feature/F-016-proforma-a-origen`
-y **pendiente de revisión y de despliegue**. Es compatible hacia atrás: sin `modo` (o con `"mes"`) todo es la v1.1 tal
+**F-016** ([spec](../F-016-proforma-a-origen/requirements.md)), **revisado y desplegado el 2026-10-28**. Es compatible hacia atrás: sin `modo` (o con `"mes"`) todo es la v1.1 tal
 cual, sin ninguna clave nueva en la respuesta. Lo nuevo de la v1.2: §2.1 y §2.2 (campos de cadena), **§2.3** (a origen:
 lo que el llamante lee de Sigrid, con sus dos consultas), §3.1 (respuesta a origen), §4 (códigos nuevos), §6 y §8.
 **v1.3** (2026-10-29, **F-018 v1.2** de sigrid-api, [spec](../F-018-descuento-por-linea/requirements.md), aprobada
@@ -415,7 +414,8 @@ cuatro campos por línea, las arrastradas detrás, `totales` del MES) y el senti
 códigos `anterior_no_valida`, `anterior_con_sucesora`, `escritura_proformas_origen_deshabilitada` (App Setting nueva
 `SIGRID_PROFORMA_ORIGEN_ENABLED`, desplegada `false`), `linea_anterior_no_valida` y el aviso
 `linea_nueva_ya_en_la_anterior`, y `demasiadas_lineas` contando las arrastradas; §6, lo que lee `facturas` de una
-proforma a origen. `contrato_a_origen` sale solo en la proforma de mes. Pendiente de revisión y de despliegue.
+proforma a origen. `contrato_a_origen` sale solo en la proforma de mes. Desplegada el 2026-10-28 (antes decía
+«pendiente de revisión y de despliegue»; corregido el 2026-10-29).
 
 **v1.3 (2026-10-29), F-018 (descuento por línea), compatible hacia atrás salvo las líneas de contrato cuyo `ctrpro`
 tiene descuento**: la petición no cambia y sigue sin `dto` (§2.2). Esas líneas, de mes y a origen, se escriben como
