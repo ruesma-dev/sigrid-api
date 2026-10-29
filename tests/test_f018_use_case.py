@@ -331,7 +331,9 @@ def test_f018_r23_las_sentencias_son_las_de_dev() -> None:
     import hashlib
 
     from application.use_cases.albaran_compra_statements import AlbaranCompraStatements
-    from application.use_cases.proforma_origen_statements import ProformaOrigenStatements
+    from application.use_cases.proforma_origen_statements import (
+        ProformaOrigenStatements,
+    )
     from application.use_cases.proforma_statements import ProformaStatements
 
     for nombre, clase in (("albaran", AlbaranCompraStatements), ("proforma", ProformaStatements),
