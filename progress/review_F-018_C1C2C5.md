@@ -90,16 +90,14 @@ lo precede; las cifras de la red de R7 salieron de worktrees en el scratchpad. A
   `9cd79ad`, T3 `e9ad53e` + `cd68b11` (las tres líneas en commit propio, como pide la spec), T4 `3ed597e`, T5 `46767ac`,
   T6 `be77bd3`, T7 `7e92940`, T8 `007f965`, T9 `bfa2b38`, T10 `09ba32d`, T11 `f53f382`, T12 `f9b4520`, T13 `3b238c1`,
   T14 `4ea35bb` + `24e785a` + `7ce2240`, T16 `536ce9c`; T15 y T17 juntas en `e649e38` (T15 es `azure-apps` `f168a36`,
-  existe y toca solo `sigrid_api.md`). Ningún commit mezcla código de dos tareas.
+  existe y toca solo `sigrid_api.md`). Ningún commit mezcla código de dos tareas. `6d11dcd` (F-007, doc de F-016
+  desplegada) vive en la rama y está declarado en `impl_F-018.md`: entra en `dev` con F-018, sin bloqueo.
 - [x] Mensajes: los 30 commits sin merge de `dev..HEAD` en español y **todos** con `Co-Authored-By: Claude Opus 5.5
   <noreply@anthropic.com>`; `Claude-Session` en 25 (faltan en los 5 últimos: el pie vigente no lo exige).
 - [x] Sin temporales ni artefactos de F-018: `git status --short` solo lista los informes de los revisores en paralelo
   (`review_F-018_{C3C4ter,docs,logica,mutacion}.md`). Lo `--ignored` (`.txt`, `.csv`, terraform, `.pem`, `.zip`) es
   anterior y ajeno, ya anotado en F-016. `git worktree list`: solo el árbol principal (los míos, retirados).
 - [x] `features.json` refleja el **estado** real: `in_progress` con T18-T21 abiertas (texto: H2).
-
-**Observación sin bloqueo:** `6d11dcd` («F-007: contrato_proformas, cabecera y §8 al día») vive en esta rama; es
-documentación de otra feature (F-016 desplegada), declarada en `impl_F-018.md` «Qué cambió». Entra en `dev` con F-018.
 
 ## «Evidencias» (`impl_F-018.md:208-219`) contra lo medido
 
