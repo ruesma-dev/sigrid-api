@@ -86,3 +86,40 @@ los dos contratos, `tasks.md`, este informe y `progress/current.md`.
 >    conjunto de avisos es cerrado (§4).
 >
 > Os avisamos cuando esté desplegada.
+
+**Acuses de T0 (2026-10-29, por el líder):** `albaranes` y `proformas` aceptan la v8.4 y la v1.3. Se puede implementar.
+
+### Texto de `albaranes` en el contrato v8.4 (`7aae0ba`, commit propio)
+
+Pegado tal cual en §2.2 (columna «Origen en albaranes» de `precio` y de `dto`, y una nota con su notación I, P, d y Qs
+bajo la tabla) y en la regla 4 de §2.4. Único retoque: las barras de `|I|` y `|Qs|` van escapadas (`\|`) dentro de la
+tabla, porque si no la rompen. **Cotejo con §2.2/§3.1 y con la spec: no hay choque.** `round(d, 2)` con 0 < d ≤ 100
+cabe en R4. El bruto que cuadra con I a ±0,01 sigue la regla de R1/R2. No mandar `dto` con d = 0 es lo mismo que R7.
+El porcentaje único sin cascada es H8. Y no comparar con el `ctrpro` es compatible con D3, porque los avisos son
+informativos. Una diferencia que no es choque: §3.1 dice «leerlas si vienen» de `dto`/`precio_bruto` y ellos dicen que
+sv9 no las lee. Es decisión suya, porque la previa se compara por `total`.
+
+## Bloqueo antes de T1 (2026-10-29)
+
+D8 pide los campos `LineaResultado.dto` y `.precio_bruto`. Pero
+`tests/test_f009_models.py::test_f009_r7_la_respuesta_es_superconjunto_de_la_clasica` (l. 538-548) fija el conjunto
+exacto de campos que `LineaResultado` añade a `AlbaranLinePreview`. Prueba (árbol de trabajo, revertida con
+`git checkout`): `dto` en `LineaAlbaranIn`, `dto_distinto_del_contrato` en `CODIGOS_AVISO` y los dos campos con el
+serializador de D8. Comando: `python -m pytest tests/ -q -p no:cacheprovider`.
+
+```
+FAILED tests/test_f009_models.py::test_f009_r9_codigos_cerrados_de_design - A...
+FAILED tests/test_f009_models.py::test_f009_r7_la_respuesta_es_superconjunto_de_la_clasica
+FAILED tests/test_f016_models.py::test_f016_r20_los_conjuntos_de_f007_identicos
+FAILED tests/test_f016_models.py::test_f016_r20_los_codigos_nuevos_en_las_subclases
+4 failed, 3546 passed, 1 skipped, 1 warning in 133.59s (0:02:13)
+E         Extra items in the left set:
+E         'precio_bruto'
+E         'dto'
+```
+
+Los tres primeros son P9 y P10. El segundo no lo cubre ninguna excepción. Opciones (P11, para el humano):
+**(a) recomendada**: tercera excepción de una línea, `"dto", "precio_bruto",` tras `"avisos",` en ese conjunto, en el
+commit propio de P9/P10. **(b)** dejar las dos claves fuera de `model_fields` (atributos privados, `__init__` propio y
+serializador): no cambia ningún test, pero pierde la validación de Pydantic y `model_validate` las descartaría sin
+avisar. Además se aparta de D8. Mientras tanto, F-018 queda `blocked` en `features.json` y no hay código committeado.

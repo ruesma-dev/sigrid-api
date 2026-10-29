@@ -5,9 +5,7 @@
 
 Resumen: **18 features**, 8 abiertas, 10 terminadas.
 
-En curso: **F-018**.
-
-Bloqueadas: **F-015, F-016**.
+Bloqueadas: **F-015, F-016, F-018**.
 
 ## Trabajo abierto
 
@@ -15,7 +13,7 @@ Bloqueadas: **F-015, F-016**.
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | bloqueada | critico | `feature/F-016-proforma-a-origen` |
-| F-018 | Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma | 9 | en curso | critico | `feature/F-018-descuento-por-linea` |
+| F-018 | Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma | 9 | bloqueada | critico | `feature/F-018-descuento-por-linea` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 10 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
@@ -53,7 +51,7 @@ Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene
 
 ### F-018 · Descuento por línea (dto) en el alta de albarán y, si aplica, en sigrid/proforma
 
-estado **en curso** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-018-descuento-por-linea`
+estado **bloqueada** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-018-descuento-por-linea`
 
 Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110).
 

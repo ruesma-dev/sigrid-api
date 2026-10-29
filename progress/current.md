@@ -1,6 +1,25 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-018 `blocked` (2026-10-29, implementer, antes de T1): un tercer test existente fija los campos de la línea
+
+**Motivo.** Design D8 pide `LineaResultado.dto` y `.precio_bruto` como **campos** (defecto `None`) con un serializador
+que los omite. `tests/test_f009_models.py::test_f009_r7_la_respuesta_es_superconjunto_de_la_clasica` (l. 538-548)
+fija **el conjunto exacto** `set(LineaResultado.model_fields) - set(AlbaranLinePreview.model_fields)`, así que añadir los
+dos campos lo rompe. La spec solo permite dos excepciones a «tests existentes intactos» (P9, P10) y la búsqueda del
+design §Compatibilidad no vio esta. Medido (2026-10-29, árbol de trabajo, revertido después): con `dto` en
+`LineaAlbaranIn`, el código nuevo en `CODIGOS_AVISO` y los dos campos con el serializador, `pytest tests/` da **4
+fallos y 3.546 en verde**: los 3 previstos (P9, P10) y este. Ningún otro test cambia. Nada de producción committeado.
+
+**Opciones para el humano (P11):** (a) **recomendada**: una tercera excepción, una línea en ese conjunto
+(`"dto", "precio_bruto",` tras `"avisos",`), en el mismo commit propio que P9/P10; (b) sacar las dos claves de
+`model_fields` (atributos privados, `__init__` propio y serializador): ningún test cambia, pero se pierde la validación
+de Pydantic, `model_validate` las descartaría en silencio y se aparta de D8. No recomendada. Con la decisión, se vuelve
+a `in_progress` y se sigue desde T1. Detalle en [`impl_F-018.md`](impl_F-018.md) §Bloqueo.
+
+Hecho en esta sesión: el texto de `albaranes` en `contrato_albaranes.md` §2.2 y §2.4 (`7aae0ba`, commit propio).
+Pendiente de la sesión: la cabecera y §8 de `contrato_proformas.md` (dicen v1.2 «pendiente de despliegue»).
+
 ## F-018 `in_progress` (2026-10-29): descuento por línea (`dto`); spec v1.2 APROBADA por el humano (P1-P10)
 
 Rama `feature/F-018-descuento-por-linea` (con `dev` `6aca027` mergeado). Petición de `albaranes` (su F-110).
