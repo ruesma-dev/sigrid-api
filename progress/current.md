@@ -1,19 +1,15 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-018 spec v1.2 (2026-10-28): descuento por línea; P1-P9 decididas, P10 abierta (bloqueante)
+## F-018 spec v1.2 (2026-10-29): descuento por línea; P1-P10 decididas, sin preguntas abiertas
 
 Rama `feature/F-018-descuento-por-linea`, al día con `dev` (`6aca027`, F-016 desplegada y `blocked`). Spec en
-`specs/F-018-descuento-por-linea/` y medición (solo lecturas) en `progress/explore_F-018.md` (M45-M51). **Humano,
-2026-10-28**: P1-P9 decididas (design §Decisiones); **P8 = (a)**: la proforma, de mes y a origen, hereda P5 sin
-interruptor (R21, R22; design §La proforma): cambian `tot`/`pre`/`ivacuo` de la vinculada con `ctrpro` `N%`, `impbru`,
-totales, `dto`/`precio_bruto` en su línea y, a origen, `importe_origen_cadena`; no cambian la hoja (F-007 R19),
-`existente`, cantidades de cadena, arrastradas ni trazas. Medido: ningún test ni dorado de F-007/F-016 tiene un
-`ctrpro` con dto legible (`grep`, design §Compatibilidad).
-**Abierta P10 (bloqueante, design §Preguntas)**: medido en una copia aislada, el aviso nuevo rompe además dos tests de
-`tests/test_f016_models.py` (`_AVISO_F007`, l. 204-210), no solo `test_f009_models.py:413` (P9). Opciones: (a) una línea
-más en `_AVISO_F007` (recomendada); (b) quitarlo de los conjuntos de proforma (rompe `test_f007_models.py:275`);
-(c) reutilizar `precio_distinto_del_contrato`. Después, T0: contratos v8.4 (albaranes) y v1.3 (proformas) y sus acuses.
+`specs/F-018-descuento-por-linea/` y medición (solo lecturas) en `progress/explore_F-018.md` (M45-M51). **Humano**:
+P1-P9 el 2026-10-28 (design §Decisiones); **P8 = (a)**: la proforma, de mes y a origen, hereda P5 sin interruptor (R21,
+R22; design §La proforma). **P10 = (a)** el 2026-10-29: el aviso nuevo se añade con una línea a `tests/test_f009_models.py`
+(l. 413) y otra a `_AVISO_F007` de `tests/test_f016_models.py` (l. 204-210); son las dos únicas excepciones a «tests
+existentes intactos» (R7, R17, D12, T3). Medido: ningún test ni dorado de F-007/F-016 tiene un `ctrpro` con dto legible.
+Siguiente: T0, contratos v8.4 (albaranes) y v1.3 (proformas) y sus acuses, antes de cualquier código.
 
 ## F-016 `blocked` (2026-10-28): proforma a origen DESPLEGADA; espera T17-T18 del humano
 

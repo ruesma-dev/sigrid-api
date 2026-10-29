@@ -3,7 +3,7 @@
 Medidas: [`progress/explore_F-018.md`](../../progress/explore_F-018.md) (M45-M51). Base: F-009 design §Filas, §Importes y
 §Equivalencia; F-015 design §Lista blanca; F-007 y F-016 (en `dev`, `6aca027`); contratos
 [`contrato_albaranes.md`](../F-009-alta-albaran-compra/contrato_albaranes.md) (v8.3) y
-[`contrato_proformas.md`](../F-007-registrar-proforma/contrato_proformas.md) (v1.2). v1.2: P1-P9 decididas, P10 abierta.
+[`contrato_proformas.md`](../F-007-registrar-proforma/contrato_proformas.md) (v1.2). v1.2: P1-P10 decididas, sin preguntas abiertas.
 
 ## La decisión de fondo
 
@@ -16,7 +16,7 @@ legible del `ctrpro`) cada pieza sigue por el camino de hoy.
 - **Límite de microservicio: cabe.** Escribir una línea como la escribe el ERP es construir bien el documento; qué
   descuento lleva lo decide el llamante (sv9 lo lee del albarán del proveedor).
 
-## Decisiones (decididas por el humano, 2026-10-28)
+## Decisiones (decididas por el humano: P1-P9 el 2026-10-28, P10 el 2026-10-29)
 
 - **D1 · Columnas (P1).** Con dto efectivo: `tar` = bruto, `dto` = texto de R3, `tot` = R2, `pre` = `float(tot) /
   cantidad` (neto), `ivacuo` sobre `tot`, `mov` y PMP con el neto. Regla de la UI en el 99,99 % (M46), del `ctrpro`
@@ -52,8 +52,13 @@ legible del `ctrpro`) cada pieza sigue por el camino de hoy.
   proformas del escritorio (M50, `PROF26/01377`). Detalle: §La proforma.
 - **D11 · Documentación (P7).** Se corrige el motivo de ARCHITECTURE §Semántica 9 y de `sigrid_api.md` §9.4/§12: `pre`
   ya es neto (M46, M49h); prorratear sobre `tot` sigue siendo la regla (exacta al céntimo).
-- **D12 · P9.** `dto_distinto_del_contrato` se añade al conjunto cerrado de `tests/test_f009_models.py:413` (precedente:
-  F-015 T8). Lo que además rompe en la proforma es P10.
+- **D12 · P9 y P10 = (a) (decidida por el humano, 2026-10-29): las dos únicas excepciones a «tests existentes
+  intactos».** `dto_distinto_del_contrato` se añade con **una línea** a cada conjunto cerrado que lo fija:
+  `tests/test_f009_models.py` (dentro de `assert CODIGOS_AVISO == {…}`, l. 413, tras `"retencion_del_contrato",`) y
+  `tests/test_f016_models.py` (dentro de `_AVISO_F007`, l. 204-210, tras `"supera_contrato_10", "supera_pendiente",`);
+  precedente: F-015 T8. `proforma_models.py` no se toca: la proforma lo hereda y puede emitirlo (hoy solo con `dto`
+  pedido, que no admite, P4). Descartadas (b), quitarlo de la proforma (rompía `test_f007_models.py:275`), y (c),
+  reutilizar `precio_distinto_del_contrato` (deshacía P3 y P9).
 
 ## Compatibilidad: qué tests fijan hoy un `ctrpro` con dto (búsquedas del 2026-10-28 sobre `c6eb281`)
 
@@ -83,7 +88,7 @@ tests/f016_dobles.py` → l. 98 `"dto": ""` en `ctrpro_0719` (el **único** orig
 `test_f016_r20_los_conjuntos_de_f007_identicos` (l. 216) y `test_f016_r20_los_codigos_nuevos_en_las_subclases`
 (l. 226): `CODIGOS_AVISO_PROFORMA` es `CODIGOS_AVISO | {…}` (`proforma_models.py:57`) y `_AVISO_F007` (l. 204-210) lo
 fija literal. (El cuarto fallo, `test_mutacion_alcance_por_ficheros.py`, falla igual sin el cambio: la copia no es un
-repositorio git.) → **P10**.
+repositorio git.) → P10 = (a), D12.
 
 ## La proforma con P8 = (a) (leído en `create_proforma_use_case.py` y `proforma_*_statements.py`)
 
@@ -118,8 +123,8 @@ repositorio git.) → **P10**.
 | `domain/models/albaran_compra_models.py` | `LineaAlbaranIn.dto` y `con_dto`; `CODIGOS_AVISO` + `dto_distinto_del_contrato`; `LineaResultado.dto`, `.precio_bruto` y el serializador de D8 |
 | `application/use_cases/albaran_compra_statements.py` | §Funciones puras; `construir_dcapro_vinculada` (`dto` pedido y D9) y `construir_dcapro_sin_vincular` con `dto: float \| None = None`; `construir_dca` con `impbru: float \| None = None` |
 | `application/use_cases/create_albaran_compra_use_case.py` | §Flujo: `_construir`, `_avisos_de_contrato`, la línea de respuesta y la traza de `run` |
-| `tests/test_f009_models.py` | Solo l. 413: el código nuevo en el conjunto (R17, P9) |
-| `tests/test_f016_models.py` | Solo si P10 = (a): el código nuevo en `_AVISO_F007` (l. 204-210) |
+| `tests/test_f009_models.py` | Solo una línea: el código nuevo en el conjunto de l. 413 (R17, P9, D12) |
+| `tests/test_f016_models.py` | Solo una línea: el código nuevo en `_AVISO_F007` (l. 204-210; R17, P10 = (a), D12) |
 | `function_app.py` | Solo el docstring de `sigrid_albaran` (R28) |
 | `specs/F-009-alta-albaran-compra/contrato_albaranes.md` | v8.4 (§Contratos), **antes** de implementar (T0) |
 | `specs/F-007-registrar-proforma/contrato_proformas.md` | v1.3 (§Contratos), **antes** de implementar (T0) |
@@ -232,11 +237,4 @@ def dto_coincide(pedido: float, texto_ctrpro: str | None) -> bool | None   # R13
 
 ## Preguntas para el humano
 
-- **P10 (bloqueante) · El aviso nuevo rompe también `tests/test_f016_models.py`.** P9 se aceptó como «única excepción»,
-  pero no lo es (medido, §Compatibilidad): `CODIGOS_AVISO_PROFORMA` = `CODIGOS_AVISO | {…}` y F-016 lo fija literal en
-  `_AVISO_F007`. **(a)** Añadir `dto_distinto_del_contrato` a `_AVISO_F007` (una línea, l. 204-210): la proforma lo admite
-  en su conjunto pero nunca lo emite (no admite `dto`). **(b)** Quitarlo de los conjuntos de proforma en
-  `proforma_models.py:57` (`CODIGOS_AVISO - {…}`): toca código de proforma y rompe en su lugar
-  `tests/test_f007_models.py:275` (`== CODIGOS_AVISO | {…}`). **(c)** Sin código nuevo: R13 reutiliza
-  `precio_distinto_del_contrato` con mensaje propio (deshace P3 y P9; ningún test existente cambia).
-  **Recomendación: (a).**
+Ninguna abierta: P1-P9 decididas el 2026-10-28 y P10 el 2026-10-29 (§Decisiones).

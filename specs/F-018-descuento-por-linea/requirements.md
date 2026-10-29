@@ -4,13 +4,13 @@
 registra la línea como la registra Sigrid: unitario original, cantidad, porcentaje e importe neto.** Lo pide albaranes
 (su F-110; obra 0692): hoy sv9 manda `precio` = importe/cantidad y el descuento se pierde. Medidas **Mn**:
 [`progress/explore_F-018.md`](../../progress/explore_F-018.md) (M45-M51). Decisiones **Dn** y preguntas **Pn**: design
-§Decisiones y §Preguntas. F-007, F-009, F-015 y F-016 mandan en lo que aquí no se repite.
+§Decisiones (sin preguntas abiertas). F-007, F-009, F-015 y F-016 mandan en lo que aquí no se repite.
 
 > **v1.2 (2026-10-28).** P1-P9 **decididas por el humano, 2026-10-28** (design §Decisiones): P1 = D1 (`tar` bruto,
 > `pre` neto), P2 `ROUND_HALF_UP` sobre el producto exacto, P3 = D3 (dos avisos informativos), P4 (la proforma no
 > admite `dto`), P5 (se corrige aquí, R15), P6 (0 a 100), P7 (motivo de la Semántica 9), **P8 = (a): la proforma, de
-> mes y a origen, hereda R15 sin interruptor (R21, R22)** y P9 (R17). **Abierta P10 (bloqueante)**: el aviso nuevo
-> rompe además `tests/test_f016_models.py` (design §Preguntas, medido).
+> mes y a origen, hereda R15 sin interruptor (R21, R22)** y P9 (R17). **P10 = (a), decidida por el humano el
+> 2026-10-29**: el aviso nuevo entra también en `_AVISO_F007` de `tests/test_f016_models.py` (R7, R17; design D12).
 
 ## La línea con descuento (objetivo del humano)
 
@@ -36,7 +36,8 @@ registra la línea como la registra Sigrid: unitario original, cantidad, porcent
 - **R7.** CUANDO una línea venga sin `dto` en la petición (ausente, `null` o 0) **y** no copie del `ctrpro` un dto
   legible (R14) mayor que 0, el sistema debe construirla exactamente como hoy (mismas funciones con los mismos
   argumentos, mismas filas, mismo SQL, misma respuesta y misma traza, sin claves nuevas); los tests y dorados de F-007,
-  F-009, F-015 y F-016 deben pasar sin modificarlos, salvo los conjuntos cerrados de avisos de R17 (P9 y P10).
+  F-009, F-015 y F-016 deben pasar sin modificarlos, con **dos únicas excepciones** (R17): una línea añadida en
+  `tests/test_f009_models.py` (P9) y otra en `tests/test_f016_models.py` (P10).
 
 ## Cabecera, `mov` y contrato
 
@@ -73,7 +74,9 @@ registra la línea como la registra Sigrid: unitario original, cantidad, porcent
   `precio_bruto` (= `tar` escrito); `precio` (= `pre`, neto) y `total` (= `tot`) son los de la fila. Las demás
   líneas, y todas en `idempotente` (L11 no cambia), no llevan esas claves en el JSON.
 - **R17.** `CODIGOS_AVISO` debe aceptar `dto_distinto_del_contrato`; los demás conjuntos cerrados de `sigrid/albaran` no
-  cambian. `tests/test_f009_models.py:413` lo añade a su conjunto (P9); los de la proforma, según P10.
+  cambian; los de la proforma lo heredan (`CODIGOS_AVISO | {…}`), así que la proforma puede emitirlo. Los tests lo
+  añaden con una línea cada uno: al conjunto de `tests/test_f009_models.py:413` (P9) y a `_AVISO_F007` de
+  `tests/test_f016_models.py:204-210` (P10 = (a)).
 - **R18.** CUANDO alguna línea de `sigrid/albaran` tenga dto efectivo, el sistema debe trazar (F-009 R32) además
   `n_lineas_con_dto`; nunca porcentajes, precios ni importes. Sin ninguna, la traza no cambia.
 
@@ -106,7 +109,8 @@ registra la línea como la registra Sigrid: unitario original, cantidad, porcent
 - **R25.** El sistema debe cubrir R1-R24 con tests sin red ni BBDD (`test_f018_rN_*`), con fase RED en R1-R4, R7, R8,
   R9, R11-R16 y R21, y campaña de mutación completa (rigor `critico`) sin supervivientes no aceptados por el humano.
 - **R26.** Un test de **compatibilidad** debe recorrer las peticiones de caso de uso de F-009, F-015, F-007 y F-016
-  (sus dobles: `ctrpro` con dto no legible o vacío) y comprobar que con `dto` ausente, `null` o 0 las filas, el SQL
+  (sus dobles y tests sin tocar, salvo las dos líneas de R17; `ctrpro` con dto no legible o vacío) y comprobar que
+  con `dto` ausente, `null` o 0 las filas, el SQL
   grabado, la respuesta (`model_dump(mode="json")`) y la traza son idénticos; y otro, que con un `ctrpro` de dto legible
   solo cambian `tot`, `pre`, `ivacuo` de esa línea, `impbru`/totales de la cabecera, el `mov` y las claves de R16 (en
   la proforma a origen, además `importe_origen_cadena`).
