@@ -887,6 +887,7 @@ def construir_dca(
     totales: Mapping[str, float],
     cuo: Decimal,
     referencia_externa: str,
+    impbru: float | None = None,
 ) -> tuple[dict[str, Any], tuple[str, ...]]:
     """
     `dca` del albaran por lista blanca (F-015 R1-R10): recorre `DCA_COLUMNAS` y
@@ -894,6 +895,9 @@ def construir_dca(
     identidad y cascada de `resolver_cascada`; calculadas de la peticion, la obra
     y los totales (R8, R13), con `tot` = `totpag` = `totdoc` - `cuo` y `diremp1` =
     la `entres` escrita; y las fijas de `DCA_FIJAS` (R9).
+
+    F-018 R8: `impbru` es el bruto de las lineas (M47) si se pasa; sin el (sin
+    lineas con descuento), `totbas`, como antes.
 
     Devuelve la fila y las columnas de cascada que ningun origen trae (R5).
     """
@@ -915,7 +919,7 @@ def construir_dca(
             "cenide": cenide,
             "empide": empide,
             "synckey": referencia_externa,
-            "impbru": totales["totbas"],
+            "impbru": totales["totbas"] if impbru is None else impbru,
             "impnet": totales["totbas"],
             "totbas": totales["totbas"],
             "totiva": totales["totiva"],
@@ -969,6 +973,7 @@ def construir_dcapro_vinculada(
     paride: int,
     iva: float,
     prepma: float,
+    dto: float | None = None,
 ) -> dict[str, Any]:
     """
     `dcapro` de una linea vinculada (R12): plantilla = ultima `dcapro` del
@@ -981,24 +986,37 @@ def construir_dcapro_vinculada(
       `''` si no (R17); `tot` = round(cantidad·pre, 2) del `pre` escrito;
     - `paride` el resuelto o 0, nunca el del `ctrpro` (R14, R16);
     - `almide`/`cenide` los resueltos (R15), `refent` (R30c) y `prepma` (R21).
+
+    F-018: con `dto` pedido (R11), lo pedido sin opcion C: `tar` = `precio`
+    (bruto), el texto de `dto` y `tot`/`pre`/`ivacuo` de `importe_con_dto`. Sin
+    el, la opcion C de siempre y, si casa con un `ctrpro` de dto legible > 0 y
+    `tar` != 0 (D9, R15), los importes como Sigrid con ese dto copiado.
     """
     fila = _base_de_linea(plantilla, indice)
-    if usa_precio_del_contrato(cantidad, precio, ctrpro.get("pre") or 0):
+    if dto is not None:
+        tar, texto_dto = precio, texto_de_dto(dto)
+        tot, ivacuo, pre = importe_con_dto(cantidad, precio, dto, iva)
+    elif usa_precio_del_contrato(cantidad, precio, ctrpro.get("pre") or 0):
         pre = float(ctrpro.get("pre") or 0)
         tar = float(ctrpro.get("tar") or pre)
-        dto = ctrpro.get("dto") if ctrpro.get("dto") is not None else ""
+        texto_dto = ctrpro.get("dto") if ctrpro.get("dto") is not None else ""
+        copiado = dto_del_contrato(ctrpro)
+        if copiado is None:
+            # `tot` del `pre` escrito: por la condicion de la opcion C, igual al
+            # importe aprobado (cantidad·precio).
+            tot, ivacuo = importe_linea(cantidad, pre, iva)
+        else:
+            tot, ivacuo, pre = importe_con_dto(cantidad, tar, copiado, iva)
     else:
-        pre, tar, dto = precio, precio, ""
-    # `tot` del `pre` escrito: fila coherente y, por la condicion de
-    # `usa_precio_del_contrato`, igual al importe aprobado (cantidad·precio).
-    tot, ivacuo = importe_linea(cantidad, pre, iva)
+        pre, tar, texto_dto = precio, precio, ""
+        tot, ivacuo = importe_linea(cantidad, pre, iva)
     fila.update(
         {
             "proide": ctrpro.get("proide"),
             "can": cantidad,
             "pre": pre,
             "tar": tar,
-            "dto": dto,
+            "dto": texto_dto,
             "tot": float(tot),
             "ivaide": ctrpro.get("ivaide"),
             "ivacuo": float(ivacuo),
@@ -1047,6 +1065,7 @@ def construir_dcapro_sin_vincular(
     paride: int,
     iva: float,
     prepma: float,
+    dto: float | None = None,
 ) -> dict[str, Any]:
     """
     `dcapro` de una linea sin vincular (R13): plantilla = L8b (mismo
@@ -1054,9 +1073,17 @@ def construir_dcapro_sin_vincular(
     el `ivaide`. `natide`, `cueide` y `caaide` de la naturaleza del mapeo y de
     la obra (R13b, R15); `pre` = `tar` = `precio` y `dto` `''`; sin `docori*`
     ni cantidades o importes de origen; y §Reseteo (H11, H35).
+
+    F-018 R1: con `dto`, `tar` = `precio` (bruto), el texto de `dto` y
+    `tot`/`pre`/`ivacuo` de `importe_con_dto` (`pre` neto).
     """
     fila = _base_de_linea(plantilla, indice)
-    tot, ivacuo = importe_linea(cantidad, precio, iva)
+    if dto is None:
+        pre, texto_dto = precio, ""
+        tot, ivacuo = importe_linea(cantidad, precio, iva)
+    else:
+        texto_dto = texto_de_dto(dto)
+        tot, ivacuo, pre = importe_con_dto(cantidad, precio, dto, iva)
     for columna in ("canoriori", "imporiori"):
         if columna in fila:
             fila[columna] = 0
@@ -1065,9 +1092,9 @@ def construir_dcapro_sin_vincular(
         {
             "proide": proide,
             "can": cantidad,
-            "pre": precio,
+            "pre": pre,
             "tar": precio,
-            "dto": "",
+            "dto": texto_dto,
             "tot": float(tot),
             "ivaide": (plantilla or {}).get("ivaide") or 0,
             "ivacuo": float(ivacuo),
