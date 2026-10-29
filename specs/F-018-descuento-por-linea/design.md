@@ -3,7 +3,7 @@
 Medidas: [`progress/explore_F-018.md`](../../progress/explore_F-018.md) (M45-M51). Base: F-009 design §Filas, §Importes y
 §Equivalencia; F-015 design §Lista blanca; F-007 y F-016 (en `dev`, `6aca027`); contratos
 [`contrato_albaranes.md`](../F-009-alta-albaran-compra/contrato_albaranes.md) (v8.3) y
-[`contrato_proformas.md`](../F-007-registrar-proforma/contrato_proformas.md) (v1.2). v1.2: P1-P10 decididas, sin preguntas abiertas.
+[`contrato_proformas.md`](../F-007-registrar-proforma/contrato_proformas.md) (v1.2). v1.2: P1-P11 decididas, sin preguntas abiertas.
 
 ## La decisión de fondo
 
@@ -16,7 +16,7 @@ legible del `ctrpro`) cada pieza sigue por el camino de hoy.
 - **Límite de microservicio: cabe.** Escribir una línea como la escribe el ERP es construir bien el documento; qué
   descuento lleva lo decide el llamante (sv9 lo lee del albarán del proveedor).
 
-## Decisiones (decididas por el humano: P1-P9 el 2026-10-28, P10 el 2026-10-29)
+## Decisiones (decididas por el humano: P1-P9 el 2026-10-28, P10 y P11 el 2026-10-29)
 
 - **D1 · Columnas (P1).** Con dto efectivo: `tar` = bruto, `dto` = texto de R3, `tot` = R2, `pre` = `float(tot) /
   cantidad` (neto), `ivacuo` sobre `tot`, `mov` y PMP con el neto. Regla de la UI en el 99,99 % (M46), del `ctrpro`
@@ -58,7 +58,9 @@ legible del `ctrpro`) cada pieza sigue por el camino de hoy.
   `tests/test_f016_models.py` (dentro de `_AVISO_F007`, l. 204-210, tras `"supera_contrato_10", "supera_pendiente",`);
   precedente: F-015 T8. `proforma_models.py` no se toca: la proforma lo hereda y puede emitirlo (hoy solo con `dto`
   pedido, que no admite, P4). Descartadas (b), quitarlo de la proforma (rompía `test_f007_models.py:275`), y (c),
-  reutilizar `precio_distinto_del_contrato` (deshacía P3 y P9).
+  reutilizar `precio_distinto_del_contrato` (deshacía P3 y P9). **P11 = (a) (humano, 2026-10-29; hallada en T1):**
+  `test_f009_models.py:538-548` fija los campos de `LineaResultado`; una tercera línea, `"dto", "precio_bruto",` tras
+  `"avisos",`. Descartada (b), sacarlos de `model_fields` (sin validación de Pydantic; se apartaba de D8).
 
 ## Compatibilidad: qué tests fijan hoy un `ctrpro` con dto (búsquedas del 2026-10-28 sobre `c6eb281`)
 
@@ -123,7 +125,7 @@ repositorio git.) → P10 = (a), D12.
 | `domain/models/albaran_compra_models.py` | `LineaAlbaranIn.dto` y `con_dto`; `CODIGOS_AVISO` + `dto_distinto_del_contrato`; `LineaResultado.dto`, `.precio_bruto` y el serializador de D8 |
 | `application/use_cases/albaran_compra_statements.py` | §Funciones puras; `construir_dcapro_vinculada` (`dto` pedido y D9) y `construir_dcapro_sin_vincular` con `dto: float \| None = None`; `construir_dca` con `impbru: float \| None = None` |
 | `application/use_cases/create_albaran_compra_use_case.py` | §Flujo: `_construir`, `_avisos_de_contrato`, la línea de respuesta y la traza de `run` |
-| `tests/test_f009_models.py` | Solo una línea: el código nuevo en el conjunto de l. 413 (R17, P9, D12) |
+| `tests/test_f009_models.py` | Solo dos líneas: el código nuevo en l. 413 (R17, P9) y los campos en l. 538-548 (P11; D12) |
 | `tests/test_f016_models.py` | Solo una línea: el código nuevo en `_AVISO_F007` (l. 204-210; R17, P10 = (a), D12) |
 | `function_app.py` | Solo el docstring de `sigrid_albaran` (R28) |
 | `specs/F-009-alta-albaran-compra/contrato_albaranes.md` | v8.4 (§Contratos), **antes** de implementar (T0) |
@@ -237,4 +239,4 @@ def dto_coincide(pedido: float, texto_ctrpro: str | None) -> bool | None   # R13
 
 ## Preguntas para el humano
 
-Ninguna abierta: P1-P9 decididas el 2026-10-28 y P10 el 2026-10-29 (§Decisiones).
+Ninguna abierta: P1-P9 decididas el 2026-10-28 y P10 y P11 el 2026-10-29 (§Decisiones).
