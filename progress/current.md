@@ -1,12 +1,24 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-018 `in_progress` (2026-10-29): implementación T1-T17 en curso (implementer)
+## F-018 `in_progress` (2026-10-29): T1-T17 implementadas (implementer); siguiente T18, la revisión
 
-Bloqueo de antes de T1 levantado: el humano decidió **P11 = (a)** (2026-10-29). `test_f009_models.py:538-548` recibe
-`"dto", "precio_bruto",`, tercera y última excepción a «tests existentes intactos», en el commit de P9 y P10. Ya
-está en la spec. El texto de `albaranes` está en `contrato_albaranes.md` §2.2 y §2.4 (`7aae0ba`). Tarea en curso y
-desviaciones: [`impl_F-018.md`](impl_F-018.md).
+Código, tests, mutación (0 supervivientes tras dos tests nuevos; detalle en `mutacion_F-018.md`), documentación
+(`ARCHITECTURE.md`, docstring, `azure-apps/sigrid_api.md` `f168a36`) y `contrato_proformas.md` al día (F-016
+desplegada). Informe: [`impl_F-018.md`](impl_F-018.md). P11 = (a) ya está en la spec y en `cd68b11`.
+
+**Verificaciones MANUAL pendientes** (comandos literales en
+[`verificacion_manual.md`](../specs/F-018-descuento-por-linea/verificacion_manual.md); todo tras T18 y el despliegue,
+que lanza el humano):
+- **V0**: setup (variables de entorno, sin secretos) y previa de regresión de `sigrid/albaran` sin `dto`.
+- **V1** (líder, lecturas `sql/read`): V1a línea sin vincular con dto de la obra 0692 (`MA9999`); V1b `ctrpro` con dto
+  `N%` y un albarán del escritorio vinculado; V1c contrato con dto y proforma del escritorio desde 2025.
+- **V2** (líder, previa `commit:false`): la gemela de V1a, con `tar`/`dto`/`tot`/`pre`/`impbru`/`mov` como el escritorio.
+- **V3** (líder, previas): contra V1b con su bruto y dto (sin avisos), con otro dto (`dto_distinto_del_contrato`) y
+  sin `dto` (R15: `tot`/`pre` como el escritorio).
+- **V5** (líder, previa de proforma de mes con `otra_del_mes`): contra V1c, `tot`/`pre` y `impbru` como Sigrid.
+- **V4** (humano, **solo con autorización expresa para esa escritura**): `commit:true` de V2, revisión en la UI,
+  repetición `idempotente` y anulación desde la UI (nunca `DELETE`); avisar a albaranes y proformas (T20).
 
 ## F-018 `in_progress` (2026-10-29): descuento por línea (`dto`); spec v1.2 APROBADA por el humano (P1-P10)
 
