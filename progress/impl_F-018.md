@@ -67,9 +67,9 @@ route, settings, statements, transaccion, use_case}`.
 
 ## Desviaciones
 
-Ninguna respecto a la spec. Además de lo que lista T15, se corrigió la cabecera de `azure-apps` §8.10, que decía
-«F-016 pendiente de despliegue». También, por encargo del líder, la cabecera y §8 de `contrato_proformas.md`
-(`6d11dcd`, commit propio).
+Ninguna respecto a la spec. Fuera de T15: cabecera de `azure-apps` §8.10 (F-016 desplegada) y, por encargo del
+líder, cabecera y §8 de `contrato_proformas.md` (`6d11dcd`).
+**Corrección de `review_F-018_docs.md`** (cambios 1-7 y O1, solo texto): `260cd2f` aquí y `d53a4f6` en `azure-apps`.
 
 ## Fase RED (salidas reales, filtradas a las líneas `E`/`FAILED`/resumen; el texto completo, en la sesión)
 
