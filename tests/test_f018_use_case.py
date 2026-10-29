@@ -173,7 +173,19 @@ def test_f018_r13_ctrpro_sin_dto_cuenta_como_0() -> None:
     respuesta, _ = ejecutar([vinculada(precio=12.0, dto=40.0)], repo=con_9001(tar=12.0, dto=""))
     linea = respuesta.lineas[0]
     mensaje = next(a.mensaje for a in linea.avisos if a.codigo == "dto_distinto_del_contrato")
-    assert "40%" in mensaje and "0%" in mensaje
+    # Entre paréntesis y exactos: "0%" a secas también lo contiene "40%".
+    assert "(40%)" in mensaje and "(0%)" in mensaje
+
+
+@pytest.mark.parametrize("tar", [0.0, None], ids=["tar_0", "tar_null"])
+def test_f018_r12_ctrpro_sin_tar_avisa_del_bruto_pedido(tar: float | None) -> None:
+    """Un `ctrpro` sin P.Bruto (0 o NULL) no coincide con ningún bruto pedido,
+    tampoco con 1: se escribe el pedido y se avisa (R12)."""
+    respuesta, _ = ejecutar([vinculada(precio=1.0, dto=40.0)],
+                            repo=con_9001(tar=tar, dto="40%"))
+    assert "precio_distinto_del_contrato" in avisos(respuesta.lineas[0])
+    assert "dto_distinto_del_contrato" not in avisos(respuesta.lineas[0])
+    assert (dcapro(respuesta)["tar"], dcapro(respuesta)["dto"]) == (1.0, "40%")
 
 
 def test_f018_r13_ctrpro_con_dto_no_legible_avisa_con_mensaje_propio() -> None:
