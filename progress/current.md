@@ -1,6 +1,17 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-018 `in_progress` (2026-10-29): descuento por línea (`dto`); spec v1.2 APROBADA por el humano (P1-P10)
+
+Rama `feature/F-018-descuento-por-linea` (con `dev` `6aca027` mergeado). Petición de `albaranes` (su F-110).
+Spec: [`specs/F-018-descuento-por-linea/`](../specs/F-018-descuento-por-linea/) y medición M45-M51 en
+[`explore_F-018.md`](explore_F-018.md). Decidido: `tar` bruto, `pre` neto = `tot`/`can`, `dto` «N,NN%», `tot` =
+ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2), `mov`/PMP con el neto, `impbru` bruto; avisos informativos en vinculadas
+(`precio_distinto_del_contrato` con el bruto y `dto_distinto_del_contrato`); P5: la opción C con dto en el `ctrpro`
+queda como Sigrid, y la proforma lo hereda (P8 = a); `dto` de 0 a 100; P9/P10: una línea en `test_f009_models.py`
+y otra en `test_f016_models.py`, únicas excepciones a no tocar tests. **Primero T0**: contratos v8.4 (albaranes) y
+v1.3 (proformas), que el líder envía antes de cualquier código.
+
 ## F-018 spec v1.2 (2026-10-29): descuento por línea; P1-P10 decididas, sin preguntas abiertas
 
 Rama `feature/F-018-descuento-por-linea`, al día con `dev` (`6aca027`, F-016 desplegada y `blocked`). Spec en
