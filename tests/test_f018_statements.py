@@ -167,3 +167,103 @@ def test_f018_d9_dto_del_contrato(ctrpro: dict, esperado: Decimal | None) -> Non
 )
 def test_f018_r13_dto_coincide(pedido: float, texto: str | None, esperado: bool | None) -> None:
     assert dto_coincide(pedido, texto) is esperado
+
+
+# =====================================================================================
+# T6 · las filas: R1, R7, R8, R11, R15 (design §Filas)
+# =====================================================================================
+# Los ayudantes de F-009 se importan sin tocarlos: misma plantilla, mismo `ctrpro`.
+from test_f009_statements import _ctrpro, _dca_por_lista, _sin_vincular, _vinculada  # noqa: E402
+
+_DE_LA_LINEA = {"pre", "tar", "dto", "tot", "ivacuo"}
+
+
+def _sin(fila: dict, columnas: set[str]) -> dict:
+    return {c: v for c, v in fila.items() if c not in columnas}
+
+
+def test_f018_r1_sin_vincular_con_dto() -> None:
+    fila = _sin_vincular(cantidad=1.0, precio=18.625, dto=40.0)
+    assert (fila["tar"], fila["dto"], fila["tot"], fila["ivacuo"]) == (18.625, "40%", 11.18, 2.35)
+    assert fila["pre"] == 11.18 / 1.0
+    # Las demás columnas, las de la misma línea sin descuento.
+    assert _sin(fila, _DE_LA_LINEA) == _sin(_sin_vincular(cantidad=1.0, precio=18.625), _DE_LA_LINEA)
+
+
+def test_f018_r1_sin_vincular_devolucion_con_dto() -> None:
+    fila = _sin_vincular(cantidad=-0.4, precio=1275.68, dto=2.5)
+    assert (fila["tar"], fila["dto"], fila["tot"], fila["ivacuo"]) == (1275.68, "2,5%", -497.52, -104.48)
+    assert fila["pre"] == -497.52 / -0.4
+
+
+def test_f018_r7_sin_vincular_dto_none_es_la_de_hoy() -> None:
+    fila = _sin_vincular(dto=None)
+    assert fila == _sin_vincular()
+    assert (fila["pre"], fila["tar"], fila["dto"], fila["tot"]) == (2.675, 2.675, "", 8.03)
+
+
+def test_f018_r11_vinculada_con_dto_escribe_lo_pedido() -> None:
+    fila = _vinculada(precio=12.0, dto=40.0)  # el `ctrpro` del doble: pre 10,5, tar 12, `10+2,5`
+    assert (fila["tar"], fila["dto"], fila["tot"], fila["ivacuo"]) == (12.0, "40%", 14.4, 3.02)
+    assert fila["pre"] == 14.4 / 2.0
+    assert _sin(fila, _DE_LA_LINEA) == _sin(_vinculada(precio=12.0), _DE_LA_LINEA)
+
+
+def test_f018_r11_vinculada_con_dto_sin_opcion_c_aunque_el_precio_sea_el_pre() -> None:
+    """Con `dto`, el `precio` (10,5 = `ctrpro.pre`) es el bruto pedido: no se
+    copian `pre`, `tar` ni `dto` del `ctrpro` (validar, no pisar)."""
+    fila = _vinculada(precio=10.5, dto=10.0)
+    assert (fila["tar"], fila["dto"], fila["tot"]) == (10.5, "10%", 18.9)
+    assert fila["pre"] == 18.9 / 2.0
+
+
+def _ctrpro_con_dto(**extra) -> dict:
+    """D9: `tar` 4,278 al 40 %, 36 uds: `tot` 92,40 y `pre` = 92,4/36 (coherente)."""
+    return {**_ctrpro(pre=92.4 / 36, tar=4.278, can=36.0, tot=92.4), "dto": "40%", **extra}
+
+
+def test_f018_r15_vinculada_sin_dto_que_casa_con_un_ctrpro_con_dto() -> None:
+    fila = _vinculada(cantidad=12.5, precio=92.4 / 36, ctrpro=_ctrpro_con_dto())
+    # `tar` y `dto` copiados como hoy; `tot` como Sigrid: 12,5·4,278·0,6 = 32,085 -> 32,09
+    # (hoy, round(12,5·2,5666…, 2) = 32,08).
+    assert (fila["tar"], fila["dto"], fila["tot"], fila["ivacuo"]) == (4.278, "40%", 32.09, 6.74)
+    assert fila["pre"] == 32.09 / 12.5
+    assert (fila["canoriori"], fila["imporiori"]) == (36.0, 92.4)
+
+
+def test_f018_r15_vinculada_sin_dto_que_no_casa_es_la_de_hoy() -> None:
+    fila = _vinculada(cantidad=12.5, precio=3.0, ctrpro=_ctrpro_con_dto())
+    assert (fila["pre"], fila["tar"], fila["dto"], fila["tot"]) == (3.0, 3.0, "", 37.5)
+
+
+@pytest.mark.parametrize("dto", ["10+2,5", "5", "40", "1.5%"])
+def test_f018_r15_ctrpro_con_dto_no_legible_es_la_opcion_c_de_hoy(dto: str) -> None:
+    fila = _vinculada(cantidad=12.5, precio=92.4 / 36, ctrpro=_ctrpro_con_dto(dto=dto))
+    assert (fila["pre"], fila["tar"], fila["dto"], fila["tot"]) == (92.4 / 36, 4.278, dto, 32.08)
+
+
+@pytest.mark.parametrize("tar", [0, 0.0, None])
+def test_f018_r15_ctrpro_con_tar_0_es_la_opcion_c_de_hoy(tar: float | None) -> None:
+    ctrpro = {**_ctrpro_con_dto(), "tar": tar}
+    fila = _vinculada(cantidad=12.5, precio=92.4 / 36, ctrpro=ctrpro)
+    # Hoy: `tar` = `ctrpro.tar` o, si no lo hay, el `pre`; `tot` del `pre`.
+    assert (fila["pre"], fila["tar"], fila["dto"], fila["tot"]) == (92.4 / 36, 92.4 / 36, "40%", 32.08)
+
+
+def test_f018_r15_ctrpro_con_dto_0_es_la_opcion_c_de_hoy() -> None:
+    fila = _vinculada(cantidad=12.5, precio=92.4 / 36, ctrpro={**_ctrpro_con_dto(), "dto": "0%"})
+    assert (fila["tar"], fila["dto"], fila["tot"]) == (4.278, "0%", 32.08)
+
+
+def test_f018_r7_vinculada_dto_none_es_la_de_hoy() -> None:
+    assert _vinculada(dto=None) == _vinculada()
+    assert _vinculada(precio=10.50009, dto=None)["tot"] == 21.0
+
+
+def test_f018_r8_dca_con_impbru() -> None:
+    con = _dca_por_lista(impbru=154.01)
+    sin = _dca_por_lista()
+    assert con["impbru"] == 154.01
+    assert sin["impbru"] == sin["totbas"] == 21.0
+    assert _sin(con, {"impbru"}) == _sin(sin, {"impbru"})
+    assert _dca_por_lista(impbru=None) == sin
