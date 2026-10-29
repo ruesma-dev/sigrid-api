@@ -140,6 +140,8 @@ def test_f018_r8_bruto_de_linea(cantidad: float, tar: float, bruto: str) -> None
     [
         ({"dto": "40%", "tar": 4.278}, Decimal(40)),
         ({"dto": " 1,5% ", "tar": 10.0}, Decimal("1.5")),
+        ({"dto": "1%", "tar": 10.0}, Decimal(1)),         # el borde: 1 es descuento
+        ({"dto": "0,5%", "tar": 10.0}, Decimal("0.5")),   # y por debajo de 1 también
         ({"dto": "10+2,5", "tar": 4.278}, None),   # cascada: no legible
         ({"dto": "5", "tar": 4.278}, None),        # sin %: no legible
         ({"dto": "", "tar": 4.278}, None),         # sin dto

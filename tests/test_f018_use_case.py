@@ -227,6 +227,18 @@ def test_f018_r15_ctrpro_no_legible_o_sin_dto_es_la_opcion_c_de_hoy(dto: str) ->
     assert not set(_CLAVES) & set(_volcado(respuesta.lineas[0]))
 
 
+def test_f018_r15_ctrpro_con_pre_0_y_otro_precio_no_copia_el_dto() -> None:
+    """Un `ctrpro` con dto y `pre` 0 no casa por la opción C con un `precio` de 1:
+    la fila va por `precio_distinto_del_contrato` sin dto, y la respuesta, la
+    cabecera y la traza deciden con la MISMA regla (sin las claves de R16)."""
+    respuesta, _ = ejecutar([vinculada(cantidad=2.0, precio=1.0)],
+                            repo=con_9001(**{**_CTRPRO_40, "pre": 0.0}))
+    fila = dcapro(respuesta)
+    assert (fila["tar"], fila["dto"], fila["tot"]) == (1.0, "", 2.0)
+    assert not set(_CLAVES) & set(_volcado(respuesta.lineas[0]))
+    assert "precio_distinto_del_contrato" in avisos(respuesta.lineas[0])
+
+
 def test_f018_r15_ctrpro_con_tar_0_es_la_opcion_c_de_hoy() -> None:
     respuesta, _ = ejecutar([vinculada(cantidad=12.5, precio=92.4 / 36)],
                             repo=con_9001(**{**_CTRPRO_40, "tar": 0.0}))
