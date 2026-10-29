@@ -113,6 +113,21 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     `dca.tot` = `totpag` = `totdoc` − `cuo`; más de uno o uno raro, 400
     `retencion_no_soportada`. En el commit, su `ide` (E6b) va bajo el applock
     `SIGRID_IDE_dcarec`, el `INSERT` tras los `mov` y su relectura en E12.
+  - **Descuento por línea (F-018)**: `LineaAlbaranIn.dto` opcional (0-100, como
+    mucho 2 decimales; 0 o ausente = sin descuento, `con_dto`). Con descuento
+    efectivo, `precio` es el bruto: `dcapro.tar` = bruto, `dcapro.dto` = texto de
+    Sigrid (`40%`, `1,5%`), `tot` = `redondear_euros(can·tar·(1 − dto/100))`,
+    `pre` = `tot`/`can` (neto, el de `mov` y del PMP) e `ivacuo` sobre `tot`;
+    `dca.impbru` suma los brutos (sin ninguna línea con descuento, = `totbas`
+    como antes). Una vinculada **sin** `dto` que casa por la opción C con un
+    `ctrpro` de dto legible > 0 y `tar` ≠ 0 copia `tar`/`dto` como antes y
+    calcula `tot`/`pre`/`ivacuo` como Sigrid (R15). Con `dto` pedido, la
+    vinculada escribe lo pedido y avisa de cada diferencia con el `ctrpro`
+    (bruto frente a `tar`: `precio_distinto_del_contrato`; porcentaje:
+    `dto_distinto_del_contrato`). La línea de respuesta lleva `dto` y
+    `precio_bruto` solo con descuento (un serializador omite las dos claves
+    cuando valen `None`); la traza, `n_lineas_con_dto` si hay alguna. Sin SQL
+    nuevo; el clásico y `albaran-directo` no admiten `dto`.
   - *infrastructure*: nada nuevo; reutiliza los métodos del repositorio.
 - **Ruta**: la guarda `SIGRID_ALBARAN_WRITE_ENABLED` (R8) va en `sigrid/albaran`
   (los dos modos) y en `sigrid/albaran-directo`, **después** de validar el modelo
@@ -163,6 +178,12 @@ Lo propio de la proforma, por capa:
   `create_proforma_use_case` orquesta: obra, referencia (R23), contrato, líneas,
   existente o idempotente, y el resto por el flujo del núcleo; el contexto de R28
   viaja en un `PrivateAttr` de una subclase interna de la petición del núcleo.
+- **Descuento (F-018)**: la petición de proforma **no** admite `dto` (400 sin
+  `codigo`), pero sus vinculadas se construyen con el núcleo, así que una línea
+  contra un `ctrpro` con dto legible hereda R15 (de mes y a origen, sin
+  interruptor ni cambio en `create_proforma_use_case`): `tot`/`pre` de Sigrid,
+  `dca.impbru` bruto, `dto` y `precio_bruto` en la línea de respuesta, y a origen
+  `importe_origen_cadena` con ese `pre`.
 - *infrastructure*: nada nuevo.
 - **Ruta**: la llave `SIGRID_PROFORMA_WRITE_ENABLED` (R5) solo con `commit`,
   después de validar y antes del caso de uso; la de albaranes no la abre.
@@ -232,8 +253,11 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
    contra `dbo.conest` por `con.tip = conest.tip AND con.est = conest.est`.
 8. **`dca` es albarán y `dcf` es factura.** Confundir `dcapro` con líneas
    facturadas es el error más frecuente.
-9. **El facturado no es `canfac * pre`**: eso ignora el descuento de línea.
-   Se prorratea sobre el neto: `SUM(canfac / NULLIF(can,0) * tot)`.
+9. **El facturado se prorratea sobre `tot`**: `SUM(canfac / NULLIF(can,0) * tot)`.
+   `dcapro.pre` ya es el precio **neto** (`tot`/`can` sin redondear: el
+   descuento de línea está dentro; el bruto es `tar` y el porcentaje, el texto
+   `dto`), así que `canfac * pre` no ignora el descuento; prorratear sobre `tot`
+   sigue siendo la regla porque es exacta al céntimo (corregido en F-018).
 10. **Comparativo → contrato tiene doble vía** (`ctr.comide` y
     `comlin.ctride`): hay que deduplicar antes de sumar importes.
 

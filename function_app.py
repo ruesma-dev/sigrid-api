@@ -208,6 +208,15 @@ def sigrid_albaran(req: func.HttpRequest) -> func.HttpResponse:
       ficha del proveedor, y el resto calculado o fijo (F-015). Con contrato,
       su retencion (ctrrec) se escribe como UNA dcarec y dca.tot es el neto;
       una retencion que no se sabe calcular es 400 `retencion_no_soportada`.
+      Cada linea admite un descuento opcional `dto` (porcentaje 0-100, como
+      mucho 2 decimales; 0 o ausente = sin descuento, F-018): `precio` es
+      entonces el bruto (dcapro.tar), dcapro.dto el texto de Sigrid ("40%"),
+      tot = can*precio*(1-dto/100) redondeado y pre = tot/can (neto, el del mov
+      y el PMP); dca.impbru suma los brutos. Una vinculada sin `dto` que casa
+      con un ctrpro de dto legible copia su dto y calcula igual que Sigrid. En
+      una vinculada con `dto`, cada diferencia con el ctrpro es un aviso
+      (precio bruto, `dto_distinto_del_contrato`); la linea de respuesta lleva
+      `dto` y `precio_bruto` solo si hay descuento.
       Los fallos de negocio son 400 con `details.codigo` (y `details.lineas`
       en `lineas_no_validas`). `lineas_recibidas` junto a esas claves es
       `peticion_mixta`.
