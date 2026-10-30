@@ -344,7 +344,12 @@ def resolver_linea_gg(
                        f"La analitica '{analitica}' no es una hoja de la empresa con la obra delante."))
     if fallos:
         return None, fallos
-    assert iva is not None and leida is not None and caa is not None and obra is not None
+    # Sin fallos, todo resuelto: un `assert` por valor (y no una conjuncion, que
+    # admite mutantes equivalentes) para que el tipo deje de ser opcional.
+    assert iva is not None
+    assert leida is not None
+    assert caa is not None
+    assert obra is not None
     return LineaResuelta(
         proide=0, natide=0, paride=0, cueide=leida[0], caaide=caa[0], obride=obra[0],
         cenide=obra[1], almide=None, ivaide=iva[0], tasa_iva=iva[1],
@@ -504,7 +509,9 @@ def resolver_linea_fr(
         fallos.append(fallo)
     if fallos:
         return None, fallos
-    assert iva is not None and isinstance(naturaleza, tuple) and paride is not None
+    assert iva is not None
+    assert isinstance(naturaleza, tuple)
+    assert paride is not None
     assert lecturas.almacen is not None
     natide, cueide, caaide = naturaleza
     return LineaResuelta(

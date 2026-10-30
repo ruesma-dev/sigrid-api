@@ -80,8 +80,9 @@ OBLIGATORIOS: dict[str, tuple[str, ...]] = {"FR": ("producto",), "FRGG": CAMPOS_
 
 
 def _fecha_real(valor: int) -> int:
-    """`AAAAMMDD` que es una fecha del calendario; si no, `ValueError`."""
-    if not 10000101 <= valor <= 99991231:
+    """`AAAAMMDD` que es una fecha del calendario; si no, `ValueError`. Ocho
+    cifras y lo demas lo decide `date` (mes, dia y bisiestos)."""
+    if len(str(valor)) != 8:
         raise ValueError("La fecha va como AAAAMMDD.")
     date(valor // 10000, valor // 100 % 100, valor % 100)
     return valor

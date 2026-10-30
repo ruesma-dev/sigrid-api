@@ -760,7 +760,8 @@ class CreateFacturaUseCase:
         if request.total_base <= 0:
             raise FacturaError("Una factura con base no positiva es un abono: alta a mano.",
                                codigo="abono_no_soportado")
-        totbas = _d(totales_factura(dcfpro, cuo=Decimal(0))["totbas"])
+        # La base de la retencion es la de las lineas: no depende de la retencion.
+        totbas = sum((_d(f["tot"]) for f in dcfpro), Decimal(0))
         dcfrec = construir_dcfrec(ctx.retencion, totbas=totbas) if ctx.retencion else None
         cuo = _d(dcfrec["cuo"]) if dcfrec else Decimal(0)
         totales = totales_factura(dcfpro, cuo=cuo)
@@ -815,7 +816,9 @@ class CreateFacturaUseCase:
                             totales=totales)
         plazos = [(0, v.importe, v.fecha, _entero(dcf["cueide"]), 0) for v in request.vencimientos]
         if garantia and dcfrec is not None:
-            plazos.append((2, dcfrec["cuo"], int(request.vencimiento_retencion or 0),
+            # `_montar` ya exige `vencimiento_retencion` con garantia (R34).
+            assert request.vencimiento_retencion is not None
+            plazos.append((2, dcfrec["cuo"], request.vencimiento_retencion,
                            _entero(dcfrec["cueide"]), _entero(dcfrec["recide"])))
         pagos = [
             (
@@ -983,16 +986,21 @@ class CreateFacturaUseCase:
         if vinculadas:
             ides = sorted({_entero(d["linoriide"]) for d in vinculadas})
             esperado = {_entero(f[0]): _d(f[1]) for f in leer(fs.bloquear_lineas_de_contrato(ides))}
+            if set(ides) - set(esperado):
+                raise FacturaError(
+                    "Una linea de contrato de los origenes ya no existe: no se ha escrito nada.",
+                    codigo="filas_afectadas_inesperadas",
+                )
             for dcapro in vinculadas:
                 ctrpro = _entero(dcapro["linoriide"])
                 _ejecutar_sql(cursor, fs.sumar_facturado_contrato(ctrpro, dcapro["can"]))
-                esperado[ctrpro] = esperado.get(ctrpro, Decimal(0)) + _d(dcapro["can"])
+                esperado[ctrpro] += _d(dcapro["can"])
             for ctrpro, canfac in esperado.items():
                 relecturas.append((fs.releer_linea_de_contrato(ctrpro, float(canfac)),
                                    "filas_afectadas_inesperadas"))
             if ctx.ctride:
-                sumas = leer(f9.leer_sumas_contrato(ctx.ctride))
-                suma_can, suma_canser, suma_canfac = sumas[0] if sumas else (0, 0, 0)
+                # Agregado sin GROUP BY: siempre una fila, y aqui con lineas (las vinculadas).
+                suma_can, suma_canser, suma_canfac = leer(f9.leer_sumas_contrato(ctx.ctride))[0]
                 _estser, estfac = estados_contrato(suma_can, suma_canser, suma_canfac)
                 _ejecutar_sql(cursor, fs.actualizar_estfac_contrato(ctx.ctride, estfac))
                 relecturas.append((fs.releer_estfac_contrato(ctx.ctride, estfac),
@@ -1057,9 +1065,10 @@ def _ejecutar_sql(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:
 
 
 def _contar(cursor: Any, sentencia: tuple[str, list[Any]]) -> int:
+    """Las reservas (`ISNULL(MAX) + 1`) y las relecturas (`COUNT`) son agregados
+    sin GROUP BY: siempre UNA fila y nunca NULL."""
     _ejecutar_sql(cursor, sentencia)
-    fila = cursor.fetchone()
-    return int(fila[0] or 0) if fila else 0
+    return int(cursor.fetchone()[0])
 
 
 def _es_colision_de_clave(exc: BaseException) -> bool:

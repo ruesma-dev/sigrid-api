@@ -23,7 +23,7 @@ No se empieza ninguna hasta que el humano apruebe la v3.1 (P1-P21 decididas, `de
 - [x] T17: Compatibilidad: suites de rutas existentes sin cambios (R47)  |  Verificación: `python -m pytest tests -k "f007 or f009 or f015 or f016 or f018"`
 - [x] T18: `docs/ARCHITECTURE.md`, `CLAUDE.md` y `azure-apps/sigrid_api.md` en el mismo trabajo (R48)  |  Verificación: `tests/test_documentos_del_arnes.py` y revisión
 - [x] T19: Escribir `specs/F-008-registrar-factura/verificacion_manual.md` con los pasos exactos y las consultas de lectura posteriores, FR y FRGG  |  Verificación: revisión del reviewer
-- [ ] T20: Campaña de mutación entera sobre `factura_*` y `create_factura_use_case`, supervivientes 0 o justificados por el humano  |  Verificación: `python -m harness.mutacion --rama feature/F-008-registrar-factura`
+- [x] T20: Campaña de mutación entera sobre `factura_*` y `create_factura_use_case`, supervivientes 0 o justificados por el humano  |  Verificación: `python -m harness.mutacion --rama feature/F-008-registrar-factura`
 - [ ] T21: Revisión del reviewer contra `CHECKPOINTS.md`  |  Verificación: `progress/review_F-008.md` APROBADO
 - [ ] T22: Comprobar los permisos de `user_rw` (V1) con quien administra Sigrid  |  Verificación: MANUAL (humano): `INSERT` en `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `dcaprodes` y `UPDATE` en `con`, `dca`, `dcapro`, `ctrpro`, `ctr`
 - [ ] T23: Desplegar con la llave cerrada y lanzar previas de mes, a origen, mixta, FR sin origen, FRGG sin origen y FRGG con albarán sobre facturas reales ya registradas en el escritorio  |  Verificación: MANUAL (humano): pasos de `verificacion_manual.md`, sin `commit`
