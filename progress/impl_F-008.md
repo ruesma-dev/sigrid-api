@@ -149,8 +149,8 @@ de arriba. Documentos (sin código): `4824027` (`current.md`), `7438910` (`verif
 - **Cambio ajeno en `azure-apps/sigrid_api.md`:** había una fila de Application Insights sin commitear, de otra persona.
   No se ha tocado ni incluido en `a2127a6`, y sigue en el árbol de ese repositorio.
 - **No tocado en la ronda T21, por encargo:** el origen con todas sus líneas a `can` 0 (O1 de `logica_lectura`, decide
-  el humano), las demás observaciones no bloqueantes y el hallazgo 6 de `docs` (códigos de línea y
-  `SIGRID_ALBARAN_EMPRESAS_OBRA` en §8.11), que el encargo dejó fuera de los puntos 1-5.
+  el humano) y las demás observaciones no bloqueantes. El hallazgo 6 de `docs` (códigos de línea y
+  `SIGRID_ALBARAN_EMPRESAS_OBRA` en §8.11) se hizo después, en `azure-apps` `654e7fd`, cotejado con el código.
 - **Sin datos reales:** ningún nombre de persona, proveedor ni CIF real en código, tests, specs ni progress. Los del
   doble son ficticios.
 
