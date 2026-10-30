@@ -344,11 +344,13 @@ CABECERA_DE_ORIGEN: tuple[str, ...] = (
     "ivadif", "cocide", "tipgar", "fecent", "feclim", "banban", "bansuc", "bandig", "bancue", "ban",
     "bantipide",
 )
-#: Columnas de una linea de origen (R15, R17, R20), en el orden de LF8.
+#: Columnas de una linea de origen (R15, R17, R20; `docoritip` 44 = vinculada a un
+#: `ctrpro`, R42), en el orden de LF8.
 LINEA_DE_ORIGEN: tuple[str, ...] = (
     "ide", "docide", "pos", "proide", "can", "pre", "tar", "dto", "tot", "ivaide", "ivacuo", "cenide",
     "caaide", "paride", "natide", "almide", "obride", "res", "tex", "cod2", "unimed", "prepma",
     "dncide", "dncproide", "canfac", "linoriide", "canorilin", "canoriori", "imporiori",
+    "docoritip",
 )
 #: Columnas de una retencion de origen (R31), en el orden de LF11.
 RETENCION_DE_ORIGEN: tuple[str, ...] = (

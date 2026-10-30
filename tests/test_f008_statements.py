@@ -319,7 +319,8 @@ def test_f008_r14_asientos_de_los_origenes() -> None:
 _COLUMNAS_LINEA = (
     "p.ide, p.docide, p.pos, p.proide, p.can, p.pre, p.tar, p.dto, p.tot, p.ivaide, p.ivacuo, "
     "p.cenide, p.caaide, p.paride, p.natide, p.almide, p.obride, p.res, p.tex, p.cod2, p.unimed, "
-    "p.prepma, p.dncide, p.dncproide, p.canfac, p.linoriide, p.canorilin, p.canoriori, p.imporiori"
+    "p.prepma, p.dncide, p.dncproide, p.canfac, p.linoriide, p.canorilin, p.canoriori, p.imporiori, "
+    "p.docoritip"
 )
 
 
