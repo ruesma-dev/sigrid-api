@@ -88,7 +88,7 @@ trozos); aquí solo documentación y contratos, cotejados con el código real de
 - `verificacion_manual.md:74`: la consulta de albaranes no filtra por obra; G1 exige la 0404 (l.111). Una variante con
   `d.obride` de la 0404 evita elegir a ojo. G2 (l.114) no dice obra.
 - `verificacion_manual.md:90` (P2): falta la lectura de donde salen `canoriori`/`imporiori` que se mandan en `a_origen`.
-- `CLAUDE.md:89` habla de «las tres altas de dominio» en `application/use_cases/`; ya son más. Previo a F-008.
+- `CLAUDE.md:92` habla de «las tres altas de dominio» en `application/use_cases/`; ya son más. Previo a F-008.
 
 ## Cobertura (trozo docs)
 
