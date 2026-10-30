@@ -306,3 +306,13 @@ def test_f008_r43_la_misma_peticion_otra_vez_es_idempotente() -> None:
     r2, repo = _commit(repo)
     assert r2["estado"] == "idempotente" and (r2["cod"], r2["con_ide"]) == (r1["cod"], r1["con_ide"])
     assert len(repo.mundo.insertadas["dcf"]) == 1
+
+
+def test_f008_r16_solo_lineas_con_can_distinta_de_cero() -> None:
+    """R16: AC26/1 tiene 8001 (`can` 2) y 8002 (`can` 0). Solo pasa la primera; la de
+    `can` 0 no entra en `dcfpro` ni en `dcaprodes` y su `canfac` sigue a 0."""
+    r, repo = _commit()
+    assert [f["linoriide"] for f in r["filas"]["dcfpro"]] == [8001]
+    assert [f["docproide"] for f in repo.mundo.insertadas["dcaprodes"]] == [8001]
+    canfac = {l["ide"]: l["canfac"] for l in repo.mundo.lineas}
+    assert (canfac[8001], canfac[8002]) == (2.0, 0.0)
