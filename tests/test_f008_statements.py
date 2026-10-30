@@ -11,7 +11,10 @@ from typing import Any
 
 import pytest
 
-from application.use_cases.albaran_compra_statements import DCA_COLUMNAS, DCAREC_COLUMNAS
+from application.use_cases.albaran_compra_statements import (
+    DCA_COLUMNAS,
+    DCAREC_COLUMNAS,
+)
 from application.use_cases.factura_lineas import fila_dcfpro
 from application.use_cases.factura_statements import (
     CONSII_COLUMNAS,
@@ -30,7 +33,10 @@ from application.use_cases.factura_statements import (
     numerar,
     totales_factura,
 )
-from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS, LOG_COLUMNAS
+from application.use_cases.parte_reclamacion_statements import (
+    CON_COLUMNAS,
+    LOG_COLUMNAS,
+)
 
 # --------------------------------------------------------------------------- #
 # T8 · constructores puros
@@ -171,8 +177,9 @@ def test_f008_r36_dcaprodes_de_una_linea_de_origen() -> None:
 
 
 def test_f008_r36_log_del_alta_de_la_factura() -> None:
-    from application.use_cases.albaran_compra_statements import sellos_del_alta
     from datetime import datetime, timezone
+
+    from application.use_cases.albaran_compra_statements import sellos_del_alta
     sellos = sellos_del_alta(datetime(2026, 10, 30, 9, 0, tzinfo=timezone.utc), 20261030, "FR")
     fila = construir_log_factura(emp=1, usu="prueba", res="r", sellos=sellos)
     assert list(fila) == list(LOG_COLUMNAS)
@@ -243,3 +250,236 @@ def test_f008_r37_como_dict_de_la_respuesta() -> None:
     assert set(salida) == {"con", "dcf", "dcfpro", "dcfrec", "con_pag", "pag", "consii",
                            "dcaprodes", "log"}
     assert len(salida["pag"]) == 2 and len(salida["dcaprodes"]) == 2
+
+
+# --------------------------------------------------------------------------- #
+# T9 · lecturas con `?`, comparadas caracter a caracter
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.factura_statements import (
+    APPLOCKS_FACTURA,
+    FacturaStatements,
+    prefijo_y_cifras,
+)
+
+S = FacturaStatements(database="ruesma")
+
+
+def test_f008_r9_conest_de_factura_albaran_y_pago() -> None:
+    assert S.leer_estados() == (
+        "SELECT tip, est, cod FROM dbo.conest WHERE tip IN (?, ?, ?)", [15, 14, 25]
+    )
+
+
+def test_f008_r10_proveedor_por_ide() -> None:
+    assert S.leer_proveedor(77) == (
+        "SELECT v.ide, c.cod, v.raz, v.cif, v.tipcif, v.cifpai, v.cueide, v.cuepdtide, v.pagide, "
+        "v.efeide, v.eioide, v.banban, v.bansuc, v.bandig, v.bancue, v.ban, v.bantipide "
+        "FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide WHERE v.ide = ?",
+        [77],
+    )
+
+
+def test_f008_r10_forma_de_pago() -> None:
+    assert S.leer_auxpag(5) == ("SELECT res, formul FROM dbo.auxpag WHERE ide = ?", [5])
+
+
+def test_f008_r11_obras_de_la_empresa() -> None:
+    assert S.leer_obras(1, ["GG", "0404"]) == (
+        "SELECT c.ide, c.cod, o.cenide FROM dbo.con c JOIN dbo.obr o ON o.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND c.cod IN (?, ?)",
+        [42, 1, "GG", "0404"],
+    )
+
+
+def test_f008_r13_origenes_por_codigo() -> None:
+    assert S.leer_origenes(["AC26/1", "PROF26/2"]) == (
+        "SELECT c.ide, c.cod, c.emp, c.est, d.entide, d.obride, d.ctride, d.docoritip "
+        "FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND c.cod IN (?, ?)",
+        [14, "AC26/1", "PROF26/2"],
+    )
+
+
+def test_f008_r13_cabecera_del_primer_origen() -> None:
+    sql, params = S.leer_cabecera_de_origen(800)
+    assert sql == (
+        "SELECT entide, entcod, entres, entcif, entciftip, entcifpai, obride, cenide, almide, "
+        "empide, diremp1, dircon1, dirdir1, pagide, pagtex, pagfor, efeide, eioide, ivadif, cocide, "
+        "tipgar, fecent, feclim, banban, bansuc, bandig, bancue, ban, bantipide FROM dbo.dca WHERE ide = ?"
+    )
+    assert params == [800]
+
+
+def test_f008_r14_asientos_de_los_origenes() -> None:
+    assert S.leer_asientos(1, ["AC26/1"]) == (
+        "SELECT cod FROM dbo.con WHERE tip = ? AND emp = ? AND cod IN (?)", [20, 1, "AC26/1"]
+    )
+
+
+_COLUMNAS_LINEA = (
+    "p.ide, p.docide, p.pos, p.proide, p.can, p.pre, p.tar, p.dto, p.tot, p.ivaide, p.ivacuo, "
+    "p.cenide, p.caaide, p.paride, p.natide, p.almide, p.obride, p.res, p.tex, p.cod2, p.unimed, "
+    "p.prepma, p.dncide, p.dncproide, p.canfac, p.linoriide, p.canorilin, p.canoriori, p.imporiori"
+)
+
+
+def test_f008_r15_r17_lineas_de_los_origenes() -> None:
+    assert S.leer_lineas_de_origenes([800, 801]) == (
+        f"SELECT {_COLUMNAS_LINEA} FROM dbo.dcapro p WHERE p.docide IN (?, ?) "
+        "ORDER BY p.docide, p.pos, p.ide",
+        [800, 801],
+    )
+
+
+def test_f008_r15_lineas_de_los_origenes_bajo_bloqueo() -> None:
+    assert S.bloquear_lineas_de_origenes([800]) == (
+        f"SELECT {_COLUMNAS_LINEA} FROM dbo.dcapro p WITH (UPDLOCK, HOLDLOCK) WHERE p.docide IN (?) "
+        "ORDER BY p.docide, p.pos, p.ide",
+        [800],
+    )
+
+
+def test_f008_r15_lineas_ya_facturadas() -> None:
+    assert S.leer_facturadas([800]) == (
+        "SELECT d.docproide FROM dbo.dcaprodes d JOIN dbo.dcapro p ON p.ide = d.docproide "
+        "WHERE p.docide IN (?) AND d.docdestip = ?",
+        [800, 15],
+    )
+
+
+def test_f008_r14_cabeceras_de_origen_bajo_bloqueo() -> None:
+    assert S.bloquear_origenes([800, 801]) == (
+        "SELECT c.ide, c.cod, c.emp, c.est, d.entide, d.obride, d.ctride, d.docoritip "
+        "FROM dbo.con c WITH (UPDLOCK, HOLDLOCK) JOIN dbo.dca d WITH (UPDLOCK, HOLDLOCK) "
+        "ON d.ide = c.ide WHERE c.ide IN (?, ?)",
+        [800, 801],
+    )
+
+
+def test_f008_r20_lineas_anteriores() -> None:
+    assert S.leer_anteriores([7, 8]) == (
+        "SELECT ide, canoriori, imporiori FROM dbo.dcapro WHERE ide IN (?, ?)", [7, 8]
+    )
+
+
+def test_f008_r31_retenciones_de_los_origenes() -> None:
+    assert S.leer_retenciones([800]) == (
+        "SELECT r.docide, r.recide, r.pos, r.valdef, r.valpor, r.valcan, r.valmod, r.valfij, "
+        "r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item FROM dbo.dcarec r "
+        "WHERE r.docide IN (?) ORDER BY r.docide, r.pos, r.ide",
+        [800],
+    )
+
+
+def test_f008_r24_ivas_de_la_empresa() -> None:
+    assert S.leer_ivas(1, ["I21", "I10NDED"]) == (
+        "SELECT c.ide, c.cod, i.iva FROM dbo.con c JOIN dbo.iva i ON i.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND c.cod IN (?, ?)",
+        [23, 1, "I21", "I10NDED"],
+    )
+
+
+def test_f008_r26_cuentas_de_gasto() -> None:
+    assert S.leer_cuentas_gasto(1, ["6290000000"]) == (
+        "SELECT c.ide, c.cod, a.niv FROM dbo.con c JOIN dbo.cua a ON a.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND c.cod IN (?)",
+        [17, 1, "6290000000"],
+    )
+
+
+def test_f008_r26_analiticas_de_gasto_con_su_hoja() -> None:
+    assert S.leer_analiticas_gasto(1, ["GG.GEN"]) == (
+        "SELECT c.ide, c.cod, CASE WHEN EXISTS (SELECT 1 FROM dbo.caa h WHERE h.padide = c.ide) "
+        "THEN 0 ELSE 1 END FROM dbo.con c JOIN dbo.caa a ON a.ide = c.ide "
+        "WHERE c.tip = ? AND c.emp = ? AND c.cod IN (?)",
+        [19, 1, "GG.GEN"],
+    )
+
+
+def test_f008_r43_referencia() -> None:
+    assert S.buscar_referencia("FAC-1") == (
+        "SELECT c.ide, c.cod, d.entide, d.entref, d.totbas, d.totiva, d.totdoc, d.tot, c.est "
+        "FROM dbo.dcf d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?",
+        [15, "FAC-1"],
+    )
+
+
+def test_f008_r43_duplicadas_fuera_de_rech() -> None:
+    assert S.buscar_duplicadas("B00000000", "F-77", 15) == (
+        "SELECT c.ide, c.cod FROM dbo.dcf d JOIN dbo.con c ON c.ide = d.ide "
+        "WHERE c.tip = ? AND d.entcif = ? AND d.entref = ? AND c.est <> ?",
+        [15, "B00000000", "F-77", 15],
+    )
+
+
+def test_f008_listas_vacias_no_son_sql() -> None:
+    with pytest.raises(ValueError, match="vacia"):
+        S.leer_origenes([])
+
+
+def test_f008_r37_applocks_en_su_orden_fijo() -> None:
+    assert APPLOCKS_FACTURA == (
+        "SIGRID_REFEXT_15", "SIGRID_SERIE_15", "SIGRID_IDE_con", "SIGRID_IDE_dcfpro",
+        "SIGRID_IDE_dcaprodes", "SIGRID_IDE_dcfrec", "SIGRID_IDE_pag", "SIGRID_IDE_consii",
+        "SIGRID_IDE_log",
+    )
+
+
+def test_f008_la_base_se_recorta_y_se_validan_las_constantes() -> None:
+    assert FacturaStatements(database=" ruesma ").database == "ruesma"
+
+
+# --------------------------------------------------------------------------- #
+# T10 · reserva de `cod` por serie
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("serie,fecha,esperado", [
+    ("FR", 20261030, ("FR26/", 5)), ("FRGG", 20261030, ("FRGG26/", 4)), ("FR", 20270102, ("FR27/", 5)),
+])
+def test_f008_r9_prefijo_y_cifras_por_serie(serie: str, fecha: int, esperado: tuple[str, int]) -> None:
+    assert prefijo_y_cifras(serie, fecha) == esperado
+
+
+def test_f008_r9_serie_desconocida() -> None:
+    with pytest.raises(ValueError, match="serie"):
+        prefijo_y_cifras("AB", 20261030)
+
+
+def test_f008_r37_ultimo_cod_de_la_serie_sin_bloqueo() -> None:
+    assert S.ultimo_cod(1, "FR26/", 5) == (
+        "SELECT MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con "
+        "WHERE emp = ? AND tip = ? AND cod LIKE ? AND LEN(cod) = ?",
+        [6, 1, 15, "FR26/%", 10],
+    )
+
+
+def test_f008_r37_reserva_del_cod_bajo_bloqueo_por_serie() -> None:
+    assert S.reservar_cod(1, "FRGG26/", 4) == (
+        "SELECT MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) "
+        "WHERE emp = ? AND tip = ? AND cod LIKE ? AND LEN(cod) = ?",
+        [8, 1, 15, "FRGG26/%", 11],
+    )
+
+
+def test_f008_r9_un_prefijo_no_casa_el_de_la_otra_serie() -> None:
+    """`FR26/%` no casa `FRGG26/0001` y el `LEN` descarta cualquier otro ancho."""
+    def casa(patron: str, largo: int, cod: str) -> bool:
+        return cod.startswith(patron[:-1]) and len(cod) == largo
+
+    _sql, (_p, _e, _t, fr, largo_fr) = S.reservar_cod(1, "FR26/", 5)
+    _sql, (_p, _e, _t, gg, largo_gg) = S.reservar_cod(1, "FRGG26/", 4)
+    assert not casa(fr, largo_fr, "FRGG26/0001") and casa(fr, largo_fr, "FR26/00001")
+    assert not casa(gg, largo_gg, "FR26/00001") and casa(gg, largo_gg, "FRGG26/0001")
+    assert not casa(fr, largo_fr, "FR26/1")
+
+
+@pytest.mark.parametrize("metodo,tabla", [
+    ("reservar_ide_con", "con"), ("reservar_ide_dcfpro", "dcfpro"), ("reservar_ide_dcfrec", "dcfrec"),
+    ("reservar_ide_consii", "consii"), ("reservar_ide_dcaprodes", "dcaprodes"),
+    ("reservar_ide_log", "log"),
+])
+def test_f008_r37_reservas_de_ide(metodo: str, tabla: str) -> None:
+    assert getattr(S, metodo)() == (
+        f"SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.{tabla} WITH (UPDLOCK, HOLDLOCK)", []
+    )

@@ -21,7 +21,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from application.use_cases.albaran_compra_statements import codigo_analitica, importe_linea
+from application.use_cases.albaran_compra_statements import (
+    codigo_analitica,
+    importe_linea,
+)
 from domain.models.factura_models import (
     EntradaAOrigen,
     FacturaError,

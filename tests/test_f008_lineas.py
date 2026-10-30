@@ -36,14 +36,14 @@ def test_f008_r33_vencimientos_validos_no_dicen_nada() -> None:
 
 
 def test_f008_r33_el_mismo_dia_de_la_factura_vale() -> None:
-    validar_vencimientos([_v(20261015, 10.0)], fecha_factura=20261015, totpag=Decimal("10"))
+    validar_vencimientos([_v(20261015, 10.0)], fecha_factura=20261015, totpag=Decimal(10))
 
 
 def test_f008_r33_730_dias_vale_y_731_no() -> None:
     # 2026-10-15 + 730 dias = 2028-10-14 (2028 es bisiesto).
-    validar_vencimientos([_v(20281014, 10.0)], fecha_factura=20261015, totpag=Decimal("10"))
+    validar_vencimientos([_v(20281014, 10.0)], fecha_factura=20261015, totpag=Decimal(10))
     with pytest.raises(FacturaError) as error:
-        validar_vencimientos([_v(20281015, 10.0)], fecha_factura=20261015, totpag=Decimal("10"))
+        validar_vencimientos([_v(20281015, 10.0)], fecha_factura=20261015, totpag=Decimal(10))
     assert error.value.codigo == "vencimiento_no_valido"
     assert error.value.details == {"posicion": 0, "fecha": 20281015}
 
@@ -51,7 +51,7 @@ def test_f008_r33_730_dias_vale_y_731_no() -> None:
 def test_f008_r33_anterior_a_la_factura_no_vale() -> None:
     with pytest.raises(FacturaError) as error:
         validar_vencimientos(
-            [_v(20261115, 5.0), _v(20261014, 5.0)], fecha_factura=20261015, totpag=Decimal("10")
+            [_v(20261115, 5.0), _v(20261014, 5.0)], fecha_factura=20261015, totpag=Decimal(10)
         )
     assert error.value.codigo == "vencimiento_no_valido"
     assert error.value.details == {"posicion": 1, "fecha": 20261014}
@@ -59,7 +59,7 @@ def test_f008_r33_anterior_a_la_factura_no_vale() -> None:
 
 def test_f008_r33_fecha_que_no_existe_no_vale() -> None:
     with pytest.raises(FacturaError) as error:
-        validar_vencimientos([_v(20261131, 10.0)], fecha_factura=20261015, totpag=Decimal("10"))
+        validar_vencimientos([_v(20261131, 10.0)], fecha_factura=20261015, totpag=Decimal(10))
     assert error.value.details["posicion"] == 0
 
 
@@ -67,7 +67,7 @@ def test_f008_r33_fechas_repetidas_no_valen() -> None:
     with pytest.raises(FacturaError) as error:
         validar_vencimientos(
             [_v(20261115, 5.0), _v(20261215, 2.0), _v(20261115, 3.0)],
-            fecha_factura=20261015, totpag=Decimal("10"),
+            fecha_factura=20261015, totpag=Decimal(10),
         )
     assert error.value.codigo == "vencimiento_no_valido"
     assert error.value.details == {"posicion": 2, "fecha": 20261115}
@@ -224,8 +224,8 @@ def test_f008_r38_fila_dcfpro_rechaza_columnas_ajenas() -> None:
 # T5 · comparacion a origen (R21, R22)
 # --------------------------------------------------------------------------- #
 
-from application.use_cases.factura_lineas import comparar_a_origen  # noqa: E402
-from domain.models.factura_models import EntradaAOrigen  # noqa: E402
+from application.use_cases.factura_lineas import comparar_a_origen
+from domain.models.factura_models import EntradaAOrigen
 
 _CALCULADAS = [
     {"linoriide": 11, "canoriori": 10.0, "imporiori": 500.0},
@@ -288,13 +288,13 @@ def test_f008_r21_solo_sobra_una() -> None:
 # T6 · linea propia FRGG y constructor unico (R24, R26-R28)
 # --------------------------------------------------------------------------- #
 
-from application.use_cases.factura_lineas import (  # noqa: E402
+from application.use_cases.factura_lineas import (
     LecturasLineas,
     LineaResuelta,
     linea_sin_origen,
     resolver_linea_gg,
 )
-from domain.models.factura_models import LineaSinOrigen  # noqa: E402
+from domain.models.factura_models import LineaSinOrigen
 
 _IVAS = {"i21": (777740, 0.21), "i10": (777742, 0.10), "i21nded": (777741, 0.21), "i0": (496338, 0.0)}
 
@@ -443,7 +443,7 @@ def test_f008_r28_serie_desconocida_falla() -> None:
 # T7 · linea propia FR con las reglas de F-009 (R25, R28)
 # --------------------------------------------------------------------------- #
 
-from application.use_cases.factura_lineas import (  # noqa: E402
+from application.use_cases.factura_lineas import (
     naturalezas_con_cuenta,
     naturalezas_resueltas,
     naturalezas_validas,

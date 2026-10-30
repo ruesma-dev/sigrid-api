@@ -15,7 +15,7 @@ las listas de T0 (`progress/impl_F-008.md`). Ninguna sentencia nombra `asi`,
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -30,6 +30,7 @@ from application.use_cases.albaran_compra_statements import (
     redondear_euros,
 )
 from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 
 #: `con.tip` de la factura de compra, del pago y del albaran de origen.
 TIP_FACTURA = 15
@@ -306,3 +307,286 @@ def numerar(
         ],
         log={**filas.log, "ide": ide_log, "cod": cod},
     )
+
+
+# =====================================================================================
+# SQL constante (T9, T10). `{marcadores}` es la lista `(?, ?, ...)` de un `IN`.
+# =====================================================================================
+
+#: Applocks de la transaccion, SIEMPRE en este orden (design §7): `_con` antes y
+#: `_log` al final, como F-006 y F-009; los demas, propios de la factura.
+APPLOCKS_FACTURA: tuple[str, ...] = (
+    "SIGRID_REFEXT_15",
+    "SIGRID_SERIE_15",
+    "SIGRID_IDE_con",
+    "SIGRID_IDE_dcfpro",
+    "SIGRID_IDE_dcaprodes",
+    "SIGRID_IDE_dcfrec",
+    "SIGRID_IDE_pag",
+    "SIGRID_IDE_consii",
+    "SIGRID_IDE_log",
+)
+
+#: `con.tip` de lo que se lee: asiento, cuenta, analitica, IVA y obra.
+TIP_ASIENTO = 20
+TIP_CUENTA = 17
+TIP_ANALITICA = 19
+TIP_IVA = 23
+TIP_OBRA = 42
+
+#: R9: prefijo y cifras de cada serie (M52, M64).
+SERIES_FACTURA: dict[str, tuple[str, int]] = {"FR": ("FR", 5), "FRGG": ("FRGG", 4)}
+
+#: Lo que se lee de la `dca` del primer origen para heredarlo (M57), en orden fijo.
+CABECERA_DE_ORIGEN: tuple[str, ...] = (
+    "entide", "entcod", "entres", "entcif", "entciftip", "entcifpai", "obride", "cenide", "almide",
+    "empide", "diremp1", "dircon1", "dirdir1", "pagide", "pagtex", "pagfor", "efeide", "eioide",
+    "ivadif", "cocide", "tipgar", "fecent", "feclim", "banban", "bansuc", "bandig", "bancue", "ban",
+    "bantipide",
+)
+#: Columnas de una linea de origen (R15, R17, R20), en el orden de LF8.
+LINEA_DE_ORIGEN: tuple[str, ...] = (
+    "ide", "docide", "pos", "proide", "can", "pre", "tar", "dto", "tot", "ivaide", "ivacuo", "cenide",
+    "caaide", "paride", "natide", "almide", "obride", "res", "tex", "cod2", "unimed", "prepma",
+    "dncide", "dncproide", "canfac", "linoriide", "canorilin", "canoriori", "imporiori",
+)
+#: Columnas de una retencion de origen (R31), en el orden de LF11.
+RETENCION_DE_ORIGEN: tuple[str, ...] = (
+    "docide", "recide", "pos", "valdef", "valpor", "valcan", "valmod", "valfij", "reccla", "cueide",
+    "ivaide", "tex", "resalt", "item",
+)
+#: Columnas del proveedor (R10, R12), en el orden de LF2.
+PROVEEDOR: tuple[str, ...] = (
+    "ide", "cod", "raz", "cif", "tipcif", "cifpai", "cueide", "cuepdtide", "pagide", "efeide",
+    "eioide", "banban", "bansuc", "bandig", "bancue", "ban", "bantipide",
+)
+#: Columnas de un origen (R13, R14, R18), en el orden de LF5.
+ORIGEN: tuple[str, ...] = ("ide", "cod", "emp", "est", "entide", "obride", "ctride", "docoritip")
+
+_LF_ORIGEN_COLUMNAS = "c.ide, c.cod, c.emp, c.est, d.entide, d.obride, d.ctride, d.docoritip"
+_LF_LINEA_COLUMNAS = ", ".join(f"p.{columna}" for columna in LINEA_DE_ORIGEN)
+
+LF1_ESTADOS = "SELECT tip, est, cod FROM dbo.conest WHERE tip IN (?, ?, ?)"
+LF2_PROVEEDOR = (
+    "SELECT v.ide, c.cod, v.raz, v.cif, v.tipcif, v.cifpai, v.cueide, v.cuepdtide, v.pagide, "
+    "v.efeide, v.eioide, v.banban, v.bansuc, v.bandig, v.bancue, v.ban, v.bantipide "
+    "FROM dbo.prv v JOIN dbo.con c ON c.ide = v.ide WHERE v.ide = ?"
+)
+LF3_AUXPAG = "SELECT res, formul FROM dbo.auxpag WHERE ide = ?"
+LF4_OBRAS = (
+    "SELECT c.ide, c.cod, o.cenide FROM dbo.con c JOIN dbo.obr o ON o.ide = c.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.cod IN {marcadores}"
+)
+LF5_ORIGENES = (
+    f"SELECT {_LF_ORIGEN_COLUMNAS} "
+    "FROM dbo.con c JOIN dbo.dca d ON d.ide = c.ide WHERE c.tip = ? AND c.cod IN {marcadores}"
+)
+LF6_CABECERA_DE_ORIGEN = f"SELECT {', '.join(CABECERA_DE_ORIGEN)} FROM dbo.dca WHERE ide = ?"
+LF7_ASIENTOS = "SELECT cod FROM dbo.con WHERE tip = ? AND emp = ? AND cod IN {marcadores}"
+LF8_LINEAS_DE_ORIGENES = (
+    f"SELECT {_LF_LINEA_COLUMNAS} FROM dbo.dcapro p WHERE p.docide IN {{marcadores}} "
+    "ORDER BY p.docide, p.pos, p.ide"
+)
+LF9_FACTURADAS = (
+    "SELECT d.docproide FROM dbo.dcaprodes d JOIN dbo.dcapro p ON p.ide = d.docproide "
+    "WHERE p.docide IN {marcadores} AND d.docdestip = ?"
+)
+LF10_ANTERIORES = "SELECT ide, canoriori, imporiori FROM dbo.dcapro WHERE ide IN {marcadores}"
+LF11_RETENCIONES = (
+    "SELECT r.docide, r.recide, r.pos, r.valdef, r.valpor, r.valcan, r.valmod, r.valfij, "
+    "r.reccla, r.cueide, r.ivaide, r.tex, r.resalt, r.item FROM dbo.dcarec r "
+    "WHERE r.docide IN {marcadores} ORDER BY r.docide, r.pos, r.ide"
+)
+LF12_IVAS = (
+    "SELECT c.ide, c.cod, i.iva FROM dbo.con c JOIN dbo.iva i ON i.ide = c.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.cod IN {marcadores}"
+)
+LF13_CUENTAS_GASTO = (
+    "SELECT c.ide, c.cod, a.niv FROM dbo.con c JOIN dbo.cua a ON a.ide = c.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.cod IN {marcadores}"
+)
+LF14_ANALITICAS_GASTO = (
+    "SELECT c.ide, c.cod, CASE WHEN EXISTS (SELECT 1 FROM dbo.caa h WHERE h.padide = c.ide) "
+    "THEN 0 ELSE 1 END FROM dbo.con c JOIN dbo.caa a ON a.ide = c.ide "
+    "WHERE c.tip = ? AND c.emp = ? AND c.cod IN {marcadores}"
+)
+LF15_REFERENCIA = (
+    "SELECT c.ide, c.cod, d.entide, d.entref, d.totbas, d.totiva, d.totdoc, d.tot, c.est "
+    "FROM dbo.dcf d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = ? AND d.synckey = ?"
+)
+LF16_DUPLICADAS = (
+    "SELECT c.ide, c.cod FROM dbo.dcf d JOIN dbo.con c ON c.ide = d.ide "
+    "WHERE c.tip = ? AND d.entcif = ? AND d.entref = ? AND c.est <> ?"
+)
+LF17_ULTIMO_COD = (
+    "SELECT MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con "
+    "WHERE emp = ? AND tip = ? AND cod LIKE ? AND LEN(cod) = ?"
+)
+
+# --- Dentro de la transaccion --------------------------------------------------------
+
+EF1_ORIGENES_BLOQUEADOS = (
+    f"SELECT {_LF_ORIGEN_COLUMNAS} "
+    "FROM dbo.con c WITH (UPDLOCK, HOLDLOCK) JOIN dbo.dca d WITH (UPDLOCK, HOLDLOCK) "
+    "ON d.ide = c.ide WHERE c.ide IN {marcadores}"
+)
+EF2_LINEAS_BLOQUEADAS = (
+    f"SELECT {_LF_LINEA_COLUMNAS} FROM dbo.dcapro p WITH (UPDLOCK, HOLDLOCK) "
+    "WHERE p.docide IN {marcadores} ORDER BY p.docide, p.pos, p.ide"
+)
+EF3_COD = (
+    "SELECT MAX(TRY_CONVERT(int, SUBSTRING(cod, ?, 40))) FROM dbo.con WITH (UPDLOCK, HOLDLOCK) "
+    "WHERE emp = ? AND tip = ? AND cod LIKE ? AND LEN(cod) = ?"
+)
+_EF_IDE = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.{tabla} WITH (UPDLOCK, HOLDLOCK)"
+TABLAS_CON_IDE: tuple[str, ...] = ("con", "dcfpro", "dcfrec", "consii", "dcaprodes", "log")
+
+
+def _marcadores(n: int) -> str:
+    return "(" + ", ".join(["?"] * n) + ")"
+
+
+def prefijo_y_cifras(serie: str, fecha: int) -> tuple[str, int]:
+    """R9: `FR<aa>/` con 5 cifras o `FRGG<aa>/` con 4, del anio de `con.fec`."""
+    if serie not in SERIES_FACTURA:
+        raise ValueError(f"La serie '{serie}' no es FR ni FRGG.")
+    prefijo, cifras = SERIES_FACTURA[serie]
+    return f"{prefijo}{(fecha // 10000) % 100:02d}/", cifras
+
+
+def _parametros_de_serie(emp: int, prefijo: str, cifras: int) -> list[Any]:
+    """LF17 y EF3: donde empieza el numero, la empresa, el tipo, el `LIKE` del
+    prefijo (sin comodines: `FR26/%` no casa `FRGG26/...`) y el largo exacto."""
+    return [len(prefijo) + 1, emp, TIP_FACTURA, prefijo + "%", len(prefijo) + cifras]
+
+
+class FacturaStatements:
+    """El SQL de `sigrid/factura`: cada metodo devuelve `(sql, params)`."""
+
+    def __init__(self, *, database: str) -> None:
+        self.database = database.strip()
+        for sql in self.todas_las_sentencias():
+            self._validar(sql)
+
+    def _validar(self, sql: str) -> str:
+        DatabaseReferenceGuard.validate(sql, allowed=[self.database], contexto="escritura")
+        return sql
+
+    def _con_lista(self, plantilla: str, valores: Sequence[Any]) -> str:
+        if not valores:
+            raise ValueError("Lista vacia: no hay nada que buscar con IN.")
+        return self._validar(plantilla.format(marcadores=_marcadores(len(valores))))
+
+    @staticmethod
+    def todas_las_sentencias() -> tuple[str, ...]:
+        """Todas las constantes, las de `IN` con un solo marcador (T15)."""
+        uno = _marcadores(1)
+        return (
+            LF1_ESTADOS, LF2_PROVEEDOR, LF3_AUXPAG, LF4_OBRAS.format(marcadores=uno),
+            LF5_ORIGENES.format(marcadores=uno), LF6_CABECERA_DE_ORIGEN,
+            LF7_ASIENTOS.format(marcadores=uno), LF8_LINEAS_DE_ORIGENES.format(marcadores=uno),
+            LF9_FACTURADAS.format(marcadores=uno), LF10_ANTERIORES.format(marcadores=uno),
+            LF11_RETENCIONES.format(marcadores=uno), LF12_IVAS.format(marcadores=uno),
+            LF13_CUENTAS_GASTO.format(marcadores=uno), LF14_ANALITICAS_GASTO.format(marcadores=uno),
+            LF15_REFERENCIA, LF16_DUPLICADAS, LF17_ULTIMO_COD,
+            EF1_ORIGENES_BLOQUEADOS.format(marcadores=uno),
+            EF2_LINEAS_BLOQUEADAS.format(marcadores=uno), EF3_COD,
+            *(_EF_IDE.format(tabla=tabla) for tabla in TABLAS_CON_IDE),
+        )
+
+    # --- Lecturas (T9) ---------------------------------------------------------------
+
+    def leer_estados(self) -> tuple[str, list[Any]]:
+        """R9, R14, R41: los `conest` de la factura, el albaran y el pago."""
+        return LF1_ESTADOS, [TIP_FACTURA, TIP_ALBARAN, TIP_PAGO]
+
+    def leer_proveedor(self, ide: int) -> tuple[str, list[Any]]:
+        return LF2_PROVEEDOR, [ide]
+
+    def leer_auxpag(self, ide: int) -> tuple[str, list[Any]]:
+        return LF3_AUXPAG, [ide]
+
+    def leer_obras(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        """R26: las obras de la empresa con su centro (`obr.cenide`)."""
+        return self._con_lista(LF4_OBRAS, codigos), [TIP_OBRA, emp, *codigos]
+
+    def leer_origenes(self, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        return self._con_lista(LF5_ORIGENES, codigos), [TIP_ALBARAN, *codigos]
+
+    def leer_cabecera_de_origen(self, ide: int) -> tuple[str, list[Any]]:
+        return LF6_CABECERA_DE_ORIGEN, [ide]
+
+    def leer_asientos(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        """R14: los asientos `tip 20` con el `cod` de cada origen, en su empresa."""
+        return self._con_lista(LF7_ASIENTOS, codigos), [TIP_ASIENTO, emp, *codigos]
+
+    def leer_lineas_de_origenes(self, docides: Sequence[int]) -> tuple[str, list[Any]]:
+        return self._con_lista(LF8_LINEAS_DE_ORIGENES, docides), [*docides]
+
+    def leer_facturadas(self, docides: Sequence[int]) -> tuple[str, list[Any]]:
+        """R15: las lineas de los origenes con un `dcaprodes` a una factura."""
+        return self._con_lista(LF9_FACTURADAS, docides), [*docides, TIP_FACTURA]
+
+    def leer_anteriores(self, ides: Sequence[int]) -> tuple[str, list[Any]]:
+        """R20: las `dcapro` de los `canorilin` de las lineas a origen."""
+        return self._con_lista(LF10_ANTERIORES, ides), [*ides]
+
+    def leer_retenciones(self, docides: Sequence[int]) -> tuple[str, list[Any]]:
+        return self._con_lista(LF11_RETENCIONES, docides), [*docides]
+
+    def leer_ivas(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        return self._con_lista(LF12_IVAS, codigos), [TIP_IVA, emp, *codigos]
+
+    def leer_cuentas_gasto(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        return self._con_lista(LF13_CUENTAS_GASTO, codigos), [TIP_CUENTA, emp, *codigos]
+
+    def leer_analiticas_gasto(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
+        """R26: la tercera columna es 1 si la analitica es hoja (ninguna `caa`
+        la tiene de padre)."""
+        return self._con_lista(LF14_ANALITICAS_GASTO, codigos), [TIP_ANALITICA, emp, *codigos]
+
+    def buscar_referencia(self, referencia: str) -> tuple[str, list[Any]]:
+        """R43, fuera y otra vez bajo el applock de referencias."""
+        return LF15_REFERENCIA, [TIP_FACTURA, referencia]
+
+    def buscar_duplicadas(self, cif: str, entref: str, est_rech: int) -> tuple[str, list[Any]]:
+        """R43: otra factura del mismo CIF y numero fuera de RECH."""
+        return LF16_DUPLICADAS, [TIP_FACTURA, cif, entref, est_rech]
+
+    def ultimo_cod(self, emp: int, prefijo: str, cifras: int) -> tuple[str, list[Any]]:
+        """El `cod` provisional de la previa: EF3 sin bloqueos."""
+        return LF17_ULTIMO_COD, _parametros_de_serie(emp, prefijo, cifras)
+
+    # --- Dentro de la transaccion ----------------------------------------------------
+
+    def bloquear_origenes(self, ides: Sequence[int]) -> tuple[str, list[Any]]:
+        """R14 otra vez, con las cabeceras de los origenes bloqueadas (design §7)."""
+        return self._con_lista(EF1_ORIGENES_BLOQUEADOS, ides), [*ides]
+
+    def bloquear_lineas_de_origenes(self, docides: Sequence[int]) -> tuple[str, list[Any]]:
+        """R15 y R22 otra vez: el escritorio no toma nuestros applocks."""
+        return self._con_lista(EF2_LINEAS_BLOQUEADAS, docides), [*docides]
+
+    def reservar_cod(self, emp: int, prefijo: str, cifras: int) -> tuple[str, list[Any]]:
+        return EF3_COD, _parametros_de_serie(emp, prefijo, cifras)
+
+    def _reservar_ide(self, tabla: str) -> tuple[str, list[Any]]:
+        return _EF_IDE.format(tabla=tabla), []
+
+    def reservar_ide_con(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("con")
+
+    def reservar_ide_dcfpro(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("dcfpro")
+
+    def reservar_ide_dcfrec(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("dcfrec")
+
+    def reservar_ide_consii(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("consii")
+
+    def reservar_ide_dcaprodes(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("dcaprodes")
+
+    def reservar_ide_log(self) -> tuple[str, list[Any]]:
+        return self._reservar_ide("log")
