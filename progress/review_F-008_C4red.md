@@ -9,12 +9,8 @@ fase RED y he medido la cobertura por mi cuenta.
 **Rigor:** `critico`, declarado en `harness/features.json`. Exige tests trazables, fase RED, cobertura de lo cambiado
 ≥ 80 % y mutación. La mutación y las reglas RM1-RM6 son de otro revisor.
 
-**Cómo he trabajado:**
-- No he lanzado `init.sh` ni la suite completa, por convivencia con los otros revisores.
-- Las roturas deliberadas las hice en un worktree propio (`scratchpad/wt`), ya borrado. El árbol principal no se ha
-  tocado.
-- HEAD avanzó a `a7de17d` mientras revisaba, pero solo con informes de otros revisores: el código sigue siendo el de
-  `2879ddb`.
+**Cómo he trabajado:** sin `init.sh` ni suite completa (convivencia); roturas en un worktree propio ya borrado, árbol
+principal intacto. HEAD avanzó a `a7de17d` solo con informes de otros revisores: el código es el de `2879ddb`.
 
 ## C4. La verificación es real
 
@@ -35,13 +31,10 @@ Los 411 tests de `tests/test_f008_*.py` pasan (11,4 s), y hay test con nombre pa
 
 ### [x] Los tests no tocan red ni base de datos
 
-- Ningún `test_f008_*.py` ni `f008_dobles.py` importa `pyodbc`, `requests`, `socket`, `httpx`, `urllib`,
-  `SqlServerRepository` ni `get_settings`.
-- La ruta sustituye `build_dependencies` y `CreateFacturaUseCase` con `monkeypatch` (`test_f008_route.py:49-50`).
-- El repositorio doble falla con `AssertionError` en tres casos:
-  - si se llama a la escritura (`f008_dobles.py:432-438`);
-  - si se abre una transacción en previa (`f008_dobles.py:432-438`);
-  - ante cualquier SQL desconocido (`:414` y `:663`).
+Ningún `test_f008_*.py` ni `f008_dobles.py` importa `pyodbc`, `requests`, `socket`, `httpx`, `urllib`,
+`SqlServerRepository` ni `get_settings`. La ruta sustituye `build_dependencies` y `CreateFacturaUseCase` con
+`monkeypatch` (`test_f008_route.py:49-50`). El doble falla con `AssertionError` si se escribe o se abre transacción en
+previa (`f008_dobles.py:432-438`) y ante cualquier SQL desconocido (`:414`, `:663`).
 
 ### [ ] Las verificaciones MANUAL están en `progress/current.md` con su comando exacto
 
@@ -51,11 +44,8 @@ documento solo lo enlaza `impl_F-008.md`; la entrada de F-015 en `current.md` s�
 
 ### [x] El doble `tests/f008_dobles.py` no esconde la lógica bajo prueba
 
-- **Qué hace el doble.**
-  - Contesta cada sentencia por su SQL **exacto**: los mapas `NOMBRES` y `NOMBRES_TX` salen de las constantes de
-    `FacturaStatements`.
-  - Sobre `Mundo` solo filtra, cuenta y aplica los `WHERE` de las marcas (`marcar_linea` respeta `canfac = ?`, `:554-559`).
-  - El rollback es un `deepcopy` (`:689-712`).
+- **Qué hace.** Contesta cada sentencia por su SQL **exacto** (`NOMBRES`/`NOMBRES_TX` salen de `FacturaStatements`);
+  sobre `Mundo` solo filtra, cuenta y aplica los `WHERE` de las marcas (`:554-559`); el rollback es un `deepcopy`.
 - **Qué no hace.** No valida, no suma totales, no decide estados ni resuelve líneas: todo eso queda en producción.
 - **El riesgo de construirlo con las constantes de producción** lo cubre `test_f008_statements.py`, que compara el SQL
   literal. Lo comprobé con M8: el doble siguió verde y el test de statements cazó la rotura.
@@ -78,12 +68,9 @@ Once roturas a mano. En cada una ejecuté los 8 ficheros `test_f008_*.py` y rest
 | M10 | llave `SIGRID_FACTURA_WRITE_ENABLED` abierta por defecto | 1 | `test_f008_r47_los_siete_ajustes_arrancan_ausentes_y_cerrados` |
 | M11 | `origen_ya_facturado` con `if False` | 2 | `test_f008_r15_origen_ya_facturado_por_canfac_o_dcaprodes` |
 
-- **Ninguna rotura pasó inadvertida.** Tampoco hay `assert True`, `skip` ni `xfail`.
-- **Hay seis tests sin `assert`**, todos en `test_f008_lineas.py` (los `r33_*` válidos y los `r22_*` del borde). Son
-  legítimos: comprueban que la función no lanza.
-- **El detector de la lista negativa (T15)** caza sus 7 sentencias prohibidas de muestra.
-- **`todas_las_sentencias()` cubre las 53 constantes SQL.** Lo recalculé recorriendo `vars(factura_statements)`: no
-  falta ninguna.
+Ninguna rotura pasó inadvertida; no hay `assert True`, `skip` ni `xfail`. Los seis tests sin `assert`
+(`test_f008_lineas.py`, `r33_*` válidos y `r22_*` del borde) son legítimos: comprueban que no lanza. El detector de T15
+caza sus 7 sentencias de muestra, y `todas_las_sentencias()` cubre las 53 constantes SQL (recalculado con `vars()`).
 
 ## C4 bis (solo fase RED y cobertura)
 
@@ -140,11 +127,8 @@ la traza no lleva el CIF.
 ## Cambios requeridos
 
 1. **Dar a R16 un test trazable**, en `tests/test_f008_use_case.py:64` o en `tests/test_f008_transaccion.py:215`. Por
-   ejemplo, `test_f008_r16_solo_lineas_con_can_distinta_de_cero`, que compruebe:
-   - en la previa, que la línea 8002 (`can` 0) no aparece en `dcfpro` ni en `dcaprodes`;
-   - tras el commit, que `canfac` de 8002 vale 0.
-
-   Basta con extraerlo de los dos tests actuales.
+   ejemplo, `test_f008_r16_solo_lineas_con_can_distinta_de_cero`: en la previa, la línea 8002 (`can` 0) no aparece en
+   `dcfpro` ni en `dcaprodes`; tras el commit, su `canfac` vale 0. Basta con extraerlo de los dos tests actuales.
 2. **Enlazar `../specs/F-008-registrar-factura/verificacion_manual.md` junto a T22-T24** en la entrada de F-008 de
    `progress/current.md`, como hace F-015. Si el trozo C1C2C5 ya pide reescribir esa entrada, hacedlo en la misma
    edición.
