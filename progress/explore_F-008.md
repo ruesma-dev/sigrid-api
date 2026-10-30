@@ -176,3 +176,66 @@ escritorio, a partir de lo que deja el alta. La aprobación por firma (`ope 24`)
 - **V3:** si el escritorio deja corregir `pag.fecven` en REC/COM y si regenera los vencimientos al guardar.
 - **V4:** si anular la factura desde el escritorio revierte `canfac`, `dcaprodes`, `con.est` del albarán y el `pag`.
 - **V5:** qué decide `dcf.empide` (83 % el del albarán) y `dca.idefac`.
+
+---
+
+# v2 · Mediciones del cambio de alcance (2026-10-30)
+
+Mismo método (solo `sql/read`, agregados, sin nombres ni CIF). Motivo: el humano corrigió cuatro puntos de la v1 (origen
+opcional, vencimiento dado por el llamante, a origen dentro, varios llamantes). «Sin origen» = líneas `dcfpro.docoritip 0`.
+
+## M61 · Facturas sin origen
+
+- **FR26 por origen de sus líneas:** todas de albarán 10.462, **mixtas 875** (871 con 1.612 líneas sin origen, **800
+  negativas**: ajustes sobre los albaranes), **sin origen 64** (55 con líneas; 16 son abonos). FR25: 62 sin origen, 4 abonos.
+  **FRGG26: 2.592 sin origen**, 134 de albarán, 1 mixta.
+- **Líneas sin origen de FR26 (1.726):** `obride` 100 % (= cabecera 99,5 %), `proide` 97,9 % (los de la lista blanca de F-009:
+  MA9999 618, SM370001 395, SM9999 223, QA9999 95, SB9999 46, XA9999 28; resto, códigos de catálogo), `paride` 97,2 %,
+  `docori*` 0 y `canoriori`/`imporiori` 0 en 97,8 %. Cuenta: 6000/6060/6210 en el 97 %; **`cueide` = la `cua` de
+  `auxpronat.cuacomcod` de su naturaleza en 1.659 (96,1 %)**, como la sin vincular de F-009 (R13b). `caaide` = la regla de F-009 R15
+  en 1.477 (85,6 %). `natide` = `pro.natide` 97,4 %. `almide`/`cenide` de la obra 98,8 %. IVA: I21 1.060, I10 335, ISP21 330, i0 1.
+- **FRGG26 (7.830 líneas):** sin producto 94 %, sin partida 93 %, **42 cuentas** 62xx distintas, `natide` = la del proveedor.
+  Elegir la cuenta de gasto es una decisión contable, no un dato del documento.
+- **Cabecera sin origen** (FR26 55, FR25 62): `pagfor`/`pagtex` = los de `auxpag` de `pagide` 100 %; del proveedor `pagide` 85 %,
+  `efeide` 84 %, `eioide` 92 %, `cueide` 91-100 %, `ban` 58-74 %; `cenide`/`almide` de la obra 100 %; con contrato 18 y 1;
+  con `dcfrec` 1 de 55. Con `pag` y `consii` como las demás.
+
+## M62 · Vencimientos (`pag cla 0`) en el alta
+
+- Por factura FR26: **1 en 11.371** (Σ = `totpag` en 11.362), **2 en 4** (dos plazos de `pagfor`, mitad cada uno, o un plazo y
+  otro a 0), 3 en 16 y 5 en 1: estas son **divisiones posteriores** de Tesorería (una `pag` madre + hijas en otros estados y
+  remesas), no del alta. Sin `pag cla 0`, 12 (2 con `totpag` 0).
+- Días de `fecdoc` a `fecven` (11.116 positivas): < 0 en **29 (0,26 %)**, 0-30 907, 31-90 969, 91-180 8.472, 181-365 731,
+  > 365 8 (máx. 690). `con.fec` del `pag` = el de la factura 99,2 %; `tot` 0 en 1 de 13.934.
+- `pag cla 2` (retención): una por factura en 2.500; su `fecven` sale hoy de la `R` de `pagfor` (94,9 %, M58).
+
+## M63 · Facturas a origen
+
+- **La factura no forma cadena propia:** `dcf.docoritip 1` en 64 facturas de toda la historia (1 en 2026); `dcfpro.canorilin`
+  ≠ 0 en 0 líneas de 2025 y 2026. «A origen» es **el modo de sus albaranes** (`dca.docoritip 1`).
+- FR26 con albaranes a origen: **1.076** (1.068 de un solo albarán, máx. 3), `dcf.docoritip 0` en 1.075; **mezcla de mes y a
+  origen en 1**. Marcas en el origen idénticas a las de mes (`canfac` = `can`, `dcaprodes`, `estfac`, FAC, asiento previo: 100 %
+  de 1.288 líneas de FR26/1). Las arrastradas (`can` 0) no pasan a la factura (0 líneas `can` 0) y quedan con `canfac` 0.
+- **Columnas a origen de la línea (7.123 líneas de albarán a origen):**
+
+| Línea del albarán | n | `canoriant` = `canoriori` de su `canorilin` | `imporiant` = `imporiori` de su `canorilin` | `imporiori` = regla |
+|---|---|---|---|---|
+| continuada, vinculada | 3.430 | 3.430 | 3.430 | = `dcapro.imporiori` **3.419** |
+| continuada, sin vincular | 830 | 830 | 830 | = `imporiant` + `tot` **813** |
+| nueva, vinculada | 1.486 | 1.486 | 0 | = `dcapro.imporiori` **1.484** |
+| nueva, sin vincular | 1.377 | 1.375 | 0 | = `imporiant` + `tot` **1.368** |
+
+  `canoriori` = `dcapro.canoriori` en 7.079 (99,4 %). La regla entera acierta **7.084 de 7.123 (99,5 %)**.
+- **Por qué la v1 midió 31 %:** comparó `imporiori` − `imporiant` = `tot` en todas. En las vinculadas `imporiori` es el
+  **importe del contrato** (el del `ctrpro`, que ya copia la proforma, F-016 R11), no un acumulado; esa resta solo vale en las
+  sin vincular. Con la regla por clase, se reproduce.
+
+## Cobertura estimada de la v2 (FR26)
+
+Todo albarán 91,8 % + mixtas 7,7 % + sin origen 0,5 %, menos abonos 2,9 %, varias obras o contratos ~1,3 % y parciales 0,7 %:
+**~95 %** (estimación, no medición de conjunto). Fuera: FRGG (gastos generales) y abonos.
+
+## V6 (nueva, del humano)
+
+- **V6:** si una factura sin origen o mixta dada de alta por la API se comprueba y contabiliza en el escritorio con la cuenta
+  y la analítica que puso la API (M61: 96,1 % y 85,6 %).

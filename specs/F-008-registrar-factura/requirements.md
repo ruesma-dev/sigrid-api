@@ -1,148 +1,143 @@
 <!-- specs/F-008-registrar-factura/requirements.md -->
-# F-008 · Registrar facturas de compra: alta en REC, sin contabilidad
+# F-008 · Registrar facturas de compra: alta en REC, sin contabilidad (v2)
 
-Rigor **critico**. Cifras de [`progress/explore_F-008.md`](../../progress/explore_F-008.md) (M52-M60). Alcance pendiente de P1-P10 (`design.md` §9).
+Rigor **critico**. Cifras de [`progress/explore_F-008.md`](../../progress/explore_F-008.md) (M52-M63). v2: cambio de alcance
+del humano del 2026-10-30 (origen opcional, vencimientos del llamante, a origen, varios llamantes); decisiones P1-P17 en
+`design.md` §9. **Alta en REC, sin contabilidad** (P1): se escribe lo que arrastra el alta (`con`, `dcf`, `dcfpro`, `dcfrec`,
+`pag`, `consii`, `log`, marcas de los orígenes); el asiento, `regiva` y `regirp` los hace «Contabilizar» en el escritorio.
+Cobertura estimada: **~95 %** de FR26 (de mes, a origen, mixtas y sin origen; fuera FRGG y abonos).
 
-**Alta en REC, sin contabilidad.** En REC y COM no hay asiento ni `regiva` (M53): nacen con «Contabilizar» en el escritorio
-(M55). Ese paso **no cabe con seguridad aquí** (19 familias de cuenta, ISP, deducibilidad, periodos de IVA) y no se reproduce;
-si se pidiera, `blocked` por LÍMITE DE MICROSERVICIO. Sí se escribe lo que arrastra el alta: `con`, `dcf`, `dcfpro`, `dcfrec`,
-`pag`, `consii`, `log` y las marcas de los orígenes (`dcaprodes`, `canfac`, estados de `dca`, `con` y `ctr`).
+**La API registra y valida; no deduce.** El modo, los vencimientos y las líneas sin origen los decide el llamante.
 
-**Cobertura:** serie `FR<aa>/`, una obra y un contrato, albaranes o proformas **de mes**, enteros y contabilizados: **~80 %**
-de FR26 (estimación: 91,8 % todo albarán menos ~9,5 % a origen y casos raros). El resto, por el escritorio.
+## Entrada, llaves y llamantes
 
-## Requisitos
+R1. CUANDO llegue `POST /api/sigrid/factura`, el sistema debe validar el cuerpo con `extra="forbid"` y números estrictos; un
+cuerpo no válido da 400 «Solicitud invalida.» sin eco de valores ni `codigo`.
+R2. SI no vienen `origenes` ni `lineas`; o `modo` es `"origen"` sin `origenes`; o se repite un código de `origenes`, ENTONCES el
+sistema debe responder 400 sin `codigo` (R1).
+R3. El sistema debe tratar toda petición sin `commit: true` como previa: mismas validaciones y respuesta, sin sentencias de
+escritura.
+R4. SI llega `commit: true` y `SIGRID_FACTURA_WRITE_ENABLED` no es verdadera, ENTONCES 400 `escritura_facturas_deshabilitada`,
+tras validar el cuerpo y antes del caso de uso. Ninguna otra llave la abre.
+R5. SI llega `commit: true`, ENTONCES el sistema debe exigir además `SIGRID_DOMAIN_WRITE_ENABLED`, credenciales de escritura y la
+base en `ALLOWED_WRITE_DATABASES` (lista vacía no abre: `base_de_datos_no_permitida`).
+R6. SI `referencia_externa` no empieza por un prefijo de `SIGRID_FACTURA_PREFIJOS_REFERENCIA`, ENTONCES `referencia_no_permitida`;
+la lista vacía no admite ninguno. El sistema no debe tener lógica distinta por prefijo ni por aplicación (P15).
+R7. SI `usu` no es un `dbo.usu.cod` existente, ENTONCES `usuario_no_valido`.
+R8. SI las líneas a escribir superan `SIGRID_FACTURA_MAX_LINEAS` (defecto 500), ENTONCES `demasiadas_lineas`, aun en previa.
 
-### Entrada y autorización
+## Proveedor y obra
 
-R1. CUANDO llegue `POST /api/sigrid/factura`, el sistema debe validar el cuerpo con `extra="forbid"` y números estrictos, y
-un cuerpo no válido debe dar 400 «Solicitud invalida.» sin eco de valores.
+R9. CUANDO vengan `origenes`, el sistema debe tomar el proveedor de ellos (R12); CUANDO no, debe resolver `cif_proveedor` contra
+`prv` de la empresa de la obra: ninguno da `proveedor_no_encontrado` y más de uno, `proveedor_ambiguo`.
+R10. El sistema debe resolver `cod_obra` en la empresa de `SIGRID_ALBARAN_EMPRESAS_OBRA` (`obra_no_encontrada`); es obligatorio
+sin `origenes`, y con ellos, SI no es la obra de los orígenes, ENTONCES `varias_obras`.
+R11. El sistema debe poner `dcfpro.cueide` = `prv.cuepdtide` en las líneas de origen y `dcf.cueide` = `prv.cueide`; SI la que se
+necesita vale 0, ENTONCES `proveedor_sin_cuenta`.
 
-R2. El sistema debe tratar toda petición sin `commit: true` como previa: mismas validaciones y misma respuesta, sin ejecutar
-ninguna sentencia de escritura.
+## Orígenes: albaranes y proformas (opcionales)
 
-R3. SI llega `commit: true` y `SIGRID_FACTURA_WRITE_ENABLED` no es verdadera, ENTONCES el sistema debe responder 400
-`escritura_facturas_deshabilitada`, después de validar el cuerpo y antes del caso de uso, sin escribir. Ninguna otra llave la abre.
+R12. El sistema debe resolver cada código de `origenes` a un `con.tip 14` (albarán o proforma) de la empresa de la obra
+(`origen_no_encontrado`, con el código en `details`); SI no son todos del mismo `entide` con el `cif_proveedor` pedido,
+ENTONCES `origen_de_otro_proveedor`; SI son de más de una obra o contrato (`dca.ctride`), ENTONCES `varias_obras` o
+`varios_contratos`.
+R13. SI un origen no está en CON (resuelto contra `conest`) o no tiene asiento `tip 20` con su `cod` en su empresa, ENTONCES
+`origen_sin_contabilizar` (P4).
+R14. SI una línea de origen con `can` ≠ 0 tiene `canfac` ≠ 0 o `dcaprodes` a un `tip 15`, ENTONCES `origen_ya_facturado` con la
+línea y su factura.
+R15. El sistema debe facturar **todas** las líneas con `can` ≠ 0 de cada origen, sin selección; las de `can` 0 (arrastradas de
+una a origen) no pasan a la factura y quedan con `canfac` 0.
 
-R4. SI llega `commit: true`, ENTONCES el sistema debe exigir además `SIGRID_DOMAIN_WRITE_ENABLED`, credenciales de escritura
-y la base en `ALLOWED_WRITE_DATABASES`, donde una lista vacía no abre (`base_de_datos_no_permitida`).
+## Modo: de mes o a origen (P14)
 
-R5. SI `referencia_externa` no empieza por un prefijo de `SIGRID_FACTURA_PREFIJOS_REFERENCIA`, ENTONCES el sistema debe
-responder `referencia_no_permitida`. La lista vacía no admite ninguno.
+R16. El sistema debe aceptar `modo` `"mes"` (defecto) u `"origen"`; SI algún origen tiene `dca.docoritip` distinto del modo
+pedido (0 en mes, 1 en origen), ENTONCES `modo_no_coincide_con_origen` con los códigos; SI los orígenes mezclan modos,
+ENTONCES `origenes_de_modos_distintos`. Las líneas sin origen no tienen modo.
+R17. El sistema debe copiar cada línea de origen de su `dcapro` (`proide`, `can`, `pre`, `tar`, `dto`, `tot`, `ivaide`, `ivacuo`,
+`cenide`, `caaide`, `paride`, `natide`, `almide`, `obride`, `res`, `tex`, `cod2`, `unimed`, `prepma`, `dncide`, `dncproide`) sin
+recalcularla, con `docoritip` 14, `docoricod`, `docoriide`, `linoriide` y `canorilin` 0.
+R18. En modo mes, el sistema debe escribir `canoriori` = `can`, `imporiori` = `tot`, `canoriant` e `imporiant` 0 (M56).
+R19. En modo origen, el sistema debe escribir `canoriori` = `dcapro.canoriori`; `canoriant` e `imporiant` = el `canoriori` y el
+`imporiori` de la `dcapro` de su `canorilin` (0 si no tiene); `imporiori` = `dcapro.imporiori` si la línea está vinculada
+(`dcapro.linoriide` ≠ 0) y `imporiant` + `tot` si no (M63, 99,5 %). `dcf.docoritip` 0 en los dos modos.
 
-R6. SI las líneas resultantes superan `SIGRID_FACTURA_MAX_LINEAS` (por defecto 500; máximo medido, 373), ENTONCES el sistema debe
-responder `demasiadas_lineas` sin escribir.
+## Líneas sin origen (P11, P16, P17)
 
-### Orígenes (qué se puede facturar)
+R20. El sistema debe admitir en `lineas` (0..N): `producto`, `partida` y `paride` opcionales, `descripcion`, `unidad` opcional,
+`cantidad`, `precio` e `iva` (código de `dbo.iva`). Cantidad o precio negativos se admiten (ajustes, M61).
+R21. SI `producto` no está en `SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN` o no existe en la empresa (`tip 3`, sin baja), ENTONCES fallo
+de línea `producto_no_permitido` o `producto_no_encontrado`; SI `iva` no está en `SIGRID_FACTURA_IVAS` o no existe, ENTONCES
+`iva_no_valido`. Todos los fallos de línea, juntos en `lineas_no_validas`.
+R22. El sistema debe resolver la naturaleza por `SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO`, y de ella `natide`, `cueide` (la `cua`
+de `cuacomcod`) y `caaide`, y la partida, el almacén y el centro, con las reglas de F-009 R13b, R14, R14b y R15 (sus mismos
+fallos de línea: `naturaleza_no_valida`, `partida_no_encontrada`, `analitica_no_resuelta`…).
+R23. El sistema debe escribir la línea sin origen con `pre` = `tar` = `precio`, `dto` vacío, `tot` = round(`cantidad`·`precio`, 2),
+`ivacuo` = round(`tot`·`iva.iva`, 2) (`Decimal`, `ROUND_HALF_UP`), `docori*`, `linoriide`, `canori*` e `impori*` a 0, sin
+`dcaprodes` ni marcas.
 
-R7. El sistema debe resolver cada código de `albaranes` a un `con.tip` 14 de la empresa de la obra; SI alguno no existe,
-ENTONCES debe responder `albaran_no_encontrado` con el código en `details`.
+## Importes y retención
 
-R8. SI los albaranes no son todos del mismo `entide` y este no tiene el `cif_proveedor` de la petición, ENTONCES el sistema
-debe responder `origen_de_otro_proveedor`.
+R24. El sistema debe calcular `totbas` = Σ `tot`, `impnet` = `totbas`, `impbru` = Σ bruto, `totiva` = Σ `ivacuo`, `totdoc` =
+`totbas` + `totiva`, `tot` = `totdoc` − retención y `totpag` = `tot`, sobre todas las líneas.
+R25. SI `total_base` difiere de `totbas` en más de 0,01, `total_iva` de `totiva` en más de 0,05 o `total_factura` de `tot` en más
+de 0,05, ENTONCES `totales_no_cuadran` con los dos juegos, sin ajustar nada.
+R26. SI `total_base` no es positivo, ENTONCES `abono_no_soportado`.
+R27. DONDE los orígenes lleven `dcarec`, el sistema debe escribir **una** `dcfrec` con su `recide`, `valpor`, `reccla` y `cueide`,
+`bas` = `totbas` y `cuo` = round(`bas`·`valpor`, 2); recargos distintos o más de uno: `retencion_no_soportada`. Sin
+`origenes`, sin retención.
 
-R9. SI los albaranes son de más de una obra o de más de un contrato (`dca.ctride`), ENTONCES el sistema debe responder
-`varias_obras` o `varios_contratos`. La obra debe pertenecer a `SIGRID_ALBARAN_EMPRESAS_OBRA`.
+## Vencimientos (P12, P13)
 
-R10. SI un albarán no está en `con.est` CON resuelto contra `conest` o no tiene asiento `tip 20` con su mismo `cod` en su
-empresa, ENTONCES el sistema debe responder `origen_sin_contabilizar` sin escribir.
+R28. El sistema debe exigir `vencimientos` (1..12) con `fecha` (`AAAAMMDD`) e `importe` (> 0, 2 decimales), y escribir un `pag
+cla 0` por cada uno, en su orden, con `cod` `<cod>_NN`.
+R29. SI una `fecha` no es una fecha real, es anterior a `fecha_factura` o posterior a `fecha_factura` + 730 días, o dos se
+repiten, ENTONCES `vencimiento_no_valido` con su posición; SI Σ `importe` difiere de `totpag` en más de 0,01, ENTONCES
+`vencimientos_no_cuadran` con las dos cifras.
+R30. DONDE haya retención de `reccla` 5, el sistema debe exigir `vencimiento_retencion` (fecha, mismas reglas de R29) y escribir el
+`pag cla 2` con `tot` = `cuo` y `retide` = `recide`; SI falta, o viene sin esa retención, ENTONCES `vencimiento_retencion_no_valido`.
+Con `reccla` 3, ningún `pag` de retención.
+R31. El sistema no debe calcular ni estimar vencimientos ni comparar con `pagfor`, `pagdia` o `pagmes`.
 
-R11. SI alguna línea de un albarán con `can` ≠ 0 tiene `canfac` ≠ 0 o `dcaprodes` con destino `tip 15`, ENTONCES el sistema debe
-responder `origen_ya_facturado` con la línea y su factura.
+## Lo que escribe y lo que no
 
-R12. SI un albarán tiene `dca.docoritip` 1 (a origen), ENTONCES el sistema debe responder `origen_a_origen_no_soportado`.
+R32. CUANDO se confirme, el sistema debe escribir en **una** transacción: `con` (`tip 15`, `cod` de la serie, `est` REC), `dcf`
+(`cla` 1001, `synckey` = `referencia_externa`), `dcfpro` ×N, `dcfrec` ×0-1, `con` + `pag` ×M, `consii` ×1, `dcaprodes` por línea
+de origen, la fila de `dbo.log` (`ope 1`, `usu`) y los `UPDATE` de R36-R38.
+R33. El sistema debe reservar `cod` e `ide` dentro de la transacción bajo `sp_getapplock` en orden fijo; `cod` = `FR<aa>/` + 5
+cifras, `aa` del año de `con.fec` (= la operación), `MAX` numérico + 1 en la empresa de la obra; un choque de clave repite la
+transacción hasta `DOMAIN_WRITE_MAX_RETRIES` y, agotados, `colision_de_clave` con el ERP intacto.
+R34. El sistema debe escribir `con`, `dcf`, `dcfpro`, `pag`, `dcfrec`, `consii` y `dcaprodes` por **lista blanca**, sin clonar
+filas; `consii` con `tipcom` A0, `tipdoc` F1, `claope` 01, `emiter`/`facsimcua`/`facsinide`/`difplaenv` N, `desope` = `con.res`
+y `regivaide` 0.
+R35. El sistema no debe escribir `asi`, `apu`, `regiva`, `regirp`, `mov`, `dcfproana`, `dcfpropar`, `dcfprodes`, `dcfproimp`,
+`confir`, ni `pag.remide`/`fecrea`, ni pasar la factura de REC, ni ejecutar `DELETE`.
 
-R13. El sistema debe tomar **todas** las líneas con `can` ≠ 0 de cada albarán, sin admitir selección de líneas.
+## Marcas en los orígenes
 
-### Importes
-
-R14. El sistema debe copiar cada línea de su `dcapro` (`proide`, `can`, `pre`, `tar`, `dto`, `tot`, `ivaide`, `ivacuo`, `cenide`, `caaide`,
-`paride`, `natide`, `almide`, `obride`, `res`, `tex`, `cod2`, `unimed`, `prepma`, `dncide`, `dncproide`), sin recalcularla.
-
-R15. El sistema debe calcular `totbas` = Σ `tot`, `impnet` = `totbas`, `impbru` = Σ bruto de línea, `totiva` = Σ `ivacuo`,
-`totdoc` = `totbas` + `totiva`, `tot` = `totdoc` − retención y `totpag` = `tot`.
-
-R16. SI `total_base` difiere de `totbas` en más de 0,01, `total_iva` de `totiva` en más de 0,05, o `total_factura` de `tot` en más de
-0,05, ENTONCES el sistema debe responder `totales_no_cuadran` con los dos juegos de cifras, sin escribir. El sistema no debe
-ajustar líneas ni IVA para que cuadre: ese caso se registra en el escritorio.
-
-R17. SI `total_base` no es positivo, ENTONCES el sistema debe responder `abono_no_soportado`.
-
-R18. DONDE los albaranes lleven `dcarec`, el sistema debe escribir **una** `dcfrec` con el `recide`, `valpor`, `reccla` y `cueide` de la
-`dcarec`, `bas` = `totbas` y `cuo` = round(`bas`·`valpor`, 2); SI los albaranes llevan recargos distintos o más de uno, ENTONCES
-debe responder `retencion_no_soportada`.
-
-### Lo que escribe
-
-R19. CUANDO se confirme, el sistema debe escribir en **una** transacción: `con` (`tip` 15, `cod` de la serie, `est` REC resuelto
-contra `conest`), `dcf` (`cla` 1001, `synckey` = `referencia_externa`), `dcfpro` ×N, `dcfrec` ×0-1, `con` + `pag` ×M, `consii` ×1,
-`dcaprodes` ×N y la fila de alta de `dbo.log` (`ope 1`), y los `UPDATE` de R24-R26.
-
-R20. El sistema debe reservar `cod` e `ide` dentro de la transacción, bajo `sp_getapplock` en orden fijo, y `cod` = `FR<aa>/` + 5
-cifras con `aa` del año de `con.fec`, siendo `con.fec` la fecha de la operación, y `MAX` numérico + 1 en la empresa de la obra.
-
-R21. SI un `INSERT` choca por clave, ENTONCES el sistema debe repetir la transacción entera recalculando `cod`, `ide` y estados hasta
-`DOMAIN_WRITE_MAX_RETRIES`; agotados, debe responder `colision_de_clave` con el ERP intacto.
-
-R22. El sistema debe poner `dcfpro.cueide` = `prv.cuepdtide` y `dcf.cueide` = `prv.cueide`; SI alguna vale 0, ENTONCES debe responder
-`proveedor_sin_cuenta` sin escribir.
-
-R23. El sistema debe escribir las columnas de `con`, `dcf`, `dcfpro`, `pag`, `dcfrec`, `consii` y `dcaprodes` **por lista blanca**, sin
-clonar ninguna fila. `consii` con `tipcom` A0, `tipdoc` F1, `claope` 01, `emiter`, `facsimcua`, `facsinide` y `difplaenv` N, `desope`
-= `con.res` y `regivaide` 0.
-
-### Marcas en los orígenes
-
-R24. CUANDO se escriba una línea, el sistema debe sumar su `can` a `dcapro.canfac` con un `UPDATE` condicionado a `canfac` = 0, y si
-no afecta a una fila debe revertir todo y responder `origen_ya_facturado`.
-
-R25. El sistema debe pasar cada `dca` a `estfac` 1, `fecfac`/`horfac` = la operación y `antestfac` 3, y su `con.est` de CON a FAC,
-resueltos contra `conest`; no debe escribir `dca.idefac`.
-
-R26. DONDE la línea de albarán apunte a un `ctrpro`, el sistema debe sumar la `can` a `ctrpro.canfac` y refrescar `ctr.estfac` con
+R36. CUANDO se escriba una línea de origen, el sistema debe sumar su `can` a `dcapro.canfac` con un `UPDATE` condicionado a
+`canfac` = 0; si no afecta a una fila, revertir todo y responder `origen_ya_facturado`.
+R37. El sistema debe pasar cada `dca` a `estfac` 1, `fecfac`/`horfac` = la operación y `antestfac` 3, y su `con.est` de CON a FAC
+(contra `conest`); no debe escribir `dca.idefac`.
+R38. DONDE la línea de origen apunte a un `ctrpro`, el sistema debe sumar su `can` a `ctrpro.canfac` y refrescar `ctr.estfac` con
 `estados_contrato` (F-009).
 
-### Cartera
+## Idempotencia, respuesta y traza
 
-R27. El sistema debe escribir un `pag` `cla` 0 con `tot` = `totpag`, y, si hay retención `reccla` 5, otro `cla` 2 con `tot` = `cuo` y
-`retide` = `recide`; con `reccla` 3, solo el de `cla` 0. `cod` `<cod>_01`, `<cod>_02`; `con.est` PDT resuelto contra `conest`.
+R39. SI existe `dcf.synckey` = `referencia_externa` con el mismo proveedor y número, ENTONCES `idempotente` con esa factura y sin
+escribir; con otros datos, `referencia_en_conflicto`. SI hay otra `dcf` de ese `entcif` y `entref` fuera de RECH, ENTONCES
+`factura_ya_registrada` con su `cod`. Las dos, otra vez bajo el applock.
+R40. El sistema debe responder `estado` (`previsto`, `creado`, `idempotente`), `cod`, `con_ide`, `modo`, `totales`, `retencion`,
+`vencimientos`, `origenes`, `lineas` (con su clase: de origen o sin origen), `filas`, `avisos` y `pendiente_en_sigrid`.
+R41. CUANDO se confirme, el sistema debe releer antes del COMMIT cada fila escrita y cada marca, y revertir si no cuadran.
+R42. El sistema debe registrar una línea por petición (obra, prefijo de referencia, `usu`, `modo`, `commit`, `estado`, `cod`, nº de
+líneas de origen y sin origen, nº de vencimientos, códigos, duración) y **nunca** textos, nombres, CIF, número de factura ni
+importes.
 
-R28. El vencimiento del `cla` 0 debe ser `vencimiento` de la petición si viene, y si no, la regla de `design.md`, emitiendo el aviso
-`vencimiento_estimado` (acierta el 77,3 %, M58). El del `cla` 2 debe ser `con.fec` + los meses de la `R` de `pagfor` (450R, 15).
+## Compatibilidad y documentación
 
-R29. SI `pagfor` tiene más de un plazo de pago o ningún plazo legible, ENTONCES el sistema debe responder
-`forma_de_pago_no_soportada`.
+R43. El sistema debe dejar sin cambios el contrato de las rutas existentes y el código de F-007, F-009 y F-016 (se importa, no se
+edita); debe arrancar con los ajustes nuevos ausentes y `SIGRID_FACTURA_WRITE_ENABLED` falsa.
+R44. `azure-apps/sigrid_api.md`, `docs/ARCHITECTURE.md` y el mapa de `CLAUDE.md` deben documentar la ruta, los ajustes, los applocks
+y lo que **no** hace, en el mismo trabajo.
 
-### Lo que NO escribe
-
-R30. El sistema no debe escribir `asi`, `apu`, `regiva`, `regirp`, `mov`, `dcfproana`, `dcfpropar`, `dcfprodes`, `dcfproimp`, `confir`, ni
-pasar la factura de REC ni tocar `pag.remide`, `fecrea` o `regivaide`. No debe ejecutar `DELETE`.
-
-### Idempotencia y duplicadas
-
-R31. SI existe `dcf.synckey` = `referencia_externa` con el mismo proveedor y número, ENTONCES el sistema debe responder `idempotente` con
-esa factura y sin escribir, comprobándolo otra vez bajo el applock; con otros datos, `referencia_en_conflicto`.
-
-R32. SI existe otra `dcf` de ese `entcif` y `entref` que no esté en RECH, ENTONCES el sistema debe responder `factura_ya_registrada` con su
-`cod`, sin escribir, también bajo el applock.
-
-### Respuesta y traza
-
-R33. El sistema debe responder `estado` (`previsto`, `creado`, `idempotente`), `cod`, `con_ide`, `totales`, `retencion`, `vencimientos`,
-`origenes`, `lineas`, `filas`, `avisos` y `pendiente_en_sigrid` (siempre: comprobar y contabilizar).
-
-R34. CUANDO se confirme, el sistema debe releer antes del COMMIT cada fila escrita y cada marca, y revertir si no cuadran.
-
-R35. El sistema debe registrar una línea por petición (obra, referencia, `commit`, `estado`, `cod`, nº de líneas, códigos, duración) y
-**nunca** textos, nombres, CIF, número de factura ni importes.
-
-## Compatibilidad
-
-R36. El sistema debe dejar sin cambios el contrato de `sql/read`, `sql/write`, `sigrid/albaran`, `sigrid/albaran-directo`,
-`sigrid/proforma` y demás rutas; ningún consumidor actual llama a la ruta nueva.
-
-R37. El sistema debe arrancar con los ajustes nuevos ausentes, con `SIGRID_FACTURA_WRITE_ENABLED` falsa por defecto.
-
-R38. `azure-apps/sigrid_api.md` y `docs/ARCHITECTURE.md` deben documentar la ruta, los ajustes, los applocks y lo que **no** hace.
-
-Criterios manuales: T17-T19 de `tasks.md` (previas; una grabación solo con autorización expresa; V1-V4 de `explore_F-008.md`).
+Criterios manuales: T19-T21 de `tasks.md` (permisos, previas, una grabación autorizada; V1-V6 de `explore_F-008.md`).
