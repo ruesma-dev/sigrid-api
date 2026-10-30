@@ -325,7 +325,7 @@
         "Contrato publicado en azure-apps/sigrid_api.md y aviso a albaranes",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "in_progress",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 9,
