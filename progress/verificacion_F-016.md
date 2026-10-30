@@ -54,8 +54,9 @@ Obra 0404, `CTSU16/0206`, `ctrpro` 258782 (`pre` 30) y 258783 (`pre` 45), period
 
 **Sin desviaciones; no saltó la regla de parada.** El `canser` de la 258782 queda en 5 de 5 hasta anular.
 
-## Pendiente
+## V9 y cierre (2026-10-30)
 
-- **V9 en la UI** (ficha, impresión con ORIGEN/ANTERIOR, paso a factura sin grabarla) y anular desde la UI en orden
-  inverso: primero `PROF26/01387`, después `PROF26/01386` (nunca `DELETE`). Lectura final: 0, 0 y `canser` 2 y 1.
-- **`PROF26/01360`**: el humano dijo el 2026-10-30 que no hace falta anularla para T18.
+El humano revisó las dos en la UI: «está todo ok y las 2 están marcadas como origen». Relectura posterior sin cambios.
+**No se anularon**: el humano las deja de momento. Mientras sigan, `canser` de los `ctrpro` 258782 y 258783 queda en 5 y 2
+(partida: 2 y 1), y en la 0404 / `CTSU16/0206` hay dos proformas de prueba del periodo 202609. Si se anulan: primero
+`PROF26/01387`, después `PROF26/01386`, desde la UI, nunca `DELETE`.
