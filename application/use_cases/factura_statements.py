@@ -134,13 +134,13 @@ def construir_con_factura(
 
 
 def construir_con_pago(
-    *, emp: int, fec: int, res: str, indice: int, de: int, tiemod: float
+    *, emp: int, fec: int, res: str, indice: int, de: int, est: int, tiemod: float
 ) -> dict[str, Any]:
-    """`con` 25 de un vencimiento (M58): «Pago i de n <res>», `est` 1 PDT. El
-    `cod` `<cod>_NN` lo pone `numerar`."""
+    """`con` 25 de un vencimiento (M58): «Pago i de n <res>», `est` el PDT de
+    `conest` 25 que resuelve el caso de uso (C3). El `cod` `<cod>_NN` lo pone `numerar`."""
     fila: dict[str, Any] = {columna: _vacio(columna, _CON_TEXTO) for columna in CON_COLUMNAS}
     fila.update(ide=None, emp=emp, tip=TIP_PAGO, cod=None,
-                res=f"Pago {indice} de {de} {res}"[:_LARGO_RES], fec=fec, tex=None, est=1,
+                res=f"Pago {indice} de {de} {res}"[:_LARGO_RES], fec=fec, tex=None, est=est,
                 tiemod=tiemod)
     return fila
 

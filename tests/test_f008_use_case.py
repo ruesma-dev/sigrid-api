@@ -538,3 +538,20 @@ def test_f008_orden_vencimientos_antes_que_duplicadas() -> None:
     })
     e = _error(repo, vencimientos=[{"fecha": 20261014, "importe": 24.2}])
     assert e.codigo == "vencimiento_no_valido"
+
+
+# --- El estado de los pagos sale de `conest` 25 (C3, R32) ----------------------------
+
+
+def test_f008_r32_el_con_del_pago_nace_en_el_pdt_de_conest() -> None:
+    repo = Repositorio()
+    repo.mundo.conest = [e for e in repo.mundo.conest if e[0] != 25] + [(25, 7, "PDT")]
+    r, _repo = _previa(repo)
+    assert [c["est"] for c in r["filas"]["con_pag"]] == [7]
+
+
+def test_f008_r32_sin_pdt_en_conest_no_se_da_de_alta() -> None:
+    repo = Repositorio()
+    repo.mundo.conest = [e for e in repo.mundo.conest if e[0] != 25]
+    e = _error(repo)
+    assert e.codigo == "estado_inicial_no_encontrado" and "25 PDT" in str(e)

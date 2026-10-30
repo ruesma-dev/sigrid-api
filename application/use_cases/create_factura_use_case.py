@@ -58,6 +58,7 @@ from application.use_cases.factura_statements import (
     RETENCION_DE_ORIGEN,
     TIP_ALBARAN,
     TIP_FACTURA,
+    TIP_PAGO,
     FacturaStatements,
     FilasFactura,
     construir_con_factura,
@@ -88,6 +89,8 @@ ENDPOINT = "sigrid/factura"
 ESTADO_INICIAL: dict[str, str] = {"FR": "REC", "FRGG": "RECGG"}
 #: R14, R41: estados del origen; R43: el rechazo de una factura.
 CON, FAC, RECH = "CON", "FAC", "RECH"
+#: Estado con el que nace el `con` 25 de cada vencimiento (M58), resuelto en `conest`.
+PDT = "PDT"
 #: R18: `dca.docoritip` de cada modo.
 DOCORITIP_DE_MODO: dict[str, int] = {"mes": 0, "origen": 1}
 #: R34: `reccla` de la retencion de garantia, que lleva su `pag cla 2`.
@@ -173,6 +176,10 @@ class _Contexto:
     @property
     def est_rech(self) -> int:
         return self.estados[(TIP_FACTURA, RECH)]
+
+    @property
+    def est_pago(self) -> int:
+        return self.estados[(TIP_PAGO, PDT)]
 
 
 @dataclass(frozen=True)
@@ -368,7 +375,8 @@ class CreateFacturaUseCase:
     def _estados(self, request: FacturaRequest, filas: Sequence[Sequence[Any]]) -> dict[tuple[int, str], int]:
         """R9, R14, R41, R43: los `conest` por `(tip, cod)`."""
         estados = {(_entero(f[0]), str(f[2] or "").strip().upper()): _entero(f[1]) for f in filas}
-        necesarios = [(TIP_FACTURA, ESTADO_INICIAL[request.serie]), (TIP_FACTURA, RECH)]
+        # Toda factura lleva al menos un vencimiento (R32): el PDT de los pagos, siempre.
+        necesarios = [(TIP_FACTURA, ESTADO_INICIAL[request.serie]), (TIP_FACTURA, RECH), (TIP_PAGO, PDT)]
         if request.origenes:
             necesarios += [(TIP_ALBARAN, CON), (TIP_ALBARAN, FAC)]
         faltan = [f"{tip} {cod}" for tip, cod in necesarios if (tip, cod) not in estados]
@@ -823,7 +831,7 @@ class CreateFacturaUseCase:
         pagos = [
             (
                 construir_con_pago(emp=emp, fec=sellos.fec, res=con["res"], indice=i, de=len(plazos),
-                                   tiemod=sellos.tiemod),
+                                   est=ctx.est_pago, tiemod=sellos.tiemod),
                 construir_pag(cla=cla, tot=tot, fecven=fecven, dcf=dcf, cueide=cueide, retide=retide),
             )
             for i, (cla, tot, fecven, cueide, retide) in enumerate(plazos, start=1)

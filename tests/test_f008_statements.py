@@ -152,10 +152,11 @@ def test_f008_r34_pag_de_retencion() -> None:
 
 def test_f008_r32_con_del_pago() -> None:
     con = construir_con_pago(emp=1, fec=20261030, res="PROVEEDOR SL. (F-77)", indice=1, de=2,
-                             tiemod=46325.5)
+                             est=7, tiemod=46325.5)
     assert list(con) == list(CON_COLUMNAS)
+    # `est` el PDT de `conest` 25 que le pasa el caso de uso, nunca un literal (C3).
     assert (con["tip"], con["est"], con["fec"], con["res"], con["cod"]) == (
-        25, 1, 20261030, "Pago 1 de 2 PROVEEDOR SL. (F-77)", None
+        25, 7, 20261030, "Pago 1 de 2 PROVEEDOR SL. (F-77)", None
     )
 
 
@@ -197,9 +198,9 @@ def _filas() -> FilasFactura:
         dcfpro=lineas,
         dcfrec=[construir_dcfrec({c: 0 for c in DCAREC_COLUMNAS}, totbas=Decimal(1))],
         pagos=[
-            (construir_con_pago(emp=1, fec=1, res="r", indice=1, de=2, tiemod=0.0),
+            (construir_con_pago(emp=1, fec=1, res="r", indice=1, de=2, est=1, tiemod=0.0),
              construir_pag(cla=0, tot=1.0, fecven=1, dcf=_DCF_PAGO, cueide=1)),
-            (construir_con_pago(emp=1, fec=1, res="r", indice=2, de=2, tiemod=0.0),
+            (construir_con_pago(emp=1, fec=1, res="r", indice=2, de=2, est=1, tiemod=0.0),
              construir_pag(cla=2, tot=1.0, fecven=1, dcf=_DCF_PAGO, cueide=1, retide=5)),
         ],
         consii=construir_consii(desope="r"),
