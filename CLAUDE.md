@@ -79,7 +79,8 @@ hexagonal. Es el **único** punto de acceso al SQL Server del ERP Sigrid.
   `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
   `sigrid/partes-reclamacion`, `sigrid/proforma` (de mes o, con
-  `modo: "origen"`, a origen), `documents/read`, `diagnostics/tcp`) e inyección
+  `modo: "origen"`, a origen), `sigrid/factura` (factura de compra FR o FRGG,
+  alta sin contabilidad), `documents/read`, `diagnostics/tcp`) e inyección
   de dependencias (`build_dependencies()`, cacheada con `@lru_cache`).
 - `config/settings.py` — `Settings` (pydantic-settings sobre `.env`) y
   `get_settings()`. Aquí viven todos los interruptores de seguridad:
