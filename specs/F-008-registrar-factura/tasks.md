@@ -18,7 +18,7 @@ No se empieza ninguna hasta que el humano apruebe la v3.1 (P1-P21 decididas, `de
 - [x] T12: Trabajo de la transacción: applocks en orden, re-comprobación con `UPDLOCK` (también R22), reserva e `INSERT`s; sin orígenes, sin marcas; FRGG con orígenes, con marcas (R36-R38, R43)  |  Verificación: `tests/test_f008_transaccion.py`
 - [x] T13: `UPDATE`s de marcas y su condición de una fila (R40-R42)  |  Verificación: `tests/test_f008_transaccion.py`, con la carrera que revierte todo
 - [x] T14: Relectura antes del COMMIT y reintento reentrante (R37, R45)  |  Verificación: `tests/test_f008_transaccion.py`
-- [ ] T15: Lista negativa: ninguna sentencia nombra `asi`, `apu`, `regiva`, `regirp`, `mov`, `dcfproana`, `dcfpropar`, `dcfprodes`, ni contiene `DELETE`; ningún cálculo de vencimiento (R35, R39)  |  Verificación: `tests/test_f008_statements.py` recorriendo todas las constantes
+- [x] T15: Lista negativa: ninguna sentencia nombra `asi`, `apu`, `regiva`, `regirp`, `mov`, `dcfproana`, `dcfpropar`, `dcfprodes`, ni contiene `DELETE`; ningún cálculo de vencimiento (R35, R39)  |  Verificación: `tests/test_f008_statements.py` recorriendo todas las constantes
 - [ ] T16: Ruta `sigrid/factura`, llave propia, errores y traza sin datos sensibles ni cuentas (R1, R4, R46)  |  Verificación: `tests/test_f008_route.py`
 - [ ] T17: Compatibilidad: suites de rutas existentes sin cambios (R47)  |  Verificación: `python -m pytest tests -k "f007 or f009 or f015 or f016 or f018"`
 - [ ] T18: `docs/ARCHITECTURE.md`, `CLAUDE.md` y `azure-apps/sigrid_api.md` en el mismo trabajo (R48)  |  Verificación: `tests/test_documentos_del_arnes.py` y revisión

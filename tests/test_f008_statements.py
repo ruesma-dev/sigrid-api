@@ -586,3 +586,130 @@ def test_f008_r45_relecturas_por_clave() -> None:
         "SELECT COUNT(*) FROM dbo.dcaprodes WHERE docdeside = ? AND docdestip = ?", [10000, 15]
     )
     assert S.releer_log(600) == ("SELECT COUNT(*) FROM dbo.log WHERE ide = ?", [600])
+
+
+# --------------------------------------------------------------------------- #
+# T15 · lista negativa (R35, R39): recorre TODAS las constantes
+# --------------------------------------------------------------------------- #
+
+import inspect  # noqa: E402
+import re  # noqa: E402
+
+import application.use_cases.create_factura_use_case as caso_de_uso  # noqa: E402
+import application.use_cases.factura_lineas as lineas_puras  # noqa: E402
+
+#: R39: tablas que el alta no toca (la contabilidad la hace «Contabilizar»).
+TABLAS_PROHIBIDAS = (
+    "asi", "apu", "regiva", "regirp", "mov", "dcfproana", "dcfpropar", "dcfprodes", "dcfproimp",
+    "confir",
+)
+_TABLA = re.compile(r"\bdbo\.(\w+)", re.IGNORECASE)
+#: Un valor escrito en el SQL en vez de `?`: comparado o asignado a un literal.
+_LITERAL = re.compile(r"(=|<>|<|>|\bLIKE|\bIN)\s*(\(\s*)?('|\d)", re.IGNORECASE)
+
+
+def _violaciones(sql: str) -> list[str]:
+    fallos = [f"tabla {t}" for t in _TABLA.findall(sql) if t.lower() in TABLAS_PROHIBIDAS]
+    if re.search(r"\bDELETE\b", sql, re.IGNORECASE):
+        fallos.append("DELETE")
+    if _LITERAL.search(sql):
+        fallos.append(f"literal: {_LITERAL.search(sql).group(0)}")
+    if sql.upper().startswith("UPDATE") and re.search(r"\b(idefac|remide|fecrea)\b", sql, re.IGNORECASE):
+        fallos.append("columna prohibida")
+    return fallos
+
+
+@pytest.mark.parametrize("malo", [
+    "DELETE FROM dbo.dcapro WHERE ide = ?",
+    "INSERT INTO dbo.apu (ide) VALUES (?)",
+    "SELECT ide FROM dbo.regiva WHERE ide = ?",
+    "UPDATE dbo.dca SET estfac = 1 WHERE ide = ?",
+    "SELECT ide FROM dbo.con WHERE cod = 'FR26/1'",
+    "SELECT ide FROM dbo.con WHERE tip IN (15)",
+    "UPDATE dbo.dca SET idefac = ? WHERE ide = ?",
+])
+def test_f008_r39_el_detector_caza_lo_prohibido(malo: str) -> None:
+    """El recorrido no vale si su detector no ve nada: se prueba con lo prohibido."""
+    assert _violaciones(malo)
+
+
+def test_f008_r39_ninguna_constante_de_la_factura_toca_lo_prohibido() -> None:
+    sentencias = FacturaStatements.todas_las_sentencias()
+    assert len(sentencias) >= 50
+    assert {s.split()[0] for s in sentencias} == {"SELECT", "INSERT", "UPDATE"}
+    assert {sql: _violaciones(sql) for sql in sentencias if _violaciones(sql)} == {}
+
+
+def test_f008_r39_todas_las_que_corren_en_un_commit_son_constantes_limpias() -> None:
+    """Lo que de verdad ejecuta un commit con origenes, retencion y contrato (y las
+    lecturas de F-009 que se reutilizan) pasa la misma lista negativa."""
+    from f008_dobles import AHORA, Repositorio, ajustes_de_escritura, con_transaccion, peticion
+
+    from application.use_cases.create_factura_use_case import CreateFacturaUseCase
+    from domain.models.factura_models import FacturaRequest
+
+    sqls: list[str] = []
+
+    class Espia(Repositorio):
+        def execute_read_query(self, request: Any) -> Any:
+            sqls.append(request.sql)
+            return super().execute_read_query(request)
+
+    repo = con_transaccion(Espia())
+    original = repo.transaccion
+
+    def transaccion(**kwargs: Any) -> Any:
+        trabajo = kwargs["work"]
+
+        def espiado(cursor: Any) -> Any:
+            ejecutar = cursor.execute
+
+            def execute(sql: str, *params: Any) -> None:
+                sqls.append(sql)
+                ejecutar(sql, *params)
+
+            cursor.execute = execute
+            return trabajo(cursor)
+
+        return original(**{**kwargs, "work": espiado})
+
+    repo.transaccion = transaccion
+    caso = CreateFacturaUseCase(repo, ajustes_de_escritura(), ahora_utc=lambda: AHORA)
+    caso.run(FacturaRequest.model_validate(peticion(
+        commit=True, origenes=["PROF26/1"], modo="origen",
+        a_origen=[{"linea": 8101, "canoriori": 10.0, "imporiori": 100.0}],
+        total_base=30.0, total_iva=6.3, total_factura=36.3,
+        vencimientos=[{"fecha": 20261130, "importe": 36.3}],
+    )))
+    assert any(s.startswith("UPDATE dbo.ctr ") for s in sqls) and any(s.startswith("INSERT") for s in sqls)
+    # R39: el `pag` nace sin remesa ni `fecrea`, y la factura no sale de su estado inicial.
+    assert all(pag["remide"] == 0 and pag["fecrea"] == 0 for pag in repo.mundo.insertadas["pag"])
+    assert not any(s.startswith(("UPDATE dbo.dcf ", "UPDATE dbo.dcfpro ")) for s in sqls)
+    assert not any(s.startswith("UPDATE dbo.con ") and "tip = ?" not in s for s in sqls)
+    assert {sql: _violaciones(sql) for sql in sqls if _violaciones(sql)} == {}
+
+
+def _codigo_sin_documentacion(fuente: str) -> str:
+    """El codigo sin docstrings ni comentarios: lo que se ejecuta."""
+    import ast
+
+    arbol = ast.parse(fuente)
+    for nodo in ast.walk(arbol):
+        cuerpo = getattr(nodo, "body", None)
+        if (
+            isinstance(cuerpo, list) and cuerpo and isinstance(cuerpo[0], ast.Expr)
+            and isinstance(cuerpo[0].value, ast.Constant) and isinstance(cuerpo[0].value.value, str)
+        ):
+            nodo.body = cuerpo[1:] or [ast.Pass()]
+    return ast.unparse(arbol)
+
+
+def test_f008_r35_ningun_calculo_de_vencimiento() -> None:
+    """Ni `pagdia` ni `pagmes` ni regla del 77 %: los vencimientos los manda el
+    llamante y solo se validan (`pagfor` solo se copia de `auxpag` a la cabecera)."""
+    for modulo in (caso_de_uso, lineas_puras):
+        fuente = _codigo_sin_documentacion(inspect.getsource(modulo))
+        assert not re.search(r"\bpag(dia|mes)\b|0[.,]77|77 ?%", fuente), modulo.__name__
+    assert list(inspect.signature(lineas_puras.validar_vencimientos).parameters) == [
+        "vencimientos", "fecha_factura", "totpag",
+    ]
