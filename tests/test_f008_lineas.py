@@ -12,7 +12,9 @@ from typing import Any
 import pytest
 
 from application.use_cases.factura_lineas import (
+    DCFPRO_COLUMNAS,
     fecha_de_vencimiento_valida,
+    linea_de_origen,
     validar_vencimientos,
 )
 from domain.models.factura_models import FacturaError, Vencimiento
@@ -98,3 +100,121 @@ def test_f008_r33_la_suma_se_hace_en_decimal() -> None:
 ])
 def test_f008_r34_fecha_de_vencimiento_valida(fecha: int, esperado: bool) -> None:
     assert fecha_de_vencimiento_valida(fecha, fecha_factura=20261015) is esperado
+
+
+# --------------------------------------------------------------------------- #
+# T4 · linea de origen (R12, R17, R19, R20), igual en FR y FRGG
+# --------------------------------------------------------------------------- #
+
+#: Una `dcapro` de albaran sintetica, con todo lo que R17 copia.
+DCAPRO: dict[str, Any] = {
+    "ide": 9001, "docide": 800, "pos": 64, "proide": 41, "can": 3.0, "pre": 12.5, "tar": 13.0,
+    "dto": "", "tot": 37.5, "ivaide": 7, "ivacuo": 7.88, "cenide": 55, "caaide": 66, "paride": 77,
+    "natide": 88, "almide": 99, "obride": 500, "res": "Hormigon", "tex": "nota", "cod2": "C2",
+    "unimed": "m3", "prepma": 11.1, "dncide": 3, "dncproide": 4, "canfac": 0.0, "linoriide": 0,
+    "canorilin": 0, "canoriori": 0.0, "imporiori": 0.0,
+}
+_COPIADAS = ("proide", "can", "pre", "tar", "dto", "tot", "ivaide", "ivacuo", "cenide", "caaide",
+             "paride", "natide", "almide", "obride", "res", "tex", "cod2", "unimed", "prepma",
+             "dncide", "dncproide")
+
+
+def test_f008_r17_la_linea_de_origen_copia_su_dcapro_sin_recalcular() -> None:
+    fila = linea_de_origen(DCAPRO, None, modo="mes", cueide=4009, docoricod="AC26/00100")
+    assert {c: fila[c] for c in _COPIADAS} == {c: DCAPRO[c] for c in _COPIADAS}
+    assert fila["docoritip"] == 14
+    assert fila["docoricod"] == "AC26/00100"
+    assert fila["docoriide"] == 800
+    assert fila["linoriide"] == 9001
+    assert fila["canorilin"] == 0
+
+
+def test_f008_r12_la_cuenta_es_la_de_facturas_pendientes_del_proveedor() -> None:
+    assert linea_de_origen(DCAPRO, None, modo="mes", cueide=4009, docoricod="x")["cueide"] == 4009
+
+
+def test_f008_r17_la_fila_trae_exactamente_las_columnas_de_dcfpro_salvo_numeracion() -> None:
+    fila = linea_de_origen(DCAPRO, None, modo="mes", cueide=1, docoricod="x")
+    assert list(fila) == [c for c in DCFPRO_COLUMNAS if c not in ("ide", "docide", "pos")]
+    assert fila["canfac"] == 0 and fila["canser"] == 0 and fila["apuide"] == 0
+    assert fila["texcom"] is None and fila["med"] is None
+    assert fila["refent"] == "" and fila["pac"] == ""
+
+
+def test_f008_r19_en_mes_canoriori_es_can_e_imporiori_es_tot() -> None:
+    fila = linea_de_origen({**DCAPRO, "canoriori": 99.0, "imporiori": 999.0}, None, modo="mes",
+                           cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["imporiori"], fila["canoriant"], fila["imporiant"]) == (
+        3.0, 37.5, 0, 0
+    )
+
+
+def test_f008_r19_en_mes_se_ignora_la_anterior() -> None:
+    anterior = {"canoriori": 5.0, "imporiori": 50.0}
+    fila = linea_de_origen(DCAPRO, anterior, modo="mes", cueide=1, docoricod="x")
+    assert (fila["canoriant"], fila["imporiant"]) == (0, 0)
+
+
+# Casos anonimos de M63: (continuada?, vinculada?) -> columnas a origen.
+def test_f008_r20_origen_continuada_vinculada() -> None:
+    dcapro = {**DCAPRO, "linoriide": 3333, "canorilin": 8000, "canoriori": 10.0, "imporiori": 500.0}
+    fila = linea_de_origen(dcapro, {"canoriori": 7.0, "imporiori": 350.0}, modo="origen",
+                           cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["canoriant"], fila["imporiant"], fila["imporiori"]) == (
+        10.0, 7.0, 350.0, 500.0
+    )
+
+
+def test_f008_r20_origen_continuada_sin_vincular() -> None:
+    dcapro = {**DCAPRO, "linoriide": 0, "canorilin": 8000, "canoriori": 10.0, "imporiori": 1.0,
+              "tot": 37.5}
+    fila = linea_de_origen(dcapro, {"canoriori": 7.0, "imporiori": 350.1}, modo="origen",
+                           cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["canoriant"], fila["imporiant"], fila["imporiori"]) == (
+        10.0, 7.0, 350.1, 387.6
+    )
+
+
+def test_f008_r20_origen_nueva_vinculada() -> None:
+    dcapro = {**DCAPRO, "linoriide": 3333, "canorilin": 0, "canoriori": 3.0, "imporiori": 900.0}
+    fila = linea_de_origen(dcapro, None, modo="origen", cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["canoriant"], fila["imporiant"], fila["imporiori"]) == (
+        3.0, 0, 0, 900.0
+    )
+
+
+def test_f008_r20_origen_nueva_sin_vincular() -> None:
+    dcapro = {**DCAPRO, "linoriide": 0, "canorilin": 0, "canoriori": 3.0, "imporiori": 5.0}
+    fila = linea_de_origen(dcapro, None, modo="origen", cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["canoriant"], fila["imporiant"], fila["imporiori"]) == (
+        3.0, 0, 0, 37.5
+    )
+
+
+def test_f008_r20_la_suma_a_origen_es_decimal() -> None:
+    dcapro = {**DCAPRO, "linoriide": 0, "tot": 0.2}
+    fila = linea_de_origen(dcapro, {"canoriori": 1.0, "imporiori": 0.1}, modo="origen",
+                           cueide=1, docoricod="x")
+    assert fila["imporiori"] == 0.3
+
+
+def test_f008_r20_valores_nulos_del_origen_cuentan_como_cero() -> None:
+    dcapro = {**DCAPRO, "linoriide": None, "canoriori": None, "imporiori": None}
+    fila = linea_de_origen(dcapro, {"canoriori": None, "imporiori": None}, modo="origen",
+                           cueide=1, docoricod="x")
+    assert (fila["canoriori"], fila["canoriant"], fila["imporiant"], fila["imporiori"]) == (
+        0.0, 0.0, 0.0, 37.5
+    )
+
+
+def test_f008_r20_modo_desconocido_falla() -> None:
+    with pytest.raises(ValueError, match="modo"):
+        linea_de_origen(DCAPRO, None, modo="trimestre", cueide=1, docoricod="x")
+
+
+def test_f008_r38_fila_dcfpro_rechaza_columnas_ajenas() -> None:
+    from application.use_cases.factura_lineas import fila_dcfpro
+    with pytest.raises(ValueError, match="no son de dcfpro"):
+        fila_dcfpro({"proide": 1, "inventada": 2})
+    fila = fila_dcfpro({"proide": 1})
+    assert fila["proide"] == 1 and fila["res"] == "" and fila["desesp"] is None and fila["can"] == 0

@@ -15,12 +15,41 @@ constructor de la factura al numerar.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import date, timedelta
 from decimal import Decimal
-
-from collections.abc import Sequence
+from typing import Any
 
 from domain.models.factura_models import FacturaError, Vencimiento
+
+#: Las 73 columnas de `dbo.dcfpro`, en su orden fisico (T0). El `INSERT` lleva
+#: estas y solo estas.
+DCFPRO_COLUMNAS: tuple[str, ...] = (
+    "ide", "docide", "proide", "pos", "pre", "can", "candes", "tar", "dto", "tot", "fec", "pla",
+    "res", "tex", "cueide", "envide", "almide", "ivaide", "ivacuo", "reqcuo", "prepma", "lintip",
+    "cenide", "caaide", "anades", "tardiv", "totdiv", "cod2", "refent", "garfec", "gardes", "unimed",
+    "docoritip", "docoricod", "docoriide", "linoriide", "canser", "canfac", "cancan", "canorilin",
+    "canoriant", "canoriori", "imporiant", "imporiori", "taride", "apuide", "cuoman", "dncide",
+    "dncproide", "obride", "paride", "natide", "parcandes", "med", "canmed", "pac", "item", "desesp",
+    "nueusa", "edilin", "texcom", "serdes", "serdesdat", "dvfproide", "anexo", "fecimp", "canped",
+    "imporiantdiv", "imporioridiv", "totimpret", "ico", "ivaope", "vmg",
+)
+#: `varchar` (vacio `''`) y `text`/`image` que el alta deja en NULL (T0: 35 de 35).
+_DCFPRO_TEXTO: frozenset[str] = frozenset({
+    "dto", "res", "tex", "cod2", "refent", "unimed", "docoricod", "pac", "ico",
+})
+_DCFPRO_NULAS: frozenset[str] = frozenset({"med", "desesp", "texcom", "serdesdat"})
+#: Las que pone la numeracion de la factura.
+_DCFPRO_NUMERACION: tuple[str, ...] = ("ide", "docide", "pos")
+
+#: R17: lo que la linea de origen copia de su `dcapro`, sin recalcular.
+COPIADAS_DEL_ORIGEN: tuple[str, ...] = (
+    "proide", "can", "pre", "tar", "dto", "tot", "ivaide", "ivacuo", "cenide", "caaide", "paride",
+    "natide", "almide", "obride", "res", "tex", "cod2", "unimed", "prepma", "dncide", "dncproide",
+)
+#: `con.tip` del albaran o proforma de origen (R13, R17).
+DOCORITIP_ALBARAN = 14
+MODOS: tuple[str, ...] = ("mes", "origen")
 
 #: R33: un vencimiento va como mucho 730 dias detras de la factura.
 MAX_DIAS_VENCIMIENTO = 730
@@ -74,3 +103,79 @@ def validar_vencimientos(
             codigo="vencimientos_no_cuadran",
             details={"suma_vencimientos": float(suma), "totpag": float(totpag)},
         )
+
+
+# --------------------------------------------------------------------------- #
+# Filas de `dcfpro` (T4, T6)
+# --------------------------------------------------------------------------- #
+
+
+def _vacio(columna: str) -> Any:
+    if columna in _DCFPRO_NULAS:
+        return None
+    return "" if columna in _DCFPRO_TEXTO else 0
+
+
+def fila_dcfpro(valores: Mapping[str, Any]) -> dict[str, Any]:
+    """La fila de `dcfpro` por lista blanca: `DCFPRO_COLUMNAS` menos la
+    numeracion, con lo que trae `valores` y el vacio del tipo en el resto. Una
+    columna que no es de `dcfpro` es un error de programacion."""
+    ajenas = set(valores) - set(DCFPRO_COLUMNAS)
+    if ajenas:
+        raise ValueError(f"Columnas que no son de dcfpro: {sorted(ajenas)}.")
+    return {
+        columna: valores[columna] if columna in valores else _vacio(columna)
+        for columna in DCFPRO_COLUMNAS
+        if columna not in _DCFPRO_NUMERACION
+    }
+
+
+def _num(valor: Any) -> Decimal:
+    return _decimal(float(valor or 0))
+
+
+def linea_de_origen(
+    dcapro: Mapping[str, Any],
+    anterior: Mapping[str, Any] | None,
+    *,
+    modo: str,
+    cueide: int,
+    docoricod: str,
+) -> dict[str, Any]:
+    """
+    R17: la linea de la factura copiada de su `dcapro` (de un albaran o una
+    proforma), con `docoritip` 14, su `cod` y sus `ide` y `canorilin` 0; R12:
+    `cueide` = `prv.cuepdtide`, en las dos series (M69). Columnas a origen
+    (design §6): en mes (R19) `canoriori` = `can` e `imporiori` = `tot`; a
+    origen (R20, M63) `canoriori` = el del `dcapro`, `canoriant`/`imporiant` =
+    los de la `anterior` (la `dcapro` de su `canorilin`, o 0 sin ella) e
+    `imporiori` = el del `dcapro` si esta vinculada (`linoriide` != 0) o
+    `imporiant` + `tot` si no, sumado en `Decimal`.
+    """
+    if modo not in MODOS:
+        raise ValueError(f"El modo '{modo}' no es de mes ni a origen.")
+    valores: dict[str, Any] = {columna: dcapro[columna] for columna in COPIADAS_DEL_ORIGEN}
+    if modo == "mes":
+        a_origen = {"canoriori": dcapro["can"], "canoriant": 0, "imporiant": 0,
+                    "imporiori": dcapro["tot"]}
+    else:
+        previa = anterior or {}
+        canoriant = float(_num(previa.get("canoriori")))
+        imporiant = float(_num(previa.get("imporiori")))
+        vinculada = bool(dcapro.get("linoriide"))
+        imporiori = (
+            float(_num(dcapro.get("imporiori"))) if vinculada
+            else float(_num(imporiant) + _num(dcapro["tot"]))
+        )
+        a_origen = {"canoriori": float(_num(dcapro.get("canoriori"))), "canoriant": canoriant,
+                    "imporiant": imporiant, "imporiori": imporiori}
+    valores.update(
+        a_origen,
+        cueide=cueide,
+        docoritip=DOCORITIP_ALBARAN,
+        docoricod=docoricod,
+        docoriide=dcapro["docide"],
+        linoriide=dcapro["ide"],
+        canorilin=0,
+    )
+    return fila_dcfpro(valores)
