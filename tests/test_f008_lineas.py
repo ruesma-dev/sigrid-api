@@ -437,3 +437,151 @@ def test_f008_r28_serie_desconocida_falla() -> None:
     resuelta, _f = resolver_linea_gg(_gg(), _lecturas_gg())
     with pytest.raises(ValueError, match="serie"):
         linea_sin_origen(_gg(), resuelta, serie="AB", almide=1)
+
+
+# --------------------------------------------------------------------------- #
+# T7 · linea propia FR con las reglas de F-009 (R25, R28)
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.factura_lineas import (  # noqa: E402
+    naturalezas_con_cuenta,
+    naturalezas_resueltas,
+    naturalezas_validas,
+    resolver_linea_fr,
+    resolver_partida,
+)
+
+
+def _lecturas_fr(**cambios: Any) -> LecturasLineas:
+    base: dict[str, Any] = {
+        "ivas": _IVAS,
+        "ivas_permitidos": ["I21", "I10"],
+        "productos_permitidos": ["MA9999", "SM9999", "QA9999"],
+        # (ide, cod, fecbaj, tipmov), como L7 de F-009.
+        "productos": {"ma9999": [(31, "MA9999", 0, 1)], "sm9999": [(32, "SM9999", 20200101, 0)]},
+        "naturalezas": {"MA9999": (51, 52, 53), "QA9999": "naturaleza_no_valida"},
+        # (ide, cod, tip, tipdes, tipvis), como L6 de F-009.
+        "partidas": {
+            "01": [(901, "01", 1, 0, 0)],
+            "02": [(902, "02", 0, 0, 0)],
+            "03": [(903, "03", 1, 0, 1), (904, "03", 1, 0, 0)],
+            "04": [(905, "04", 1, 1, 0)],
+        },
+        "obride": 404,
+        "almacen": (71, 72),
+    }
+    base.update(cambios)
+    return LecturasLineas(**base)
+
+
+def _fr(**cambios: Any) -> LineaSinOrigen:
+    datos: dict[str, Any] = {"descripcion": "Material", "cantidad": 1.0, "precio": 3.0, "iva": "I21",
+                             "producto": "MA9999"}
+    datos.update(cambios)
+    return LineaSinOrigen(**datos)
+
+
+def test_f008_r25_resuelve_producto_naturaleza_cuenta_y_analitica() -> None:
+    resuelta, fallos = resolver_linea_fr(_fr(partida="01"), _lecturas_fr())
+    assert fallos == []
+    assert resuelta == LineaResuelta(proide=31, natide=51, paride=901, cueide=52, caaide=53,
+                                     obride=404, cenide=72, almide=71, ivaide=777740, tasa_iva=0.21)
+
+
+def test_f008_r25_sin_partida_es_cero() -> None:
+    resuelta, _f = resolver_linea_fr(_fr(), _lecturas_fr())
+    assert resuelta.paride == 0
+
+
+@pytest.mark.parametrize("producto,codigo", [
+    ("XA9999", "producto_no_permitido"),
+    ("SM9999", "producto_no_encontrado"),
+    ("QA9999", "producto_no_encontrado"),
+])
+def test_f008_r25_producto_no_permitido_o_no_encontrado(producto: str, codigo: str) -> None:
+    _r, fallos = resolver_linea_fr(_fr(producto=producto), _lecturas_fr())
+    assert [c for c, _m in fallos] == [codigo]
+
+
+@pytest.mark.parametrize("codigo", ["naturaleza_no_valida", "analitica_no_resuelta"])
+def test_f008_r25_fallos_de_la_naturaleza(codigo: str) -> None:
+    _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(naturalezas={"MA9999": codigo}))
+    assert [c for c, _m in fallos] == [codigo]
+
+
+def test_f008_r25_lista_blanca_vacia_no_admite_ninguno() -> None:
+    _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(productos_permitidos=[]))
+    assert [c for c, _m in fallos] == ["producto_no_permitido"]
+
+
+@pytest.mark.parametrize("partida,paride,esperado", [
+    ("01", None, (901, None)),
+    ("01", 901, (901, None)),
+    ("01", 999, (None, "paride_no_valido")),
+    ("99", None, (None, "partida_no_encontrada")),
+    ("02", None, (None, "partida_no_imputable")),
+    ("04", None, (None, "partida_no_imputable")),
+    ("03", None, (None, "partida_ambigua")),
+    ("03", 904, (904, None)),
+    (None, None, (0, None)),
+])
+def test_f008_r25_partida_con_las_reglas_de_f009(
+    partida: str | None, paride: int | None, esperado: tuple[Any, Any]
+) -> None:
+    valor, fallo = resolver_partida(_fr(partida=partida, paride=paride), _lecturas_fr().partidas)
+    assert (valor, fallo[0] if fallo else None) == esperado
+
+
+def test_f008_r25_partida_con_tipvis_2_no_es_imputable() -> None:
+    _v, fallo = resolver_partida(_fr(partida="05"), {"05": [(906, "05", 1, 0, 2)]})
+    assert fallo[0] == "partida_no_imputable"
+
+
+def test_f008_r24_r25_todos_los_fallos_de_la_linea_juntos() -> None:
+    _r, fallos = resolver_linea_fr(_fr(producto="XA9999", partida="99", iva="I4"), _lecturas_fr())
+    assert [c for c, _m in fallos] == ["iva_no_valido", "producto_no_permitido",
+                                       "partida_no_encontrada"]
+
+
+def test_f008_r28_fr_y_frgg_salen_por_el_mismo_constructor() -> None:
+    resuelta, _f = resolver_linea_fr(_fr(unidad="UD"), _lecturas_fr())
+    fila = linea_sin_origen(_fr(unidad="UD"), resuelta, serie="FR", almide=1)
+    assert (fila["proide"], fila["natide"], fila["cueide"], fila["caaide"], fila["almide"],
+            fila["cenide"], fila["obride"], fila["unimed"], fila["tot"], fila["ivacuo"]) == (
+        31, 51, 52, 53, 71, 72, 404, "UD", 3.0, 0.63)
+
+
+# --- naturaleza de F-009 R13b, en tres pasos puros ------------------------------
+
+_NAT = {  # (ide, cod, numemp, fecbaj, caagascod, cuacomcod), como L15A de F-009.
+    "ma99": [(51, "MA99", 0, 0, "MOD.MAT", "6000000000")],
+    "sm99": [(61, "SM99", 2, 0, "SUB", "6070000000"), (62, "SM99", 1, 0, "SUB", "6070000000")],
+    "qa99": [(71, "QA99", 1, 20200101, "X", "6000000000")],
+    "xa99": [(81, "XA99", 1, 0, "X", "  ")],
+    "rep": [(91, "REP", 0, 0, "X", "1"), (92, "REP", 1, 0, "X", "1")],
+}
+
+
+def test_f008_r25_naturalezas_validas_por_empresa_y_baja() -> None:
+    mapeados = {"MA9999": "MA99", "SM9999": "SM99", "QA9999": "QA99", "XA9999": "XA99",
+                "R": "REP", "N": "NADA"}
+    validas = naturalezas_validas(mapeados, _NAT, emp=1)
+    assert {p: f[0] for p, f in validas.items()} == {"MA9999": 51, "SM9999": 62}
+
+
+def test_f008_r25_naturalezas_con_una_sola_cuenta() -> None:
+    validas = {"MA9999": _NAT["ma99"][0], "SM9999": _NAT["sm99"][1]}
+    cuentas = {"6000000000": [(4001, "6000000000")], "6070000000": [(4002, "x"), (4003, "x")]}
+    assert naturalezas_con_cuenta(validas, cuentas) == {"MA9999": (_NAT["ma99"][0], 4001)}
+
+
+def test_f008_r25_naturalezas_resueltas_con_la_analitica_del_centro() -> None:
+    con_cuenta = {"MA9999": (_NAT["ma99"][0], 4001), "SM9999": (_NAT["sm99"][1], 4002),
+                  "ZZ": ((99, "ZZ", 0, 0, "", "1"), 4003)}
+    analiticas = {"0404.mat": [(3001, "0404.MAT", 72), (3002, "0404.MAT", 99)],
+                  "0404.sub": [(3003, "0404.SUB", 99)]}
+    resultado = naturalezas_resueltas(
+        ["MA9999", "SM9999", "ZZ", "SIN"], con_cuenta, analiticas, cod_obra="0404 ", centro=72,
+    )
+    assert resultado == {"MA9999": (51, 4001, 3001), "SM9999": "analitica_no_resuelta",
+                         "ZZ": "analitica_no_resuelta", "SIN": "naturaleza_no_valida"}

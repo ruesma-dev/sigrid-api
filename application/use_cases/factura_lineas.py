@@ -21,7 +21,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from application.use_cases.albaran_compra_statements import importe_linea
+from application.use_cases.albaran_compra_statements import codigo_analitica, importe_linea
 from domain.models.factura_models import (
     EntradaAOrigen,
     FacturaError,
@@ -280,7 +280,10 @@ class LecturasLineas:
     Comunes: `ivas` (clave -> (`ide`, tasa)) de la empresa y la lista blanca.
     FRGG: `cuentas` (clave -> (`ide`, `niv`)), `prefijos_cuenta`, `analiticas`
     (clave -> (`ide`, hoja)) y `obras` (clave -> (`ide`, `obr.cenide`)).
-    FR: ver `resolver_linea_fr`.
+    FR: la lista blanca de productos, `productos` (clave -> filas de L7 de
+    F-009: `ide`, `cod`, `fecbaj`, `tipmov`), `naturalezas` (producto ->
+    (`natide`, `cueide`, `caaide`) o el codigo del fallo), `partidas` (clave ->
+    filas de L6 de F-009), la obra y el almacen y centro de F-009 R15.
     """
 
     ivas: Mapping[str, tuple[int, float]]
@@ -289,6 +292,12 @@ class LecturasLineas:
     prefijos_cuenta: Sequence[str] = ()
     analiticas: Mapping[str, tuple[int, bool]] = field(default_factory=dict)
     obras: Mapping[str, tuple[int, int]] = field(default_factory=dict)
+    productos_permitidos: Sequence[str] = ()
+    productos: Mapping[str, Sequence[Sequence[Any]]] = field(default_factory=dict)
+    naturalezas: Mapping[str, tuple[int, int, int] | str] = field(default_factory=dict)
+    partidas: Mapping[str, Sequence[Sequence[Any]]] = field(default_factory=dict)
+    obride: int = 0
+    almacen: tuple[int, int] | None = None
 
 
 def resolver_iva(codigo: str, lecturas: LecturasLineas) -> tuple[tuple[int, float] | None, Fallo | None]:
@@ -368,3 +377,135 @@ def linea_sin_origen(
         "paride": resuelta.paride,
         "natide": resuelta.natide,
     })
+
+
+def _entero(valor: Any) -> int:
+    return int(valor or 0)
+
+
+def resolver_partida(
+    linea: LineaSinOrigen, partidas: Mapping[str, Sequence[Sequence[Any]]]
+) -> tuple[int | None, Fallo | None]:
+    """F-009 R14, R14b: la partida entre las IMPUTABLES de la obra (`tip` 1,
+    `tipdes` 0, `tipvis` 0/1), o 0 sin partida. Con `paride`, esa y solo esa."""
+    if linea.partida is None:
+        return 0, None
+    filas = partidas.get(clave(linea.partida), [])
+    imputables = [
+        f for f in filas if _entero(f[2]) == 1 and not _entero(f[3]) and _entero(f[4]) in (0, 1)
+    ]
+    if linea.paride is not None:
+        if any(int(f[0]) == linea.paride for f in imputables):
+            return linea.paride, None
+        return None, ("paride_no_valido",
+                      f"La partida {linea.paride} no es una imputable de la obra con el codigo "
+                      f"'{linea.partida}'.")
+    if not filas:
+        return None, ("partida_no_encontrada", f"La obra no tiene ninguna partida '{linea.partida}'.")
+    if not imputables:
+        return None, ("partida_no_imputable",
+                      f"La partida '{linea.partida}' de la obra no es imputable.")
+    if len(imputables) > 1:
+        return None, ("partida_ambigua",
+                      f"Hay {len(imputables)} partidas imputables '{linea.partida}' en la obra: "
+                      "indica paride.")
+    return int(imputables[0][0]), None
+
+
+def naturalezas_validas(
+    mapeados: Mapping[str, str], filas: Mapping[str, Sequence[Sequence[Any]]], *, emp: int
+) -> dict[str, Sequence[Any]]:
+    """F-009 R13b, paso 1: producto -> la UNICA `auxpronat` de su `cod` sin baja
+    y con `numemp` en {0, empresa} y `cuacomcod` informado (filas de L15A)."""
+    validas: dict[str, Sequence[Any]] = {}
+    for producto, cod in mapeados.items():
+        candidatas = [
+            f for f in filas.get(clave(cod), []) if not _entero(f[3]) and _entero(f[2]) in (0, emp)
+        ]
+        if len(candidatas) == 1 and str(candidatas[0][5] or "").strip():
+            validas[producto] = candidatas[0]
+    return validas
+
+
+def naturalezas_con_cuenta(
+    validas: Mapping[str, Sequence[Any]], cuentas: Mapping[str, Sequence[Sequence[Any]]]
+) -> dict[str, tuple[Sequence[Any], int]]:
+    """Paso 2: la UNICA `cua` de su `cuacomcod` en la empresa (filas de L15C)."""
+    return {
+        producto: (fila, int(cuentas[clave(fila[5])][0][0]))
+        for producto, fila in validas.items()
+        if len(cuentas.get(clave(fila[5]), [])) == 1
+    }
+
+
+def naturalezas_resueltas(
+    productos: Sequence[str],
+    con_cuenta: Mapping[str, tuple[Sequence[Any], int]],
+    analiticas: Mapping[str, Sequence[Sequence[Any]]],
+    *,
+    cod_obra: str,
+    centro: int | None,
+) -> dict[str, tuple[int, int, int] | str]:
+    """Paso 3 (F-009 R15): la `caa` `<obra>.<sufijo>` del centro (filas de
+    L15B). Producto -> (`natide`, `cueide`, `caaide`) o el codigo del fallo."""
+    resultado: dict[str, tuple[int, int, int] | str] = {}
+    for producto in productos:
+        if producto not in con_cuenta:
+            resultado[producto] = "naturaleza_no_valida"
+            continue
+        fila, cueide = con_cuenta[producto]
+        codigo = codigo_analitica(cod_obra, fila[4])
+        caas = [
+            f for f in analiticas.get(clave(codigo), []) if _entero(f[2]) == centro
+        ] if codigo else []
+        resultado[producto] = (
+            (int(fila[0]), cueide, int(caas[0][0])) if len(caas) == 1 else "analitica_no_resuelta"
+        )
+    return resultado
+
+
+_MENSAJES_NATURALEZA = {
+    "naturaleza_no_valida": "La naturaleza del producto (SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO) no "
+                            "existe, esta de baja, es de otra empresa o su cuenta no es unica.",
+    "analitica_no_resuelta": "La obra no tiene la cuenta analitica de la naturaleza del producto en "
+                             "su centro: alta a mano.",
+}
+
+
+def resolver_linea_fr(
+    linea: LineaSinOrigen, lecturas: LecturasLineas
+) -> tuple[LineaResuelta | None, list[Fallo]]:
+    """R25: producto de `SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN` que exista sin
+    baja en la empresa (`tip 3`); naturaleza, cuenta (`cuacomcod`) y analitica
+    por el mapeo de naturalezas; partida, almacen y centro con F-009 R13b, R14,
+    R14b y R15 y sus mismos fallos. Todos los de la linea, juntos."""
+    fallos: list[Fallo] = []
+    iva, fallo = resolver_iva(linea.iva, lecturas)
+    if fallo:
+        fallos.append(fallo)
+    producto = str(linea.producto or "")
+    filas = lecturas.productos.get(clave(producto), [])
+    naturaleza: tuple[int, int, int] | str | None = None
+    if producto not in lecturas.productos_permitidos:
+        fallos.append(("producto_no_permitido",
+                       f"El producto '{producto}' no esta en SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN."))
+    elif not filas or _entero(filas[0][2]):
+        fallos.append(("producto_no_encontrado",
+                       f"El producto '{producto}' no existe o esta de baja en la empresa de la obra."))
+    else:
+        naturaleza = lecturas.naturalezas.get(producto, "naturaleza_no_valida")
+        if isinstance(naturaleza, str):
+            fallos.append((naturaleza, _MENSAJES_NATURALEZA[naturaleza]))
+    paride, fallo = resolver_partida(linea, lecturas.partidas)
+    if fallo:
+        fallos.append(fallo)
+    if fallos:
+        return None, fallos
+    assert iva is not None and isinstance(naturaleza, tuple) and paride is not None
+    assert lecturas.almacen is not None
+    natide, cueide, caaide = naturaleza
+    return LineaResuelta(
+        proide=int(filas[0][0]), natide=natide, paride=paride, cueide=cueide, caaide=caaide,
+        obride=lecturas.obride, cenide=lecturas.almacen[1], almide=lecturas.almacen[0],
+        ivaide=iva[0], tasa_iva=iva[1],
+    ), []
