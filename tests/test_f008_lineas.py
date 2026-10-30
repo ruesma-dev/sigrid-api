@@ -218,3 +218,67 @@ def test_f008_r38_fila_dcfpro_rechaza_columnas_ajenas() -> None:
         fila_dcfpro({"proide": 1, "inventada": 2})
     fila = fila_dcfpro({"proide": 1})
     assert fila["proide"] == 1 and fila["res"] == "" and fila["desesp"] is None and fila["can"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# T5 · comparacion a origen (R21, R22)
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.factura_lineas import comparar_a_origen  # noqa: E402
+from domain.models.factura_models import EntradaAOrigen  # noqa: E402
+
+_CALCULADAS = [
+    {"linoriide": 11, "canoriori": 10.0, "imporiori": 500.0},
+    {"linoriide": 12, "canoriori": 2.5, "imporiori": 30.25},
+]
+
+
+def _e(linea: int, canoriori: float, imporiori: float) -> EntradaAOrigen:
+    return EntradaAOrigen(linea=linea, canoriori=canoriori, imporiori=imporiori)
+
+
+def test_f008_r22_iguales_no_dice_nada() -> None:
+    comparar_a_origen(_CALCULADAS, [_e(12, 2.5, 30.25), _e(11, 10.0, 500.0)])
+
+
+def test_f008_r22_en_el_borde_de_la_tolerancia_cuadra() -> None:
+    comparar_a_origen(_CALCULADAS, [_e(11, 10.001, 500.01), _e(12, 2.499, 30.24)])
+
+
+@pytest.mark.parametrize("canoriori,imporiori", [(10.002, 500.0), (9.998, 500.0),
+                                                 (10.0, 500.02), (10.0, 499.98)])
+def test_f008_r22_fuera_de_tolerancia_no_cuadra(canoriori: float, imporiori: float) -> None:
+    with pytest.raises(FacturaError) as error:
+        comparar_a_origen(_CALCULADAS, [_e(11, canoriori, imporiori), _e(12, 2.5, 30.25)])
+    assert error.value.codigo == "a_origen_no_cuadra"
+    assert error.value.details == {"lineas": [{
+        "linea": 11,
+        "calculado": {"canoriori": 10.0, "imporiori": 500.0},
+        "enviado": {"canoriori": canoriori, "imporiori": imporiori},
+    }]}
+
+
+def test_f008_r22_lista_todas_las_que_no_cuadran() -> None:
+    with pytest.raises(FacturaError) as error:
+        comparar_a_origen(_CALCULADAS, [_e(11, 1.0, 500.0), _e(12, 2.5, 1.0)])
+    assert [l["linea"] for l in error.value.details["lineas"]] == [11, 12]
+
+
+def test_f008_r21_sin_a_origen_faltan_todas() -> None:
+    with pytest.raises(FacturaError) as error:
+        comparar_a_origen(_CALCULADAS, None)
+    assert error.value.codigo == "a_origen_incompleto"
+    assert error.value.details == {"faltan": [11, 12], "sobran": [], "repetidas": []}
+
+
+def test_f008_r21_faltas_sobras_y_repetidas() -> None:
+    with pytest.raises(FacturaError) as error:
+        comparar_a_origen(_CALCULADAS, [_e(12, 2.5, 30.25), _e(12, 2.5, 30.25), _e(99, 1.0, 1.0)])
+    assert error.value.codigo == "a_origen_incompleto"
+    assert error.value.details == {"faltan": [11], "sobran": [99], "repetidas": [12]}
+
+
+def test_f008_r21_solo_sobra_una() -> None:
+    with pytest.raises(FacturaError) as error:
+        comparar_a_origen(_CALCULADAS, [_e(11, 10.0, 500.0), _e(12, 2.5, 30.25), _e(13, 0.0, 0.0)])
+    assert error.value.details == {"faltan": [], "sobran": [13], "repetidas": []}

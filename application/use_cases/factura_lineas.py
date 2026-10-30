@@ -20,7 +20,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from domain.models.factura_models import FacturaError, Vencimiento
+from domain.models.factura_models import EntradaAOrigen, FacturaError, Vencimiento
 
 #: Las 73 columnas de `dbo.dcfpro`, en su orden fisico (T0). El `INSERT` lleva
 #: estas y solo estas.
@@ -179,3 +179,54 @@ def linea_de_origen(
         canorilin=0,
     )
     return fila_dcfpro(valores)
+
+
+#: R22: tolerancias de la comparacion a origen (P14).
+TOLERANCIA_CANORIORI = Decimal("0.001")
+TOLERANCIA_IMPORIORI = Decimal("0.01")
+
+
+def comparar_a_origen(
+    calculadas: Sequence[Mapping[str, Any]], enviadas: Sequence[EntradaAOrigen] | None
+) -> None:
+    """
+    R21: UNA entrada de `a_origen` por linea facturada, casada por `linea` =
+    `dcapro.ide` (el `linoriide` de la fila calculada); faltas, sobras o
+    repetidas -> `a_origen_incompleto` con las tres listas. R22: `canoriori`
+    a ±0,001 e `imporiori` a ±0,01 de lo calculado por M63; si no,
+    `a_origen_no_cuadra` con cada linea que difiere y los dos juegos. Se
+    escribe lo calculado (que, cuadrando, es lo enviado dentro de la tolerancia).
+    """
+    entradas = list(enviadas or [])
+    esperadas = [int(fila["linoriide"]) for fila in calculadas]
+    vistas: dict[int, int] = {}
+    for entrada in entradas:
+        vistas[entrada.linea] = vistas.get(entrada.linea, 0) + 1
+    faltan = [linea for linea in esperadas if linea not in vistas]
+    sobran = [linea for linea in vistas if linea not in esperadas]
+    repetidas = [linea for linea, veces in vistas.items() if veces > 1]
+    if faltan or sobran or repetidas:
+        raise FacturaError(
+            "a_origen no trae exactamente una entrada por linea facturada.",
+            codigo="a_origen_incompleto",
+            details={"faltan": faltan, "sobran": sobran, "repetidas": repetidas},
+        )
+    por_linea = {entrada.linea: entrada for entrada in entradas}
+    distintas: list[dict[str, Any]] = []
+    for fila in calculadas:
+        entrada = por_linea[int(fila["linoriide"])]
+        if (
+            abs(_num(fila["canoriori"]) - _decimal(entrada.canoriori)) > TOLERANCIA_CANORIORI
+            or abs(_num(fila["imporiori"]) - _decimal(entrada.imporiori)) > TOLERANCIA_IMPORIORI
+        ):
+            distintas.append({
+                "linea": entrada.linea,
+                "calculado": {"canoriori": fila["canoriori"], "imporiori": fila["imporiori"]},
+                "enviado": {"canoriori": entrada.canoriori, "imporiori": entrada.imporiori},
+            })
+    if distintas:
+        raise FacturaError(
+            f"{len(distintas)} linea(s) a origen no cuadran con el albaran: no se ha escrito nada.",
+            codigo="a_origen_no_cuadra",
+            details={"lineas": distintas},
+        )
