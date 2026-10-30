@@ -52,8 +52,7 @@ acuse): §4.1 paso 2 pone el orden real (el albarán anterior va antes del prove
 `retencion_no_soportada` el recargo sin porcentaje (`valpor` vacío), que antes acababa en un 500: mismo código,
 mismo mapeo.
 **v8.4** (2026-10-29, **F-018 v1.2** de sigrid-api, aprobada por el humano; acusada por albaranes el 2026-10-29, su
-F-110; **pendiente de despliegue** de sigrid-api: hasta entonces la API no admite `dto` y sv9 lo mantiene apagado con
-`ALTA_SIGRID_ENVIAR_DTO`): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué tiene que hacer
+F-110; **desplegada el 2026-10-30** (`dev` `6339617`); sv9 lo mantiene apagado con `ALTA_SIGRID_ENVIAR_DTO` hasta que albaranes decida): **descuento por línea**. Compatible hacia atrás salvo el punto 4. Qué tiene que hacer
 albaranes:
 
 1. **Línea con descuento**: mandar `lineas[].dto` (el porcentaje, número JSON de 0 a 100, como mucho 2 decimales) y

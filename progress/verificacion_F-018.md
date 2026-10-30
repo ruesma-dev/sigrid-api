@@ -25,7 +25,25 @@ consultas parametrizadas y mismos cuerpos; ningún `commit:true`). Ninguna lectu
 Avisos ajenos a F-018, previstos en el guion: `sin_partida_en_linea_con_partida` en V3 (los cuerpos no llevan
 `partida`), `retencion_del_contrato` (RET5 de `CTSB26/0331`) y `stock_negativo` en V5. **T19: sin discrepancias.**
 
-## T20 · V4 (pendiente; el humano, con autorización expresa)
+**Corrección sobre V1a/V2:** `AC26/30435` no es un albarán puro del escritorio: su `synckey` es `ALB-…`, nació por la
+API desde albaranes y su línea se retocó después en Sigrid. Sus cifras siguen la regla de M46; el contraste con
+documentos del escritorio lo dan V3 y V5.
 
-Grabación `commit:true` en la obra y con el proveedor que fije el humano, revisión en la UI, repetición
-`idempotente` y anulación desde la UI (nunca `DELETE`). Después, aviso de despliegue a `albaranes` y `proformas`.
+## T20 · V4 (2026-10-30, autorización expresa del humano; obra 0404)
+
+El humano fijó la obra y dejó al líder elegir proveedor: el del último albarán de la 0404. Previa, `previsto`. Con
+`commit:true`, `creado`: `AC26/31378` (`con_ide` 2864560), 48 uds de `MA9999`, `tar` 11,2, `7%`, `pre` 10,416041…,
+`tot` 499,97, IVA 104,99; `impbru` 537,6, `totbas` 499,97, `totdoc` 604,96; `mov` 840855 al neto. Filas leídas iguales a
+la respuesta y a V2.
+
+- **Cotejo por lectura con `AC26/30435`:** de 71 columnas de `dcapro` difieren 12 y de 145 de `dca` difieren 31, todas de
+  identificadores, proveedor, obra, fecha, partida o facturación; ninguna de cálculo.
+- **UI (captura del humano):** Uds. 48,00, Precio/Ud 11,2, Dto 7%, Importe 499,97, Importe/Ud 10,42, total 604,96.
+- **Relectura tras la UI:** línea, cabecera y `mov` sin cambios. **No consta** que el humano abriera y cerrara la línea:
+  la captura enseña la ficha.
+- **Repetición:** solo en dry-run (`commit:false`), `idempotente`, mismo `con_ide`, sin `dto` ni `precio_bruto`, una fila
+  en `dca`, `dcapro` y `mov`. El `commit:true` repetido lo bloqueó el clasificador de la sesión y no se insistió.
+- **Anulación:** desde la UI, por el humano. Lecturas: `con`, `dcapro`, `mov` y `dca` por `synckey`, **0, 0, 0 y 0**.
+
+Aparte de F-018: `dca.empide` sale del valor por defecto (`sigrid_albaran_empide`), que en la UI muestra como Empleado a
+una persona real aunque `usu` sea `prueba`. Ya era así; no es de esta feature.

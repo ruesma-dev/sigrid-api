@@ -7,8 +7,7 @@
 cual, sin ninguna clave nueva en la respuesta. Lo nuevo de la v1.2: §2.1 y §2.2 (campos de cadena), **§2.3** (a origen:
 lo que el llamante lee de Sigrid, con sus dos consultas), §3.1 (respuesta a origen), §4 (códigos nuevos), §6 y §8.
 **v1.3** (2026-10-29, **F-018 v1.2** de sigrid-api, [spec](../F-018-descuento-por-linea/requirements.md), aprobada
-por el humano; acusada por `proformas` el 2026-10-29; **pendiente de despliegue** de sigrid-api: hasta entonces la
-API escribe esas líneas como la v1.2): las líneas de contrato cuyo `ctrpro` tiene descuento se
+por el humano; acusada por `proformas` el 2026-10-29; **desplegada el 2026-10-30** (`dev` `6339617`)): las líneas de contrato cuyo `ctrpro` tiene descuento se
 escriben como Sigrid, de mes y a origen. Compatible hacia atrás salvo esas líneas; la petición no cambia. Qué tiene que
 hacer `proformas` (detalle en §8):
 
@@ -434,7 +433,7 @@ Sigrid: `tar` y `dto` del contrato, `tot` = ROUND_HALF_UP(`cantidad`·`tar`·(1 
 `impbru` bruto y `totales` sobre esos `tot`, con hasta un céntimo por línea frente a `importe_mes` con `cantidad` ≤
 `ctrpro.can` y `pre` = `tot`/`can` (§3); su línea de
 respuesta trae `dto` y `precio_bruto`, también en la de mes (§3.1); a origen, `importe_origen_cadena` con ese `pre`,
-con una diferencia que crece con `canoriori`/`cantidad` (§3.1). **Pendiente de despliegue**; acusada por `proformas` el
+con una diferencia que crece con `canoriori`/`cantidad` (§3.1). **Desplegada el 2026-10-30**; acusada por `proformas` el
 2026-10-29. **Corrección de texto** (2026-10-29, tras la revisión de F-018; sin cambio de versión ni de lo que hace la
 API): el estado y la cota a origen, que antes decía «hasta un céntimo».
 `existente`, `idempotente` y las arrastradas, sin las claves nuevas. §4: el aviso heredado

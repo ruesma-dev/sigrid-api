@@ -1,43 +1,9 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-018 `in_progress` (2026-10-30): DESPLEGADA; T19 hecha sin discrepancias; espera T20 (grabación autorizada)
+## F-018 cerrada (2026-10-30)
 
-**2026-10-30**: revisión APROBADA (pasada 3, `review_F-018.md`), merge a `dev` `6339617`, push y despliegue (el
-humano). T19 (V0-V3 y V5, lecturas y previas) cuadra con el escritorio: [`verificacion_F-018.md`](verificacion_F-018.md).
-Queda T20 (V4, `commit:true` con autorización expresa, en la obra y con el proveedor que fije el humano; anular en la
-UI), el aviso de despliegue a `albaranes`, `proformas` y `facturas`, y T21.
-
-### Historia de F-018
-
-Rama `feature/F-018-descuento-por-linea`, petición de `albaranes` (su F-110). Spec v1.2
-[`specs/F-018-descuento-por-linea/`](../specs/F-018-descuento-por-linea/), aprobada por el humano (P1-P11; P11 = (a)
-en `841e291`); medición M45-M51 en [`explore_F-018.md`](explore_F-018.md). Acuses de los contratos v8.4 (`albaranes`)
-y v1.3 (`proformas`) recibidos el 2026-10-29; `albaranes` pegó su texto en `7aae0ba` y deja apagada
-`ALTA_SIGRID_ENVIAR_DTO` hasta el aviso de despliegue. T1-T17 hechas (implementer): mutación en serie 66/66 muertos,
-cobertura 100 % de 102 líneas cambiadas; informe [`impl_F-018.md`](impl_F-018.md).
-
-**T18, revisión troceada (2026-10-29)**: APROBADOS `logica`, `C3C4ter`, `C4red` y `mutacion`. Cambios de texto en
-`docs` (estado de los contratos; cota a origen de la proforma y de las vinculadas grandes; el clásico y
-`albaran-directo` ignoran `dto`; notas caducadas de `azure-apps`; V3/V4 de la verificación manual), en corrección por
-el implementer, y en `C1C2C5` (este fichero y `features.json`, corregidos por el líder). Incidencia: un revisor pasó
-el árbol principal a `dev` de 13:23:30 a 13:23:44; `init.sh` repetido después sobre `ba5abbc`, en verde (3.793 passed).
-
-**Después**: veredicto consolidado en `review_F-018.md`, merge a `dev`, despliegue (lo ordena el humano), aviso de
-despliegue a `albaranes`, `proformas` y `facturas`, T19 (previas del líder), T20 (grabación con autorización expresa)
-y T21.
-
-**Verificaciones MANUAL pendientes** (comandos literales en
-[`verificacion_manual.md`](../specs/F-018-descuento-por-linea/verificacion_manual.md); todo tras el despliegue):
-- **V0**: setup (variables de entorno, sin secretos) y previa de regresión de `sigrid/albaran` sin `dto`.
-- **V1** (líder, lecturas `sql/read`): V1a línea sin vincular con dto de la obra 0692 (`MA9999`); V1b `ctrpro` con dto
-  `N%` y un albarán del escritorio vinculado; V1c contrato con dto y proforma del escritorio desde 2025.
-- **V2** (líder, previa `commit:false`): la gemela de V1a, con `tar`/`dto`/`tot`/`pre`/`impbru`/`mov` como el escritorio.
-- **V3** (líder, previas): contra V1b con su bruto y dto (sin avisos de precio ni de dto; los de partida o pendiente son
-  ajenos a F-018), con otro dto (`dto_distinto_del_contrato`) y sin `dto` (R15: `tot`/`pre` como el escritorio).
-- **V5** (líder, previa de proforma de mes con `otra_del_mes`): contra V1c, `tot`/`pre` y `impbru` como Sigrid.
-- **V4** (humano, **solo con autorización expresa para esa escritura**, en la obra y con el proveedor que fije él):
-  `commit:true`, revisión en la UI, repetición `idempotente` y anulación desde la UI (nunca `DELETE`) (T20).
+Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `ALTA_SIGRID_ENVIAR_DTO` cuando decida.
 
 ## F-016 `blocked` (2026-10-28): proforma a origen DESPLEGADA; espera T17-T18 del humano
 
@@ -240,18 +206,16 @@ ajeno; lo borra el humano si quiere.
 
 ## Lo siguiente en el backlog
 
-**F-018** (arriba): en revisión; después merge, despliegue y T19-T21. **F-016** (arriba): desplegada; T17-T18.
+**F-016** (arriba): desplegada; T17-T18.
 **F-015 está `blocked`** hasta que
-Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Después de F-018: F-008 (facturas de
+Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Siguiente: F-008 (facturas de
 compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
 consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
 `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. **F-018** (descuento por línea) está `in_progress`: implementada y en
-> revisión troceada (T18); después veredicto consolidado, merge a `dev`, despliegue que ordena el humano, avisos y
-> T19-T21 (guion en `specs/F-018-descuento-por-linea/verificacion_manual.md`). **F-016** (proforma a origen) está
+> Lee `CLAUDE.md` y `progress/current.md`. F-018 está cerrada. **F-016** (proforma a origen) está
 > `blocked`: desplegada el 2026-10-28 con la llave de origen cerrada; quedan T17 (previas, las lanza el líder con el
 > visto bueno del humano) y T18 (grabaciones autorizadas una a una), guion en
 > `specs/F-016-proforma-a-origen/verificacion_manual.md`. F-007 está cerrada; queda que el humano anule `PROF26/01360`. **F-015 está `blocked`** a la espera de

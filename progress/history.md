@@ -378,3 +378,26 @@ jefe de obra → **F-016**. Códigos de partida repetidos («no debería haber»
 **Queda (operativo, humano):** revisar `PROF26/01360` en la UI (ficha, impresión, paso a factura) y **anularla desde
 la UI**; después, lecturas (sin `con` 2861898, `canser` de los `ctrpro` 258782 y 258783 a 0). La llave de proformas
 sigue **cerrada**; abrirla es decisión del humano, y se avisa a `proformas`.
+
+## F-018 · Descuento por línea (`dto`) en `sigrid/albaran`, heredado por `sigrid/proforma`
+
+**Cerrada el 2026-10-30, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama
+`feature/F-018-descuento-por-linea`, mergeada a `dev` (`6339617`). Petición de `albaranes` (su F-110). Spec v1.2 (P1-P11),
+contratos v8.4 (albaranes) y v1.3 (proformas). Revisión troceada APROBADA en la pasada 3 (`review_F-018.md`).
+
+**Qué hace:** `lineas[].dto` opcional (0-100, hasta 2 decimales) en el modo extendido: `tar` bruto, `pre` neto = `tot`/`can`,
+`dto` «N,NN%», `tot` = ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2), `impbru` bruto, `mov`/PMP al neto. La vinculada que casa
+por la opción C con un `ctrpro` con dto se escribe como Sigrid (R15), también en la proforma. Sin SQL nuevo.
+
+**Verificado:** 3.793 tests, cobertura 100 % de 102 líneas, mutación 66/66, T19 sin discrepancias y grabación real
+`AC26/31378` en la 0404, revisada en la UI y anulada por el humano (`verificacion_F-018.md`). **Sin confirmar:** abrir y
+cerrar la línea en la UI, y la repetición `idempotente` con `commit:true` (hecha en dry-run).
+
+**Conocido y aceptado:** a origen, la proforma se desvía varios céntimos por línea (forma de Sigrid, contrato v1.3 §3.1); el
+clásico y `albaran-directo` ignoran `dto` en silencio.
+
+**Lecciones:**
+- No restaurar un mutante sin comprobar que la campaña ha muerto: el `ps` de Git Bash no ve los python de Windows.
+- Los revisores en paralelo no cambian de rama en el árbol principal.
+- Una cota numérica corregida en un contrato se busca en todos los documentos hermanos.
+- Un `synckey` `ALB-…` delata que un albarán «del escritorio» nació por la API.

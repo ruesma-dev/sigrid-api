@@ -3,9 +3,7 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **18 features**, 8 abiertas, 10 terminadas.
-
-En curso: **F-018**.
+Resumen: **18 features**, 7 abiertas, 11 terminadas.
 
 Bloqueadas: **F-015, F-016**.
 
@@ -15,7 +13,6 @@ Bloqueadas: **F-015, F-016**.
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
 | F-016 | sigrid/proforma registra también proformas a origen, según indique el jefe de obra | 8 | bloqueada | critico | `feature/F-016-proforma-a-origen` |
-| F-018 | Descuento por línea (dto) en el alta de albarán, heredado por sigrid/proforma | 9 | en curso | critico | `feature/F-018-descuento-por-linea` |
 | F-008 | Endpoint de dominio para registrar facturas de compra | 10 | pendiente | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
@@ -33,6 +30,7 @@ Bloqueadas: **F-015, F-016**.
 | F-006 | Endpoint de dominio para crear partes de reclamación de Posventa, en lote | 6 | critico |
 | F-009 | Modo extendido de sigrid/albaran: alta idempotente de albaranes de compra del pipeline (PRE-1 de albaranes F-053) | 7 | critico |
 | F-007 | Endpoint de dominio para registrar proformas | 8 | critico |
+| F-018 | Descuento por línea (dto) en el alta de albarán, heredado por sigrid/proforma | 9 | critico |
 | F-010 | documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad | 10 | critico |
 | F-011 | documents/read valida database contra ALLOWED_DATABASES y _connect valida el nombre de base para toda la API | 11 | critico |
 | F-012 | Los 400 de validación no acaban en 500 cuando el error de pydantic trae una excepción en ctx | 12 | estandar |
@@ -50,12 +48,6 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 estado **bloqueada** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-016-proforma-a-origen`
 
 Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. Spec v2 (cambio de alcance del humano, 2026-10-28): el modo, la anterior y qué línea continúa cada una los decide y los busca en Sigrid el llamante (proformas); la API solo registra y valida la integridad de la cadena. Cambios en el contrato con proformas: v1.2. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED (y, a origen, SIGRID_PROFORMA_ORIGEN_ENABLED) y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.
-
-### F-018 · Descuento por línea (dto) en el alta de albarán, heredado por sigrid/proforma
-
-estado **en curso** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-018-descuento-por-linea`
-
-Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110). Decidido en la spec v1.2 (humano, P1-P11): tar bruto y pre neto = tot/can como Sigrid; la vinculada sin dto que casa por la opción C con un ctrpro con dto se escribe como Sigrid (P5, R15); sigrid/proforma no admite dto en la petición (R20) pero hereda R15 (P8 = a).
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
@@ -128,6 +120,12 @@ Alta del 2026-10-01 a petición del líder de albaranes: PRE-1 de albaranes F-05
 estado **terminada** · prioridad 8 · rigor `critico` · SDD sí · rama `feature/F-007-registrar-proforma`
 
 Alta del 2026-09-24 por petición del humano; spec v3 (2026-10-25) y enmienda 1 (2026-10-26). POST /api/sigrid/proforma registra UNA proforma de mes de un subcontratista —la hoja del jefe de obra ya leída y casada por el microservicio proformas (su F-005), que la llama desde su bandeja: previa antes de aprobar y grabación al aprobar— como un albarán de compra tip 14 de la serie PROF<aa>/ con dca.cla 141, solo con las partidas de MES ≠ 0: las de contrato vinculadas a su ctrpro (ctrpro_ide), las nuevas sin vincular con su producto. El contrato lo resuelve la API (obra + proveedor y, con varios, las líneas) o lo fija cod_contrato; cabecera y retención como F-015; existente si la proforma del contrato y mes ya está en Sigrid; idempotente por la referencia PRF-<id>. Reutiliza el núcleo del modo extendido de sigrid/albaran (F-009) con otro perfil, sin cambiar su conducta. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con su propia llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. facturas lee lo registrado por el entref PROF<MMAA>_<cod_obra>. Contrato: specs/F-007-registrar-proforma/contrato_proformas.md.
+
+### F-018 · Descuento por línea (dto) en el alta de albarán, heredado por sigrid/proforma
+
+estado **terminada** · prioridad 9 · rigor `critico` · SDD sí · rama `feature/F-018-descuento-por-linea`
+
+Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110). Decidido en la spec v1.2 (humano, P1-P11): tar bruto y pre neto = tot/can como Sigrid; la vinculada sin dto que casa por la opción C con un ctrpro con dto se escribe como Sigrid (P5, R15); sigrid/proforma no admite dto en la petición (R20) pero hereda R15 (P8 = a).
 
 ### F-010 · documents/read: nombres de fichero no ASCII sin 500 y localización de la fila sin ambigüedad
 
