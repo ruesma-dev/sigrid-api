@@ -484,3 +484,105 @@ def test_f008_r37_reservas_de_ide(metodo: str, tabla: str) -> None:
     assert getattr(S, metodo)() == (
         f"SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.{tabla} WITH (UPDLOCK, HOLDLOCK)", []
     )
+
+
+# --------------------------------------------------------------------------- #
+# T12-T14 · INSERTs por lista blanca, marcas condicionadas y relecturas
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.factura_lineas import DCFPRO_COLUMNAS
+
+
+@pytest.mark.parametrize("metodo,tabla,columnas", [
+    ("insertar_con", "con", CON_COLUMNAS), ("insertar_dcf", "dcf", DCA_COLUMNAS),
+    ("insertar_dcfpro", "dcfpro", DCFPRO_COLUMNAS), ("insertar_dcfrec", "dcfrec", DCAREC_COLUMNAS),
+    ("insertar_pag", "pag", PAG_COLUMNAS), ("insertar_consii", "consii", CONSII_COLUMNAS),
+    ("insertar_dcaprodes", "dcaprodes", DCAPRODES_COLUMNAS), ("insertar_log", "log", LOG_COLUMNAS),
+])
+def test_f008_r38_insert_por_lista_blanca(metodo: str, tabla: str, columnas: tuple[str, ...]) -> None:
+    fila = {c: i for i, c in enumerate(columnas)}
+    sql, params = getattr(S, metodo)(fila)
+    assert sql == (
+        f"INSERT INTO dbo.{tabla} ({', '.join(columnas)}) VALUES ({', '.join(['?'] * len(columnas))})"
+    )
+    assert params == list(range(len(columnas)))
+
+
+@pytest.mark.parametrize("metodo", ["insertar_con", "insertar_dcfpro", "insertar_pag"])
+def test_f008_r38_una_fila_que_no_es_la_lista_blanca_no_se_inserta(metodo: str) -> None:
+    columnas = {"insertar_con": CON_COLUMNAS, "insertar_dcfpro": DCFPRO_COLUMNAS,
+                "insertar_pag": PAG_COLUMNAS}[metodo]
+    fila = dict.fromkeys(columnas, 0)
+    with pytest.raises(ValueError, match="columnas"):
+        getattr(S, metodo)({**fila, "remide2": 1})
+    fila.pop(columnas[-1])
+    with pytest.raises(ValueError, match="columnas"):
+        getattr(S, metodo)(fila)
+
+
+def test_f008_r40_marca_de_linea_condicionada_a_canfac_cero() -> None:
+    assert S.marcar_linea(8001, 2.5) == (
+        "UPDATE dbo.dcapro SET canfac = canfac + ? WHERE ide = ? AND canfac = ?", [2.5, 8001, 0]
+    )
+    assert S.releer_linea_marcada(8001, 2.5) == (
+        "SELECT COUNT(*) FROM dbo.dcapro WHERE ide = ? AND canfac = ?", [8001, 2.5]
+    )
+
+
+def test_f008_r41_marca_de_cabecera_sin_idefac() -> None:
+    sql, params = S.marcar_cabecera(800, 20261030, 100000)
+    assert sql == (
+        "UPDATE dbo.dca SET estfac = ?, fecfac = ?, horfac = ?, antestfac = ? WHERE ide = ? AND estfac = ?"
+    )
+    assert params == [1, 20261030, 100000, 3, 800, 0]
+    assert "idefac" not in sql
+    assert S.releer_cabecera_marcada(800, 20261030, 100000) == (
+        "SELECT COUNT(*) FROM dbo.dca WHERE ide = ? AND estfac = ? AND fecfac = ? AND horfac = ? "
+        "AND antestfac = ?",
+        [800, 1, 20261030, 100000, 3],
+    )
+
+
+def test_f008_r41_de_con_a_fac() -> None:
+    assert S.marcar_estado(800, est_con=3, est_fac=10) == (
+        "UPDATE dbo.con SET est = ? WHERE ide = ? AND tip = ? AND est = ?", [10, 800, 14, 3]
+    )
+    assert S.releer_estado(800, est_fac=10) == (
+        "SELECT COUNT(*) FROM dbo.con WHERE ide = ? AND tip = ? AND est = ?", [800, 14, 10]
+    )
+
+
+def test_f008_r42_contrato() -> None:
+    assert S.bloquear_lineas_de_contrato([9901, 9902]) == (
+        "SELECT ide, canfac FROM dbo.ctrpro WITH (UPDLOCK, HOLDLOCK) WHERE ide IN (?, ?)", [9901, 9902]
+    )
+    assert S.sumar_facturado_contrato(9901, 3.0) == (
+        "UPDATE dbo.ctrpro SET canfac = canfac + ? WHERE ide = ?", [3.0, 9901]
+    )
+    assert S.releer_linea_de_contrato(9901, 10.0) == (
+        "SELECT COUNT(*) FROM dbo.ctrpro WHERE ide = ? AND ABS(canfac - ?) < ?", [9901, 10.0, 0.0005]
+    )
+    assert S.actualizar_estfac_contrato(900, 1) == ("UPDATE dbo.ctr SET estfac = ? WHERE ide = ?", [1, 900])
+    assert S.releer_estfac_contrato(900, 1) == (
+        "SELECT COUNT(*) FROM dbo.ctr WHERE ide = ? AND estfac = ?", [900, 1]
+    )
+
+
+def test_f008_r45_relecturas_por_clave() -> None:
+    assert S.releer_con(1, "FR26/00042") == (
+        "SELECT COUNT(*) FROM dbo.con WHERE emp = ? AND tip = ? AND cod = ?", [1, 15, "FR26/00042"]
+    )
+    assert S.releer_dcf(10000, "FAC-1") == (
+        "SELECT COUNT(*) FROM dbo.dcf WHERE ide = ? AND synckey = ?", [10000, "FAC-1"]
+    )
+    assert S.releer_dcfpro(10000) == ("SELECT COUNT(*) FROM dbo.dcfpro WHERE docide = ?", [10000])
+    assert S.releer_dcfrec(10000) == ("SELECT COUNT(*) FROM dbo.dcfrec WHERE docide = ?", [10000])
+    assert S.releer_pagos(10000) == (
+        "SELECT COUNT(*) FROM dbo.pag p JOIN dbo.con c ON c.ide = p.ide WHERE p.conide = ? AND c.tip = ?",
+        [10000, 25],
+    )
+    assert S.releer_consii(10000) == ("SELECT COUNT(*) FROM dbo.consii WHERE conide = ?", [10000])
+    assert S.releer_dcaprodes(10000) == (
+        "SELECT COUNT(*) FROM dbo.dcaprodes WHERE docdeside = ? AND docdestip = ?", [10000, 15]
+    )
+    assert S.releer_log(600) == ("SELECT COUNT(*) FROM dbo.log WHERE ide = ?", [600])

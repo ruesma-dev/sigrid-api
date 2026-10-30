@@ -15,9 +15,9 @@ No se empieza ninguna hasta que el humano apruebe la v3.1 (P1-P21 decididas, `de
 - [x] T9: Lecturas con `?`: orígenes y líneas, línea anterior, retención, proveedor, obra, `usu`, `iva`, `conest` (REC y RECGG), asiento, cuenta (`tip 17`, `niv` 5), analítica (`tip 19`, hoja) y su obra, idempotencia y duplicadas (R7, R10-R15, R18, R24-R26, R43)  |  Verificación: `tests/test_f008_statements.py`, SQL comparado carácter a carácter
 - [x] T10: Reserva de `cod` por serie: `FR<aa>/` 5 cifras y `FRGG<aa>/` 4 cifras, sin que una casa la otra (R9, R37)  |  Verificación: `tests/test_f008_statements.py`
 - [x] T11: `CreateFacturaUseCase` previa: orden de validación de §7, sin escribir, FR y FRGG, con y sin orígenes y mixtas (R3, R5-R35, R43, R44)  |  Verificación: `tests/test_f008_use_case.py`, incluido que no se llama a ninguna sentencia de escritura
-- [ ] T12: Trabajo de la transacción: applocks en orden, re-comprobación con `UPDLOCK` (también R22), reserva e `INSERT`s; sin orígenes, sin marcas; FRGG con orígenes, con marcas (R36-R38, R43)  |  Verificación: `tests/test_f008_transaccion.py`
-- [ ] T13: `UPDATE`s de marcas y su condición de una fila (R40-R42)  |  Verificación: `tests/test_f008_transaccion.py`, con la carrera que revierte todo
-- [ ] T14: Relectura antes del COMMIT y reintento reentrante (R37, R45)  |  Verificación: `tests/test_f008_transaccion.py`
+- [x] T12: Trabajo de la transacción: applocks en orden, re-comprobación con `UPDLOCK` (también R22), reserva e `INSERT`s; sin orígenes, sin marcas; FRGG con orígenes, con marcas (R36-R38, R43)  |  Verificación: `tests/test_f008_transaccion.py`
+- [x] T13: `UPDATE`s de marcas y su condición de una fila (R40-R42)  |  Verificación: `tests/test_f008_transaccion.py`, con la carrera que revierte todo
+- [x] T14: Relectura antes del COMMIT y reintento reentrante (R37, R45)  |  Verificación: `tests/test_f008_transaccion.py`
 - [ ] T15: Lista negativa: ninguna sentencia nombra `asi`, `apu`, `regiva`, `regirp`, `mov`, `dcfproana`, `dcfpropar`, `dcfprodes`, ni contiene `DELETE`; ningún cálculo de vencimiento (R35, R39)  |  Verificación: `tests/test_f008_statements.py` recorriendo todas las constantes
 - [ ] T16: Ruta `sigrid/factura`, llave propia, errores y traza sin datos sensibles ni cuentas (R1, R4, R46)  |  Verificación: `tests/test_f008_route.py`
 - [ ] T17: Compatibilidad: suites de rutas existentes sin cambios (R47)  |  Verificación: `python -m pytest tests -k "f007 or f009 or f015 or f016 or f018"`

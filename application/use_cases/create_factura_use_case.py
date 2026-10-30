@@ -21,15 +21,17 @@ import json
 import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    TIP_CONTRATO,
     AlbaranCompraStatements,
     SellosAlbaran,
     codigo_analitica,
+    estados_contrato,
     sellos_del_alta,
     siguiente_cod,
 )
@@ -48,6 +50,7 @@ from application.use_cases.factura_lineas import (
     validar_vencimientos,
 )
 from application.use_cases.factura_statements import (
+    APPLOCKS_FACTURA,
     CABECERA_DE_ORIGEN,
     LINEA_DE_ORIGEN,
     ORIGEN,
@@ -300,6 +303,8 @@ class CreateFacturaUseCase:
         self._duplicadas(contexto, leer(fs.buscar_duplicadas(
             _cif(heredadas["entcif"]), request.numero_factura, contexto.est_rech
         )))
+        if request.commit:
+            return self._escribir(contexto, fs, f9, traza)
         return self._previa(contexto, montada, leer, fs)
 
     # ------------------------------------------------------------------ #
@@ -841,6 +846,193 @@ class CreateFacturaUseCase:
             )
 
     # ------------------------------------------------------------------ #
+    # Commit (R36-R45, design §7)
+    # ------------------------------------------------------------------ #
+    def _escribir(
+        self, ctx: _Contexto, fs: FacturaStatements, f9: AlbaranCompraStatements, traza: dict[str, Any]
+    ) -> FacturaResultado:
+        request, settings = ctx.request, self._settings
+        timeout = settings.default_write_timeout_seconds
+
+        def work(cursor: Any) -> FacturaResultado:
+            # Reentrante: el repositorio repite `work` entero ante una clave
+            # duplicada (R37). Cada intento relee, reserva y numera desde cero;
+            # el instante de la peticion ya viene fijado en `ctx.sellos`.
+            cursor.connection.timeout = timeout
+
+            def leer(sentencia: tuple[str, list[Any]]) -> list[tuple[Any, ...]]:
+                _ejecutar_sql(cursor, sentencia)
+                return [tuple(fila) for fila in cursor.fetchall()]
+
+            # (1) R43 otra vez, bajo el applock de referencias.
+            idempotente = self._idempotencia(
+                request, leer(fs.buscar_referencia(request.referencia_externa)), leer, fs
+            )
+            if idempotente is not None:
+                return idempotente
+            self._duplicadas(ctx, leer(fs.buscar_duplicadas(
+                _cif(ctx.heredadas["entcif"]), request.numero_factura, ctx.est_rech
+            )))
+            # (2) R14, R15, R22 y R29-R34 otra vez con los origenes bloqueados: el
+            # escritorio no toma nuestros applocks. Sin origenes, nada que bloquear.
+            lineas_origen: list[tuple[dict[str, Any], dict[str, Any]]] = []
+            if ctx.origenes:
+                self._bloquear_origenes(ctx, leer, fs)
+                lineas_origen = self._lineas_de_origen(
+                    request, ctx.proveedor, ctx.origenes,
+                    *self._leer_lineas(leer, fs, ctx.origenes, request.modo, bloquear=True),
+                )
+            traza["n_lineas_origen"] = len(lineas_origen)
+            montada = self._montar(ctx, lineas_origen)
+            # (3) Reservas bajo UPDLOCK, HOLDLOCK (`pag` comparte `ide` con su `con`).
+            maximo = leer(fs.reservar_cod(ctx.obra.emp, ctx.prefijo, ctx.cifras))
+            cod = siguiente_cod(ctx.prefijo, maximo[0][0] if maximo else None, cifras=ctx.cifras)
+            filas = montada.filas
+            numeradas = numerar(
+                filas, cod=cod, ide_con=_contar(cursor, fs.reservar_ide_con()),
+                ide_dcfpro=_contar(cursor, fs.reservar_ide_dcfpro()),
+                ide_dcfrec=_contar(cursor, fs.reservar_ide_dcfrec()) if filas.dcfrec else None,
+                ide_consii=_contar(cursor, fs.reservar_ide_consii()),
+                ide_dcaprodes=_contar(cursor, fs.reservar_ide_dcaprodes()) if filas.dcaprodes else None,
+                ide_log=None,
+            )
+            # (4) INSERTs por lista blanca (R36, R38).
+            _ejecutar_sql(cursor, fs.insertar_con(numeradas.con))
+            _ejecutar_sql(cursor, fs.insertar_dcf(numeradas.dcf))
+            for fila in numeradas.dcfpro:
+                _ejecutar_sql(cursor, fs.insertar_dcfpro(fila))
+            for fila in numeradas.dcfrec:
+                _ejecutar_sql(cursor, fs.insertar_dcfrec(fila))
+            for con_pago, pag in numeradas.pagos:
+                _ejecutar_sql(cursor, fs.insertar_con(con_pago))
+                _ejecutar_sql(cursor, fs.insertar_pag(pag))
+            _ejecutar_sql(cursor, fs.insertar_consii(numeradas.consii))
+            for _i, fila in numeradas.dcaprodes:
+                _ejecutar_sql(cursor, fs.insertar_dcaprodes(fila))
+            # (5) Marcas en los origenes (R40-R42), solo con origenes.
+            marcas = self._marcar(ctx, cursor, leer, fs, f9, lineas_origen) if ctx.origenes else []
+            # El `log`, al final (F-006): su `ide` se reserva aqui.
+            numeradas = replace(numeradas, log={**numeradas.log,
+                                                "ide": _contar(cursor, fs.reservar_ide_log())})
+            _ejecutar_sql(cursor, fs.insertar_log(numeradas.log))
+            # (6) Relectura antes del COMMIT (R45).
+            self._releer(ctx, cursor, fs, numeradas, marcas)
+            return _resultado(ctx, montada, numeradas, estado="creado", avisos=[])
+
+        try:
+            return self._repo.run_in_write_transaction(
+                database=request.database,
+                timeout_seconds=timeout,
+                applock_resources=list(APPLOCKS_FACTURA),
+                applock_timeout_ms=settings.applock_timeout_ms,
+                max_retries=settings.domain_write_max_retries,
+                work=work,
+            )
+        except Exception as exc:
+            if _es_colision_de_clave(exc):
+                raise FacturaError(
+                    "Colision de clave repetida tras los reintentos (alta simultanea con el "
+                    "escritorio): no se ha escrito nada. Reenviala.",
+                    codigo="colision_de_clave",
+                ) from exc
+            raise
+
+    def _bloquear_origenes(self, ctx: _Contexto, leer: Lector, fs: FacturaStatements) -> None:
+        """R13-R14 bajo `UPDLOCK, HOLDLOCK`: siguen ahi, igual, en CON y con asiento."""
+        bloqueados = {
+            _entero(f[0]): dict(zip(ORIGEN, f))
+            for f in leer(fs.bloquear_origenes([_entero(o["ide"]) for o in ctx.origenes]))
+        }
+        for origen in ctx.origenes:
+            actual = bloqueados.get(_entero(origen["ide"]))
+            if actual is None or any(
+                _entero(actual[c]) != _entero(origen[c]) for c in ("emp", "entide", "obride", "ctride", "docoritip")
+            ):
+                raise FacturaError(
+                    f"El origen '{origen['cod']}' ha cambiado o ya no existe: no se ha escrito nada.",
+                    codigo="origen_no_encontrado",
+                    details={"origen": str(origen["cod"]).strip()},
+                )
+        self._comprobar_contabilizados(
+            [bloqueados[_entero(o["ide"])] for o in ctx.origenes], ctx.estados,
+            leer(fs.leer_asientos(ctx.obra.emp, [str(o["cod"]) for o in ctx.origenes])),
+        )
+
+    def _marcar(
+        self, ctx: _Contexto, cursor: Any, leer: Lector, fs: FacturaStatements,
+        f9: AlbaranCompraStatements, lineas_origen: Sequence[tuple[dict[str, Any], dict[str, Any]]],
+    ) -> list[tuple[tuple[str, list[Any]], str]]:
+        """R40-R42. Devuelve las relecturas de cada marca y el fallo si no da 1."""
+        sellos, relecturas = ctx.sellos, []
+        for dcapro, _fila in lineas_origen:
+            _ejecutar_sql(cursor, fs.marcar_linea(_entero(dcapro["ide"]), dcapro["can"]))
+            relecturas.append((fs.releer_linea_marcada(_entero(dcapro["ide"]), dcapro["can"]),
+                               "origen_ya_facturado"))
+        est_con, est_fac = ctx.estados[(TIP_ALBARAN, CON)], ctx.estados[(TIP_ALBARAN, FAC)]
+        for origen in ctx.origenes:
+            ide = _entero(origen["ide"])
+            _ejecutar_sql(cursor, fs.marcar_cabecera(ide, sellos.fec_alta, sellos.hor))
+            _ejecutar_sql(cursor, fs.marcar_estado(ide, est_con=est_con, est_fac=est_fac))
+            relecturas.append((fs.releer_cabecera_marcada(ide, sellos.fec_alta, sellos.hor),
+                               "filas_afectadas_inesperadas"))
+            relecturas.append((fs.releer_estado(ide, est_fac=est_fac), "filas_afectadas_inesperadas"))
+        vinculadas = [
+            d for d, _f in lineas_origen
+            if _entero(d["docoritip"]) == TIP_CONTRATO and _entero(d["linoriide"])
+        ]
+        if vinculadas:
+            ides = sorted({_entero(d["linoriide"]) for d in vinculadas})
+            esperado = {_entero(f[0]): _d(f[1]) for f in leer(fs.bloquear_lineas_de_contrato(ides))}
+            for dcapro in vinculadas:
+                ctrpro = _entero(dcapro["linoriide"])
+                _ejecutar_sql(cursor, fs.sumar_facturado_contrato(ctrpro, dcapro["can"]))
+                esperado[ctrpro] = esperado.get(ctrpro, Decimal(0)) + _d(dcapro["can"])
+            for ctrpro, canfac in esperado.items():
+                relecturas.append((fs.releer_linea_de_contrato(ctrpro, float(canfac)),
+                                   "filas_afectadas_inesperadas"))
+            if ctx.ctride:
+                sumas = leer(f9.leer_sumas_contrato(ctx.ctride))
+                suma_can, suma_canser, suma_canfac = sumas[0] if sumas else (0, 0, 0)
+                _estser, estfac = estados_contrato(suma_can, suma_canser, suma_canfac)
+                _ejecutar_sql(cursor, fs.actualizar_estfac_contrato(ctx.ctride, estfac))
+                relecturas.append((fs.releer_estfac_contrato(ctx.ctride, estfac),
+                                   "filas_afectadas_inesperadas"))
+        return relecturas
+
+    @staticmethod
+    def _releer(
+        ctx: _Contexto, cursor: Any, fs: FacturaStatements, filas: FilasFactura,
+        marcas: Sequence[tuple[tuple[str, list[Any]], str]],
+    ) -> None:
+        """R45: cada fila escrita y cada marca, por clave; si algo no cuadra, se
+        revierte la factura entera (la excepcion hace el ROLLBACK)."""
+        ide = filas.con["ide"]
+        for sentencia, esperadas, que in (
+            (fs.releer_con(ctx.obra.emp, filas.con["cod"]), 1, "con"),
+            (fs.releer_dcf(ide, ctx.request.referencia_externa), 1, "dcf"),
+            (fs.releer_dcfpro(ide), len(filas.dcfpro), "dcfpro"),
+            (fs.releer_dcfrec(ide), len(filas.dcfrec), "dcfrec"),
+            (fs.releer_pagos(ide), len(filas.pagos), "pag"),
+            (fs.releer_consii(ide), 1, "consii"),
+            (fs.releer_dcaprodes(ide), len(filas.dcaprodes), "dcaprodes"),
+            (fs.releer_log(filas.log["ide"]), 1, "log"),
+        ):
+            cuantas = _contar(cursor, sentencia)
+            if cuantas != esperadas:
+                raise FacturaError(
+                    f"Se esperaban {esperadas} filas de {que} y hay {cuantas}: se revierte la "
+                    "factura entera.",
+                    codigo="filas_afectadas_inesperadas",
+                )
+        for sentencia, codigo in marcas:
+            if _contar(cursor, sentencia) != 1:
+                raise FacturaError(
+                    "Una marca en los origenes no ha quedado como se esperaba (otro proceso los ha "
+                    "tocado): se revierte la factura entera.",
+                    codigo=codigo,
+                )
+
+    # ------------------------------------------------------------------ #
     # Previa (R3, R44)
     # ------------------------------------------------------------------ #
     def _previa(self, ctx: _Contexto, montada: _Montada, leer: Lector, fs: FacturaStatements) -> FacturaResultado:
@@ -858,6 +1050,22 @@ class CreateFacturaUseCase:
         )
         return _resultado(ctx, montada, numeradas, estado="previsto",
                           avisos=[{"codigo": "cod_provisional", "mensaje": _AVISO_PROVISIONAL}])
+
+
+def _ejecutar_sql(cursor: Any, sentencia: tuple[str, list[Any]]) -> None:
+    cursor.execute(sentencia[0], *sentencia[1])
+
+
+def _contar(cursor: Any, sentencia: tuple[str, list[Any]]) -> int:
+    _ejecutar_sql(cursor, sentencia)
+    fila = cursor.fetchone()
+    return int(fila[0] or 0) if fila else 0
+
+
+def _es_colision_de_clave(exc: BaseException) -> bool:
+    """`pyodbc.IntegrityError` sin importar `pyodbc` en la capa de aplicacion
+    (como F-006 y F-009): el repositorio la propaga al agotar los reintentos."""
+    return any(clase.__name__ == "IntegrityError" for clase in type(exc).__mro__)
 
 
 def _resultado(

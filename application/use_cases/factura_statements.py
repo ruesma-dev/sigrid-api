@@ -22,6 +22,7 @@ from typing import Any
 from application.use_cases.albaran_compra_statements import (
     _DCA_TEXTO,
     DCA_COLUMNAS,
+    DCAREC_COLUMNAS,
     SellosAlbaran,
     bruto_de_linea,
     construir_dcarec,
@@ -29,7 +30,11 @@ from application.use_cases.albaran_compra_statements import (
     porcentaje_de_dto,
     redondear_euros,
 )
-from application.use_cases.parte_reclamacion_statements import CON_COLUMNAS
+from application.use_cases.factura_lineas import DCFPRO_COLUMNAS
+from application.use_cases.parte_reclamacion_statements import (
+    CON_COLUMNAS,
+    LOG_COLUMNAS,
+)
 from infrastructure.security.database_reference_guard import DatabaseReferenceGuard
 
 #: `con.tip` de la factura de compra, del pago y del albaran de origen.
@@ -442,6 +447,55 @@ EF3_COD = (
 )
 _EF_IDE = "SELECT ISNULL(MAX(ide), 0) + 1 FROM dbo.{tabla} WITH (UPDLOCK, HOLDLOCK)"
 TABLAS_CON_IDE: tuple[str, ...] = ("con", "dcfpro", "dcfrec", "consii", "dcaprodes", "log")
+#: R42: las `ctrpro` de las lineas vinculadas, bloqueadas antes de sumarles nada.
+EF4_LINEAS_DE_CONTRATO = (
+    "SELECT ide, canfac FROM dbo.ctrpro WITH (UPDLOCK, HOLDLOCK) WHERE ide IN {marcadores}"
+)
+
+#: R36, R38: cada tabla con su lista blanca, en su orden fisico (T0).
+COLUMNAS_DE_ALTA: dict[str, tuple[str, ...]] = {
+    "con": CON_COLUMNAS, "dcf": DCA_COLUMNAS, "dcfpro": DCFPRO_COLUMNAS, "dcfrec": DCAREC_COLUMNAS,
+    "pag": PAG_COLUMNAS, "consii": CONSII_COLUMNAS, "dcaprodes": DCAPRODES_COLUMNAS,
+    "log": LOG_COLUMNAS,
+}
+INSERTS: dict[str, str] = {
+    tabla: f"INSERT INTO dbo.{tabla} ({', '.join(columnas)}) VALUES ({', '.join(['?'] * len(columnas))})"
+    for tabla, columnas in COLUMNAS_DE_ALTA.items()
+}
+
+# --- Marcas en los origenes (R40-R42), siempre por `ide` y con `?` -----------------
+EM1_LINEA = "UPDATE dbo.dcapro SET canfac = canfac + ? WHERE ide = ? AND canfac = ?"
+EM2_CABECERA = (
+    "UPDATE dbo.dca SET estfac = ?, fecfac = ?, horfac = ?, antestfac = ? WHERE ide = ? AND estfac = ?"
+)
+EM3_ESTADO = "UPDATE dbo.con SET est = ? WHERE ide = ? AND tip = ? AND est = ?"
+EM4_CONTRATO = "UPDATE dbo.ctrpro SET canfac = canfac + ? WHERE ide = ?"
+EM5_ESTFAC_CONTRATO = "UPDATE dbo.ctr SET estfac = ? WHERE ide = ?"
+#: R41 (M54): `estfac` 1 y `antestfac` 3 fijos en el 100 % de los facturados.
+ESTFAC_FACTURADO = 1
+ANTESTFAC_FACTURADO = 3
+#: R42: margen de la relectura de un `canfac` sumado (float).
+TOLERANCIA_CANFAC = 0.0005
+
+# --- Relecturas antes del COMMIT (R45) ---------------------------------------------
+ER1_CON = "SELECT COUNT(*) FROM dbo.con WHERE emp = ? AND tip = ? AND cod = ?"
+ER2_DCF = "SELECT COUNT(*) FROM dbo.dcf WHERE ide = ? AND synckey = ?"
+ER3_DCFPRO = "SELECT COUNT(*) FROM dbo.dcfpro WHERE docide = ?"
+ER4_DCFREC = "SELECT COUNT(*) FROM dbo.dcfrec WHERE docide = ?"
+ER5_PAGOS = (
+    "SELECT COUNT(*) FROM dbo.pag p JOIN dbo.con c ON c.ide = p.ide WHERE p.conide = ? AND c.tip = ?"
+)
+ER6_CONSII = "SELECT COUNT(*) FROM dbo.consii WHERE conide = ?"
+ER7_DCAPRODES = "SELECT COUNT(*) FROM dbo.dcaprodes WHERE docdeside = ? AND docdestip = ?"
+ER8_LOG = "SELECT COUNT(*) FROM dbo.log WHERE ide = ?"
+ER9_LINEA_MARCADA = "SELECT COUNT(*) FROM dbo.dcapro WHERE ide = ? AND canfac = ?"
+ER10_CABECERA_MARCADA = (
+    "SELECT COUNT(*) FROM dbo.dca WHERE ide = ? AND estfac = ? AND fecfac = ? AND horfac = ? "
+    "AND antestfac = ?"
+)
+ER11_ESTADO = "SELECT COUNT(*) FROM dbo.con WHERE ide = ? AND tip = ? AND est = ?"
+ER12_LINEA_DE_CONTRATO = "SELECT COUNT(*) FROM dbo.ctrpro WHERE ide = ? AND ABS(canfac - ?) < ?"
+ER13_ESTFAC_CONTRATO = "SELECT COUNT(*) FROM dbo.ctr WHERE ide = ? AND estfac = ?"
 
 
 def _marcadores(n: int) -> str:
@@ -494,6 +548,11 @@ class FacturaStatements:
             EF1_ORIGENES_BLOQUEADOS.format(marcadores=uno),
             EF2_LINEAS_BLOQUEADAS.format(marcadores=uno), EF3_COD,
             *(_EF_IDE.format(tabla=tabla) for tabla in TABLAS_CON_IDE),
+            EF4_LINEAS_DE_CONTRATO.format(marcadores=uno), *INSERTS.values(),
+            EM1_LINEA, EM2_CABECERA, EM3_ESTADO, EM4_CONTRATO, EM5_ESTFAC_CONTRATO,
+            ER1_CON, ER2_DCF, ER3_DCFPRO, ER4_DCFREC, ER5_PAGOS, ER6_CONSII, ER7_DCAPRODES, ER8_LOG,
+            ER9_LINEA_MARCADA, ER10_CABECERA_MARCADA, ER11_ESTADO, ER12_LINEA_DE_CONTRATO,
+            ER13_ESTFAC_CONTRATO,
         )
 
     # --- Lecturas (T9) ---------------------------------------------------------------
@@ -592,3 +651,104 @@ class FacturaStatements:
 
     def reservar_ide_log(self) -> tuple[str, list[Any]]:
         return self._reservar_ide("log")
+
+    def bloquear_lineas_de_contrato(self, ides: Sequence[int]) -> tuple[str, list[Any]]:
+        return self._con_lista(EF4_LINEAS_DE_CONTRATO, ides), [*ides]
+
+    # --- INSERTs por lista blanca (R36, R38) -----------------------------------------
+
+    @staticmethod
+    def _insertar(tabla: str, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        """Exactamente las columnas de la lista blanca: ni una mas ni una menos."""
+        columnas = COLUMNAS_DE_ALTA[tabla]
+        if set(fila) != set(columnas):
+            raise ValueError(
+                f"La fila de {tabla} no trae sus columnas: sobran {sorted(set(fila) - set(columnas))}, "
+                f"faltan {sorted(set(columnas) - set(fila))}."
+            )
+        return INSERTS[tabla], [fila[columna] for columna in columnas]
+
+    def insertar_con(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("con", fila)
+
+    def insertar_dcf(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("dcf", fila)
+
+    def insertar_dcfpro(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("dcfpro", fila)
+
+    def insertar_dcfrec(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("dcfrec", fila)
+
+    def insertar_pag(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("pag", fila)
+
+    def insertar_consii(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("consii", fila)
+
+    def insertar_dcaprodes(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("dcaprodes", fila)
+
+    def insertar_log(self, fila: Mapping[str, Any]) -> tuple[str, list[Any]]:
+        return self._insertar("log", fila)
+
+    # --- Marcas (R40-R42) ---------------------------------------------------------------
+
+    def marcar_linea(self, ide: int, can: float) -> tuple[str, list[Any]]:
+        """R40: solo si `canfac` sigue a 0; la relectura exige la fila marcada."""
+        return EM1_LINEA, [can, ide, 0]
+
+    def marcar_cabecera(self, ide: int, fecfac: int, horfac: int) -> tuple[str, list[Any]]:
+        """R41: `estfac` 1, la fecha y hora de la operacion y `antestfac` 3; nunca `idefac`."""
+        return EM2_CABECERA, [ESTFAC_FACTURADO, fecfac, horfac, ANTESTFAC_FACTURADO, ide, 0]
+
+    def marcar_estado(self, ide: int, *, est_con: int, est_fac: int) -> tuple[str, list[Any]]:
+        """R41: de CON a FAC, solo desde CON."""
+        return EM3_ESTADO, [est_fac, ide, TIP_ALBARAN, est_con]
+
+    def sumar_facturado_contrato(self, ide: int, can: float) -> tuple[str, list[Any]]:
+        return EM4_CONTRATO, [can, ide]
+
+    def actualizar_estfac_contrato(self, ctride: int, estfac: int) -> tuple[str, list[Any]]:
+        return EM5_ESTFAC_CONTRATO, [estfac, ctride]
+
+    # --- Relecturas (R45) ---------------------------------------------------------------
+
+    def releer_con(self, emp: int, cod: str) -> tuple[str, list[Any]]:
+        return ER1_CON, [emp, TIP_FACTURA, cod]
+
+    def releer_dcf(self, ide: int, synckey: str) -> tuple[str, list[Any]]:
+        return ER2_DCF, [ide, synckey]
+
+    def releer_dcfpro(self, ide: int) -> tuple[str, list[Any]]:
+        return ER3_DCFPRO, [ide]
+
+    def releer_dcfrec(self, ide: int) -> tuple[str, list[Any]]:
+        return ER4_DCFREC, [ide]
+
+    def releer_pagos(self, ide: int) -> tuple[str, list[Any]]:
+        return ER5_PAGOS, [ide, TIP_PAGO]
+
+    def releer_consii(self, ide: int) -> tuple[str, list[Any]]:
+        return ER6_CONSII, [ide]
+
+    def releer_dcaprodes(self, ide: int) -> tuple[str, list[Any]]:
+        return ER7_DCAPRODES, [ide, TIP_FACTURA]
+
+    def releer_log(self, ide: int) -> tuple[str, list[Any]]:
+        return ER8_LOG, [ide]
+
+    def releer_linea_marcada(self, ide: int, can: float) -> tuple[str, list[Any]]:
+        return ER9_LINEA_MARCADA, [ide, can]
+
+    def releer_cabecera_marcada(self, ide: int, fecfac: int, horfac: int) -> tuple[str, list[Any]]:
+        return ER10_CABECERA_MARCADA, [ide, ESTFAC_FACTURADO, fecfac, horfac, ANTESTFAC_FACTURADO]
+
+    def releer_estado(self, ide: int, *, est_fac: int) -> tuple[str, list[Any]]:
+        return ER11_ESTADO, [ide, TIP_ALBARAN, est_fac]
+
+    def releer_linea_de_contrato(self, ide: int, canfac: float) -> tuple[str, list[Any]]:
+        return ER12_LINEA_DE_CONTRATO, [ide, canfac, TOLERANCIA_CANFAC]
+
+    def releer_estfac_contrato(self, ctride: int, estfac: int) -> tuple[str, list[Any]]:
+        return ER13_ESTFAC_CONTRATO, [ctride, estfac]

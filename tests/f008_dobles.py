@@ -209,6 +209,31 @@ class Mundo:
     siguiente_ide: dict[str, int] = field(default_factory=lambda: {
         "con": 10000, "dcfpro": 20000, "dcfrec": 300, "consii": 400, "dcaprodes": 500, "log": 600,
     })
+    # --- Lo que toca la transaccion (T12-T14) ---
+    #: filas insertadas por tabla
+    insertadas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    #: marcas de facturacion de la `dca` de cada origen
+    dca: dict[int, dict[str, int]] = field(default_factory=lambda: {
+        ide: {"estfac": 0, "fecfac": 0, "horfac": 0, "antestfac": 0} for ide in (800, 801, 810)
+    })
+    ctrpro: dict[int, dict[str, float]] = field(default_factory=lambda: {
+        9901: {"docide": 900, "can": 10.0, "canser": 10.0, "canfac": 7.0},
+        9902: {"docide": 900, "can": 5.0, "canser": 0.0, "canfac": 0.0},
+    })
+    ctr: dict[int, dict[str, int]] = field(default_factory=lambda: {900: {"estfac": 0}})
+    #: cuantos `INSERT` de `con` chocan (IntegrityError) antes de dejar pasar
+    colisiones: int = 0
+    #: nombre de sentencia -> lo que hace "el escritorio" justo antes de ella
+    antes_de: dict[str, Callable[[Mundo], None]] = field(default_factory=dict)
+
+    def todas_las_facturas(self) -> list[dict[str, Any]]:
+        """Las de partida y las insertadas (`dcf` con su `con`)."""
+        cons = {c["ide"]: c for c in self.insertadas.get("con", [])}
+        nuevas = [
+            {**d, "cod": cons[d["ide"]]["cod"], "est": cons[d["ide"]]["est"]}
+            for d in self.insertadas.get("dcf", []) if d["ide"] in cons
+        ]
+        return [*self.facturas, *nuevas]
 
     # --- Respuestas a las lecturas ------------------------------------------------
 
@@ -312,13 +337,13 @@ class Mundo:
         return [
             (f["ide"], f["cod"], f["entide"], f["entref"], f["totbas"], f["totiva"], f["totdoc"],
              f["tot"], f["est"])
-            for f in self.facturas if f["synckey"] == p[1]
+            for f in self.todas_las_facturas() if f["synckey"] == p[1]
         ]
 
     def _r_duplicadas(self, p: list[Any]) -> list[tuple[Any, ...]]:
         _tip, cif, entref, rech = p
         return [
-            (f["ide"], f["cod"]) for f in self.facturas
+            (f["ide"], f["cod"]) for f in self.todas_las_facturas()
             if f["entcif"] == cif and f["entref"] == entref and f["est"] != rech
         ]
 
@@ -377,6 +402,10 @@ class Repositorio:
     filas_completas: list[tuple[str, int]] = field(default_factory=list)
     peeks: list[str] = field(default_factory=list)
     transaccion: Callable[..., Any] | None = None
+    #: dentro de la transaccion: (nombre, params) de cada sentencia, todos los intentos
+    sentencias: list[tuple[str, list[Any]]] = field(default_factory=list)
+    transacciones: list[dict[str, Any]] = field(default_factory=list)
+    intentos: int = 0
 
     def execute_read_query(self, request: Any) -> tuple[list[str], list[tuple[Any, ...]], bool]:
         sql = normalizar(request.sql)
@@ -444,3 +473,240 @@ def linea_fr(**cambios: Any) -> dict[str, Any]:
             "producto": "MA9999"}
     base.update(cambios)
     return base
+
+
+# =====================================================================================
+# La transaccion (T12-T14): cursor sobre `Mundo` y bucle de reintentos
+# =====================================================================================
+
+
+class IntegrityError(Exception):
+    """Como `pyodbc.IntegrityError`: el caso de uso la reconoce por su nombre."""
+
+
+#: SQL exacto (IN normalizado) -> nombre de las sentencias que solo van dentro.
+NOMBRES_TX: dict[str, str] = {
+    normalizar(sql): nombre
+    for sql, nombre in (
+        (_F.bloquear_origenes([1])[0], "bloquear_origenes"),
+        (_F.bloquear_lineas_de_origenes([1])[0], "bloquear_lineas"),
+        (_F.reservar_cod(1, "FR26/", 5)[0], "reservar_cod"),
+        *((getattr(_F, f"reservar_ide_{t}")()[0], f"reservar_ide_{t}")
+          for t in ("con", "dcfpro", "dcfrec", "consii", "dcaprodes", "log")),
+        (_F.bloquear_lineas_de_contrato([1])[0], "bloquear_contrato"),
+        (_F.marcar_linea(1, 1)[0], "marcar_linea"),
+        (_F.marcar_cabecera(1, 1, 1)[0], "marcar_cabecera"),
+        (_F.marcar_estado(1, est_con=1, est_fac=1)[0], "marcar_estado"),
+        (_F.sumar_facturado_contrato(1, 1)[0], "sumar_contrato"),
+        (_F.actualizar_estfac_contrato(1, 1)[0], "estfac_contrato"),
+        (_A.leer_sumas_contrato(1)[0], "sumas_contrato"),
+        (_F.releer_con(1, "x")[0], "releer_con"),
+        (_F.releer_dcf(1, "x")[0], "releer_dcf"),
+        (_F.releer_dcfpro(1)[0], "releer_dcfpro"),
+        (_F.releer_dcfrec(1)[0], "releer_dcfrec"),
+        (_F.releer_pagos(1)[0], "releer_pagos"),
+        (_F.releer_consii(1)[0], "releer_consii"),
+        (_F.releer_dcaprodes(1)[0], "releer_dcaprodes"),
+        (_F.releer_log(1)[0], "releer_log"),
+        (_F.releer_linea_marcada(1, 1)[0], "releer_linea"),
+        (_F.releer_cabecera_marcada(1, 1, 1)[0], "releer_cabecera"),
+        (_F.releer_estado(1, est_fac=1)[0], "releer_estado"),
+        (_F.releer_linea_de_contrato(1, 1)[0], "releer_contrato"),
+        (_F.releer_estfac_contrato(1, 1)[0], "releer_estfac"),
+    )
+}
+_INSERT = re.compile(r"^INSERT INTO dbo\.(\w+) \(([^)]*)\) VALUES ")
+
+
+class _Transaccion:
+    """Lo que contesta el cursor a las sentencias de dentro."""
+
+    def __init__(self, mundo: Mundo) -> None:
+        self.m = mundo
+
+    def _filas(self, tabla: str) -> list[dict[str, Any]]:
+        return self.m.insertadas.get(tabla, [])
+
+    def bloquear_origenes(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return [_origen(self.m.origenes[ide]) for ide in p if ide in self.m.origenes]
+
+    def bloquear_lineas(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self.m.responder("lineas_de_origenes", p)
+
+    def reservar_cod(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        desde, emp, _tip, patron, largo = p
+        prefijo = patron[:-1]
+        numeros = [
+            int(c["cod"][desde - 1:]) for c in self._filas("con")
+            if c["emp"] == emp and c["tip"] == 15 and c["cod"].startswith(prefijo) and len(c["cod"]) == largo
+        ]
+        maximo = self.m.max_cod.get((emp, prefijo))
+        todos = [n for n in [maximo, *numeros] if n is not None]
+        return [(max(todos) if todos else None,)]
+
+    def _ide(self, tabla: str) -> list[tuple[Any, ...]]:
+        insertados = [f["ide"] for f in self._filas(tabla)]
+        return [(max([self.m.siguiente_ide[tabla] - 1, *insertados]) + 1,)]
+
+    def bloquear_contrato(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return [(ide, self.m.ctrpro[ide]["canfac"]) for ide in p if ide in self.m.ctrpro]
+
+    def marcar_linea(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        can, ide, cero = p
+        for fila in self.m.lineas:
+            if fila["ide"] == ide and fila["canfac"] == cero:
+                fila["canfac"] = fila["canfac"] + can
+        return []
+
+    def marcar_cabecera(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        estfac, fecfac, horfac, antestfac, ide, antes = p
+        marca = self.m.dca.get(ide)
+        if marca is not None and marca["estfac"] == antes:
+            marca.update(estfac=estfac, fecfac=fecfac, horfac=horfac, antestfac=antestfac)
+        return []
+
+    def marcar_estado(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        est, ide, tip, antes = p
+        origen = self.m.origenes.get(ide)
+        if origen is not None and tip == 14 and origen["est"] == antes:
+            origen["est"] = est
+        return []
+
+    def sumar_contrato(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        can, ide = p
+        self.m.ctrpro[ide]["canfac"] += can
+        return []
+
+    def estfac_contrato(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        estfac, ide = p
+        self.m.ctr[ide]["estfac"] = estfac
+        return []
+
+    def sumas_contrato(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        lineas = [c for c in self.m.ctrpro.values() if c["docide"] == p[0]]
+        return [(sum(c["can"] for c in lineas), sum(c["canser"] for c in lineas),
+                 sum(c["canfac"] for c in lineas))]
+
+    def _cuenta(self, n: int) -> list[tuple[Any, ...]]:
+        return [(n,)]
+
+    def releer_con(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        emp, tip, cod = p
+        return self._cuenta(sum(1 for c in self._filas("con") if (c["emp"], c["tip"], c["cod"]) == (emp, tip, cod)))
+
+    def releer_dcf(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._cuenta(sum(1 for d in self._filas("dcf") if (d["ide"], d["synckey"]) == tuple(p)))
+
+    def _por(self, tabla: str, columna: str, valor: Any) -> list[tuple[Any, ...]]:
+        return self._cuenta(sum(1 for f in self._filas(tabla) if f[columna] == valor))
+
+    def releer_dcfpro(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._por("dcfpro", "docide", p[0])
+
+    def releer_dcfrec(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._por("dcfrec", "docide", p[0])
+
+    def releer_pagos(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        cons = {c["ide"]: c for c in self._filas("con")}
+        return self._cuenta(sum(
+            1 for pag in self._filas("pag")
+            if pag["conide"] == p[0] and pag["ide"] in cons and cons[pag["ide"]]["tip"] == p[1]
+        ))
+
+    def releer_consii(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._por("consii", "conide", p[0])
+
+    def releer_dcaprodes(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._cuenta(sum(
+            1 for f in self._filas("dcaprodes") if f["docdeside"] == p[0] and f["docdestip"] == p[1]
+        ))
+
+    def releer_log(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._por("log", "ide", p[0])
+
+    def releer_linea(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._cuenta(sum(1 for f in self.m.lineas if f["ide"] == p[0] and f["canfac"] == p[1]))
+
+    def releer_cabecera(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        ide, estfac, fecfac, horfac, antestfac = p
+        marca = self.m.dca.get(ide)
+        return self._cuenta(int(marca == {"estfac": estfac, "fecfac": fecfac, "horfac": horfac,
+                                          "antestfac": antestfac}))
+
+    def releer_estado(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        ide, _tip, est = p
+        return self._cuenta(int(ide in self.m.origenes and self.m.origenes[ide]["est"] == est))
+
+    def releer_contrato(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        ide, canfac, margen = p
+        return self._cuenta(int(abs(self.m.ctrpro[ide]["canfac"] - canfac) < margen))
+
+    def releer_estfac(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        return self._cuenta(int(self.m.ctr[p[0]]["estfac"] == p[1]))
+
+
+class Cursor:
+    """Cursor doble: lee del `Mundo`, inserta y marca en el. Graba cada sentencia."""
+
+    def __init__(self, repo: Repositorio) -> None:
+        self.repo = repo
+        self.connection = type("Conexion", (), {"timeout": None})()
+        self._resultado: list[tuple[Any, ...]] = []
+
+    def execute(self, sql: str, *params: Any) -> None:
+        mundo, p = self.repo.mundo, list(params)
+        insert = _INSERT.match(sql)
+        if insert:
+            nombre = f"insertar_{insert.group(1)}"
+        else:
+            nombre = NOMBRES.get(normalizar(sql)) or NOMBRES_TX.get(normalizar(sql), "")
+            assert nombre, f"Sentencia desconocida dentro de la transaccion: {sql}"
+        self.repo.sentencias.append((nombre, p))
+        if nombre in mundo.antes_de:
+            mundo.antes_de.pop(nombre)(mundo)
+        if insert:
+            tabla, columnas = insert.group(1), insert.group(2).split(", ")
+            assert len(columnas) == len(p) and "?" not in p
+            if tabla == "con" and mundo.colisiones:
+                mundo.colisiones -= 1
+                raise IntegrityError("clave duplicada en con_emptipcod")
+            mundo.insertadas.setdefault(tabla, []).append(dict(zip(columnas, p)))
+            self._resultado = []
+        elif nombre in NOMBRES.values():
+            self._resultado = mundo.responder(nombre, p)
+        elif nombre.startswith("reservar_ide_"):
+            self._resultado = _Transaccion(mundo)._ide(nombre.removeprefix("reservar_ide_"))
+        else:
+            self._resultado = getattr(_Transaccion(mundo), nombre)(p)
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return list(self._resultado)
+
+    def fetchone(self) -> tuple[Any, ...] | None:
+        return self._resultado[0] if self._resultado else None
+
+
+def con_transaccion(repo: Repositorio) -> Repositorio:
+    """Arma `run_in_write_transaction` como el repositorio real: cursor nuevo por
+    intento, ROLLBACK (el `Mundo` vuelve a su copia) ante cualquier excepcion y
+    reintento ante `IntegrityError` hasta `max_retries`."""
+    import copy
+
+    def transaccion(**kwargs: Any) -> Any:
+        repo.transacciones.append({k: v for k, v in kwargs.items() if k != "work"})
+        intento = 0
+        while True:
+            intento += 1
+            copia = copy.deepcopy({k: v for k, v in vars(repo.mundo).items() if k not in ("antes_de", "colisiones")})
+            repo.intentos += 1
+            try:
+                return kwargs["work"](Cursor(repo))
+            except Exception as exc:
+                for clave_, valor in copia.items():
+                    setattr(repo.mundo, clave_, valor)
+                if isinstance(exc, IntegrityError) and intento <= kwargs["max_retries"]:
+                    continue
+                raise
+
+    repo.transaccion = transaccion
+    return repo
