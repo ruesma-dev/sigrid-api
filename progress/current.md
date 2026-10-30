@@ -8,10 +8,13 @@ Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `A
 ## F-008 `in_progress` (2026-10-30): factura de compra, alta en REC sin contabilidad
 
 Rama `feature/F-008-registrar-factura`. Spec **v3.1** aprobada por el humano el 2026-10-30 (P1-P21, design §9);
-medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer en curso con T0-T20** (informe en
-[`impl_F-008.md`](impl_F-008.md), decisiones y desviaciones ahí). **Implementer terminado (T0-T20)**: `init.sh` en verde
-(4204 passed), cobertura 99,2 %, mutación 568/467/101 con 0 supervivientes tras el análisis. Siguiente: T21 (reviewer). Manuales tras la revisión (T21): T22 permisos de
-`user_rw` (humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa.
+medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer terminado (T0-T20)**; informe, decisiones y
+desviaciones en [`impl_F-008.md`](impl_F-008.md). T21 (revisión troceada, siete trozos): mutación APROBADA, los otros
+seis pedían cambios, ya corregidos (ronda en `impl_F-008.md`); falta la pasada 2. Pendiente de decisión del humano: un
+origen cuyas líneas son todas `can` 0 (observación O1 de `review_F-008_logica_lectura.md`). Manuales tras la revisión,
+con su guion y comandos exactos en
+[`verificacion_manual.md`](../specs/F-008-registrar-factura/verificacion_manual.md): T22 permisos de `user_rw`
+(humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa por llamada.
 
 ## F-016 cerrada (2026-10-30)
 
@@ -43,12 +46,6 @@ albaranes §3.3 y en `azure-apps/sigrid_api.md` §8.6.
 
 Resumen en `history.md`; verificación en [`verificacion_F-012.md`](verificacion_F-012.md). Albaranes, confirmado.
 Fuera de alcance y sin alta todavía: las trazas `str(exc)` de las demás rutas vuelcan `input` de la petición.
-
-## F-008 espera (2026-10-19)
-
-- **F-008** (facturas de compra, su F-012): tienen casi todos los datos y enlazan cada línea con su `dcapro.ide` de
-  origen; encaja con `explore_F-007.md` §M15. Requisitos de facturas: dry-run, idempotencia, `con.cod` e `ide` en la
-  respuesta, forma de pago y vencimiento por defecto del contrato o `prv`.
 
 ## F-011 cerrada, desplegada y verificada (2026-10-18)
 
@@ -188,3 +185,6 @@ consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actual
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-018 y F-016 están cerradas. F-007 está cerrada; `PROF26/01360` sigue sin anular y no estorba. **F-015 está `blocked`** a la espera de
 > que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.
+> **F-008 está `in_progress`** (rama `feature/F-008-registrar-factura`): en revisión (T21, pasada 2 tras las
+> correcciones); después, T22-T24 manuales según `specs/F-008-registrar-factura/verificacion_manual.md`, cada
+> grabación con autorización expresa del humano.
