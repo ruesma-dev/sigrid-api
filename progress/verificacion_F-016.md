@@ -35,8 +35,27 @@ Con `dev` `c2b6107` desplegado (F-018 incluida). Guion traducido a Python desde 
 La punta de la cadena 1 es de serie `AC` (`cla` 0): el contrato §2.3 ya dice que la cadena mezcla series; 71 de 925
 encadenadas de 2026 son `AC`. No se repitió V2 de F-007 sobre la 0719. **Sin discrepancias.**
 
+## T17 V1 y T18 · G1-G3 (líder, 2026-10-30; autorización expresa del humano para T17 y T18)
+
+Obra 0404, `CTSU16/0206`, `ctrpro` 258782 (`pre` 30) y 258783 (`pre` 45), periodo 202609, `otra_del_mes`, usuario `prueba`.
+`PROF26/01360` no estorba: es de 202610. `canser` de partida: 2 y 1.
+
+- **V1**, llaves cerradas, `commit:true` del cuerpo de G2 (no la hoja de una punta): 400
+  `escritura_proformas_deshabilitada`, 0 filas.
+- **Previa**: `previsto`, `docoriide` 0, 75,00.
+- **G1**, solo la llave de F-007 abierta: 400 `escritura_proformas_origen_deshabilitada`, 0 filas (R4).
+- **G2**, las dos abiertas: `creado`, **`PROF26/01386`** (`con_ide` 2864685), fecha 20260930, `cla` 141, `docoritip` 1,
+  `docoriide` 0, `totbas` 75; dos líneas con `can` 1, `canoriori` 1, `canorilin` 0; `canser` 3 y 2. Repetición:
+  `idempotente`, mismo `con_ide`, `cadena` nula.
+- **G3**: previa `previsto`, 1 arrastrada, origen 135. `creado`, **`PROF26/01387`** (`con_ide` 2864687), `docoriide`
+  2864685, `totbas` 60; continuada `can` 2, `tot` 60, `canorilin` 1383572, `canoriori` 3; arrastrada 258783 detrás, `can`
+  y `tot` 0, `canorilin` 1383573, `canoriori` 1; 1 `ctrprodes` y 1 `mov`; `canser` 5 y 2. Repetición: `idempotente`.
+- **Llaves**: las dos en `false` al acabar, comprobado con `appsettings list`.
+
+**Sin desviaciones; no saltó la regla de parada.** El `canser` de la 258782 queda en 5 de 5 hasta anular.
+
 ## Pendiente
 
-- **V1 de T17**: lleva un `commit:true` que debe dar 400 con la llave cerrada; no se ha lanzado. Queda con T18.
-- **T18** (grabaciones G1-G3 en la 0404): solo con autorización expresa para cada `commit:true`; en la 0404 antes hay
-  que anular `PROF26/01360` desde la UI o usar otro periodo.
+- **V9 en la UI** (ficha, impresión con ORIGEN/ANTERIOR, paso a factura sin grabarla) y anular desde la UI en orden
+  inverso: primero `PROF26/01387`, después `PROF26/01386` (nunca `DELETE`). Lectura final: 0, 0 y `canser` 2 y 1.
+- **`PROF26/01360`**: el humano dijo el 2026-10-30 que no hace falta anularla para T18.
