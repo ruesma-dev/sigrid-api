@@ -50,12 +50,40 @@ Si falta alguno, G1 acaba en ROLLBACK con un 500 y no queda nada escrito; se ano
 
 ## D · Despliegue con la llave cerrada
 
-1. Publicar el código (el humano, como en F-016). **No** se tocan App Settings: `SIGRID_FACTURA_WRITE_ENABLED` no
-   existe en Azure y vale `false` por defecto.
-2. Comprobar la llave: `Factura` con cualquier cuerpo válido y `commit = $true` debe responder 400 con
-   `details.codigo = "escritura_facturas_deshabilitada"`, sin haber leído nada.
-3. Comprobar el 400 sin eco: un cuerpo con `total_base = "20"` responde «Solicitud invalida.» y `details.validation`
-   trae solo `loc`, `type` y `msg` (ni `input` ni `ctx`).
+1. **Cargar las seis App Settings que no son la llave** (el humano, por `@json` como en F-009), en JSON y literales.
+   Sin ellas toda previa acaba en `referencia_no_permitida` (prefijos vacíos) o en `lineas_no_validas` (P3-P5, P7):
+   ```text
+   SIGRID_FACTURA_PREFIJOS_REFERENCIA      = ["FAC-"]
+   SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN     = ["MA9999","SM9999","SB9999","QA9999","XA9999","SM370001"]
+   SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO  = las entradas de esos seis productos copiadas de SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO
+   SIGRID_FACTURA_IVAS                     = ["I21","I10","ISP21","i0","i4","I21NDED","I10NDED"]
+   SIGRID_FACTURA_CUENTAS_GASTO_PREFIJOS   = ["6"]
+   SIGRID_FACTURA_MAX_LINEAS               = sin cargar (500 por defecto)
+   ```
+   - `FAC-` es el prefijo de la app `facturas` y **sigue pendiente de confirmar** con ella (P15).
+   - Si alguno de los seis productos no está en `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`, se para y se pregunta al
+     humano.
+   - `SIGRID_FACTURA_WRITE_ENABLED` **no se carga** (ausente vale `false`) o se carga `false`: la llave, cerrada.
+2. **Publicar el código** (el humano, como en F-016).
+3. **Leer las App Settings** (solo lectura) y confirmar que `SIGRID_FACTURA_WRITE_ENABLED` está ausente o en `false`
+   y que las otras seis son las del paso 1. Si la llave saliera `true`, **no** se sigue: se avisa al humano.
+   ```powershell
+   az functionapp config appsettings list --name <function app> --resource-group <grupo> --query "[?starts_with(name, 'SIGRID_FACTURA_')].{n:name, v:value}" -o table
+   ```
+4. **Comprobar la llave (D4)** con este cuerpo **fijo**, que no podría escribir aunque la llave estuviera abierta: su
+   `referencia_externa` lleva un prefijo no admitido, y `referencia_no_permitida` sale antes de cualquier lectura o
+   escritura. Esperado: 400 con `details.codigo = "escritura_facturas_deshabilitada"` (llave cerrada). Si respondiera
+   `referencia_no_permitida`, la llave está abierta: se para y se avisa al humano. Nunca puede salir `creado`.
+   ```powershell
+   $d2 = @{ database = "ruesma"; usu = "prueba"; referencia_externa = "NOADMITIDA-D2"; serie = "FR"
+            cif_proveedor = "B00000000"; numero_factura = "NOADMITIDA-D2"; fecha_factura = 20261130; cod_obra = "0404"
+            lineas = @(@{ descripcion = "Comprobacion de la llave"; cantidad = 1.0; precio = 1.0; iva = "I21"; producto = "MA9999" })
+            vencimientos = @(@{ fecha = 20261230; importe = 1.21 }); total_base = 1.0; total_iva = 0.21; total_factura = 1.21
+            commit = $true }
+   Factura $d2
+   ```
+5. Comprobar el 400 sin eco: el cuerpo de D4 con `total_base = "20"` (y `commit = $false`) responde «Solicitud
+   invalida.» y `details.validation` trae solo `loc`, `type` y `msg` (ni `input` ni `ctx`).
 
 ## T23 · Previas (sin `commit`) sobre datos reales
 
@@ -82,7 +110,9 @@ Fila "SELECT (SELECT MAX(ide) FROM dbo.con), (SELECT MAX(ide) FROM dbo.dcfpro), 
 
 El cuerpo de cada previa se arma con lo leído: `cif_proveedor` = `dcf.entcif` de la factura o el CIF del proveedor del
 albarán; `numero_factura` **inventado** (`"VERIF-F008-<n>"`), para que no salte `factura_ya_registrada`;
-`referencia_externa` nueva por previa; `usu = "prueba"`; sin orígenes, `cod_obra` (el de la obra de la factura real); `vencimientos` con la suma de `total_factura`.
+`referencia_externa` con el formato fijo **`FAC-VERIF-F008-<previa>-<n>`** (`FAC-VERIF-F008-P1-1`, `-P1-2` si se
+repite, `FAC-VERIF-F008-G1-1` en T24): lleva el prefijo admitido, pero `VERIF-F008` no lo genera la app `facturas`, así
+que no pisa su idempotencia; cada una se anota junto a su `con.ide` en `progress/verificacion_F-008.md`; `usu = "prueba"`; sin orígenes, `cod_obra` (el de la obra de la factura real); `vencimientos` con la suma de `total_factura`.
 
 | Previa | Serie y modo | Orígenes | Líneas sin origen | Qué se mira |
 |---|---|---|---|---|
@@ -112,7 +142,8 @@ se repite la previa del mismo cuerpo y el humano la revisa.
    cuerpo de la previa con `commit = $true`. Esperado: `estado = "creado"`, `cod` `FR26/` definitivo.
 3. **Repetir G1** con la misma `referencia_externa`: esperado `estado = "idempotente"` y el mismo `cod`; C0 no cambia.
 4. **G2 · FRGG sin origen** (V7), con la cuenta y la analítica de una FRGG real del mismo proveedor.
-5. **Cerrar la llave** (el humano): `SIGRID_FACTURA_WRITE_ENABLED=false` y repetir D2.
+5. **Cerrar la llave** (el humano): `SIGRID_FACTURA_WRITE_ENABLED=false`; después, la lectura de App Settings de D3
+   (debe salir `false`) y, solo entonces, D4 con su cuerpo fijo `NOADMITIDA-D2`, nunca con otro.
 
 Lecturas tras G1 y G2 (`<ide>` = `con_ide` de la respuesta):
 
