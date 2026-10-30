@@ -1,5 +1,5 @@
 <!-- progress/impl_F-008.md -->
-# F-008 · Informe del implementer (T0-T20)
+# F-008 · Informe del implementer (T0-T20 y correcciones de la revisión T21)
 
 Spec v3.1 (`specs/F-008-registrar-factura/`), rigor `critico`. Rama `feature/F-008-registrar-factura`.
 
@@ -23,7 +23,7 @@ Identificación medida para las lecturas: IVA = `con.tip 23` por (`emp`, `cod`) 
 los NDED); cuenta = `con.tip 17` + `cua.niv`; analítica = `con.tip 19` + `caa`, hoja = sin `caa.padide` que la apunte (0
 analíticas con hijas en 8.634 líneas FRGG26); obra `tip 42`; `conest` 14: CON 3, FAC 10; 15: REC 1, RECGG 20; 25: PDT 1.
 
-## Ficheros tocados (diff `0dcfcee..HEAD`, un commit por tarea T0-T20)
+## Ficheros tocados (diff `0dcfcee..HEAD`; un commit por tarea salvo T9-T10 y T12-T14, ver desviación 7)
 
 | Fichero | Qué |
 |---|---|
@@ -33,7 +33,7 @@ analíticas con hijas en 8.634 líneas FRGG26); obra `tip 42`; `conest` 14: CON 
 | `application/use_cases/factura_statements.py` | listas blancas, constructores de filas, numeración y las 53 constantes SQL con `?` (T8-T14) |
 | `application/use_cases/create_factura_use_case.py` | caso de uso: previa, transacción reentrante, marcas, relectura, traza (T11-T14) |
 | `function_app.py` | ruta `sigrid/factura`, llave propia, 400 sin eco (T16) |
-| `tests/f008_dobles.py` + 8 `tests/test_f008_*.py` | ERP doble y 411 tests de F-008 |
+| `tests/f008_dobles.py` + 8 `tests/test_f008_*.py` | ERP doble y 418 tests de F-008 (7 de la ronda T21) |
 | `docs/ARCHITECTURE.md`, `CLAUDE.md` | ruta y sección F-008 (T18) |
 | `azure-apps/sigrid_api.md` | commit `a2127a6` **en ese repositorio**, solo ese fichero (T18) |
 | `specs/F-008-registrar-factura/verificacion_manual.md` | pasos de T22-T24 (T19) |
@@ -47,14 +47,18 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
 - **La idempotencia va antes que los orígenes.** Si no, repetir una factura ya grabada encontraría sus orígenes
   facturados por ella misma y daría `origen_ya_facturado` en vez de `idempotente`.
 - **Dos cambios en el orden de §7:**
-  - `retencion_no_soportada` va antes que los totales, porque los totales necesitan la cuota;
+  - `retencion_no_soportada` va después de las líneas (R15-R28) y antes que los totales, porque los totales necesitan
+    la cuota (corregido en T21: antes iba en el paso 5; lo fijan los tres `test_f008_orden_*` de la retención);
   - `abono_no_soportado` va antes de comparar totales (R30).
 - **Orígenes:** se buscan en la empresa de la obra o en las admitidas. Si un código existe en varias empresas y no
   llega `cod_obra`, el error es `origen_no_encontrado`, con la pista de mandar `cod_obra`.
 - **Comprobaciones repetidas dentro de la transacción**, sobre las filas releídas con `UPDLOCK, HOLDLOCK`:
   idempotencia, duplicadas, R14, R15, R22, totales y vencimientos. Si un origen bloqueado cambió o desapareció, el
   error es `origen_no_encontrado`.
-- **Marcas verificadas por relectura.** El repositorio pone `NOCOUNT ON`, así que `rowcount` no sirve:
+- **Marcas verificadas por relectura.** Que cada UPDATE de marca toque su fila (R40) lo garantizan el
+  `UPDLOCK, HOLDLOCK` de EF1/EF2 y el `WHERE` condicionado al valor leído bajo ese bloqueo. La relectura comprueba el
+  **estado final** que exigen R40-R42 y R45, cosa que un recuento de filas afectadas no dice (`SELECT @@ROWCOUNT`
+  funcionaría aun con `NOCOUNT ON`; `cursor.rowcount` no). Se conservan las relecturas por eso:
   - `ctrpro.canfac` se relee con tolerancia, contra lo leído bajo EF4 más `can`;
   - `dca.fecfac` y `dca.horfac` toman la fecha y la hora del alta.
 - **`pag.ide` es el `ide` de su `con` 25.** `dcfrec` y `dcaprodes` solo reservan `ide` si hacen falta.
@@ -79,10 +83,15 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
 2. **`linea_sin_origen` no recibe `tasa_iva`**, porque la tasa ya viaja en `LineaResuelta`.
 3. **Los valores de los UPDATE van parametrizados** (`estfac = ?`, …), porque la lista negativa de T15 prohíbe valores
    literales en el SQL.
-4. **Se usan relecturas en vez de `rowcount`** para R40-R42 y R45 (ver decisiones).
+4. **Se usan relecturas en vez de `rowcount`** para R40-R42 y R45: comprueban el estado final, y la unicidad de la
+   fila la dan los bloqueos de EF1/EF2 (ver decisiones; el motivo «`NOCOUNT ON`» de la primera versión era falso).
 5. **La ruta tiene su propio 400 de validación.** El `validation_error_response` compartido devuelve `input`, que con
    un `model_validator` es el cuerpo entero (CIF, número, importes), y R1 lo prohíbe. La función compartida no se toca.
 6. **T15 recorre 53 constantes, no «≥ 60»** como estimaba la tarea. El umbral del test es 50 y el recorrido es exhaustivo.
+7. **Dos commits agrupan tareas** (hallazgo H1 de C1C2C5; no se reescribe la historia): `517ddd2` lleva T9 y T10
+   (lecturas y reserva de `cod`, en el mismo módulo y con el mismo RED de importación) y `1da3d67` lleva T12, T13 y
+   T14 (inserciones, marcas y relectura: una sola transacción, cuyos tests en rojo son comunes, ver la tabla RED). Son 18
+   commits para 21 tareas. Pendiente de que el humano la acepte por escrito.
 
 ## Fase RED (salida real del primer intento con `python -m pytest -q tests/<fichero>`)
 
@@ -107,6 +116,21 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
   prohibidas de muestra, cada una detectada.
 - **T20:** el RED de cada test nuevo es su mutante, aplicado y **medido como muerto** (ver `mutacion_F-008.md`).
 
+### Correcciones de la revisión T21 (ronda 1): RED con `python -m pytest -q -x tests -k f008`
+
+| Commit | Hallazgo | Fallo pegado antes del código |
+|---|---|---|
+| `a837ab0` | `con` 25 en el PDT de `conest` (C3C4ter H1, escritura 1) | `assert [1] == [7]`; sin PDT: `Failed: DID NOT RAISE <class '...FacturaError'>`; statements: `TypeError: construir_con_pago() got an unexpected keyword argument 'est'` |
+| `9cea72f` | `paride` sin `partida` → 400 (lectura 1) | `E       Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>` |
+| `23207dd` | orden de `retencion_no_soportada` (lectura 2) | `AssertionError: assert 'retencion_no_soportada' == 'origen_ya_facturado'` y `... == 'lineas_no_validas'` |
+| `215aff4` | test trazable de R16 (C4red 1) | conducta ya existente: con la regla rota (`if False:` en el filtro de `can`), `assert [8001, 8002] == [8001]` |
+
+Mutantes de las líneas nuevas, aplicados y medidos uno a uno (sin relanzar la campaña): `paride is not None and
+partida is None` → `or`, `paride is None` y `partida is not None`: **los tres muertos** (exit 1). El PDT y el cambio de
+orden no añaden operadores mutables: si se quita el PDT de `necesarios` o se vuelve al orden anterior, fallan los tests
+de arriba. Documentos (sin código): `4824027` (`current.md`), `7438910` (`verificacion_manual.md`) y `92067d9` en
+`azure-apps` (§8.11, solo `sigrid_api.md`).
+
 ## Verificaciones MANUAL pendientes (del humano, tras la revisión T21)
 
 - **T22:** comprobar los permisos de `user_rw` (V1) con quien administra Sigrid.
@@ -124,20 +148,26 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
   - sacar la factura de REC.
 - **Cambio ajeno en `azure-apps/sigrid_api.md`:** había una fila de Application Insights sin commitear, de otra persona.
   No se ha tocado ni incluido en `a2127a6`, y sigue en el árbol de ese repositorio.
+- **No tocado en la ronda T21, por encargo:** el origen con todas sus líneas a `can` 0 (O1 de `logica_lectura`, decide
+  el humano), las demás observaciones no bloqueantes y el hallazgo 6 de `docs` (códigos de línea y
+  `SIGRID_ALBARAN_EMPRESAS_OBRA` en §8.11), que el encargo dejó fuera de los puntos 1-5.
 - **Sin datos reales:** ningún nombre de persona, proveedor ni CIF real en código, tests, specs ni progress. Los del
   doble son ficticios.
 
 ## Evidencias
 
+Medido sobre el código de `215aff4` (el último commit con código de la ronda T21; los posteriores son documentos).
+
 | Evidencia | Valor medido |
 |---|---|
-| Tests ejecutados (suite completa, `bash harness/init.sh`) | **4204 passed, 1 skipped**, 0 fallos |
-| Tests de F-008 (`pytest tests -k f008`) | 411 passed |
-| Cobertura de las líneas cambiadas | `PUERTA COBERTURA: 99.2% de 1195 líneas cambiadas cubiertas (1186/1195, umbral 80%, nivel critico)` |
+| Tests ejecutados (suite completa, `bash harness/init.sh`) | **4211 passed, 1 skipped**, 0 fallos |
+| Tests de F-008 (`pytest tests -k f008`) | 418 passed (411 + 7 de la ronda T21) |
+| Cobertura de las líneas cambiadas | `PUERTA COBERTURA: 99.3% de 1201 líneas cambiadas cubiertas (1192/1201, umbral 80%, nivel critico)` |
 | Mutantes generados / muertos / supervivientes | 568 / 467 / 101 (campaña entera, `--workers 1`, 17.936 s, HEAD `eba243e`) |
 | Supervivientes tras el análisis | **0**: 82 con test nuevo, 3 falsos positivos, 16 de código muerto quitado (todo medido) |
-| Tiempo de la suite | 84,90 s (`4204 passed, 1 skipped, 1 warning in 84.90s`) |
-| `bash harness/init.sh` | `ENTORNO LISTO. Puedes trabajar.` (ruff: 104 avisos de deuda previa, no bloquea) |
+| Mutantes de la ronda T21 (manuales, uno a uno) | 4 aplicados, **4 muertos** (los tres de `paride` y quitar el PDT de `necesarios`) |
+| Tiempo de la suite | 75,98 s (`4211 passed, 1 skipped, 1 warning in 75.98s`) |
+| `bash harness/init.sh` | `ENTORNO LISTO. Puedes trabajar.` (ruff: 104 avisos de deuda previa, no bloquea; tamaño impl 170/220) |
 
 - **Detalle de los 101 supervivientes:** en [`mutacion_F-008.md`](mutacion_F-008.md).
 - **Falsos positivos de la campaña (76, 85, 182):** aplicados en aislado, los caza la suite sin cambios; la campaña los
