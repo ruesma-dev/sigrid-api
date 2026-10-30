@@ -7,9 +7,10 @@ Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `A
 
 ## F-008 `in_progress` (2026-10-30): factura de compra, alta en REC sin contabilidad
 
-Rama `feature/F-008-registrar-factura`. Spec aprobada por el humano el 2026-10-30 (P1-P10 recomendadas, design §9);
-medición M52-M60 en [`explore_F-008.md`](explore_F-008.md). Implementer lanzado (T0-T15). Manuales tras la revisión:
-T17 permisos de `user_rw` (humano), T18 previas, T19 grabación en la 0404 con autorización expresa.
+Rama `feature/F-008-registrar-factura`. Spec **v3.1** aprobada por el humano el 2026-10-30 (P1-P21, design §9);
+medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer en curso con T0-T20** (informe en
+[`impl_F-008.md`](impl_F-008.md), decisiones y desviaciones ahí). Manuales tras la revisión (T21): T22 permisos de
+`user_rw` (humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa.
 
 ## F-016 cerrada (2026-10-30)
 
