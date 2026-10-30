@@ -146,6 +146,9 @@ relectura R34. El `work` no calcula con estado de intentos anteriores.
 
 ## 9. Decisiones del humano
 
+**Aprobadas el 2026-10-30** (PARADA 1, «ok» del humano a la tabla de recomendaciones): P1-P10 = la *Recomendada* de cada una.
+P3: sin regla de `pagdia` aportada; vale la del 77 %. P4: se rechaza. P10: la factura del proveedor ya cotejada.
+
 **P1. ¿Alcance: alta en REC sin contabilidad?** *Recomendada:* **sí**. Contabilizar no se hace aquí: 19 familias de cuenta, ISP, deducibilidad y periodos, y un error
 ahí es un error fiscal. Alternativa: `blocked` por LÍMITE DE MICROSERVICIO de todo F-008; no aporta seguridad, porque el alta no escribe contabilidad.
 

@@ -5,6 +5,12 @@
 
 Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `ALTA_SIGRID_ENVIAR_DTO` cuando decida.
 
+## F-008 `in_progress` (2026-10-30): factura de compra, alta en REC sin contabilidad
+
+Rama `feature/F-008-registrar-factura`. Spec aprobada por el humano el 2026-10-30 (P1-P10 recomendadas, design §9);
+medición M52-M60 en [`explore_F-008.md`](explore_F-008.md). Implementer lanzado (T0-T15). Manuales tras la revisión:
+T17 permisos de `user_rw` (humano), T18 previas, T19 grabación en la 0404 con autorización expresa.
+
 ## F-016 cerrada (2026-10-30)
 
 Resumen en `history.md`. Pendiente solo del humano: anular, si quiere, `PROF26/01387` y `PROF26/01386`, y decidir cuándo
@@ -171,7 +177,7 @@ ajeno; lo borra el humano si quiere.
 ## Lo siguiente en el backlog
 
 **F-015 está `blocked`** hasta que
-Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). Siguiente: F-008 (facturas de
+Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). En curso: F-008 (facturas de
 compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
 consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
 `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.

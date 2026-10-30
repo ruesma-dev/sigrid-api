@@ -5,6 +5,8 @@
 
 Resumen: **18 features**, 6 abiertas, 12 terminadas.
 
+En curso: **F-008**.
+
 Bloqueadas: **F-015**.
 
 ## Trabajo abierto
@@ -12,7 +14,7 @@ Bloqueadas: **F-015**.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-008 | Endpoint de dominio para registrar facturas de compra | 10 | pendiente | critico | `feature/F-008-registrar-factura` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 10 | en curso | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
 | F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | bloqueada | critico | `feature/F-015-albaran-plantilla-y-retencion` |
@@ -45,7 +47,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **pendiente** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **en curso** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
