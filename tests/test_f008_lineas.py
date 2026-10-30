@@ -282,3 +282,158 @@ def test_f008_r21_solo_sobra_una() -> None:
     with pytest.raises(FacturaError) as error:
         comparar_a_origen(_CALCULADAS, [_e(11, 10.0, 500.0), _e(12, 2.5, 30.25), _e(13, 0.0, 0.0)])
     assert error.value.details == {"faltan": [], "sobran": [13], "repetidas": []}
+
+
+# --------------------------------------------------------------------------- #
+# T6 · linea propia FRGG y constructor unico (R24, R26-R28)
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.factura_lineas import (  # noqa: E402
+    LecturasLineas,
+    LineaResuelta,
+    linea_sin_origen,
+    resolver_linea_gg,
+)
+from domain.models.factura_models import LineaSinOrigen  # noqa: E402
+
+_IVAS = {"i21": (777740, 0.21), "i10": (777742, 0.10), "i21nded": (777741, 0.21), "i0": (496338, 0.0)}
+
+
+def _lecturas_gg(**cambios: Any) -> LecturasLineas:
+    base: dict[str, Any] = {
+        "ivas": _IVAS,
+        "ivas_permitidos": ["I21", "I10", "I21NDED", "i0"],
+        "cuentas": {"6290000000": (7001, 5), "6000000000": (7002, 4), "2160000000": (7003, 5)},
+        "prefijos_cuenta": ["6"],
+        "analiticas": {"gg.gen": (8001, True), "gg": (8002, False), "0404.mat": (8003, True),
+                       "sinpunto": (8004, True), "zz.otra": (8005, True)},
+        "obras": {"gg": (600, 61), "0404": (404, 41)},
+    }
+    base.update(cambios)
+    return LecturasLineas(**base)
+
+
+def _gg(**cambios: Any) -> LineaSinOrigen:
+    datos: dict[str, Any] = {"descripcion": "Gasto general", "cantidad": 2.0, "precio": 10.125,
+                             "iva": "I21", "cuenta": "6290000000", "analitica": "GG.GEN"}
+    datos.update(cambios)
+    return LineaSinOrigen(**datos)
+
+
+def test_f008_r27_resuelve_cuenta_analitica_obra_y_centro() -> None:
+    resuelta, fallos = resolver_linea_gg(_gg(), _lecturas_gg())
+    assert fallos == []
+    assert resuelta == LineaResuelta(
+        proide=0, natide=0, paride=0, cueide=7001, caaide=8001, obride=600, cenide=61,
+        almide=None, ivaide=777740, tasa_iva=0.21,
+    )
+
+
+def test_f008_r26_la_analitica_manda_la_obra_aunque_sea_otra() -> None:
+    resuelta, _f = resolver_linea_gg(_gg(analitica="0404.MAT"), _lecturas_gg())
+    assert (resuelta.obride, resuelta.cenide, resuelta.caaide) == (404, 41, 8003)
+
+
+@pytest.mark.parametrize("cuenta", ["6000000000", "2160000000", "6999999999"])
+def test_f008_r26_cuenta_no_hoja_fuera_de_prefijo_o_inexistente(cuenta: str) -> None:
+    resuelta, fallos = resolver_linea_gg(_gg(cuenta=cuenta), _lecturas_gg())
+    assert resuelta is None
+    assert [codigo for codigo, _m in fallos] == ["cuenta_no_valida"]
+
+
+def test_f008_r26_sin_prefijos_de_cuenta_no_vale_ninguna() -> None:
+    _r, fallos = resolver_linea_gg(_gg(), _lecturas_gg(prefijos_cuenta=[]))
+    assert [codigo for codigo, _m in fallos] == ["cuenta_no_valida"]
+
+
+def test_f008_r26_otro_prefijo_configurado_si_vale() -> None:
+    resuelta, fallos = resolver_linea_gg(_gg(cuenta="2160000000"),
+                                         _lecturas_gg(prefijos_cuenta=["6", "21"]))
+    assert fallos == [] and resuelta.cueide == 7003
+
+
+@pytest.mark.parametrize("analitica", ["GG", "SINPUNTO", "ZZ.OTRA", "NO.EXISTE"])
+def test_f008_r26_analitica_no_hoja_sin_obra_o_inexistente(analitica: str) -> None:
+    _r, fallos = resolver_linea_gg(_gg(analitica=analitica), _lecturas_gg())
+    assert [codigo for codigo, _m in fallos] == ["analitica_no_valida"]
+
+
+def test_f008_r24_iva_fuera_de_la_lista_o_inexistente() -> None:
+    _r, fallos = resolver_linea_gg(_gg(iva="I4"), _lecturas_gg())
+    assert [codigo for codigo, _m in fallos] == ["iva_no_valido"]
+    _r, fallos = resolver_linea_gg(_gg(iva="I21"), _lecturas_gg(ivas={}))
+    assert [codigo for codigo, _m in fallos] == ["iva_no_valido"]
+
+
+def test_f008_r24_el_iva_no_distingue_mayusculas() -> None:
+    resuelta, fallos = resolver_linea_gg(_gg(iva="I0"), _lecturas_gg())
+    assert fallos == [] and resuelta.ivaide == 496338
+
+
+def test_f008_r24_los_fallos_de_una_linea_salen_juntos() -> None:
+    _r, fallos = resolver_linea_gg(_gg(iva="X", cuenta="1", analitica="Y"), _lecturas_gg())
+    assert [codigo for codigo, _m in fallos] == ["iva_no_valido", "cuenta_no_valida",
+                                                 "analitica_no_valida"]
+
+
+def test_f008_p21_un_iva_no_deducible_solo_cambia_el_ivaide() -> None:
+    normal, _f = resolver_linea_gg(_gg(iva="I21"), _lecturas_gg())
+    nded, _f = resolver_linea_gg(_gg(iva="I21NDED"), _lecturas_gg())
+    fila_normal = linea_sin_origen(_gg(iva="I21"), normal, serie="FRGG", almide=12)
+    fila_nded = linea_sin_origen(_gg(iva="I21NDED"), nded, serie="FRGG", almide=12)
+    assert fila_nded["ivaide"] == 777741
+    assert {**fila_nded, "ivaide": 0} == {**fila_normal, "ivaide": 0}
+
+
+def test_f008_r28_constructor_unico_importes_y_ceros() -> None:
+    resuelta, _f = resolver_linea_gg(_gg(), _lecturas_gg())
+    fila = linea_sin_origen(_gg(), resuelta, serie="FRGG", almide=12)
+    # tot = round(2 * 10,125, 2) = 20,25; ivacuo = round(20,25 * 0,21, 2) = 4,2525 -> 4,25.
+    assert (fila["can"], fila["pre"], fila["tar"], fila["dto"], fila["tot"], fila["ivacuo"]) == (
+        2.0, 10.125, 10.125, "", 20.25, 4.25
+    )
+    assert (fila["cueide"], fila["caaide"], fila["obride"], fila["cenide"], fila["almide"]) == (
+        7001, 8001, 600, 61, 12
+    )
+    assert (fila["proide"], fila["paride"], fila["natide"]) == (0, 0, 0)
+    for columna in ("docoritip", "docoriide", "linoriide", "canorilin", "canoriori", "canoriant",
+                    "imporiori", "imporiant", "canfac"):
+        assert fila[columna] == 0
+    assert fila["docoricod"] == ""
+    assert fila["res"] == "Gasto general"
+    assert fila["unimed"] == ""
+
+
+def test_f008_r28_redondeo_half_up() -> None:
+    resuelta = LineaResuelta(proide=0, natide=0, paride=0, cueide=1, caaide=1, obride=1, cenide=1,
+                             almide=None, ivaide=1, tasa_iva=0.21)
+    fila = linea_sin_origen(_gg(cantidad=1.0, precio=2.675), resuelta, serie="FRGG", almide=1)
+    assert fila["tot"] == 2.68
+    fila = linea_sin_origen(_gg(cantidad=1.0, precio=0.5), resuelta, serie="FRGG", almide=1)
+    assert fila["ivacuo"] == 0.11
+
+
+def test_f008_r28_negativos_se_admiten() -> None:
+    resuelta = LineaResuelta(proide=0, natide=0, paride=0, cueide=1, caaide=1, obride=1, cenide=1,
+                             almide=None, ivaide=1, tasa_iva=0.21)
+    fila = linea_sin_origen(_gg(cantidad=-1.0, precio=10.0), resuelta, serie="FRGG", almide=1)
+    assert (fila["tot"], fila["ivacuo"]) == (-10.0, -2.1)
+
+
+@pytest.mark.parametrize("serie", ["FR", "FRGG"])
+def test_f008_r28_el_almacen_de_la_linea_manda_si_lo_tiene(serie: str) -> None:
+    resuelta = LineaResuelta(proide=5, natide=6, paride=7, cueide=1, caaide=2, obride=3, cenide=4,
+                             almide=88, ivaide=9, tasa_iva=0.1)
+    linea = LineaSinOrigen(descripcion="d", cantidad=1.0, precio=1.0, iva="I10",
+                           **({"producto": "MA9999", "unidad": "UD"} if serie == "FR"
+                              else {"cuenta": "6", "analitica": "GG.GEN"}))
+    fila = linea_sin_origen(linea, resuelta, serie=serie, almide=12)
+    assert fila["almide"] == 88
+    assert (fila["proide"], fila["natide"], fila["paride"]) == (5, 6, 7)
+    assert fila["unimed"] == ("UD" if serie == "FR" else "")
+
+
+def test_f008_r28_serie_desconocida_falla() -> None:
+    resuelta, _f = resolver_linea_gg(_gg(), _lecturas_gg())
+    with pytest.raises(ValueError, match="serie"):
+        linea_sin_origen(_gg(), resuelta, serie="AB", almide=1)

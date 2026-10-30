@@ -16,11 +16,18 @@ constructor de la factura al numerar.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from domain.models.factura_models import EntradaAOrigen, FacturaError, Vencimiento
+from application.use_cases.albaran_compra_statements import importe_linea
+from domain.models.factura_models import (
+    EntradaAOrigen,
+    FacturaError,
+    LineaSinOrigen,
+    Vencimiento,
+)
 
 #: Las 73 columnas de `dbo.dcfpro`, en su orden fisico (T0). El `INSERT` lleva
 #: estas y solo estas.
@@ -230,3 +237,134 @@ def comparar_a_origen(
             codigo="a_origen_no_cuadra",
             details={"lineas": distintas},
         )
+
+
+# --------------------------------------------------------------------------- #
+# Lineas sin origen: dos resolvedores, un constructor (T6, T7)
+# --------------------------------------------------------------------------- #
+
+#: Nivel de una cuenta hoja (`cua.niv`, M65).
+NIVEL_CUENTA_HOJA = 5
+SERIES: tuple[str, ...] = ("FR", "FRGG")
+
+Fallo = tuple[str, str]
+
+
+def clave(texto: Any) -> str:
+    """Codigos comparados como el ERP (`Modern_Spanish_CI_AS`): sin mayusculas
+    ni espacios alrededor."""
+    return str(texto).strip().casefold()
+
+
+@dataclass(frozen=True)
+class LineaResuelta:
+    """Lo que necesita `linea_sin_origen`, igual para las dos series. `almide`
+    `None`: el de la cabecera (`dcf.almide`)."""
+
+    proide: int
+    natide: int
+    paride: int
+    cueide: int
+    caaide: int
+    obride: int
+    cenide: int
+    almide: int | None
+    ivaide: int
+    tasa_iva: float
+
+
+@dataclass(frozen=True)
+class LecturasLineas:
+    """Lo leido UNA vez para resolver las lineas sin origen, por `clave`.
+
+    Comunes: `ivas` (clave -> (`ide`, tasa)) de la empresa y la lista blanca.
+    FRGG: `cuentas` (clave -> (`ide`, `niv`)), `prefijos_cuenta`, `analiticas`
+    (clave -> (`ide`, hoja)) y `obras` (clave -> (`ide`, `obr.cenide`)).
+    FR: ver `resolver_linea_fr`.
+    """
+
+    ivas: Mapping[str, tuple[int, float]]
+    ivas_permitidos: Sequence[str]
+    cuentas: Mapping[str, tuple[int, int]] = field(default_factory=dict)
+    prefijos_cuenta: Sequence[str] = ()
+    analiticas: Mapping[str, tuple[int, bool]] = field(default_factory=dict)
+    obras: Mapping[str, tuple[int, int]] = field(default_factory=dict)
+
+
+def resolver_iva(codigo: str, lecturas: LecturasLineas) -> tuple[tuple[int, float] | None, Fallo | None]:
+    """R24: el IVA en `SIGRID_FACTURA_IVAS` y en `dbo.iva` de la empresa. Un NDED
+    es uno mas (P21): solo cambia el `ivaide`."""
+    permitidos = {clave(p) for p in lecturas.ivas_permitidos}
+    leido = lecturas.ivas.get(clave(codigo))
+    if clave(codigo) not in permitidos or leido is None:
+        return None, ("iva_no_valido",
+                      f"El IVA '{codigo}' no esta en SIGRID_FACTURA_IVAS o no existe en la empresa.")
+    return leido, None
+
+
+def resolver_linea_gg(
+    linea: LineaSinOrigen, lecturas: LecturasLineas
+) -> tuple[LineaResuelta | None, list[Fallo]]:
+    """R26-R27 (M65, M66): `cuenta` hoja (`niv` 5) de la empresa con un prefijo
+    de `SIGRID_FACTURA_CUENTAS_GASTO_PREFIJOS` (vacia: ninguno); `analitica`
+    hoja de la empresa cuyo texto antes del primer `.` es una obra de la
+    empresa, de la que salen `obride` y `cenide`. `proide`, `paride`, `natide`
+    0 y `almide` el de la cabecera. Todos los fallos de la linea, juntos."""
+    fallos: list[Fallo] = []
+    iva, fallo = resolver_iva(linea.iva, lecturas)
+    if fallo:
+        fallos.append(fallo)
+    cuenta = str(linea.cuenta or "")
+    leida = lecturas.cuentas.get(clave(cuenta))
+    if (
+        leida is None
+        or leida[1] != NIVEL_CUENTA_HOJA
+        or not any(cuenta.strip().startswith(p) for p in lecturas.prefijos_cuenta)
+    ):
+        fallos.append(("cuenta_no_valida",
+                       f"La cuenta '{cuenta}' no es una cuenta hoja de la empresa con un prefijo "
+                       "de SIGRID_FACTURA_CUENTAS_GASTO_PREFIJOS."))
+    analitica = str(linea.analitica or "")
+    caa = lecturas.analiticas.get(clave(analitica))
+    obra = lecturas.obras.get(clave(analitica.split(".")[0])) if "." in analitica else None
+    if caa is None or not caa[1] or obra is None:
+        fallos.append(("analitica_no_valida",
+                       f"La analitica '{analitica}' no es una hoja de la empresa con la obra delante."))
+    if fallos:
+        return None, fallos
+    assert iva is not None and leida is not None and caa is not None and obra is not None
+    return LineaResuelta(
+        proide=0, natide=0, paride=0, cueide=leida[0], caaide=caa[0], obride=obra[0],
+        cenide=obra[1], almide=None, ivaide=iva[0], tasa_iva=iva[1],
+    ), []
+
+
+def linea_sin_origen(
+    linea: LineaSinOrigen, resuelta: LineaResuelta, *, serie: str, almide: int
+) -> dict[str, Any]:
+    """R27, R28: la fila de una linea sin origen, IGUAL en las dos series (la
+    serie solo ha elegido el resolvedor): `pre` = `tar` = `precio`, `dto`
+    vacio, `tot` = round(cantidad·precio, 2) e `ivacuo` = round(tot·iva, 2) en
+    `Decimal` con `ROUND_HALF_UP` (F-009), origen y a origen a 0; `almide` el
+    de la linea o, sin el, `almide` (el de `dcf`)."""
+    if serie not in SERIES:
+        raise ValueError(f"La serie '{serie}' no es FR ni FRGG.")
+    tot, ivacuo = importe_linea(linea.cantidad, linea.precio, resuelta.tasa_iva)
+    return fila_dcfpro({
+        "proide": resuelta.proide,
+        "pre": linea.precio,
+        "can": linea.cantidad,
+        "tar": linea.precio,
+        "tot": float(tot),
+        "res": linea.descripcion,
+        "cueide": resuelta.cueide,
+        "almide": resuelta.almide if resuelta.almide is not None else almide,
+        "ivaide": resuelta.ivaide,
+        "ivacuo": float(ivacuo),
+        "cenide": resuelta.cenide,
+        "caaide": resuelta.caaide,
+        "unimed": linea.unidad or "",
+        "obride": resuelta.obride,
+        "paride": resuelta.paride,
+        "natide": resuelta.natide,
+    })
