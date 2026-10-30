@@ -1,11 +1,11 @@
 <!-- specs/F-008-registrar-factura/requirements.md -->
-# F-008 · Registrar facturas de compra FR y FRGG: alta sin contabilidad (v3)
+# F-008 · Registrar facturas de compra FR y FRGG: alta sin contabilidad (v3.1)
 
-Rigor **critico**. Cifras de [`progress/explore_F-008.md`](../../progress/explore_F-008.md) (M52-M68). v3: decisiones del
-humano P11-P17 del 2026-10-30 (FRGG dentro, a origen comparado con el llamante); P1-P21 en `design.md` §9. **Alta sin
+Rigor **critico**. Cifras de [`progress/explore_F-008.md`](../../progress/explore_F-008.md) (M52-M74). v3.1: decisiones del
+humano P11-P21 del 2026-10-30 (FRGG con y sin orígenes, a origen comparado, NDED); todas en `design.md` §9. **Alta sin
 contabilidad** (P1): se escribe lo que arrastra el alta (`con`, `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `log`, marcas de los
-orígenes); asiento, `regiva` y `regirp` los hace «Contabilizar» en el escritorio. Cobertura: **~95 %** de FR26 y **~82 %** de
-FRGG26 (M68; algo menos sin los IVA no deducibles, P21).
+orígenes); asiento, `regiva` y `regirp` los hace «Contabilizar» en el escritorio. Cobertura: **~95 %** de FR26 y **87,2 %** de
+FRGG26 (M74).
 
 **La API registra y valida; no deduce.** Serie, modo, a origen, vencimientos, cuentas y analíticas los decide el llamante.
 
@@ -13,8 +13,8 @@ FRGG26 (M68; algo menos sin los IVA no deducibles, P21).
 
 R1. CUANDO llegue `POST /api/sigrid/factura`, el sistema debe validar el cuerpo con `extra="forbid"` y números estrictos; un
 cuerpo no válido da 400 «Solicitud invalida.» sin eco de valores ni `codigo`.
-R2. SI no vienen `origenes` ni `lineas`; `modo` es `"origen"` sin `origenes`; se repite un código de `origenes`; viene
-`a_origen` en modo mes; o `serie` es `"FRGG"` con `origenes` (P18), ENTONCES el sistema debe responder 400 sin `codigo` (R1).
+R2. SI no vienen `origenes` ni `lineas`; `modo` es `"origen"` sin `origenes`; se repite un código de `origenes`; o viene
+`a_origen` en modo mes, ENTONCES el sistema debe responder 400 sin `codigo` (R1).
 R3. El sistema debe tratar toda petición sin `commit: true` como previa: mismas validaciones y respuesta, sin sentencias de
 escritura.
 R4. SI llega `commit: true` y `SIGRID_FACTURA_WRITE_ENABLED` no es verdadera, ENTONCES 400 `escritura_facturas_deshabilitada`,
@@ -34,10 +34,11 @@ R10. CUANDO vengan `origenes`, el sistema debe tomar el proveedor de ellos (R13)
 `prv` de la empresa de la obra: ninguno da `proveedor_no_encontrado` y más de uno, `proveedor_ambiguo`.
 R11. El sistema debe resolver `cod_obra` en la empresa de `SIGRID_ALBARAN_EMPRESAS_OBRA` (`obra_no_encontrada`); es obligatorio
 sin `origenes`, y con ellos, SI no es la obra de los orígenes, ENTONCES `varias_obras`.
-R12. El sistema debe poner `dcf.cueide` = `prv.cueide` y, en las líneas de origen, `dcfpro.cueide` = `prv.cuepdtide`; SI la que
+R12. El sistema debe poner `dcf.cueide` = `prv.cueide` y, en las líneas de origen de las dos series, `dcfpro.cueide` =
+`prv.cuepdtide` (M69); SI la que
 se necesita vale 0, ENTONCES `proveedor_sin_cuenta`.
 
-## Orígenes: albaranes y proformas (solo FR)
+## Orígenes: albaranes y proformas (las dos series, P18)
 
 R13. El sistema debe resolver cada código de `origenes` a un `con.tip 14` de la empresa de la obra (`origen_no_encontrado`, con el
 código); SI no son todos del `entide` del `cif_proveedor`, ENTONCES `origen_de_otro_proveedor`; SI son de más de una obra o
@@ -68,20 +69,20 @@ con la línea y los dos juegos, sin escribir. Cuadrando, se escriben los valores
 R23. El sistema debe admitir en `lineas` (0..N): `descripcion` (1-128), `cantidad`, `precio` e `iva` (código de `dbo.iva`); en FR
 además `producto`, `partida?`, `paride?`, `unidad?`; en FRGG además `cuenta` y `analitica` (códigos). Un campo de la otra serie
 da 400 (R1). Cantidad o precio negativos se admiten (ajustes, M61).
-R24. SI `iva` no está en `SIGRID_FACTURA_IVAS` o no existe, ENTONCES fallo de línea `iva_no_valido`. Todos los fallos de línea,
-juntos en `lineas_no_validas` con su posición.
+R24. SI `iva` no está en `SIGRID_FACTURA_IVAS` o no existe, ENTONCES fallo de línea `iva_no_valido`; un IVA no deducible
+(`I21NDED`, `I10NDED`) solo cambia `ivaide` (P21, M72). Todos los fallos de línea, juntos en `lineas_no_validas` con su posición.
 R25. En FR, SI `producto` no está en `SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN` o no existe en la empresa (`tip 3`, sin baja),
 ENTONCES `producto_no_permitido` o `producto_no_encontrado`; el sistema debe resolver la naturaleza por
 `SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO`, y de ella `natide`, `cueide` (la `cua` de `cuacomcod`) y `caaide`, más partida, almacén
 y centro, con las reglas de F-009 R13b, R14, R14b y R15 y sus mismos fallos de línea.
-R26. En FRGG, SI `cuenta` no es una `cua` hoja (`niv` 5) de la empresa o su código no empieza por un prefijo de
+R26. En la línea propia FRGG (P19), SI `cuenta` no es una `cua` hoja (`niv` 5) de la empresa o no empieza por un prefijo de
 `SIGRID_FACTURA_CUENTAS_GASTO_PREFIJOS` (lista vacía: ninguno), ENTONCES `cuenta_no_valida`; SI `analitica` no es una `caa` hoja
-de la empresa cuyo prefijo `<obra>.` sea una obra de esa empresa, ENTONCES `analitica_no_valida`.
-R27. En FRGG, el sistema debe escribir `cueide` = la cuenta, `caaide` = la analítica, `obride` = la obra de su prefijo, `cenide` =
-`obr.cenide` de esa obra, `almide` = `dcf.almide`, y `proide`, `paride`, `natide` 0 (M66); sin escribir contabilidad (M65).
+de la empresa cuyo prefijo `<obra>.` sea una obra de esa empresa, ENTONCES `analitica_no_valida`. Las dos son obligatorias.
+R27. En la línea propia FRGG, el sistema debe escribir `cueide` = la cuenta, `caaide` = la analítica, `obride` = la obra de su
+prefijo, `cenide` = `obr.cenide` de esa obra, `almide` = `dcf.almide`, y `proide`, `paride`, `natide` 0 (M66); sin contabilidad (M65).
 R28. El sistema debe escribir toda línea sin origen con `pre` = `tar` = `precio`, `dto` vacío, `tot` = round(`cantidad`·`precio`,
 2), `ivacuo` = round(`tot`·`iva.iva`, 2) (`Decimal`, `ROUND_HALF_UP`), `docori*`, `linoriide`, `canori*` e `impori*` a 0, sin
-`dcaprodes` ni marcas.
+`dcaprodes` ni marcas, por un solo camino en las dos series (la serie solo decide R25 o R26-R27).
 
 ## Importes y retención
 
@@ -90,8 +91,8 @@ R29. El sistema debe calcular `totbas` = Σ `tot`, `impnet` = `totbas`, `impbru`
 R30. SI `total_base` difiere de `totbas` en más de 0,01, `total_iva` de `totiva` en más de 0,05 o `total_factura` de `tot` en más
 de 0,05, ENTONCES `totales_no_cuadran` con los dos juegos, sin ajustar nada; SI `total_base` no es positivo, `abono_no_soportado`.
 R31. DONDE los orígenes lleven `dcarec`, el sistema debe escribir **una** `dcfrec` con su `recide`, `valpor`, `reccla` y `cueide`,
-`bas` = `totbas` y `cuo` = round(`bas`·`valpor`, 2); recargos distintos o más de uno: `retencion_no_soportada`. Sin `origenes`
-(y por tanto en FRGG), sin retención (P20).
+`bas` = `totbas` y `cuo` = round(`bas`·`valpor`, 2); recargos distintos o más de uno: `retencion_no_soportada`. Vale en las dos
+series (M71); sin `origenes`, sin retención (P20).
 
 ## Vencimientos (P12, P13)
 

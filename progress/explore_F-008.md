@@ -297,3 +297,53 @@ I10NDED} 42, alguna línea sin analítica o con cuenta que no es 6xxx 71 (se sol
 
 - **V7:** si una FRGG dada de alta por la API en RECGG pasa «Comprobar» y «Contabilizar» con la cuenta y la analítica que
   mandó el llamante, y el asiento lleva la cuenta al debe como en M65.
+
+---
+
+# v3.1 · FRGG con albaranes e IVA no deducible (2026-10-30)
+
+Mismo método (solo `sql/read`, agregados, sin nombres ni CIF). Motivo: el humano decidió P18 = FRGG con orígenes como las mixtas
+de FR y P21 = incluir `I21NDED` e `I10NDED`. «FRGG26» como en la v3.
+
+## M69 · Líneas de albarán en FRGG26
+
+- Orígenes de las líneas: `docoritip 14` en **135** facturas (904 líneas, todas de albaranes AC25/AC26); `docoritip 15` en 4
+  (16 líneas de otra factura: rectificativas, fuera como en FR). Las 139 de M68 = 135 + 4.
+- Frente a su `dcapro` (904): `proide`, `natide`, `obride`, `cenide`, `almide`, `can`/`pre`/`tot`, `ivaide` **100 %**; `caaide`
+  903 (1 a 0 en los dos); `paride` 889.
+- **`dcfpro.cueide` = `prv.cuepdtide` en 904 de 904** (grupos 41 791, 40 113; ninguna 6xxx). La cuenta y la analítica de una
+  línea de origen FRGG **no las manda nadie**: salen como en FR (R12, R17). La cuenta de gasto la puso el asiento del albarán.
+
+## M70 · Marcas en los albaranes de FRGG26
+
+- 135 albaranes, uno por factura: con asiento `tip 20` 134; `dca.estfac` 1, `antestfac` 3 y `fecfac` ≠ 0 en **135**;
+  `canfac` = `can` y `dcaprodes` (`docdestip 15`, factura, línea, `can`) en **904 de 904**. `con.est` FAC 132; los otros 3 en CON
+  con factura CONGG y sin facturación parcial (vuelta atrás a mano; también los hay en FR, M54). A origen 0; con contrato 0.
+
+## M71 · Cabecera, retención, cartera y SII de FRGG26 con albarán
+
+- Cabecera frente al primer albarán (135): `entide`, `obride`, `cenide`, `almide`, `pagide`, `efeide` 135; `empide` 132 (como
+  M57). Obra `GG`/`CP` en 130. `dcf.docoritip` 0 y `dcf.cueide` = `prv.cueide` en 135.
+- Mixtas: **1** (3 líneas de albarán y 1 propia con cuenta 6xxx y analítica, como R26-R27).
+- `dcfrec` en 3, todas `reccla` 3 al 15 %, **copiadas del `dcarec` del albarán** (`recide`, `cueide`, `valpor` 3 de 3): es R31.
+  `pag cla 0` en 135, `cla 2` en ninguna; `consii` A0/F1/01 en 133 (2 con `claope` distinto, fuera como en M68).
+- **Conclusión:** una FRGG con albaranes se escribe como una FR con albaranes; solo cambian serie, estado inicial y `cod`.
+
+## M72 · IVA no deducible en la línea
+
+- `iva` de la empresa 1: `I21NDED` 0,21 e `I10NDED` 0,10 con `sopded` 0 (los demás 1), mismo `ivaope` 1 y `tipope` 0 que I21/I10.
+- Líneas de FRGG25-26 (`I21NDED` 47, `I10NDED` 33): `ivacuo` = round(`tot`·`iva`, 2) en 79 de 80 (**cuota completa**, como
+  I21/I10); `dcfpro.ivaope`, `reqcuo` y `totimpret` 0 en el 100 %, igual que el resto. `cuoman` (marca de cuota tecleada) ≠ 0 en
+  17: también en I21/I10 (506), no es propio del NDED; la API escribe 0. **FR25 y FR26: 0 líneas NDED.**
+
+## M73 · Cabecera y SII de las facturas con NDED
+
+- 41 FRGG25-26 con alguna línea NDED: `totbas` = Σ `tot`, `totiva` = Σ `ivacuo` (con la cuota NDED), `totdoc` = `totbas` +
+  `totiva` en **41 de 41**; `ivadif` 0.
+- `consii` de esas facturas: A0/F1/01/N/N/N/N y el resto de columnas iguales a las de sin NDED (43 filas). **El NDED solo cambia
+  `ivaide`**; la no deducibilidad la aplica «Contabilizar» con `iva.sopded`.
+
+## M74 · Cobertura de FRGG26 con P18 y P21
+
+De 2.728: albaranes 135 (127 cubiertas), otro origen 4. **Cubiertas: 2.378 (87,2 %)** = 2.251 de M68 + 127 con albarán.
+
