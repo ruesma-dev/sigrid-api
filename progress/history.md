@@ -401,3 +401,22 @@ clásico y `albaran-directo` ignoran `dto` en silencio.
 - Los revisores en paralelo no cambian de rama en el árbol principal.
 - Una cota numérica corregida en un contrato se busca en todos los documentos hermanos.
 - Un `synckey` `ALB-…` delata que un albarán «del escritorio» nació por la API.
+
+## F-016 · Proforma a origen en `sigrid/proforma`
+
+**Cerrada el 2026-10-30, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama `feature/F-016-proforma-a-origen`,
+mergeada a `dev` (`6735a75`, desplegada el 2026-10-28). Contrato con `proformas` v1.2 (ampliado por la v1.3 de F-018).
+Revisión APROBADA (`review_F-016.md`).
+
+**Qué hace:** `modo: "origen"` con `proforma_anterior` o `primera_de_cadena` y `linea_anterior`. La API solo registra y
+valida; el modo, la anterior y las continuaciones las decide `proformas`. Sin `modo`, F-007 exacta.
+
+**Verificado:** T17 sobre dos cadenas reales sin discrepancias; T18, `PROF26/01386` y `PROF26/01387` en la 0404, con
+revisión del humano en la UI (`verificacion_F-016.md`). **Llave `SIGRID_PROFORMA_ORIGEN_ENABLED` cerrada**, igual que
+`SIGRID_PROFORMA_WRITE_ENABLED`: abrirlas es decisión del humano, y se avisa a `proformas`.
+
+**Queda (operativo, humano):** las dos proformas de prueba siguen sin anular por decisión suya.
+
+**Lecciones:**
+- La cadena mezcla series: una punta puede ser `AC`; no filtrar por `PROF`.
+- Abrir las llaves una a una deja probar el orden de R4 sin escribir, y el script cierra las dos pase lo que pase.
