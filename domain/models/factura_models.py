@@ -185,6 +185,9 @@ class FacturaRequest(_Estricto):
             for campo in OBLIGATORIOS[self.serie]:
                 if getattr(linea, campo) is None:
                     raise ValueError(f"lineas[{indice}].{campo} es obligatorio en la serie {self.serie}.")
+            # F-009 R14b: `paride` sin `partida` no se descarta en silencio (R25).
+            if linea.paride is not None and linea.partida is None:
+                raise ValueError(f"lineas[{indice}].paride solo va con partida.")
         return self
 
 

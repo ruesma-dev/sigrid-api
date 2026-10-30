@@ -256,3 +256,12 @@ def test_f008_r44_resultado_con_todos_sus_campos() -> None:
     }
     with pytest.raises(ValidationError):
         FacturaResultado.model_validate({**resultado.model_dump(), "estado": "existente"})
+
+
+def test_f008_r25_paride_sin_partida_es_400() -> None:
+    """F-009 R14b: `paride` solo va con `partida`; sin ella no se descarta en silencio."""
+    linea = {"descripcion": "Material", "cantidad": 1.0, "precio": 5.0, "iva": "I21",
+             "producto": "MA9999", "paride": 355}
+    with pytest.raises(ValidationError, match="paride solo va con partida"):
+        FacturaRequest.model_validate(cuerpo(origenes=[], cod_obra="0404", lineas=[linea]))
+    FacturaRequest.model_validate(cuerpo(origenes=[], cod_obra="0404", lineas=[{**linea, "partida": "01"}]))
