@@ -9,8 +9,8 @@ Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `A
 
 Rama `feature/F-008-registrar-factura`. Spec **v3.1** aprobada por el humano el 2026-10-30 (P1-P21, design §9);
 medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer en curso con T0-T20** (informe en
-[`impl_F-008.md`](impl_F-008.md), decisiones y desviaciones ahí). Hechas T0-T14 (caso de uso con previa y
-transacción); en curso T15 (lista negativa), después ruta, documentación, verificación manual y mutación. Manuales tras la revisión (T21): T22 permisos de
+[`impl_F-008.md`](impl_F-008.md), decisiones y desviaciones ahí). **Implementer terminado (T0-T20)**: `init.sh` en verde
+(4204 passed), cobertura 99,2 %, mutación 568/467/101 con 0 supervivientes tras el análisis. Siguiente: T21 (reviewer). Manuales tras la revisión (T21): T22 permisos de
 `user_rw` (humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa.
 
 ## F-016 cerrada (2026-10-30)
