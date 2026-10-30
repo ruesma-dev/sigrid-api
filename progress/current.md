@@ -1,7 +1,14 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-018 `in_progress` (2026-10-29): implementada; revisión troceada (T18) en corrección
+## F-018 `in_progress` (2026-10-30): DESPLEGADA; T19 hecha sin discrepancias; espera T20 (grabación autorizada)
+
+**2026-10-30**: revisión APROBADA (pasada 3, `review_F-018.md`), merge a `dev` `6339617`, push y despliegue (el
+humano). T19 (V0-V3 y V5, lecturas y previas) cuadra con el escritorio: [`verificacion_F-018.md`](verificacion_F-018.md).
+Queda T20 (V4, `commit:true` con autorización expresa, en la obra y con el proveedor que fije el humano; anular en la
+UI), el aviso de despliegue a `albaranes`, `proformas` y `facturas`, y T21.
+
+### Historia de F-018
 
 Rama `feature/F-018-descuento-por-linea`, petición de `albaranes` (su F-110). Spec v1.2
 [`specs/F-018-descuento-por-linea/`](../specs/F-018-descuento-por-linea/), aprobada por el humano (P1-P11; P11 = (a)
