@@ -555,3 +555,24 @@ def test_f008_r32_sin_pdt_en_conest_no_se_da_de_alta() -> None:
     repo.mundo.conest = [e for e in repo.mundo.conest if e[0] != 25]
     e = _error(repo)
     assert e.codigo == "estado_inicial_no_encontrado" and "25 PDT" in str(e)
+
+
+# --- La retencion: despues de las lineas, antes de los totales (design §7, desviacion) --
+
+
+def test_f008_orden_lineas_de_origen_antes_que_retencion() -> None:
+    repo = _repo_con(retenciones=[_retencion(800, valfij=1)])
+    repo.mundo.lineas[0]["canfac"] = 2.0
+    assert _error(repo).codigo == "origen_ya_facturado"
+
+
+def test_f008_orden_lineas_sin_origen_antes_que_retencion() -> None:
+    repo = _repo_con(retenciones=[_retencion(800, valfij=1)])
+    linea = {"descripcion": "Material", "cantidad": 1.0, "precio": 1.0, "iva": "I4", "producto": "MA9999"}
+    assert _error(repo, lineas=[linea]).codigo == "lineas_no_validas"
+
+
+def test_f008_orden_retencion_antes_que_totales() -> None:
+    """Los totales necesitan la cuota de la retencion: por eso va antes (desviacion declarada)."""
+    repo = _repo_con(retenciones=[_retencion(800, valfij=1)])
+    assert _error(repo, total_base=1.0).codigo == "retencion_no_soportada"

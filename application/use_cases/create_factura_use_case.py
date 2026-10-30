@@ -286,7 +286,6 @@ class CreateFacturaUseCase:
             obra = self._obra_de_los_origenes(request, leer, f9, origenes)
         proveedor = self._proveedor(request, leer, fs, f9, obra, origenes)
         heredadas, ctride = self._cabecera(request, leer, fs, obra, proveedor, origenes)
-        retencion = self._retencion(request, leer, fs, origenes) if origenes else None
 
         # 6. Lineas de origen y `a_origen` (R15-R22).
         lineas_origen: list[tuple[dict[str, Any], dict[str, Any]]] = []
@@ -299,12 +298,15 @@ class CreateFacturaUseCase:
         # 7. Lineas sin origen, todos sus fallos juntos (R23-R28).
         sin_origen = self._sin_origen(request, leer, fs, f9, obra, heredadas)
 
+        # 8. Retencion de los origenes (R31): antes que los totales, que necesitan su cuota.
+        retencion = self._retencion(request, leer, fs, origenes) if origenes else None
+
         contexto = _Contexto(
             request=request, sellos=sellos, prefijo=prefijo, cifras=cifras, estados=estados,
             obra=obra, proveedor=proveedor, origenes=origenes, heredadas=heredadas, ctride=ctride,
             retencion=retencion, sin_origen=sin_origen,
         )
-        # 8-9. Totales, retencion y vencimientos (R29-R35).
+        # 9. Totales y vencimientos (R29-R35).
         montada = self._montar(contexto, lineas_origen)
         # 10. Duplicadas (R43).
         self._duplicadas(contexto, leer(fs.buscar_duplicadas(
