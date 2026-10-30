@@ -6,7 +6,7 @@ No se empieza ninguna hasta que el humano apruebe la v3.1 (P1-P21 decididas, `de
 - [x] T0: Medir solo con lecturas `sys.columns` de `con`, `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `dcaprodes` y fijar en `progress/impl_F-008.md` tipos, nulabilidad y lista blanca  |  Verificación: tabla en el informe, revisada antes de T7
 - [x] T1: `config/settings.py`, `.env.example` y `local.settings.sample.json` con las siete variables, cerradas o vacías por defecto (R4, R6, R8, R24-R26, R47)  |  Verificación: `tests/test_f008_settings.py`
 - [x] T2: `domain/models/factura_models.py`: petición con `serie`, `modo`, `origenes`, `a_origen`, `lineas` por serie, `vencimientos`, `vencimiento_retencion`; resultado y `FacturaError` (R1, R2, R9, R21, R23, R32, R44)  |  Verificación: `tests/test_f008_models.py`, incluida la mezcla de campos de serie y FRGG con `origenes` aceptada (P18)
-- [ ] T3: `validar_vencimientos` puro: fecha real, rango, repetidas, suma (R33-R35)  |  Verificación: `tests/test_f008_lineas.py`
+- [x] T3: `validar_vencimientos` puro: fecha real, rango, repetidas, suma (R33-R35)  |  Verificación: `tests/test_f008_lineas.py`
 - [ ] T4: `linea_de_origen` en modo mes y origen con la tabla de §6, con casos anónimos de M63, igual en FR y FRGG (R12, R17, R19, R20)  |  Verificación: `tests/test_f008_lineas.py`
 - [ ] T5: `comparar_a_origen`: faltas, sobras, repetidas y tolerancias en el borde (±0,001 / ±0,01) (R21, R22)  |  Verificación: `tests/test_f008_lineas.py`
 - [ ] T6: `resolver_linea_gg` y el constructor único `linea_sin_origen(serie=...)`: cuenta y analítica, obra y centro desde la analítica, `almide` de cabecera, ceros, NDED como otro IVA (R24, R26-R28)  |  Verificación: `tests/test_f008_lineas.py`, mismo constructor parametrizado por serie
