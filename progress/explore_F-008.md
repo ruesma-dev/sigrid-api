@@ -239,3 +239,61 @@ Todo albarán 91,8 % + mixtas 7,7 % + sin origen 0,5 %, menos abonos 2,9 %, vari
 
 - **V6:** si una factura sin origen o mixta dada de alta por la API se comprueba y contabiliza en el escritorio con la cuenta
   y la analítica que puso la API (M61: 96,1 % y 85,6 %).
+
+---
+
+# v3 · Facturas de gastos generales (FRGG) (2026-10-30)
+
+Mismo método (solo `sql/read`, agregados, sin nombres ni CIF). Motivo: el humano decidió P11 = incluir FRGG. «FRGG26» =
+`con.tip 15`, `emp 1`, `cod LIKE 'FRGG26/%'` (2.728 el día de la medición); «sin origen» = `dcfpro.docoritip 0` (7.840 líneas).
+
+## M64 · Serie, estados y flujo
+
+- `cod` = `FRGG<aa>/` + **4 cifras** (11 caracteres en todas las de 2020 a 2026; máx. FRGG26/2731). FR lleva 5 (M52).
+- FRGG26 por `con.est`: 10 APR 1.032, **25 COMGG 37**, 30 CONGG 1.659; ninguna hoy en 20 RECGG. Histórico en 20: 25 facturas
+  (2008-2024). `RECGG` (20) es el `estini` de la serie (M52): el alta FRGG nace en 20, no en 1.
+- `log` de octubre: `ope 1` (alta) → `ope 5` «Comprobar factura» → «Factura contabilizada», como FR; 204 «Regeneración de
+  vencimientos» y 36 «Contabilizado desde Importación».
+- **La serie no se deduce de la obra:** FRGG26 con obra `GG` 53 %, `CP` 33 % y obra real 13 %; FR26 con `GG`/`CP`, 7 de 11.408.
+
+## M65 · Cuándo se escribe la cuenta de gasto
+
+- Vive en **`dcfpro.cueide`**, la misma columna que en FR; no hay otra tabla ni concepto.
+- Líneas con cuenta por estado: **COMGG 244 de 250** (con 0 asientos y 0 `regiva`), CONGG 4.887 de 4.887, APR 3.623 de 3.623;
+  histórico RECGG 22 de 33. **Se fija al dar de alta** (o se corrige hasta contabilizar); el escritorio admite la línea sin
+  cuenta hasta «Contabilizar», que la exige.
+- «Contabilizar» la lleva al debe: **1.461 de 1.469** líneas de FRGG26/1 en CONGG (99,5 %). Es un dato del documento que la
+  contabilidad lee, no una escritura contable: **registrar una FRGG en REC no exige escribir contabilidad**.
+- Cuentas usadas: `con.tip 17`, 10 caracteres, `cua.niv` 5 (hoja) el 100 %; 42 distintas. Por grupo: 62 6.906, 60 660, 64 108,
+  66/67 25 (6xxx **98,2 %**); 21 53, 46 49, 20/17 24, 52/56 9 (1,7 %).
+- **No se deduce:** `prv.cuereside` acierta 13,6 %; la dominante del proveedor, 95,4 %; una sola cuenta por factura, 98 %.
+
+## M66 · Analítica, obra y centro de la línea FRGG
+
+- `caaide` en 7.715 (98,4 %): 355 distintas, `con.tip 19`, **todas hoja** (sin hijas en `caa`), `niv` 3-5.
+- Código `<obra>.<sufijo>`: el prefijo es la obra de la línea en **7.715 de 7.715**; la línea lleva otra obra que la
+  cabecera en 853 (11 %), y en todas la analítica manda. `cenide` = `obr.cenide` de la línea 100 % (= `caa.cenide` 100 %).
+- **No se deduce:** la dominante del proveedor acierta 47 %; la dominante de la cuenta, 76 %.
+- Resto de la línea: `almide` = el de la cabecera 92,9 % (el de la obra de la línea, 82,5 %); `can` 1 en 85 %; `tot` =
+  round(`can`·`pre`, 2) 99,8 %; `pre` = `tar` y `dto` vacío 97,8 %; `pos` múltiplo de 64 96,3 %; `proide`, `paride`, `natide` 0
+  en 92-94 %.
+
+## M67 · Resto de diferencias con FR
+
+- `dcf`: `cla` 1001 100 %, `cueide` = `prv.cueide` 100 %, `pagide` = el del proveedor 97,9 %, `ctride` ≠ 0 en 1, `docoritip`
+  0; `almide`/`cenide` de la obra de cabecera 99,9 %.
+- `consii` 100 %: A0/F1/01 2.702; `claope` 09 29; `tipcom` A1 5. `pag cla 0` en el 100 %, **`cla 2` en ninguna**; las 37 de
+  COMGG, `est` 1 PDT y sin remesa.
+- `dcfrec` en 132 (4,8 %), **todas `reccla` 3 (IRPF)**: 15 % 110, 19 % 22; `bas` = `totbas` en 96. Ninguna de garantía.
+- IVA de la línea: I21 6.303, I10 1.088, i0 293, i4 48, I21NDED 31, IE21 29, D2006-112 17, ISP21 16, I10NDED 14, ie0 1.
+- FRGG26 con líneas de albarán: 135 (904 líneas), con cuenta y analítica en 903.
+
+## M68 · Cobertura de FRGG (FRGG26, `emp 1`)
+
+De 2.728: con orígenes 139, abonos 101, IRPF 127, SII distinto de A0/01 30, IVA fuera de {I21, I10, i4, i0, ISP21, I21NDED,
+I10NDED} 42, alguna línea sin analítica o con cuenta que no es 6xxx 71 (se solapan). **Cubiertas: 2.251 (82,5 %).**
+
+## V7 (nueva)
+
+- **V7:** si una FRGG dada de alta por la API en RECGG pasa «Comprobar» y «Contabilizar» con la cuenta y la analítica que
+  mandó el llamante, y el asiento lleva la cuenta al debe como en M65.
