@@ -91,7 +91,7 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
 7. **Dos commits agrupan tareas** (hallazgo H1 de C1C2C5; no se reescribe la historia): `517ddd2` lleva T9 y T10
    (lecturas y reserva de `cod`, en el mismo módulo y con el mismo RED de importación) y `1da3d67` lleva T12, T13 y
    T14 (inserciones, marcas y relectura: una sola transacción, cuyos tests en rojo son comunes, ver la tabla RED). Son 18
-   commits para 21 tareas. Pendiente de que el humano la acepte por escrito.
+   commits para 21 tareas. **Aceptada por el humano el 2026-10-31** («ok a las 2», condición C1 de `review_F-008.md`).
 
 ## Fase RED (salida real del primer intento con `python -m pytest -q tests/<fichero>`)
 
@@ -128,7 +128,21 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
 Mutantes de las líneas nuevas, aplicados y medidos uno a uno (sin relanzar la campaña): `paride is not None and
 partida is None` → `or`, `paride is None` y `partida is not None`: **los tres muertos** (exit 1). El PDT y el cambio de
 orden no añaden operadores mutables: si se quita el PDT de `necesarios` o se vuelve al orden anterior, fallan los tests
-de arriba. Documentos (sin código): `4824027` (`current.md`), `7438910` (`verificacion_manual.md`) y `92067d9` en
+de arriba.
+
+**R16b, decisión del humano del 2026-10-31 (C2 de `review_F-008.md`):** un origen sin ninguna línea de `can` ≠ 0 →
+`origen_sin_lineas` (`details.origenes`), dentro de `_lineas_de_origen`, que corre en la previa y otra vez bajo
+`UPDLOCK`; va antes que `origen_ya_facturado` (es del origen, no de una línea). Commits `e2bc1f4` (código y 6 tests),
+`1b9f266` (R16b en `requirements.md`) y `f3f6474` en `azure-apps` (§8.11). RED (`python -m pytest -q
+tests/test_f008_use_case.py tests/test_f008_transaccion.py -k "r16b or origen_sin_lineas"`): `6 failed`, con
+`Failed: DID NOT RAISE FacturaError` (dos orígenes, uno vacío: la previa salía bien) y
+`AssertionError: assert ('totales_no_cuadran' == 'origen_sin_lineas'` / `'origen_ya_facturado' == 'origen_sin_lineas'`.
+Los tests de commit comprueban que no se abre la transacción ni se escribe nada (y, bajo bloqueo, ROLLBACK intacto).
+Mutantes de las líneas nuevas, uno a uno (`pytest -q -x tests -k f008`): `if not float(can or 0)`, `or 1`, `and 0`,
+`if True`, `in por_origen`, `if not vacios`, `if False`: **7 de 7 muertos** (exit 1). Restaurados copiando la copia
+previa; `python -m harness.mutacion --restaurar` confirma «no quedó ningún mutante aplicado».
+
+Documentos (sin código): `4824027` (`current.md`), `7438910` (`verificacion_manual.md`) y `92067d9` en
 `azure-apps` (§8.11, solo `sigrid_api.md`).
 
 ## Verificaciones MANUAL pendientes (del humano, tras la revisión T21)
@@ -148,25 +162,24 @@ de arriba. Documentos (sin código): `4824027` (`current.md`), `7438910` (`verif
   - sacar la factura de REC.
 - **Cambio ajeno en `azure-apps/sigrid_api.md`:** había una fila de Application Insights sin commitear, de otra persona.
   No se ha tocado ni incluido en `a2127a6`, y sigue en el árbol de ese repositorio.
-- **No tocado en la ronda T21, por encargo:** el origen con todas sus líneas a `can` 0 (O1 de `logica_lectura`, decide
-  el humano) y las demás observaciones no bloqueantes. El hallazgo 6 de `docs` (códigos de línea y
+- **No tocado en la ronda T21, por encargo:** las observaciones no bloqueantes (O1 ya no: el humano decidió, R16b). El hallazgo 6 de `docs` (códigos de línea y
   `SIGRID_ALBARAN_EMPRESAS_OBRA` en §8.11) se hizo después, en `azure-apps` `654e7fd`, cotejado con el código.
 - **Sin datos reales:** ningún nombre de persona, proveedor ni CIF real en código, tests, specs ni progress. Los del
   doble son ficticios.
 
 ## Evidencias
 
-Medido sobre el código de `215aff4` (el último commit con código de la ronda T21; los posteriores son documentos).
+Medido sobre el código de `e2bc1f4` (el último commit con código; los posteriores son documentos).
 
 | Evidencia | Valor medido |
 |---|---|
-| Tests ejecutados (suite completa, `bash harness/init.sh`) | **4211 passed, 1 skipped**, 0 fallos |
-| Tests de F-008 (`pytest tests -k f008`) | 418 passed (411 + 7 de la ronda T21) |
-| Cobertura de las líneas cambiadas | `PUERTA COBERTURA: 99.3% de 1201 líneas cambiadas cubiertas (1192/1201, umbral 80%, nivel critico)` |
+| Tests ejecutados (suite completa, `bash harness/init.sh`) | **4217 passed, 1 skipped**, 0 fallos |
+| Tests de F-008 (`pytest tests -k f008`) | 424 passed (411 + 7 de la ronda T21 + 6 de R16b) |
+| Cobertura de las líneas cambiadas | `PUERTA COBERTURA: 99.3% de 1203 líneas cambiadas cubiertas (1194/1203, umbral 80%, nivel critico)` |
 | Mutantes generados / muertos / supervivientes | 568 / 467 / 101 (campaña entera, `--workers 1`, 17.936 s, HEAD `eba243e`) |
 | Supervivientes tras el análisis | **0**: 82 con test nuevo, 3 falsos positivos, 16 de código muerto quitado (todo medido) |
-| Mutantes de la ronda T21 (manuales, uno a uno) | 4 aplicados, **4 muertos** (los tres de `paride` y quitar el PDT de `necesarios`) |
-| Tiempo de la suite | 75,98 s (`4211 passed, 1 skipped, 1 warning in 75.98s`) |
+| Mutantes de la ronda T21 (manuales, uno a uno) | 11 aplicados, **11 muertos** (3 de `paride`, el PDT de `necesarios`, 7 de R16b) |
+| Tiempo de la suite | 276,07 s (`4217 passed, 1 skipped, 1 warning in 276.07s`; la máquina iba cargada: antes, 73-76 s) |
 | `bash harness/init.sh` | `ENTORNO LISTO. Puedes trabajar.` (ruff: 104 avisos de deuda previa, no bloquea; tamaño impl 170/220) |
 
 - **Detalle de los 101 supervivientes:** en [`mutacion_F-008.md`](mutacion_F-008.md).

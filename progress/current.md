@@ -10,8 +10,8 @@ Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `A
 Rama `feature/F-008-registrar-factura`. Spec **v3.1** aprobada por el humano el 2026-10-30 (P1-P21, design §9);
 medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer terminado (T0-T20)**; informe, decisiones y
 desviaciones en [`impl_F-008.md`](impl_F-008.md). T21 (revisión troceada, siete trozos): mutación APROBADA, los otros
-seis pedían cambios, ya corregidos (ronda en `impl_F-008.md`); falta la pasada 2. Pendiente de decisión del humano: un
-origen cuyas líneas son todas `can` 0 (observación O1 de `review_F-008_logica_lectura.md`). Manuales tras la revisión,
+seis pedían cambios, ya corregidos (ronda en `impl_F-008.md`); falta la pasada 2. El humano decidió el 2026-10-31 («ok a
+las 2»): acepta los commits agrupados T9-T10 y T12-T14, y un origen sin líneas de `can` ≠ 0 se rechaza (R16b, hecho). Manuales tras la revisión,
 con su guion y comandos exactos en
 [`verificacion_manual.md`](../specs/F-008-registrar-factura/verificacion_manual.md): T22 permisos de `user_rw`
 (humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa por llamada.
