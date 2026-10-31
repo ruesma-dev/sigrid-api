@@ -191,6 +191,24 @@ def test_f008_r15_linea_facturada_por_el_escritorio_bajo_bloqueo() -> None:
     _intacto_salvo_linea(repo)
 
 
+def test_f008_r16b_origen_que_se_queda_sin_lineas_bajo_bloqueo() -> None:
+    """R16b releido bajo `UPDLOCK`: la linea pasa a `can` 0 entre la previa y el bloqueo."""
+    repo = _antes(_repo(), "bloquear_lineas", lambda m: m.lineas[0].update(can=0.0))
+    e = _error_commit(repo)
+    assert e.codigo == "origen_sin_lineas" and e.details["origenes"] == ["AC26/1"]
+    _intacto(repo)
+    assert repo.mundo.origenes[800]["est"] == 3
+
+
+def test_f008_r16b_con_commit_no_se_escribe_nada() -> None:
+    repo = _repo()
+    repo.mundo.lineas[0].update(can=0.0)
+    assert _error_commit(repo).codigo == "origen_sin_lineas"
+    _intacto(repo)
+    # Se rechaza antes de abrir la transaccion: ni bloqueos, ni reservas, ni marcas.
+    assert not [n for n in _nombres(repo) if n.startswith(("bloquear", "reservar", "marcar", "sumar"))]
+
+
 def _intacto_salvo_linea(repo: Repositorio) -> None:
     assert repo.mundo.insertadas == {} and repo.mundo.dca == Mundo().dca
 

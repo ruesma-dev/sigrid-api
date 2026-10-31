@@ -357,6 +357,41 @@ def test_f008_r15_la_linea_de_can_cero_no_cuenta() -> None:
     assert r["estado"] == "previsto"
 
 
+def _sin_lineas_en_801(repo: Repositorio) -> Repositorio:
+    """AC26/2 con su unica linea a `can` 0: no tiene nada que facturar."""
+    repo.mundo.lineas[2].update(can=0.0, tot=0.0, ivacuo=0.0)
+    return repo
+
+
+def test_f008_r16b_origen_sin_lineas_con_can_distinta_de_cero() -> None:
+    """R16b (humano, 2026-10-31): un origen sin ninguna linea de `can` != 0 se rechaza,
+    aunque los demas origenes si tengan; no se marcaria facturado sin facturar nada."""
+    repo = _sin_lineas_en_801(Repositorio())
+    e = _error(repo, origenes=["AC26/1", "AC26/2"])
+    assert e.codigo == "origen_sin_lineas" and e.details["origenes"] == ["AC26/2"]
+    assert repo.transaccion is None
+
+
+def test_f008_r16b_origen_sin_ninguna_linea() -> None:
+    repo = Repositorio()
+    del repo.mundo.lineas[2]
+    e = _error(repo, origenes=["AC26/1", "AC26/2"])
+    assert e.codigo == "origen_sin_lineas" and e.details["origenes"] == ["AC26/2"]
+
+
+def test_f008_r16b_el_unico_origen_sin_lineas() -> None:
+    repo = Repositorio()
+    repo.mundo.lineas[0].update(can=0.0)
+    e = _error(repo)
+    assert e.codigo == "origen_sin_lineas" and e.details["origenes"] == ["AC26/1"]
+
+
+def test_f008_orden_origen_sin_lineas_antes_que_ya_facturado() -> None:
+    repo = _sin_lineas_en_801(Repositorio())
+    repo.mundo.lineas[0]["canfac"] = 2.0
+    assert _error(repo, origenes=["AC26/1", "AC26/2"]).codigo == "origen_sin_lineas"
+
+
 def test_f008_r18_modo_no_coincide_y_modos_distintos() -> None:
     assert _error(modo="origen", a_origen=[]).codigo == "modo_no_coincide_con_origen"
     assert _error(origenes=["PROF26/1"]).codigo == "modo_no_coincide_con_origen"

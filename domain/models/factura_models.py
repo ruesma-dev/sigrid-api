@@ -40,6 +40,7 @@ CODIGOS_FACTURA: frozenset[str] = frozenset({
     "origen_de_otro_proveedor",
     "origen_sin_contabilizar",
     "origen_ya_facturado",
+    "origen_sin_lineas",
     "modo_no_coincide_con_origen",
     "origenes_de_modos_distintos",
     "a_origen_incompleto",

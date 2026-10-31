@@ -623,16 +623,22 @@ class CreateFacturaUseCase:
         lineas: Sequence[dict[str, Any]], facturadas: set[int], anteriores: Mapping[int, dict[str, Any]],
     ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
         """R15-R17, R19-R22: TODAS las de `can` != 0 de cada origen, en el orden
-        de `origenes` y `pos`; ninguna ya facturada; a origen, comparadas."""
+        de `origenes` y `pos`; ninguna ya facturada; a origen, comparadas. R16b:
+        un origen sin ninguna de `can` != 0 se rechaza (marcarlo FAC no facturaria nada)."""
         por_origen: dict[int, list[dict[str, Any]]] = {}
         for fila in lineas:
-            por_origen.setdefault(_entero(fila["docide"]), []).append(fila)
+            if float(fila["can"] or 0):
+                por_origen.setdefault(_entero(fila["docide"]), []).append(fila)
+        vacios = [str(o["cod"]).strip() for o in origenes if _entero(o["ide"]) not in por_origen]
+        if vacios:
+            raise FacturaError(
+                f"{len(vacios)} origen(es) sin ninguna linea de cantidad distinta de cero.",
+                codigo="origen_sin_lineas", details={"origenes": vacios},
+            )
         resultado: list[tuple[dict[str, Any], dict[str, Any]]] = []
         ya: list[int] = []
         for origen in origenes:
-            for dcapro in por_origen.get(_entero(origen["ide"]), []):
-                if not float(dcapro["can"] or 0):
-                    continue
+            for dcapro in por_origen[_entero(origen["ide"])]:
                 if float(dcapro["canfac"] or 0) or _entero(dcapro["ide"]) in facturadas:
                     ya.append(_entero(dcapro["ide"]))
                     continue
