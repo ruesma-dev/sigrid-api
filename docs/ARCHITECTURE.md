@@ -30,8 +30,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
-  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007; a origen, F-016), `documents/read`,
-  `diagnostics/tcp`.
+  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007; a origen, F-016),
+  `sigrid/factura` (F-008), `documents/read`, `diagnostics/tcp`.
   `build_dependencies()` devuelve una tupla de **ocho** posiciones (la 6 es el
   albarán clásico y la 7 el modo extendido, F-009); las rutas que no la usan
   entera la desempaquetan igual.
@@ -42,7 +42,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
     `sigrid/albaran`, F-009), `concepto_grafico_models` (adjuntar documentos),
     `parte_reclamacion_models` (alta en lote de partes de Posventa),
     `proforma_models` (proforma de mes, F-007), `proforma_origen_models`
-    (códigos y respuesta de la proforma a origen, F-016).
+    (códigos y respuesta de la proforma a origen, F-016), `factura_models`
+    (factura de compra FR y FRGG, F-008).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
@@ -54,7 +55,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   constructor puro de sentencias `parte_reclamacion_statements`),
   `create_proforma_use_case` (subclase del modo extendido, con su constructor
   puro `proforma_statements`; F-007; y `proforma_origen_statements` para el
-  modo a origen, F-016).
+  modo a origen, F-016), `create_factura_use_case` (alta de factura de compra, con
+  los puros `factura_statements` y `factura_lineas`; F-008).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
@@ -64,7 +66,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   `exc.errors()` pasado por `json.dumps(..., default=str)`, de modo que lo no
   serializable (la excepción de una regla con mensaje propio, en `ctx.error`)
   sale como texto en vez de un 500 y lo demás sale idéntico. No traza: la traza
-  de cada `except ValidationError` sigue en su ruta.
+  de cada `except ValidationError` sigue en su ruta. `sigrid/factura` (F-008) construye
+  el suyo con la misma forma pero sin `input` ni `ctx` (sin eco de valores, su R1).
 - **`config/settings.py`** — `Settings` (pydantic-settings) leído de `.env` en
   local y de App Settings en Azure.
 
@@ -223,6 +226,44 @@ una es del llamante (`proformas`), que lee Sigrid por `sql/read`
   `commit` y `modo: "origen"`, después de la de F-007 y antes del caso de uso. La
   traza añade `modo`, `primera_de_cadena`, la anterior y los nº de continuadas y
   arrastradas.
+
+### `sigrid/factura` (F-008): alta de la factura de compra, sin contabilidad
+
+Da de alta UNA factura de compra **FR** (en REC, `cod` `FR<aa>/` + 5 cifras) o **FRGG**
+(en RECGG, `FRGG<aa>/` + 4 cifras) con lo que arrastra el alta del escritorio: `con`
+15, `dcf` (`cla` 1001, `synckey` = `referencia_externa`), `dcfpro` ×N, `dcfrec` ×0-1,
+`con` 25 + `pag` por vencimiento (y el `pag cla 2` de la garantía), `consii`, `log` y,
+con orígenes, `dcaprodes` y las marcas de los albaranes o proformas (`dcapro.canfac`,
+`dca.estfac`/`fecfac`/`horfac`/`antestfac`, `con.est` CON → FAC, `ctrpro.canfac` y
+`ctr.estfac`). **No** escribe asiento, `regiva`, `regirp`, `mov`, `dcfproana`,
+`dcfpropar`, `dcfprodes`, `dcfproimp` ni `confir`, ni saca la factura de su estado
+inicial, ni borra nada: «Comprobar» y «Contabilizar» siguen en el escritorio (P1).
+La API **registra y valida; no deduce**: serie, modo, `a_origen`, vencimientos,
+cuentas y analíticas los manda el llamante.
+
+- *domain*: `factura_models` — `FacturaRequest` (`extra="forbid"`, números estrictos;
+  campos de línea por serie: FR `producto`/`partida`/`paride`/`unidad`, FRGG
+  `cuenta`/`analitica`), `FacturaError` con `codigo` y `details`, `FacturaResultado`.
+- *application*: `factura_lineas` (puro: línea de origen copiada de su `dcapro`, de mes
+  o a origen por la regla de M63, comparación con `a_origen`; un solo constructor de
+  línea sin origen con dos resolvedores, FR con las reglas de F-009 y FRGG con cuenta y
+  analítica hoja; vencimientos), `factura_statements` (listas blancas de T0,
+  constructores de filas, numeración y todo el SQL constante con `?`, validado con
+  `DatabaseReferenceGuard`) y `create_factura_use_case` (orden de validación de design
+  §7; idempotencia por `synckey` antes que los orígenes; previa solo con lecturas).
+- **Transacción**: `run_in_write_transaction` con applocks en orden fijo
+  (`SIGRID_REFEXT_15`, `SIGRID_SERIE_15`, `SIGRID_IDE_con`, `_dcfpro`, `_dcaprodes`,
+  `_dcfrec`, `_pag`, `_consii`, `_log`); dentro, reentrante: idempotencia y duplicadas
+  otra vez, orígenes y sus líneas releídos con `UPDLOCK, HOLDLOCK` (y R14, R15, R22,
+  totales y vencimientos otra vez), reserva de `cod` e `ide` (`pag` comparte `ide` con
+  su `con`), `INSERT`s por lista blanca, `UPDATE`s condicionados y relectura de cada
+  fila y cada marca antes del COMMIT (`NOCOUNT ON`: no se fía de `rowcount`).
+- **Ruta**: llave propia `SIGRID_FACTURA_WRITE_ENABLED` (defecto `false`), tras validar
+  el cuerpo y antes del caso de uso; ninguna otra la abre. Su 400 de validación es el
+  de F-012 **sin** `input` ni `ctx` (R1: sin eco de CIF, número ni importes). La traza
+  lleva obra, prefijo, `usu`, serie, modo, `commit`, estado, `cod`, nº de líneas por
+  clase y de vencimientos, códigos y duración; nunca textos, CIF, número, cuentas ni
+  importes.
 
 ## Semántica de dominio imprescindible
 

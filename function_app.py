@@ -15,6 +15,7 @@ from application.use_cases.attach_concepto_grafico_use_case import (
 )
 from application.use_cases.create_albaran_compra_use_case import CreateAlbaranCompraUseCase
 from application.use_cases.create_direct_albaran_use_case import CreateDirectAlbaranUseCase
+from application.use_cases.create_factura_use_case import CreateFacturaUseCase
 from application.use_cases.create_partes_reclamacion_use_case import (
     CreatePartesReclamacionUseCase,
 )
@@ -36,6 +37,7 @@ from domain.models.concepto_grafico_models import (
     ConceptoGraficoError,
 )
 from domain.models.document_models import BaseNoPermitidaError, DocumentoAmbiguoError
+from domain.models.factura_models import FacturaError, FacturaRequest
 from domain.models.parte_reclamacion_models import (
     CreatePartesReclamacionRequest,
     ParteReclamacionError,
@@ -387,6 +389,93 @@ def _exigir_escritura_de_proformas_origen(settings: Settings, request: ProformaR
             "no se ha escrito nada.",
             codigo="escritura_proformas_origen_deshabilitada",
         )
+
+
+@app.route(route="sigrid/factura", methods=["POST"])
+def sigrid_factura(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Alta de UNA factura de compra FR o FRGG (F-008) en su estado inicial (REC o
+    RECGG), SIN contabilidad: escribe `con`, `dcf`, `dcfpro`, `dcfrec`, los
+    pagos (`con` 25 + `pag`), `consii`, `dcaprodes`, `log` y las marcas de sus
+    albaranes o proformas de origen. El asiento, `regiva` y `regirp` los hace
+    «Contabilizar» en el escritorio. La API registra y valida; no deduce: serie,
+    modo, a origen, vencimientos, cuentas y analiticas los manda el llamante.
+
+    DRY-RUN por defecto (commit=false). El commit exige SIGRID_FACTURA_WRITE_ENABLED
+    (R4), comprobada aqui despues de validar el cuerpo y antes del caso de uso;
+    ninguna otra llave la abre. Los fallos de negocio son 400 con
+    `details.codigo` (y lo que lleven: `lineas`, cifras); el cuerpo invalido,
+    400 «Solicitud invalida.» sin eco de valores.
+    """
+    try:
+        deps = build_dependencies()
+        settings, repository = deps[0], deps[1]
+        body = req.get_json()
+        try:
+            request_model = FacturaRequest.model_validate(body)
+        except ValidationError as exc:
+            # Donde y que fallo, nunca los valores (R1, R46).
+            logger.warning(
+                "ValidationError en sigrid/factura: %s",
+                [(error["loc"], error["type"]) for error in exc.errors()],
+            )
+            return _respuesta_factura_invalida(exc)
+        _exigir_escritura_de_facturas(settings, request_model.commit)
+        use_case = CreateFacturaUseCase(repository, settings)
+        return json_response(use_case.run(request_model))
+    except FacturaError as exc:
+        return _respuesta_factura_error(exc)
+    except ValueError as exc:
+        logger.warning("ValueError en sigrid/factura: %s", type(exc).__name__)
+        return error_response(str(exc), status_code=400, details={"type": type(exc).__name__})
+    except Exception as exc:
+        logger.exception("Error inesperado en sigrid/factura")
+        return error_response(
+            "Error interno ejecutando sigrid/factura.",
+            status_code=500,
+            details={"type": type(exc).__name__, "exception": str(exc)},
+        )
+
+
+def _respuesta_factura_invalida(exc: ValidationError) -> func.HttpResponse:
+    """R1: el 400 «Solicitud invalida.» de F-012 SIN eco de valores: de cada error,
+    donde (`loc`), que (`type`) y su mensaje (`msg`); nunca `input` ni `ctx`, que
+    repetirian CIF, numero, importes o el cuerpo entero (un `model_validator`)."""
+    return error_response(
+        "Solicitud invalida.",
+        status_code=400,
+        details={
+            "type": type(exc).__name__,
+            "validation": [
+                {"loc": list(error["loc"]), "type": error["type"], "msg": str(error["msg"])}
+                for error in exc.errors()
+            ],
+        },
+    )
+
+
+def _exigir_escritura_de_facturas(settings: Settings, commit: bool) -> None:
+    """R4: la llave propia del commit de sigrid/factura, despues de validar el
+    cuerpo y ANTES del caso de uso. Ninguna otra la abre; la previa no la mira."""
+    if commit and not settings.sigrid_factura_write_enabled:
+        raise FacturaError(
+            "Escritura de facturas desactivada (SIGRID_FACTURA_WRITE_ENABLED=false): "
+            "no se ha escrito nada.",
+            codigo="escritura_facturas_deshabilitada",
+        )
+
+
+def _respuesta_factura_error(exc: FacturaError) -> func.HttpResponse:
+    """R44: 400 con `details.codigo` y sus detalles. Se trazan solo los codigos
+    (R46): mensajes y detalles pueden citar valores de la peticion."""
+    lineas = exc.details.get("lineas", []) if exc.codigo == "lineas_no_validas" else []
+    logger.warning(
+        "FacturaError en sigrid/factura: codigo=%s lineas=%s",
+        exc.codigo,
+        [(fallo["indice"], fallo["codigo"]) for fallo in lineas],
+    )
+    details: dict[str, Any] = {**exc.details, "type": type(exc).__name__, "codigo": exc.codigo}
+    return error_response(str(exc), status_code=400, details=details)
 
 
 @app.route(route="sigrid/albaran-directo", methods=["POST"])
