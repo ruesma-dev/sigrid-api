@@ -47,6 +47,7 @@ R14. SI un origen no está en CON (contra `conest`) o no tiene asiento `tip 20` 
 `origen_sin_contabilizar` (P4).
 R15. SI una línea de origen con `can` ≠ 0 tiene `canfac` ≠ 0 o `dcaprodes` a un `tip 15`, ENTONCES `origen_ya_facturado`.
 R16. El sistema debe facturar **todas** las líneas con `can` ≠ 0 de cada origen; las de `can` 0 no pasan y quedan con `canfac` 0.
+R16b. SI un origen no tiene ninguna línea con `can` ≠ 0, ENTONCES `origen_sin_lineas`, también bajo bloqueo (humano, 2026-10-31).
 R17. El sistema debe copiar cada línea de origen de su `dcapro` (`proide`, `can`, `pre`, `tar`, `dto`, `tot`, `ivaide`, `ivacuo`,
 `cenide`, `caaide`, `paride`, `natide`, `almide`, `obride`, `res`, `tex`, `cod2`, `unimed`, `prepma`, `dncide`, `dncproide`) sin
 recalcularla, con `docoritip` 14, `docoricod`, `docoriide`, `linoriide` y `canorilin` 0.
