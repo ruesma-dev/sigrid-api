@@ -150,7 +150,7 @@ Lecturas tras G1 y G2 (`<ide>` = `con_ide` de la respuesta):
 ```powershell
 Fila "SELECT c.cod, c.est, d.synckey, d.totbas, d.totiva, d.totdoc, d.tot FROM dbo.con c JOIN dbo.dcf d ON d.ide = c.ide WHERE c.ide = ?" @(<ide>)
 Leer "SELECT pos, docoritip, docoriide, linoriide, can, tot, cueide, caaide FROM dbo.dcfpro WHERE docide = ? ORDER BY pos" @(<ide>)
-Leer "SELECT p.ide, p.cla, p.fecven, p.tot, p.remide, p.fecrea FROM dbo.pag p JOIN dbo.con c ON c.ide = p.ide WHERE p.docide = ? AND c.tip = 25" @(<ide>)
+Leer "SELECT p.ide, p.cla, p.fecven, p.tot, p.remide, p.fecrea FROM dbo.pag p JOIN dbo.con c ON c.ide = p.ide WHERE p.conide = ? AND c.tip = 25" @(<ide>)
 Leer "SELECT COUNT(*) FROM dbo.dcfrec WHERE docide = ?" @(<ide>)
 Leer "SELECT COUNT(*) FROM dbo.consii WHERE conide = ?" @(<ide>)
 Leer "SELECT COUNT(*) FROM dbo.dcaprodes WHERE docdeside = ? AND docdestip = 15" @(<ide>)
