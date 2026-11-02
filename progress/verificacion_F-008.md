@@ -50,4 +50,22 @@ rechazaría en FR. Para P4 se eligió una con producto.
 
 ## T24 · Grabaciones
 
-Pendiente: G1 (FR en la 0404) y G2 (FRGG), cada una con autorización expresa del humano.
+**Cambio de obra de G1 (humano, 2026-11-02):** la 0404 no tiene orígenes contabilizados (sus siete pendientes están en
+PDT), así que el humano pidió un albarán real de una obra entre la 0400 y la 0499. Elegido el albarán 2035935
+(`AC22/15438`, obra 0444, una línea, sin contrato, sin abono que lo compense).
+
+**G1 (autorización expresa, 2026-11-02):** previa `previsto` con C0 igual. Llave abierta por `@json` (D4 dio
+`referencia_no_permitida`: abierta y sin escribir), y con `commit:true` **`creado`**: `FR26/11425` (`con_ide` 2865222),
+FR mixta, base 68,46, IVA 14,38, total 82,84 (`impbru` 74,95: la línea del albarán trae dto y se copia tal cual).
+- **Repetición:** solo en previa (`commit:false`): `idempotente`, mismo `cod` y `con_ide`, C0 igual. El `commit:true`
+  repetido lo bloqueó el clasificador de la sesión y no se insistió (como en F-018 T20).
+- **Llave cerrada** al acabar (`false` por `@json`, releída) y D4 de nuevo `escritura_facturas_deshabilitada`.
+- **Lecturas:** factura en REC (`est` 1), `synckey` = la referencia; dos `dcfpro` (la del albarán con su `linoriide` y
+  la `MA9999` con cuenta `6000000000`); un pago `FR26/11425_01` en PDT, 82,84 a 20261202, `remide` 0 y `fecrea` 0;
+  `dcfrec` 0, `consii` 1, `dcaprodes` 1; en el albarán `canfac` = `can`, `estfac` 1, `antestfac` 3, `con.est` FAC (10);
+  `regiva` 0.
+
+**G2 (pendiente de autorización):** previa `previsto`, `FRGG26/2732` provisional, C0 igual: una línea de 10 € con IVA
+I21, la cuenta `6214000002` y la analítica `CP.MAL040002` de la FRGG 2864690; totales 10 / 2,1 / 12,1.
+
+**Pendiente en el escritorio:** V2, V6, V3 y V4 sobre G1 (y V7 sobre G2 cuando exista).
