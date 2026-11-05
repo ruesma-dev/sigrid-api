@@ -65,7 +65,17 @@ FR mixta, base 68,46, IVA 14,38, total 82,84 (`impbru` 74,95: la línea del alba
   `dcfrec` 0, `consii` 1, `dcaprodes` 1; en el albarán `canfac` = `can`, `estfac` 1, `antestfac` 3, `con.est` FAC (10);
   `regiva` 0.
 
-**G2 (pendiente de autorización):** previa `previsto`, `FRGG26/2732` provisional, C0 igual: una línea de 10 € con IVA
-I21, la cuenta `6214000002` y la analítica `CP.MAL040002` de la FRGG 2864690; totales 10 / 2,1 / 12,1.
+**G2 (autorización expresa, 2026-11-05):** previa del 2026-11-02 `previsto` (`FRGG26/2732` provisional, C0 igual): una
+línea de 10 € con IVA I21, la cuenta `6214000002` y la analítica `CP.MAL040002` de la FRGG 2864690; totales 10 / 2,1 /
+12,1. D4 con la llave cerrada, `escritura_facturas_deshabilitada`. El clasificador de la sesión bloqueó abrir la llave
+al líder: la abrió el humano (por `@json`, releída `true`) y D4 dio `referencia_no_permitida`. Con `commit:true`,
+**`creado`**: `FRGG26/2772` (`con_ide` 2868882; el número cambió porque entre la previa y el alta se registraron otras
+FRGG, como prevé el aviso `cod_provisional`).
+- **Repetición:** en previa, `idempotente`, mismo `cod` y `con_ide`, C0 igual.
+- **Llave cerrada** al acabar (`false`, releída) y D4 de nuevo `escritura_facturas_deshabilitada`.
+- **Lecturas:** factura en RECGG (`est` 20), `fec` 20261105 (día del alta) y `fecdoc` 20261102 (`fecha_factura`),
+  `synckey` = la referencia, `entref` = el número, obra CP; un `dcfpro` con `proide` 0, `natide` 0 y cuenta, IVA y
+  analítica las mandadas, `tot` 10 e `ivacuo` 2,1; un pago `FRGG26/2772_01` en PDT, 12,1 a 20261202, `remide` 0 y
+  `fecrea` 0; `dcfrec` 0, sin asiento y `regiva` 0.
 
-**Pendiente en el escritorio:** V2, V6, V3 y V4 sobre G1 (y V7 sobre G2 cuando exista).
+**Pendiente en el escritorio:** V2, V6, V3 y V4 sobre G1 (`FR26/11425`) y V7 sobre G2 (`FRGG26/2772`).
