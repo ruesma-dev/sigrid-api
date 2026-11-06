@@ -22,8 +22,7 @@ el forzado pasa a ser **por empresa** (`"<emp>:<producto>"`) y vive en App Setti
   ficha (`pro.natide`). Valen la validez y la analítica de F-009 R13b y R15. Aplica a FR y a `sigrid/albaran`.
 - **R50**: un producto no forzado cuya ficha no trae naturaleza o trae una no válida da `naturaleza_no_valida` (mismo código).
   El mensaje dice si venía del forzado o de la ficha.
-- **R51**: `sigrid/proforma` y `albaran-directo` no cambian. **R52**: la línea FR con cuenta funciona como la FRGG.
-- **R53**: una clave forzada que coincide da lo mismo que daba el mapeo viejo. Para los no forzados se lee la ficha.
+- **R51**: proforma y `albaran-directo` no cambian. **R52**: FR con cuenta, como FRGG. **R53**: el forzado da lo del mapeo viejo.
 - **R54**: App Settings nuevas `SIGRID_FACTURA_NATURALEZA_FORZADA` y `SIGRID_ALBARAN_NATURALEZA_FORZADA` (`{}` por defecto).
   Se dejan de leer las dos `_NATURALEZA_POR_PRODUCTO`: si siguen en Azure, se ignoran y la app arranca.
   Validación: una clave mal formada (emp no entero o ≤ 0, producto vacío, con espacios o de más de 24), un valor vacío o claves
@@ -46,8 +45,7 @@ el forzado pasa a ser **por empresa** (`"<emp>:<producto>"`) y vive en App Setti
   - una función pura, `naturalezas_elegidas`;
   - el validador `parse_naturaleza_forzada` en `config/settings.py`.
 - **Quién la usa**: `_Catalogo._leer_naturalezas` en albaranes, con `PerfilAlta.naturaleza_de_ficha` (solo `PERFIL_ALBARAN`), y
-  `_lecturas_fr` en facturas. En FR, el resolvedor se elige por línea.
-- **Lo que no hay**: escrituras nuevas, cambios en `infrastructure/security/`.
+  `_lecturas_fr` en facturas. En FR, el resolvedor se elige por línea. Sin escrituras nuevas ni tocar `infrastructure/security/`.
 
 ## Tareas (`tasks.md`)
 
@@ -62,8 +60,7 @@ T36 `init.sh`.
   obras con albaranes de 2026, 57 tienen `<obra>.CDSB37` y 57 `<obra>.CDMA15`, y ninguna tiene la primera sin la segunda: no
   aparece ningún `analitica_no_resuelta` nuevo. Las empresas 31 y 34 no tienen albaranes en 2026.
 - **M77**: la empresa 34 no tiene FR de 2026 con obra. Su ficha de `SM370001` es `SM08`, que lleva la misma cuenta
-  (`6060000000`) que `SM37` y `MOD.CDSM08`.
-- M75 es la medición del líder que venía en el encargo.
+  (`6060000000`) que `SM37` y `MOD.CDSM08`. (M75 es la del líder que venía en el encargo.)
 
 ## Riesgos
 
