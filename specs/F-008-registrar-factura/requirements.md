@@ -2,7 +2,7 @@
 # F-008 · Registrar facturas de compra FR y FRGG: alta sin contabilidad (v3.2)
 
 Rigor **critico**. Cifras de [`explore_F-008.md`](../../progress/explore_F-008.md) (M52-M74). v3.1: P11-P21 (2026-10-30). v3.2,
-**enmienda 1** (2026-11-06, de la verificación de G1): naturaleza de la ficha del producto y FR sin producto (R49-R53; `design.md`
+**enmienda 1** (2026-11-06, de la verificación de G1): naturaleza de la ficha del producto y FR sin producto (R49-R54; `design.md`
 §9). **Alta sin contabilidad** (P1): `con`, `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `log` y marcas de los orígenes; asiento,
 `regiva` y `regirp` los hace «Contabilizar» en el escritorio. Cobertura: **~95 %** de FR26 y **87,2 %** de FRGG26 (M74).
 **La API registra y valida; no deduce.** Serie, modo, a origen, vencimientos, cuentas y analíticas los decide el llamante.
@@ -87,8 +87,7 @@ R31. DONDE los orígenes lleven `dcarec`, el sistema debe escribir **una** `dcfr
 `bas` = `totbas` y `cuo` = round(`bas`·`valpor`, 2); recargos distintos o más de uno: `retencion_no_soportada`. Vale en las dos
 series (M71); sin `origenes`, sin retención (P20).
 
-R32. El sistema debe exigir `vencimientos` (1..12) con `fecha` (`AAAAMMDD`) e `importe` (> 0, 2 decimales), y escribir un `pag
-cla 0` por cada uno, en su orden, con `cod` `<cod>_NN`.
+R32. El sistema debe exigir `vencimientos` (1..12) con `fecha` (`AAAAMMDD`) e `importe` (> 0, 2 dec.): un `pag cla 0` por cada uno, en orden.
 R33. SI una `fecha` no es real, es anterior a `fecha_factura` o posterior a `fecha_factura` + 730 días, o dos se repiten,
 ENTONCES `vencimiento_no_valido` con su posición; SI Σ `importe` difiere de `totpag` en más de 0,01, ENTONCES
 `vencimientos_no_cuadran` con las dos cifras.
@@ -129,22 +128,23 @@ líneas por clase, nº de vencimientos, códigos, duración) y **nunca** textos,
 
 ## Compatibilidad y documentación
 
-R47. El sistema debe dejar sin cambios las rutas existentes salvo R49-R53 y el código de F-007 y F-016; de F-009 solo cambia la
-naturaleza de las sin vincular (R49-R51); debe arrancar con los ajustes nuevos ausentes y `SIGRID_FACTURA_WRITE_ENABLED` falsa.
+R47. El sistema debe dejar sin cambios las rutas existentes salvo R49-R54 y el código de F-007 y F-016; de F-009 solo cambia la
+naturaleza de las sin vincular (R49-R51, R54); debe arrancar con los ajustes nuevos ausentes y `SIGRID_FACTURA_WRITE_ENABLED` falsa.
 R48. `azure-apps/sigrid_api.md`, `docs/ARCHITECTURE.md`, el mapa de `CLAUDE.md` y, para R49-R50, `contrato_albaranes.md` de F-009
 (H34, avisando antes a `albaranes`) deben documentar la ruta, los ajustes, los applocks y lo que **no** hace, en el mismo trabajo.
 
 ## Enmienda 1: naturaleza de la ficha y FR sin producto (2026-11-06)
 
-R49. CUANDO una línea con producto necesite naturaleza (FR con `producto`, R25; sin vincular de `sigrid/albaran`, F-009 R13b), el
-sistema debe tomar la del mapeo de su ruta (`SIGRID_FACTURA_` o `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`) SI el producto está en
-él (forzado), y SI NO, la de su ficha (`pro.natide` del `ide` resuelto en la empresa de la obra), con las mismas reglas de validez
-y analítica de F-009 R13b y R15. La ficha solo se lee para los productos fuera del mapeo.
-R50. SI el producto está fuera del mapeo y su ficha no trae naturaleza (`natide` 0, NULL o sin `auxpronat`), o la elegida no es
-válida por R49, ENTONCES fallo de línea `naturaleza_no_valida` (mismo código y clase), con mensaje que diga si venía del mapeo o
-de la ficha; `analitica_no_resuelta` no cambia de significado.
+R49. CUANDO una línea con producto necesite naturaleza (FR, R25; sin vincular de `sigrid/albaran`, F-009 R13b), el sistema debe
+tomar la forzada de su ruta (R54) SI hay clave `<emp>:<producto>` con la empresa de la obra y ese producto, y SI NO, la de su
+ficha (`pro.natide` del `ide` resuelto en esa empresa), con la validez y analítica de F-009 R13b y R15.
+R50. SI no está forzado y la ficha no trae naturaleza (`natide` 0, NULL, sin `auxpronat`), o la elegida no es válida, ENTONCES
+`naturaleza_no_valida` (mismo código y clase), diciendo si venía del forzado o de la ficha; `analitica_no_resuelta`, igual.
 R51. El sistema debe dejar como están `sigrid/proforma` (F-007) y `sigrid/albaran-directo`: R49-R50 no les aplican (P22, P23).
 R52. En una línea FR con `cuenta` y `analitica`, el sistema debe aplicar R26-R27 tal cual; convive con líneas con producto y orígenes.
-R53. CUANDO el mapeo cubra el producto, el sistema debe dar los mismos `natide`, `cueide`, `caaide` y fallos que antes, en las dos rutas.
+R53. CUANDO una clave forzada coincida, el sistema debe dar lo que daba el mapeo viejo; la ficha solo se lee para los no forzados.
+R54. El sistema debe leer `SIGRID_FACTURA_` y `SIGRID_ALBARAN_NATURALEZA_FORZADA` (JSON, `{}` por defecto) e ignorar las viejas
+`_NATURALEZA_POR_PRODUCTO` (presentes, arranca); SI una clave no es `<emp>:<producto>` (emp entero > 0, producto 1-24 sin
+espacios), un valor sale vacío o dos claves coinciden tras normalizar, ENTONCES la validación de `Settings` falla.
 
-Criterios manuales: T22-T24 y T33 de `tasks.md` (permisos, previas, grabaciones y App Settings; V1-V7 de `explore_F-008.md`).
+Criterios manuales: T22-T24 y T34 de `tasks.md` (permisos, previas, grabaciones y App Settings; V1-V7 de `explore_F-008.md`).

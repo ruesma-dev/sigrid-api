@@ -18,9 +18,9 @@ con su guion y comandos exactos en
 
 **Enmienda 1 de la spec (v3.2, 2026-11-06, spec-author):** naturaleza de la ficha del producto (`pro.natide`) con el mapeo como
 forzado, en FR y en las sin vincular de `sigrid/albaran`, y FR sin producto (`cuenta` + `analitica`). R23, R25-R28, R47-R48
-cambian; R49-R53 nuevas; tareas T26-T35. Resumen, riesgos y preguntas en [`spec_F-008_enmienda1.md`](spec_F-008_enmienda1.md).
+cambian; R49-R54 nuevas (forzado por empresa en App Settings nuevas `_FORZADA`); tareas T26-T36. Resumen, riesgos y preguntas en [`spec_F-008_enmienda1.md`](spec_F-008_enmienda1.md).
 **El humano debe validar:** P22 (`albaran-directo` no usa el mapeo: recomendada no tocarla), P23 (proformas: recomendada
-igual que hoy) y reutilizar `naturaleza_no_valida` (D3). Antes de T32, avisar a la sesión de `albaranes` (cambia H34).
+igual que hoy) y reutilizar `naturaleza_no_valida` (D3). Avisar a la sesión de `albaranes` antes de T33 (contrato, cambia H34) y antes del despliegue (T34: desde ese momento manda la ficha).
 
 ## F-016 cerrada (2026-10-30)
 

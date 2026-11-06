@@ -12,7 +12,7 @@ Requisitos: [`requirements.md`](requirements.md). Mediciones: [`explore_F-008.md
 | ¿FRGG? | **Dentro, con y sin orígenes** (P11, P18). La cuenta de gasto es `dcfpro.cueide`, fijada **en el alta** y leída por «Contabilizar» (99,5 %, M65): en las líneas propias la manda el llamante con la analítica; las de albarán son idénticas a FR (M69). **No hay que escribir contabilidad** |
 | ¿Líneas? | De albaranes o proformas (copia de `dcapro`), del llamante (sin origen; FR con producto o con cuenta), o mixtas (M61, M71) |
 | ¿A origen y vencimientos? | Los manda el llamante; la API calcula por M63 y **compara** (P14) y valida vencimientos sin calcular (P12-P13) |
-| ¿Naturaleza? | Enmienda 1: la del mapeo si fuerza el producto; si no, la de la ficha (`pro.natide`), en FR y en `sigrid/albaran` |
+| ¿Naturaleza? | Enmienda 1: la forzada para `<emp>:<producto>` si la hay; si no, la de la ficha (`pro.natide`), en FR y en `sigrid/albaran` |
 
 ## 2. Encaje en la arquitectura
 
@@ -42,17 +42,17 @@ prefijo y `usu` (P15: al desplegar, solo `facturas`).
 | Ruta | Cambio |
 |---|---|
 | `function_app.py` | Ruta `sigrid/factura`, `_exigir_escritura_de_facturas`, manejo de `FacturaError` |
-| `config/settings.py` | `SIGRID_FACTURA_WRITE_ENABLED` (False), `_PREFIJOS_REFERENCIA` ([]), `_MAX_LINEAS` (500), `_PRODUCTOS_SIN_ORIGEN` ([]), `_NATURALEZA_POR_PRODUCTO` ({}), `_IVAS` ([]), `_CUENTAS_GASTO_PREFIJOS` ([]) |
-| `.env.example`, `local.settings.sample.json` | Las siete, sin valores reales |
+| `config/settings.py` | `SIGRID_FACTURA_WRITE_ENABLED` (False), `_PREFIJOS_REFERENCIA` ([]), `_MAX_LINEAS` (500), `_PRODUCTOS_SIN_ORIGEN` ([]), `_NATURALEZA_POR_PRODUCTO` ({}), `_IVAS` ([]), `_CUENTAS_GASTO_PREFIJOS` ([]). Enmienda 1 (R54): `sigrid_factura_` y `sigrid_albaran_naturaleza_forzada` (alias `SIGRID_*_NATURALEZA_FORZADA`, `{}`), validador `parse_naturaleza_forzada` (§6); se **retiran** los campos `sigrid_factura_` y `sigrid_albaran_naturaleza_por_producto` (el de proforma se queda) |
+| `.env.example`, `local.settings.sample.json` | Las siete, sin valores reales; enmienda 1: las dos `_FORZADA` en lugar de las dos viejas |
 | `docs/ARCHITECTURE.md`, `CLAUDE.md` (mapa) | Ruta, modelos, caso de uso |
 | `azure-apps/sigrid_api.md` | §4, §7, §8.11 (nueva), §9.5, §10; enmienda 1: §4 (mapeos = forzado), §8.6 y §8.11 |
 | `application/use_cases/albaran_compra_statements.py` | Enmienda 1: `L15D_NATURALEZA_DE_FICHA`, `leer_naturalezas_de_ficha`, `naturalezas_elegidas` (§6) |
-| `application/use_cases/create_albaran_compra_use_case.py` | Enmienda 1: `PerfilAlta.naturaleza_de_ficha: bool = False` (`PERFIL_ALBARAN` True); `_Catalogo._leer_naturalezas` con `naturalezas_elegidas`; mensaje por origen |
+| `application/use_cases/create_albaran_compra_use_case.py` | Enmienda 1: `PerfilAlta.naturaleza_de_ficha: bool = False` (`PERFIL_ALBARAN` True y `campo_naturalezas` = `sigrid_albaran_naturaleza_forzada`); `_Catalogo._leer_naturalezas` con `naturalezas_elegidas`; mensaje por origen |
 | `factura_models.py`, `factura_lineas.py`, `create_factura_use_case.py` | Enmienda 1: R23 (FR con `cuenta`), ficha (R49-R50), resolvedor por línea (R52) |
 | `specs/F-009-alta-albaran-compra/contrato_albaranes.md` | Enmienda 1: H34 revisado, §2.2 y fila de `naturaleza_no_valida` (sin código nuevo); antes, aviso a `albaranes` |
 
 Despliegue: prefijos **solo `FAC-`** (P15); productos `MA9999`, `SM9999`, `SB9999`, `QA9999`, `XA9999`, `SM370001`; IVAs `I21`, `I10`,
-`ISP21`, `i0`, `i4`, `I21NDED`, `I10NDED` (P21); cuentas `["6"]` (P19; vacía, ninguna línea con `cuenta` es válida); mapeos, T33.
+`ISP21`, `i0`, `i4`, `I21NDED`, `I10NDED` (P21); cuentas `["6"]` (P19; vacía, ninguna línea con `cuenta` es válida); forzadas, T34.
 
 ## 5. Ficheros que NO se tocan
 
@@ -75,8 +75,7 @@ def resolver_linea_gg(linea, lecturas: Mapping) -> LineaResuelta: ...      # R26
 def linea_sin_origen(linea: LineaSinOrigen, resuelta: LineaResuelta, *, serie: str, almide: int,
                      tasa_iva: Decimal) -> dict: ...                                             # R27, R28
 def validar_vencimientos(vencimientos, *, fecha_factura: int, totpag: Decimal) -> None: ...       # R33
-def construir_con_factura(...), construir_dcf(...), construir_dcfrec(...), construir_pag(...),
-    construir_consii(...), construir_dcaprodes(...) -> dict[str, Any]: ...
+def construir_con_factura(...), construir_dcf(...), construir_dcfrec(...), construir_pag(...), construir_consii(...), ...
 ```
 
 **Petición** (`FacturaRequest`, `extra="forbid"`):
@@ -100,8 +99,7 @@ Un `model_validator` (400 sin `codigo`) rechaza: campo de la otra serie (`produc
 línea con `producto` y `cuenta` o `analitica` (ambigua), con `cuenta` sin `analitica` o al revés, con `partida`/`paride` sin
 `producto`, o sin ninguno de los dos juegos (`OBLIGATORIOS` deja de ser una tupla fija para FR).
 
-**Cabecera `con`:** `tip` 15, `cod` (R37), `res` = `<entres>. (<entref>)` truncado a 128, `fec` = hoy en Madrid
-(`sellos_del_alta`), `est` = REC o RECGG de `conest` según `serie`, `tiemod`, `tex` vacío.
+**Cabecera `con`:** `tip` 15, `cod` (R37), `res` = `<entres>. (<entref>)` truncado a 128, `fec` = hoy en Madrid, `est` REC/RECGG.
 
 **Cabecera `dcf`** (lista blanca; lo no listado, el vacío del tipo según T0):
 - Con orígenes: del primer origen por `cod` (M57) `ent*`, `obride`, `cenide`, `almide`, `empide`, `dir*1`, `pagide`, `pagtex`,
@@ -113,8 +111,7 @@ línea con `producto` y `cuenta` o `analitica` (ambigua), con `cuenta` sin `anal
 
 **Líneas de origen** (iguales en las dos series, M69): copia de `proide`, `can`, `pre`, `tar`, `dto`, `tot`, `ivaide`, `ivacuo`,
 `cenide`, `caaide`, `paride`, `natide`, `almide`, `obride`, `res`, `tex`, `cod2`, `unimed`, `prepma`, `dncide`, `dncproide` (R17),
-`cueide` = `prv.cuepdtide`; `pos` múltiplo de 64 (primero las de origen por orden de `origenes` y
-`dcapro.pos`, luego las sin origen en el orden de la petición). Columnas a origen:
+`cueide` = `prv.cuepdtide`; `pos` múltiplo de 64 (las de origen por `origenes` y `dcapro.pos`, luego las sin origen):
 
 | Modo | `canoriori` | `canoriant` | `imporiant` | `imporiori` |
 |---|---|---|---|---|
@@ -123,13 +120,11 @@ línea con `producto` y `cuenta` o `analitica` (ambigua), con `cuenta` sin `anal
 | origen, sin vincular | `dcapro.canoriori` | ídem | ídem | `imporiant` + `tot` |
 
 «Anterior» = la `dcapro` de `dcapro.canorilin` (lectura propia); sin ella, 0. En modo origen, `comparar_a_origen` casa cada
-entrada de `a_origen` con su línea por `dcapro.ide` y compara `canoriori` (±0,001) e `imporiori` (±0,01) (P14). Se escribe lo
-calculado, que coincide con lo enviado dentro de la tolerancia.
+entrada de `a_origen` con su línea por `dcapro.ide` y compara `canoriori` (±0,001) e `imporiori` (±0,01); se escribe lo calculado.
 
 **Líneas sin origen: un solo camino** (P18). La serie solo elige el resolvedor; los dos devuelven la misma `LineaResuelta`
 (dataclass de `factura_lineas.py`: `proide`, `natide`, `paride`, `cueide`, `caaide`, `obride`, `cenide`, `almide` o `None`,
-`ivaide`, `tasa_iva`), y `linea_sin_origen` construye la fila igual para las dos (R28; `almide` `None` → el de `dcf`). Una
-factura mixta FRGG con albaranes (M71) son líneas de origen más líneas de estas: no hay tercer camino.
+`ivaide`, `tasa_iva`), y `linea_sin_origen` construye la fila igual (R28; `almide` `None` → el de `dcf`). Sin tercer camino.
 - `resolver_linea_fr`: producto por `(emp, cod)` y lista blanca; naturaleza por `naturalezas_elegidas` (R49); `cueide` = la `cua`
   de `cuacomcod`; partida, almacén, centro y `caaide` con las funciones de F-009.
 - `resolver_linea_gg` (M65-M66): `cuenta` → `con` `tip 17` de la empresa con `cua.niv` 5 y prefijo permitido; `analitica` → `con`
@@ -140,24 +135,30 @@ factura mixta FRGG con albaranes (M71) son líneas de origen más líneas de est
   `resolver_linea_gg` con `cuenta`. `_lecturas_fr` solo con las líneas con `producto` (sin ellas no se lee almacén ni producto)
   y `_lecturas_gg` solo con las de `cuenta` (hoy recorre todas: `str(None)`); se funden en una `LecturasLineas`.
 
-**Naturaleza (enmienda 1, R49-R53)**, en `albaran_compra_statements.py`, compartida por `sigrid/albaran` y `sigrid/factura`:
+**Naturaleza (enmienda 1, R49-R54)**, en `albaran_compra_statements.py`, compartida por `sigrid/albaran` y `sigrid/factura`:
 
 ```python
 L15D_NATURALEZA_DE_FICHA = (
     "SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
     "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN {marcadores}"
 )
-def naturalezas_elegidas(productos: Mapping[str, int], mapa: Mapping[str, str],
+def naturalezas_elegidas(productos: Mapping[str, int], forzadas: Mapping[str, str],
                          por_cod: Mapping[str, Sequence[Sequence[Any]]], por_proide: Mapping[int, Sequence[Any]],
                          *, emp: int) -> tuple[dict[str, Sequence[Any]], dict[str, str]]: ...
+def parse_naturaleza_forzada(value: Any) -> dict[str, str]: ...   # Settings, mode="before" (R54)
 ```
 
-`productos`: producto → `proide` (de L7, ya en lista blanca, existente y sin baja). En el `mapa`, candidatas = filas de L15A por
-`cod` (hoy); fuera, la fila de L15D de su `proide` sin `p.ide` (misma forma que L15A), descartada si `p.natide` es 0/NULL o
+`parse_naturaleza_forzada` reutiliza el análisis de `parse_string_dict` (solo objeto JSON, sin repetidas) y además exige clave
+`<emp>:<producto>`: `emp` entero > 0 normalizado (`01:` → `1:`), `producto` de 1-24 sin espacios, valor no vacío; repetidas tras
+normalizar, error. Descartado reutilizar los nombres viejos con el formato nuevo: el valor ya cargado (`"MA9999"`) tumbaría el
+arranque al desplegar; y aceptar los dos formatos mezclaría un forzado global con uno por empresa sin que se vea.
+
+`productos`: producto → `proide` (de L7, ya en lista blanca, existente y sin baja). Con `f"{emp}:{producto}"` en `forzadas`,
+candidatas = filas de L15A por `cod` (la regla del mapeo viejo); si no, la fila de L15D de su `proide` sin `p.ide` (misma forma que L15A), descartada si `p.natide` es 0/NULL o
 `n.cod` NULL. Válida = **una** candidata sin baja, `numemp` en {0, `emp`} y `cuacomcod` informado (la regla de hoy). Devuelve las
-válidas y el origen (`"mapa"`/`"ficha"`) de todos, para el mensaje de `naturaleza_no_valida` (R50). L15D solo con los `proide`
-fuera del mapa (R53: mapa completo, no se lee). Cuenta (L15C) y analítica (L15B), igual. En `sigrid/albaran`,
-`_leer_naturalezas` la usa si `perfil.naturaleza_de_ficha`; con False (proforma), fuera del mapa da `naturaleza_no_valida` (R51).
+válidas y el origen (`"forzada"`/`"ficha"`) de todos, para el mensaje de `naturaleza_no_valida` (R50). L15D solo con los
+`proide` no forzados (R53). Cuenta (L15C) y analítica (L15B), igual. En `sigrid/albaran`,
+`_leer_naturalezas` la usa si `perfil.naturaleza_de_ficha`; con False (proforma), mapa por producto y sin ficha, como hoy (R51).
 
 **Vencimientos** (`validar_vencimientos`): fechas reales con `datetime.date`, en [`fecha_factura`, +730 días], sin repetir;
 Σ `importe` = `totpag` ±0,01. **`pag`**: `cla` 0, uno por vencimiento, `tot` = su `importe`, `fecven` = su `fecha`; `efeide`,
@@ -181,9 +182,8 @@ UPDATE dbo.ctr SET estfac = ? WHERE ide = ?;
 
 ## 7. Transacción
 
-Previa: lecturas con `execute_read_query` y construcción sin escritura. Orden de validación: cuerpo → llaves → prefijo y `usu`
-→ obra y proveedor → orígenes y modo → `a_origen` → líneas sin origen (fallos juntos) → totales → retención → vencimientos →
-duplicadas.
+Previa: lecturas con `execute_read_query`, sin escritura. Orden: cuerpo → llaves → prefijo y `usu` → obra y proveedor →
+orígenes y modo → `a_origen` → líneas sin origen (fallos juntos) → totales → retención → vencimientos → duplicadas.
 
 Commit: `run_in_write_transaction` con applocks **en este orden fijo**, compatible con los existentes (`_con` antes y `_log` al
 final): `SIGRID_REFEXT_15`, `SIGRID_SERIE_15` (uno para las dos series), `SIGRID_IDE_con`, `SIGRID_IDE_dcfpro`,
@@ -210,22 +210,22 @@ sin orígenes, de cualquier serie, salta (2) y (5).
   nunca `DELETE`, V4). Carrera: `UPDLOCK` y `UPDATE` a `canfac` = 0. Permisos (V1, T22). Un prefijo por app.
 - **Enmienda 1, medición.** M75 (líder, 2026-11-06, `pro.natide`): empresa 1 `MA9999`→`MA1501` (`MOD.CDMA15`), 31 y 34 `MA99`;
   `SM370001` en 1 `SM37`, en 34 `SM08`; los demás genéricos = el mapeo; el 75 % de las líneas de 2026 con `MA9999` imputan
-  CDMA15. M76 (spec-author, `sql/read`, 2026-11-06): de las 59 obras de la empresa 1 con albaranes de 2026, 57 tienen
-  `<obra>.CDSB37` y 57 `<obra>.CDMA15`, ninguna con la primera sin la segunda: pasar `MA9999` a la ficha no añade
-  `analitica_no_resuelta` (31 y 34, sin albaranes en 2026).
-- **H34 se invierte.** F-009 eligió el mapeo porque «el maestro tiene mal `MA9999`»; ahora el maestro manda (D1) y una ficha mal
-  puesta imputa mal sin aviso. Mitigación: el forzado del mapa y «Comprobar».
-- **El mapa no es por empresa; la ficha sí.** Un forzado vale en todas (`SM370001`→`SM37` también en la 34, que tiene `SM08`).
-- **Despliegue sin cambio visible.** Los mapas desplegados cubren sus listas blancas, así que hasta T33 todo sale como hoy (R53);
-  el cambio llega al vaciar entradas (D5, `MA9999`→`MA99` hoy sigue forzando CDSB37).
-- **Código (D3).** Se reutiliza `naturaleza_no_valida`: `albaranes` ya lo trata como `error` (configuración o maestro, contrato
-  §3) y uno nuevo obligaría a tocar F-053. Descartado `producto_sin_naturaleza`. `analitica_no_resuelta` sigue «no admitido».
+  CDMA15. M76 (spec-author, `sql/read`, 2026-11-06): **desplegar ya pasa `MA9999` a la ficha** en la empresa 1, y de sus 59
+  obras con albaranes de 2026, 57 tienen `<obra>.CDSB37` y 57 `<obra>.CDMA15`, ninguna la primera sin la segunda: no aparece
+  ningún `analitica_no_resuelta` nuevo (31 y 34, sin albaranes en 2026). M77: la 34 no tiene FR de 2026 con obra; `SM08`
+  (ficha de `SM370001` allí) lleva la misma cuenta `6060000000` que `SM37` y `MOD.CDSM08`.
+- **H34 se invierte** (F-009: «el maestro tiene mal `MA9999`»): una ficha mal puesta imputa mal; mitigan forzado y «Comprobar».
+- **Forzado por empresa (D2, ajuste del humano).** El producto es una ficha por empresa; un forzado global habría puesto `SM37`
+  también en la 34. Con `<emp>:<producto>` deja de existir ese riesgo.
+- **Desplegar cambia el resultado.** Las `_FORZADA` nacen vacías y las viejas se ignoran: manda la ficha desde el primer minuto,
+  también en albaranes, que escriben con la llave abierta. Aviso a `albaranes` **antes** del despliegue; marcha atrás sin
+  redesplegar: cargar `{"1:MA9999": "MA99"}` en la `_FORZADA` afectada. T34 borra las viejas y carga solo excepciones reales.
+- **Código (D3).** `naturaleza_no_valida` reutilizado: `albaranes` ya lo trata como `error`; uno nuevo tocaría F-053.
 - **F-009 se edita** (la v3.1 lo prohibía en R47): solo la lectura L15D, `naturalezas_elegidas` y `_leer_naturalezas`. Las
   pruebas de F-009 con producto **fuera** del mapa esperando `naturaleza_no_valida` pasan a necesitar la lectura de ficha en el
   doble: se ajustan y se listan en el informe del implementer (no se borran).
-- **P22 (abierta): `albaran-directo`.** No usa ningún mapeo: copia `natide`/`cueide` de la última `dcapro` del producto y no
-  calcula analítica; nadie la llama (obsoleta, `azure-apps/sigrid_api.md` §10). Aplicarle D1 es rediseñar una ruta legado.
-  **Recomendada:** no tocarla (R51); si se quiere, feature aparte.
+- **P22 (abierta): `albaran-directo`.** No usa ningún mapeo (copia de la última `dcapro`, sin analítica) y nadie la llama
+  (obsoleta, `azure-apps` §10). **Recomendada:** no tocarla (R51); si se quiere, feature aparte.
 - **P23 (abierta): proformas.** Comparten `_Catalogo` y D1 no las nombra. **Recomendada:** dejarlas igual aquí
   (`naturaleza_de_ficha` False) y decidir en una enmienda de F-007, avisando a `proformas`.
 
@@ -233,7 +233,7 @@ sin orígenes, de cualquier serie, salta (2) y (5).
 
 **v1-v3.1 (2026-10-30)**, texto en `git show 1a3e739:`, `8483e29:` y `180688d:` + esta ruta. Siguen P1 (sin contabilidad), P2
 (`pag`, `consii`), P4, P6, P9, P10; P11 FRGG; P12-P13 vencimientos del llamante, sin regla del 77 %; P14 `a_origen` comparado,
-error si no cuadra; P15 prefijos genéricos, solo `facturas`; P16 mapeo propio (ahora forzado, D2); P17 IVA limitado; P18 FRGG
+error si no cuadra; P15 prefijos genéricos, solo `facturas`; P16 mapeo propio (ahora forzado por empresa, D2); P17 IVA limitado; P18 FRGG
 con orígenes; P19 cuenta y analítica en la línea FRGG (`["6"]`); P20 IRPF sin orígenes fuera; P21 NDED incluidos.
 
 **v3.2, enmienda 1 (humano, 2026-11-06; v3.1 en `git show 09339e8:` + esta ruta)**, tras G1 (`FR26/11425`: la `MA9999` salió
@@ -242,9 +242,9 @@ con `0444.CDSB37` por el mapeo `MA99`; financiero: «la analítica debe salir de
 | D | Decisión | Dónde |
 |---|---|---|
 | D1 | Naturaleza de la ficha (`pro.natide`, empresa de la obra) en FR y en las sin vincular de `sigrid/albaran` | R49 |
-| D2 | Los mapeos se quedan como forzado opcional: si el producto está, manda el mapa | R49, R53 |
+| D2 | Forzado opcional **por empresa** (`"<emp>:<producto>"`), en App Settings nuevas `_FORZADA`; las viejas dejan de leerse | R49, R53, R54 |
 | D3 | Fuera del mapa y sin naturaleza válida en la ficha: rechazo con `naturaleza_no_valida` (§8) | R50 |
 | D4 | FR sin producto: `cuenta` + `analitica` como FRGG; las dos a la vez, ambigua (400); ninguna, 400 | R23, R52 |
-| D5 | Tras desplegar, mapeos solo con excepciones reales: tarea manual con autorización | T33 |
+| D5 | Tras desplegar, borrar las viejas y cargar solo excepciones reales: tarea manual con autorización | T34 |
 
 **Abiertas:** P22 (`albaran-directo`) y P23 (proformas), §8, con su recomendada aplicada en este diseño.
