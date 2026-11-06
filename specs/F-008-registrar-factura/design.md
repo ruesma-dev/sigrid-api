@@ -1,7 +1,7 @@
 <!-- specs/F-008-registrar-factura/design.md -->
-# F-008 · Diseño: `POST /api/sigrid/factura` (v3.1)
+# F-008 · Diseño: `POST /api/sigrid/factura` (v3.2, enmienda 1)
 
-Requisitos: [`requirements.md`](requirements.md). Mediciones: [`explore_F-008.md`](../../progress/explore_F-008.md) (M52-M74).
+Requisitos: [`requirements.md`](requirements.md). Mediciones: [`explore_F-008.md`](../../progress/explore_F-008.md) (M52-M74), M75-M76 (§8).
 
 ## 1. Respuesta corta
 
@@ -10,20 +10,20 @@ Requisitos: [`requirements.md`](requirements.md). Mediciones: [`explore_F-008.md
 | ¿Qué escribe Sigrid al registrar? | `con` tip 15, `dcf` (`cla` 1001), `dcfpro` ×N, `dcfrec` ×0-1, `con` 25 + `pag` ×M, `consii`, `log` (M52, M53, M58) |
 | ¿Y la contabilidad? | **No está en el alta**: 0 asientos y 0 `regiva` en REC/COM ni en COMGG. La hace «Contabilizar» (M53, M55, M67). Fuera (P1) |
 | ¿FRGG? | **Dentro, con y sin orígenes** (P11, P18). La cuenta de gasto es `dcfpro.cueide`, fijada **en el alta** y leída por «Contabilizar» (99,5 %, M65): en las líneas propias la manda el llamante con la analítica; las de albarán son idénticas a FR (M69). **No hay que escribir contabilidad** |
-| ¿De dónde salen las líneas? | De albaranes o proformas (copia de `dcapro`), del llamante (sin origen), o mixtas, en las dos series (M61, M71) |
-| ¿A origen? | Modo de los albaranes (`dca.docoritip 1`). La API calcula por la regla de M63 y **compara** con lo que manda el llamante (P14) |
-| ¿Vencimientos? | Los manda el llamante; la API valida, no calcula (P12, P13) |
-| ¿Quién llama? | Apps con prefijo en configuración y `usu` válido; al desplegar, solo `facturas` (P15) |
+| ¿Líneas? | De albaranes o proformas (copia de `dcapro`), del llamante (sin origen; FR con producto o con cuenta), o mixtas (M61, M71) |
+| ¿A origen y vencimientos? | Los manda el llamante; la API calcula por M63 y **compara** (P14) y valida vencimientos sin calcular (P12-P13) |
+| ¿Naturaleza? | Enmienda 1: la del mapeo si fuerza el producto; si no, la de la ficha (`pro.natide`), en FR y en `sigrid/albaran` |
 
 ## 2. Encaje en la arquitectura
 
 Patrón de `sigrid/proforma`: ruta en `function_app.py`, modelo Pydantic, caso de uso que valida con lecturas y ejecuta en
 `run_in_write_transaction` un trabajo reentrante, y módulos puros de sentencias y filas. **No hereda** de
 `CreateAlbaranCompraUseCase`: importa funciones sueltas de `albaran_compra_statements` (producto, naturaleza, partida,
-analítica, almacén, `importe_linea`, `sellos_del_alta`) para las líneas FR sin origen, sin editarlo.
+analítica, almacén, `importe_linea`, `sellos_del_alta`) para las líneas FR sin origen. La enmienda 1 añade allí la lectura de
+la ficha y la elección mapa/ficha (`naturalezas_elegidas`), que usan las dos rutas: una sola regla, en el módulo de F-009.
 
-Flujo: el llamante concilia y un humano aprueba → `sigrid/factura` da de alta en REC (FR) o RECGG (FRGG) → Administración
-comprueba y contabiliza en el escritorio. La API no sabe qué app llama: solo ve prefijo y `usu`.
+Flujo: el llamante concilia y un humano aprueba → alta en REC o RECGG → Administración comprueba y contabiliza. La API solo ve
+prefijo y `usu` (P15: al desplegar, solo `facturas`).
 
 ## 3. Ficheros a crear
 
@@ -35,6 +35,7 @@ comprueba y contabiliza en el escritorio. La API no sabe qué app llama: solo ve
 | `application/use_cases/create_factura_use_case.py` | application | `CreateFacturaUseCase.run(request)` |
 | `specs/F-008-registrar-factura/verificacion_manual.md` | spec | Pasos MANUAL del humano (T22-T24) |
 | `tests/test_f008_*.py`, `tests/f008_dobles.py` | tests | `models`, `route`, `settings`, `statements`, `lineas`, `use_case`, `transaccion` |
+| `tests/test_f008_naturaleza_albaran.py` | tests | Enmienda 1 en `sigrid/albaran`: forzado, ficha, rechazos, proforma intacta (R49-R51, R53) |
 
 ## 4. Ficheros a modificar
 
@@ -44,18 +45,21 @@ comprueba y contabiliza en el escritorio. La API no sabe qué app llama: solo ve
 | `config/settings.py` | `SIGRID_FACTURA_WRITE_ENABLED` (False), `_PREFIJOS_REFERENCIA` ([]), `_MAX_LINEAS` (500), `_PRODUCTOS_SIN_ORIGEN` ([]), `_NATURALEZA_POR_PRODUCTO` ({}), `_IVAS` ([]), `_CUENTAS_GASTO_PREFIJOS` ([]) |
 | `.env.example`, `local.settings.sample.json` | Las siete, sin valores reales |
 | `docs/ARCHITECTURE.md`, `CLAUDE.md` (mapa) | Ruta, modelos, caso de uso |
-| `azure-apps/sigrid_api.md` | §4, §7, §8.11 (nueva), §9.5, §10, en el mismo trabajo |
+| `azure-apps/sigrid_api.md` | §4, §7, §8.11 (nueva), §9.5, §10; enmienda 1: §4 (mapeos = forzado), §8.6 y §8.11 |
+| `application/use_cases/albaran_compra_statements.py` | Enmienda 1: `L15D_NATURALEZA_DE_FICHA`, `leer_naturalezas_de_ficha`, `naturalezas_elegidas` (§6) |
+| `application/use_cases/create_albaran_compra_use_case.py` | Enmienda 1: `PerfilAlta.naturaleza_de_ficha: bool = False` (`PERFIL_ALBARAN` True); `_Catalogo._leer_naturalezas` con `naturalezas_elegidas`; mensaje por origen |
+| `factura_models.py`, `factura_lineas.py`, `create_factura_use_case.py` | Enmienda 1: R23 (FR con `cuenta`), ficha (R49-R50), resolvedor por línea (R52) |
+| `specs/F-009-alta-albaran-compra/contrato_albaranes.md` | Enmienda 1: H34 revisado, §2.2 y fila de `naturaleza_no_valida` (sin código nuevo); antes, aviso a `albaranes` |
 
-Valores de despliegue propuestos: prefijos **solo `FAC-`** (el de `facturas`, a confirmar con esa app: P15); productos `MA9999`,
-`SM9999`, `SB9999`, `QA9999`, `XA9999`, `SM370001`; IVAs `I21`, `I10`, `ISP21`, `i0`, `i4`, `I21NDED`, `I10NDED` (P21); cuentas de gasto `["6"]` (P19).
-Con la lista de cuentas vacía, ninguna línea propia FRGG es válida; una FRGG solo de albaranes sí entraría (como una FR).
+Despliegue: prefijos **solo `FAC-`** (P15); productos `MA9999`, `SM9999`, `SB9999`, `QA9999`, `XA9999`, `SM370001`; IVAs `I21`, `I10`,
+`ISP21`, `i0`, `i4`, `I21NDED`, `I10NDED` (P21); cuentas `["6"]` (P19; vacía, ninguna línea con `cuenta` es válida); mapeos, T33.
 
 ## 5. Ficheros que NO se tocan
 
-`infrastructure/security/*`; `albaran_compra_statements.py`, `create_albaran_compra_use_case.py`, `create_proforma_use_case.py`,
-`proforma_*`, `create_purchase_albaran_use_case.py`, `attach_concepto_grafico_use_case.py` (se importan, no se editan); los
-ajustes `SIGRID_ALBARAN_*` y `SIGRID_PROFORMA_*` (`SIGRID_ALBARAN_EMPRESAS_OBRA` se lee); `SIGRID_DOCUMENT_ALLOWED_CONTIP`
-(P9, ajuste aparte). `domain/ports/sql_repository.py` y el adaptador no cambian.
+`infrastructure/security/*`; `create_proforma_use_case.py`, `proforma_*`, `create_purchase_albaran_use_case.py`,
+`create_direct_albaran_use_case.py` (P22), `attach_concepto_grafico_use_case.py`; de F-009, todo salvo lo de §4 (enmienda 1);
+los ajustes `SIGRID_ALBARAN_*` y `SIGRID_PROFORMA_*` (ni nombres ni defectos; `SIGRID_ALBARAN_EMPRESAS_OBRA` se lee);
+`SIGRID_DOCUMENT_ALLOWED_CONTIP` (P9). `domain/ports/sql_repository.py` y el adaptador no cambian.
 
 ## 6. Clases, funciones y reglas
 
@@ -67,7 +71,7 @@ class CreateFacturaUseCase:
 def linea_de_origen(dcapro: Mapping, anterior: Mapping | None, *, modo: str) -> dict: ...         # R17, R19, R20
 def comparar_a_origen(calculadas: Sequence[Mapping], enviadas: Sequence[EntradaAOrigen]) -> None: ...  # R21, R22
 def resolver_linea_fr(linea, lecturas: Mapping) -> LineaResuelta: ...      # R25: producto, naturaleza, cuenta, caa...
-def resolver_linea_gg(linea, lecturas: Mapping) -> LineaResuelta: ...      # R26: cuenta, analítica y su obra
+def resolver_linea_gg(linea, lecturas: Mapping) -> LineaResuelta: ...      # R26: cuenta, analítica, obra (FRGG y FR, R52)
 def linea_sin_origen(linea: LineaSinOrigen, resuelta: LineaResuelta, *, serie: str, almide: int,
                      tasa_iva: Decimal) -> dict: ...                                             # R27, R28
 def validar_vencimientos(vencimientos, *, fecha_factura: int, totpag: Decimal) -> None: ...       # R33
@@ -86,13 +90,15 @@ def construir_con_factura(...), construir_dcf(...), construir_dcfrec(...), const
 | `modo` | `"mes"` \| `"origen"` | defecto `"mes"` (R18) |
 | `origenes` | lista de `con.cod`, 0..N | albaranes o proformas `tip 14` |
 | `a_origen` | lista de `{linea, canoriori, imporiori}` | solo en modo origen, una por línea facturada (R21) |
-| `lineas` | lista de `LineaSinOrigen`, 0..N | comunes `descripcion`, `cantidad`, `precio`, `iva`; FR `producto`, `partida?`, `paride?`, `unidad?`; FRGG `cuenta`, `analitica` (R23) |
+| `lineas` | lista de `LineaSinOrigen`, 0..N | comunes `descripcion`, `cantidad`, `precio`, `iva`; FR `producto`, `partida?`, `paride?`, `unidad?` **o** `cuenta`, `analitica`, `unidad?`; FRGG `cuenta`, `analitica` (R23) |
 | `vencimientos` | lista 1..12 de `{fecha, importe}` | R32-R33 |
 | `vencimiento_retencion` | fecha, opcional | solo con retención `reccla` 5 (R34) |
 | `total_base`, `total_iva`, `total_factura` | decimales | `total_factura` = líquido con retención |
 | `commit` | bool | `false` |
 
-La mezcla de campos de serie (p. ej. `cuenta` en FR) la rechaza un `model_validator` (400 sin `codigo`).
+Un `model_validator` (400 sin `codigo`) rechaza: campo de la otra serie (`producto`, `partida`, `paride` en FRGG); en FR, una
+línea con `producto` y `cuenta` o `analitica` (ambigua), con `cuenta` sin `analitica` o al revés, con `partida`/`paride` sin
+`producto`, o sin ninguno de los dos juegos (`OBLIGATORIOS` deja de ser una tupla fija para FR).
 
 **Cabecera `con`:** `tip` 15, `cod` (R37), `res` = `<entres>. (<entref>)` truncado a 128, `fec` = hoy en Madrid
 (`sellos_del_alta`), `est` = REC o RECGG de `conest` según `serie`, `tiemod`, `tex` vacío.
@@ -105,7 +111,9 @@ La mezcla de campos de serie (p. ej. `cuenta` en FR) la rechaza un `model_valida
 - Siempre: `cueide` = `prv.cueide`, `cla` 1001, `synckey`, `hor` del sello, totales de R29; `estfac`, `estser`, `estped`,
   `docoritip`, `docoriide`, `facoriide`, `fecpag` 0.
 
-**Líneas de origen** (iguales en las dos series, M69): R17 + `cueide` = `prv.cuepdtide`; `pos` múltiplo de 64 (primero las de origen por orden de `origenes` y
+**Líneas de origen** (iguales en las dos series, M69): copia de `proide`, `can`, `pre`, `tar`, `dto`, `tot`, `ivaide`, `ivacuo`,
+`cenide`, `caaide`, `paride`, `natide`, `almide`, `obride`, `res`, `tex`, `cod2`, `unimed`, `prepma`, `dncide`, `dncproide` (R17),
+`cueide` = `prv.cuepdtide`; `pos` múltiplo de 64 (primero las de origen por orden de `origenes` y
 `dcapro.pos`, luego las sin origen en el orden de la petición). Columnas a origen:
 
 | Modo | `canoriori` | `canoriant` | `imporiant` | `imporiori` |
@@ -122,18 +130,41 @@ calculado, que coincide con lo enviado dentro de la tolerancia.
 (dataclass de `factura_lineas.py`: `proide`, `natide`, `paride`, `cueide`, `caaide`, `obride`, `cenide`, `almide` o `None`,
 `ivaide`, `tasa_iva`), y `linea_sin_origen` construye la fila igual para las dos (R28; `almide` `None` → el de `dcf`). Una
 factura mixta FRGG con albaranes (M71) son líneas de origen más líneas de estas: no hay tercer camino.
-- `resolver_linea_fr`: producto por `(emp, cod)` y lista blanca; naturaleza por el mapeo; `cueide` = la `cua` de `cuacomcod`;
-  partida, almacén, centro y `caaide` con las funciones de F-009.
+- `resolver_linea_fr`: producto por `(emp, cod)` y lista blanca; naturaleza por `naturalezas_elegidas` (R49); `cueide` = la `cua`
+  de `cuacomcod`; partida, almacén, centro y `caaide` con las funciones de F-009.
 - `resolver_linea_gg` (M65-M66): `cuenta` → `con` `tip 17` de la empresa con `cua.niv` 5 y prefijo permitido; `analitica` → `con`
   `tip 19` de la empresa sin hijas en `caa`, cuyo texto antes del primer `.` es el `cod` de una obra de la empresa; de esa obra,
   `obride` y `cenide` (`obr.cenide`); `almide` `None`; `proide`, `paride`, `natide` 0.
 - Los dos: `ivaide` del código `iva` (los NDED, como cualquier otro: M72-M73). Fallos juntos en `lineas_no_validas`.
+- **Elección por línea (R52):** en FRGG, siempre `resolver_linea_gg`; en FR, `resolver_linea_fr` con `producto` y
+  `resolver_linea_gg` con `cuenta`. `_lecturas_fr` solo con las líneas con `producto` (sin ellas no se lee almacén ni producto)
+  y `_lecturas_gg` solo con las de `cuenta` (hoy recorre todas: `str(None)`); se funden en una `LecturasLineas`.
+
+**Naturaleza (enmienda 1, R49-R53)**, en `albaran_compra_statements.py`, compartida por `sigrid/albaran` y `sigrid/factura`:
+
+```python
+L15D_NATURALEZA_DE_FICHA = (
+    "SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
+    "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN {marcadores}"
+)
+def naturalezas_elegidas(productos: Mapping[str, int], mapa: Mapping[str, str],
+                         por_cod: Mapping[str, Sequence[Sequence[Any]]], por_proide: Mapping[int, Sequence[Any]],
+                         *, emp: int) -> tuple[dict[str, Sequence[Any]], dict[str, str]]: ...
+```
+
+`productos`: producto → `proide` (de L7, ya en lista blanca, existente y sin baja). En el `mapa`, candidatas = filas de L15A por
+`cod` (hoy); fuera, la fila de L15D de su `proide` sin `p.ide` (misma forma que L15A), descartada si `p.natide` es 0/NULL o
+`n.cod` NULL. Válida = **una** candidata sin baja, `numemp` en {0, `emp`} y `cuacomcod` informado (la regla de hoy). Devuelve las
+válidas y el origen (`"mapa"`/`"ficha"`) de todos, para el mensaje de `naturaleza_no_valida` (R50). L15D solo con los `proide`
+fuera del mapa (R53: mapa completo, no se lee). Cuenta (L15C) y analítica (L15B), igual. En `sigrid/albaran`,
+`_leer_naturalezas` la usa si `perfil.naturaleza_de_ficha`; con False (proforma), fuera del mapa da `naturaleza_no_valida` (R51).
 
 **Vencimientos** (`validar_vencimientos`): fechas reales con `datetime.date`, en [`fecha_factura`, +730 días], sin repetir;
 Σ `importe` = `totpag` ±0,01. **`pag`**: `cla` 0, uno por vencimiento, `tot` = su `importe`, `fecven` = su `fecha`; `efeide`,
 `cueide`, `entide`, `cenide`, `entref`, `ban*` de `dcf`. `cla` 2: `tot` = `cuo`, `retide` = `recide`, `cueide` = `dcfrec.cueide`,
 `fecven` = `vencimiento_retencion`. `con`: `tip` 25, `cod` `<cod>_NN` (cla 0 primero), `res` `Pago i de n <res>`, `fec` =
-`con.fec`, `est` PDT.
+`con.fec`, `est` PDT. **`consii`** (R38, las dos series): `tipcom` A0, `tipdoc` F1, `claope` 01, `emiter`, `facsimcua`,
+`facsinide` y `difplaenv` N, `desope` = `con.res`, `regivaide` 0.
 
 **Marcas (`UPDATE`, siempre por `ide` y con `?`):**
 
@@ -165,65 +196,55 @@ sin orígenes, de cualquier serie, salta (2) y (5).
 
 ## 8. Riesgos y decisiones
 
-- **LÍMITE DE MICROSERVICIO.** Cabe el alta de FR y FRGG (mes, origen, mixta, sin origen): mismas tablas, mismo
-  tipo de escritura que el albarán. **No cabe** la contabilidad (P1). La v2 dejaba fuera FRGG por la cuenta de gasto; M65
-  demuestra que es un campo del documento (`dcfpro.cueide`) que el escritorio fija en el alta y «Contabilizar» solo lee: la
-  decisión contable la toma el llamante (un humano en su app) y la revisa Administración en «Comprobar».
-- **¿Partir la feature?** No hace falta: FRGG añade un resolvedor de línea, un ajuste, dos fallos de línea y la serie/estado;
-  con P18 no añade nada a las líneas de origen (M69-M71). Si el humano prefiere entregar antes FR, T6 y la parte FRGG de T2,
-  T9-T11, T23 y T24 se separan en una F-0xx sin cambiar el diseño.
-- **Cuenta o analítica equivocada en FRGG**: la API valida existencia, hoja, empresa y prefijo, no el acierto. Cuenta no 6xxx
-  (1,7 %, inmovilizado 21xx, 46xx, 5xxx) queda fuera con `["6"]`; ampliarlo es ajuste de despliegue, no de código.
-- **Cuenta y analítica de la FR sin origen.** Reproducen el escritorio en el 96,1 % y el 85,6 % (M61); el resto lo corrige
-  Administración en «Comprobar» (V6), como en F-009.
-- **Cabecera sin origen desde el proveedor**: `ban*` coincide solo en el 58-74 % (M61). Se acepta: la `pag` nace en PDT, fuera
-  de remesas, y se revisa en «Comprobar».
-- **IRPF en FRGG sin orígenes** (4,7 %, M67) queda fuera (P20). La API no lo detecta: depende de que el llamante no las mande.
-  Si las manda con `total_factura` líquido, `totales_no_cuadran` las para; con el bruto, entrarían sin retención. Con orígenes,
-  la retención la copia R31 del albarán en las dos series, sin que nadie la elija (3 FRGG26 con IRPF del 15 %, M71).
-- **IVA no deducible** (P21): el llamante decide la deducibilidad con el código; en el alta un NDED solo cambia `ivaide` (cuota
-  completa en `ivacuo` y `totiva`, `consii` igual: M72-M73). Lo no deducible lo trata «Contabilizar». En FR nunca se ha usado.
-- **Vencimientos del llamante**: se valida forma, rango y suma, no el acierto. «Regeneración de vencimientos» del escritorio
-  (M64) puede reescribirlos: V3.
-- **A origen comparado** (P14): las 39 líneas de 7.123 (0,5 %) en que el escritorio se apartó de la regla (correcciones a mano)
-  darán `a_origen_no_cuadra` si el llamante las copió de otra fuente; es lo buscado: no se registra lo que no se entiende.
-- **Exigir el origen contabilizado** (P4) sigue. **Clonar la cabecera** se descarta (F-015); listas blancas. **`dca.idefac`** no
-  se escribe (M54). **Reversión:** no hay; un alta equivocada se anula en el escritorio, nunca con `DELETE` (V4).
-- **Carrera con el escritorio:** `UPDLOCK` y `UPDATE` condicionado a `canfac` = 0; el índice `con_emptipcod` obliga a reintentar.
-- **Permisos (V1):** si `user_rw` no tiene `UPDATE` de `con`, `dca`, `dcapro`, la primera grabación falla con ROLLBACK (T22).
-- **Varios llamantes:** un prefijo por app; dos apps con el mismo prefijo se pisarían la idempotencia. Al desplegar, uno solo.
+- **LÍMITE DE MICROSERVICIO.** Cabe el alta de FR y FRGG (mes, origen, mixta, sin origen): mismas tablas y escritura que el
+  albarán. **No cabe** la contabilidad (P1): la cuenta de gasto es un campo del documento (`dcfpro.cueide`) que el escritorio
+  fija en el alta y «Contabilizar» solo lee (M65). La enmienda 1 tampoco sale: cambia de dónde se lee la naturaleza. Sin partir.
+- **Cuenta o analítica equivocada (FRGG y FR sin producto, 314 líneas FR de 2026 en T23)**: se valida existencia, hoja, empresa
+  y prefijo, no el acierto ni que case con una naturaleza; no 6xxx (1,7 %) queda fuera con `["6"]`. FR con producto: 96,1 % y
+  85,6 % (M61); el resto, «Comprobar» (V6); `ban*` de cabecera sin origen, 58-74 % (M61). Imputar a otra obra (P4 de T23), no.
+- **IRPF en FRGG sin orígenes** (4,7 %, M67) fuera (P20): con `total_factura` líquido, `totales_no_cuadran`; con el bruto, entraría
+  sin retención. Con orígenes, R31 copia la del albarán (M71). **NDED** (P21): solo cambia `ivaide` (M72-M73).
+- **Vencimientos y a origen del llamante**: se valida forma, rango y suma; «Regeneración de vencimientos» puede reescribirlos (V3).
+  Las 39 de 7.123 líneas a origen que se apartan de M63 darán `a_origen_no_cuadra`: es lo buscado (P14).
+- **Origen contabilizado** (P4), listas blancas (sin clonar), sin `dca.idefac` (M54), sin reversión (anular en el escritorio,
+  nunca `DELETE`, V4). Carrera: `UPDLOCK` y `UPDATE` a `canfac` = 0. Permisos (V1, T22). Un prefijo por app.
+- **Enmienda 1, medición.** M75 (líder, 2026-11-06, `pro.natide`): empresa 1 `MA9999`→`MA1501` (`MOD.CDMA15`), 31 y 34 `MA99`;
+  `SM370001` en 1 `SM37`, en 34 `SM08`; los demás genéricos = el mapeo; el 75 % de las líneas de 2026 con `MA9999` imputan
+  CDMA15. M76 (spec-author, `sql/read`, 2026-11-06): de las 59 obras de la empresa 1 con albaranes de 2026, 57 tienen
+  `<obra>.CDSB37` y 57 `<obra>.CDMA15`, ninguna con la primera sin la segunda: pasar `MA9999` a la ficha no añade
+  `analitica_no_resuelta` (31 y 34, sin albaranes en 2026).
+- **H34 se invierte.** F-009 eligió el mapeo porque «el maestro tiene mal `MA9999`»; ahora el maestro manda (D1) y una ficha mal
+  puesta imputa mal sin aviso. Mitigación: el forzado del mapa y «Comprobar».
+- **El mapa no es por empresa; la ficha sí.** Un forzado vale en todas (`SM370001`→`SM37` también en la 34, que tiene `SM08`).
+- **Despliegue sin cambio visible.** Los mapas desplegados cubren sus listas blancas, así que hasta T33 todo sale como hoy (R53);
+  el cambio llega al vaciar entradas (D5, `MA9999`→`MA99` hoy sigue forzando CDSB37).
+- **Código (D3).** Se reutiliza `naturaleza_no_valida`: `albaranes` ya lo trata como `error` (configuración o maestro, contrato
+  §3) y uno nuevo obligaría a tocar F-053. Descartado `producto_sin_naturaleza`. `analitica_no_resuelta` sigue «no admitido».
+- **F-009 se edita** (la v3.1 lo prohibía en R47): solo la lectura L15D, `naturalezas_elegidas` y `_leer_naturalezas`. Las
+  pruebas de F-009 con producto **fuera** del mapa esperando `naturaleza_no_valida` pasan a necesitar la lectura de ficha en el
+  doble: se ajustan y se listan en el informe del implementer (no se borran).
+- **P22 (abierta): `albaran-directo`.** No usa ningún mapeo: copia `natide`/`cueide` de la última `dcapro` del producto y no
+  calcula analítica; nadie la llama (obsoleta, `azure-apps/sigrid_api.md` §10). Aplicarle D1 es rediseñar una ruta legado.
+  **Recomendada:** no tocarla (R51); si se quiere, feature aparte.
+- **P23 (abierta): proformas.** Comparten `_Catalogo` y D1 no las nombra. **Recomendada:** dejarlas igual aquí
+  (`naturaleza_de_ficha` False) y decidir en una enmienda de F-007, avisando a `proformas`.
 
 ## 9. Decisiones del humano
 
-**v1, aprobada el 2026-10-30** (P1-P10 = la *Recomendada*; texto en `git show 1a3e739:specs/F-008-registrar-factura/design.md`).
-**Se mantienen:** P1 (alta sin contabilidad), P2 (`pag` y `consii`), P4 (origen sin contabilizar rechazado), P6 (orígenes
-enteros), P9 (PDF por `concepto-grafico`), P10 (factura del proveedor). Cambiaron: P3 → P12-P13; P5 → P14; P7 → P11; P8 → P15.
+**v1-v3.1 (2026-10-30)**, texto en `git show 1a3e739:`, `8483e29:` y `180688d:` + esta ruta. Siguen P1 (sin contabilidad), P2
+(`pag`, `consii`), P4, P6, P9, P10; P11 FRGG; P12-P13 vencimientos del llamante, sin regla del 77 %; P14 `a_origen` comparado,
+error si no cuadra; P15 prefijos genéricos, solo `facturas`; P16 mapeo propio (ahora forzado, D2); P17 IVA limitado; P18 FRGG
+con orígenes; P19 cuenta y analítica en la línea FRGG (`["6"]`); P20 IRPF sin orígenes fuera; P21 NDED incluidos.
 
-**v2 → v3: decididas por el humano el 2026-10-30** (texto de la v2 en `git show 8483e29:specs/F-008-registrar-factura/design.md`):
+**v3.2, enmienda 1 (humano, 2026-11-06; v3.1 en `git show 09339e8:` + esta ruta)**, tras G1 (`FR26/11425`: la `MA9999` salió
+con `0444.CDSB37` por el mapeo `MA99`; financiero: «la analítica debe salir del producto, a través de su naturaleza»):
 
-| P | Decisión | Dónde |
+| D | Decisión | Dónde |
 |---|---|---|
-| P11 | **Incluir FRGG** (no la recomendada). Medido: la cuenta se fija en el alta, no exige contabilidad (M64-M68) | R9, R23, R26-R27 |
-| P12 | Recomendada: 1-12 `{fecha, importe}`, Σ = `totpag` ±0,01, fechas en [factura, +730 días]; `vencimiento_retencion` con garantía | R32-R34 |
-| P13 | Recomendada: fuera la regla del 77 %, sin aviso | R35 |
-| P14 | **Los manda el llamante** (no la recomendada): `a_origen` por línea; la API compara con M63, `canoriori` ±0,001 e `imporiori` ±0,01. Si no cuadran, **error** `a_origen_no_cuadra` (recomendado frente a aviso: un aviso dejaría escrita una cadena que contradice al albarán, y el que llama puede corregir y reenviar) | R21-R22 |
-| P15 | Mecanismo genérico `SIGRID_FACTURA_PREFIJOS_REFERENCIA`; desplegado **solo con el prefijo de `facturas`** | R6, §4 |
-| P16 | Recomendada: mapeo propio de naturaleza por producto (solo FR) | R25 |
-| P17 | Recomendada: IVA del llamante limitado a `SIGRID_FACTURA_IVAS` | R24 |
+| D1 | Naturaleza de la ficha (`pro.natide`, empresa de la obra) en FR y en las sin vincular de `sigrid/albaran` | R49 |
+| D2 | Los mapeos se quedan como forzado opcional: si el producto está, manda el mapa | R49, R53 |
+| D3 | Fuera del mapa y sin naturaleza válida en la ficha: rechazo con `naturaleza_no_valida` (§8) | R50 |
+| D4 | FR sin producto: `cuenta` + `analitica` como FRGG; las dos a la vez, ambigua (400); ninguna, 400 | R23, R52 |
+| D5 | Tras desplegar, mapeos solo con excepciones reales: tarea manual con autorización | T33 |
 
-**Qué cambió de la v2 a la v3:** `serie` nueva y FRGG sin orígenes (RECGG, `FRGG<aa>/` + 4 cifras); líneas FRGG con `cuenta` y
-`analitica`; `a_origen` comparado; ajuste `_CUENTAS_GASTO_PREFIJOS`; errores nuevos `a_origen_incompleto`, `a_origen_no_cuadra`,
-`cuenta_no_valida`, `analitica_no_valida`; requisitos renumerados (R1-R48); `log` sin cuentas.
-
-**v3 → v3.1: decididas por el humano el 2026-10-30** (texto de la v3 en `git show 180688d:specs/F-008-registrar-factura/design.md`):
-
-| P | Decisión | Dónde |
-|---|---|---|
-| P18 | **FRGG con albaranes o proformas, como las mixtas de FR** (no la recomendada). Medido: sus líneas de origen son las de FR (`cueide` = `prv.cuepdtide` 904 de 904; analítica y obra del albarán), y cabecera, marcas, `consii` y `pag` también (M69-M71) | R2, R13, §6 |
-| P19 | Recomendada: `cuenta` y `analitica` obligatorias en la línea propia FRGG; cuenta hoja con prefijo configurable (`["6"]`); analítica hoja con obra de la empresa | R26-R27 |
-| P20 | Recomendada: IRPF fuera de F-008 (sin orígenes); el que trae el albarán lo copia R31 | R31, §8 |
-| P21 | **Incluir `I21NDED` e `I10NDED`** (no la recomendada), mandados por el llamante. Medido: no cambian nada más del alta (M72-M73) | R24, §4 |
-
-**Qué cambió de la v3 a la v3.1:** FRGG admite `origenes` (fuera la regla de R2 que lo rechazaba); las líneas de origen y las
-marcas valen para las dos series; las líneas sin origen pasan a un solo constructor (`linea_sin_origen`) con dos resolvedores por
-serie; IVAs desplegados con los NDED; cobertura FRGG26 de 82,5 % a 87,2 % (M74). **Sin preguntas pendientes.**
+**Abiertas:** P22 (`albaran-directo`) y P23 (proformas), §8, con su recomendada aplicada en este diseño.

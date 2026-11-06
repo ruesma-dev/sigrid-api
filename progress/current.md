@@ -16,6 +16,12 @@ con su guion y comandos exactos en
 [`verificacion_manual.md`](../specs/F-008-registrar-factura/verificacion_manual.md): T22 permisos de `user_rw`
 (humano), T23 previas, T24 grabaciones FR y FRGG con autorización expresa por llamada.
 
+**Enmienda 1 de la spec (v3.2, 2026-11-06, spec-author):** naturaleza de la ficha del producto (`pro.natide`) con el mapeo como
+forzado, en FR y en las sin vincular de `sigrid/albaran`, y FR sin producto (`cuenta` + `analitica`). R23, R25-R28, R47-R48
+cambian; R49-R53 nuevas; tareas T26-T35. Resumen, riesgos y preguntas en [`spec_F-008_enmienda1.md`](spec_F-008_enmienda1.md).
+**El humano debe validar:** P22 (`albaran-directo` no usa el mapeo: recomendada no tocarla), P23 (proformas: recomendada
+igual que hoy) y reutilizar `naturaleza_no_valida` (D3). Antes de T32, avisar a la sesión de `albaranes` (cambia H34).
+
 ## F-016 cerrada (2026-10-30)
 
 Resumen en `history.md`. Pendiente solo del humano: anular, si quiere, `PROF26/01387` y `PROF26/01386`, y decidir cuándo
