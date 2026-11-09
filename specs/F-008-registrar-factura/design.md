@@ -224,10 +224,10 @@ sin orígenes, de cualquier serie, salta (2) y (5).
 - **F-009 se edita** (la v3.1 lo prohibía en R47): solo la lectura L15D, `naturalezas_elegidas` y `_leer_naturalezas`. Las
   pruebas de F-009 con producto **fuera** del mapa esperando `naturaleza_no_valida` pasan a necesitar la lectura de ficha en el
   doble: se ajustan y se listan en el informe del implementer (no se borran).
-- **P22 (abierta): `albaran-directo`.** No usa ningún mapeo (copia de la última `dcapro`, sin analítica) y nadie la llama
-  (obsoleta, `azure-apps` §10). **Recomendada:** no tocarla (R51); si se quiere, feature aparte.
-- **P23 (abierta): proformas.** Comparten `_Catalogo` y D1 no las nombra. **Recomendada:** dejarlas igual aquí
-  (`naturaleza_de_ficha` False) y decidir en una enmienda de F-007, avisando a `proformas`.
+- **P22 (cerrada, 2026-11-09): `albaran-directo`.** No usa ningún mapeo (copia de la última `dcapro`, sin analítica) y nadie
+  la llama (obsoleta, `azure-apps` §10). **Decidido:** no se toca (R51); si se quiere, feature aparte.
+- **P23 (cerrada, 2026-11-09): proformas.** Comparten `_Catalogo` y D1 no las nombra. **Decidido:** igual que hoy
+  (`naturaleza_de_ficha` False); si se cambia, enmienda de F-007, avisando a `proformas`.
 
 ## 9. Decisiones del humano
 
@@ -247,4 +247,4 @@ con `0444.CDSB37` por el mapeo `MA99`; financiero: «la analítica debe salir de
 | D4 | FR sin producto: `cuenta` + `analitica` como FRGG; las dos a la vez, ambigua (400); ninguna, 400 | R23, R52 |
 | D5 | Tras desplegar, borrar las viejas y cargar solo excepciones reales: tarea manual con autorización | T34 |
 
-**Abiertas:** P22 (`albaran-directo`) y P23 (proformas), §8, con su recomendada aplicada en este diseño.
+**Cerradas (humano, 2026-11-09):** P22 (`albaran-directo` intacta), P23 (proformas, `naturaleza_de_ficha` False) y D3 (sí).

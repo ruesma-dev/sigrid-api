@@ -73,8 +73,8 @@ T36 `init.sh`.
   `sigrid_albaran_naturaleza_por_producto` cambian de campo. Se ajustan, se listan y no se borran.
 - G1 (`FR26/11425`) sigue con `0444.CDSB37`: la corrige Administración en el escritorio, no esta enmienda.
 
-## Preguntas abiertas para el humano
+## Preguntas para el humano (cerradas el 2026-11-09)
 
-- **P22 · `albaran-directo`**: no usa ningún mapeo (copia la última `dcapro`) y nadie la llama. **Recomendada:** no tocarla.
-- **P23 · proformas**: comparten `_Catalogo`. **Recomendada:** dejarlas como hoy y decidir en una enmienda de F-007.
-- **D3 · código**: confirmar que se reutiliza `naturaleza_no_valida` en vez de crear `producto_sin_naturaleza`.
+- **P22 · `albaran-directo`**: no usa ningún mapeo (copia la última `dcapro`) y nadie la llama. **Cerrada:** no se toca.
+- **P23 · proformas**: comparten `_Catalogo`. **Cerrada:** como hoy (`naturaleza_de_ficha` False); si acaso, enmienda de F-007.
+- **D3 · código**: **confirmada:** se reutiliza `naturaleza_no_valida` en vez de crear `producto_sin_naturaleza`.
