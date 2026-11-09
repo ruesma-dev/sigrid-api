@@ -443,7 +443,9 @@ def test_f008_r28_serie_desconocida_falla() -> None:
 # T7 · linea propia FR con las reglas de F-009 (R25, R28)
 # --------------------------------------------------------------------------- #
 
-from application.use_cases.albaran_compra_statements import naturalezas_elegidas  # noqa: E402
+from application.use_cases.albaran_compra_statements import (
+    naturalezas_elegidas,
+)
 from application.use_cases.factura_lineas import (
     naturalezas_con_cuenta,
     naturalezas_resueltas,
@@ -523,8 +525,8 @@ def test_f008_r50_naturaleza_no_valida_dice_de_donde_venia(origen: str, dice: st
 def test_f008_r50_analitica_no_resuelta_con_el_mensaje_de_siempre() -> None:
     _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(naturalezas={"MA9999": "analitica_no_resuelta"},
                                                        origenes_naturaleza={"MA9999": "ficha"}))
-    assert fallos == [("analitica_no_resuelta", "La obra no tiene la cuenta analitica de la naturaleza "
-                                                "del producto en su centro: alta a mano.")]
+    assert fallos == [("analitica_no_resuelta", ("La obra no tiene la cuenta analitica de la naturaleza "
+                                                 "del producto en su centro: alta a mano."))]
 
 
 def test_f008_r25_lista_blanca_vacia_no_admite_ninguno() -> None:
@@ -611,7 +613,6 @@ def test_f008_r25_naturalezas_resueltas_con_la_analitica_del_centro() -> None:
 
 # --- Enmienda 1 · T27: forzada por `<emp>:<producto>` o la de la ficha ------------
 
-from application.use_cases.albaran_compra_statements import naturalezas_elegidas  # noqa: E402
 
 #: L15D: (p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod).
 _FICHA = {

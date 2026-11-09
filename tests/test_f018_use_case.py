@@ -354,13 +354,14 @@ _SQL_DE_DEV = {
 def test_f018_r23_las_sentencias_son_las_de_dev() -> None:
     import hashlib
 
-    from application.use_cases.albaran_compra_statements import AlbaranCompraStatements
+    from application.use_cases.albaran_compra_statements import (
+        L15D_NATURALEZA_DE_FICHA,
+        AlbaranCompraStatements,
+    )
     from application.use_cases.proforma_origen_statements import (
         ProformaOrigenStatements,
     )
     from application.use_cases.proforma_statements import ProformaStatements
-
-    from application.use_cases.albaran_compra_statements import L15D_NATURALEZA_DE_FICHA
 
     #: F-008 enmienda 1 (R49) añade L15D, solo lectura y ajena a F-018: fuera de la huella.
     l15d = L15D_NATURALEZA_DE_FICHA.format(marcadores="(?)")

@@ -720,7 +720,7 @@ def test_f008_r35_ningun_calculo_de_vencimiento() -> None:
 # Enmienda 1 · T27: la naturaleza de la ficha del producto (R49, R50, R53)
 # --------------------------------------------------------------------------- #
 
-from application.use_cases.albaran_compra_statements import (  # noqa: E402
+from application.use_cases.albaran_compra_statements import (
     L15D_NATURALEZA_DE_FICHA,
     AlbaranCompraStatements,
 )
@@ -730,8 +730,8 @@ F9 = AlbaranCompraStatements(database="ruesma")
 
 def test_f008_r49_naturaleza_de_la_ficha_por_proide() -> None:
     assert F9.leer_naturalezas_de_ficha([31, 32]) == (
-        "SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
-        "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN (?, ?)",
+        ("SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
+         "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN (?, ?)"),
         [31, 32],
     )
 
