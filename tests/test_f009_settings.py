@@ -38,7 +38,7 @@ _CLAVES_NUEVAS = (
     "SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO",
     "SIGRID_ALBARAN_EMPRESAS_OBRA",
     "SIGRID_ALBARAN_MAX_LINEAS",
-    "SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO",
+    "SIGRID_ALBARAN_NATURALEZA_FORZADA",
 )
 
 #: Los valores de despliegue de T19 (R10, entre paréntesis), tal como irán en
@@ -49,8 +49,8 @@ _DESPLIEGUE = {
     "SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO": '["MA9999", "QA9999", "XA9999"]',
     "SIGRID_ALBARAN_EMPRESAS_OBRA": "[1]",
     "SIGRID_ALBARAN_MAX_LINEAS": "100",
-    "SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO": (
-        '{"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}'
+    "SIGRID_ALBARAN_NATURALEZA_FORZADA": (
+        '{"1:MA9999": "MA99", "1:QA9999": "QA99", "1:XA9999": "XA99"}'
     ),
 }
 
@@ -85,7 +85,7 @@ def test_f009_r10_los_seis_ajustes_nuevos_arrancan_con_defecto_cerrado() -> None
     assert settings.sigrid_albaran_productos_sin_contrato == []
     assert settings.sigrid_albaran_empresas_obra == []
     assert settings.sigrid_albaran_max_lineas == 100
-    assert settings.sigrid_albaran_naturaleza_por_producto == {}
+    assert settings.sigrid_albaran_naturaleza_forzada == {}
 
 
 def test_f009_r10_los_valores_de_despliegue_llegan_por_el_entorno(
@@ -102,10 +102,10 @@ def test_f009_r10_los_valores_de_despliegue_llegan_por_el_entorno(
     assert settings.sigrid_albaran_productos_sin_contrato == ["MA9999", "QA9999", "XA9999"]
     assert settings.sigrid_albaran_empresas_obra == [1]
     assert settings.sigrid_albaran_max_lineas == 100
-    assert settings.sigrid_albaran_naturaleza_por_producto == {
-        "MA9999": "MA99",
-        "QA9999": "QA99",
-        "XA9999": "XA99",
+    assert settings.sigrid_albaran_naturaleza_forzada == {
+        "1:MA9999": "MA99",
+        "1:QA9999": "QA99",
+        "1:XA9999": "XA99",
     }
 
 
@@ -152,7 +152,7 @@ def test_f009_r10_empresas_obra_mal_escrita_no_arranca(valor: str) -> None:
         ajustes(SIGRID_ALBARAN_EMPRESAS_OBRA=valor)
 
 
-# --- R10: el mapeo producto -> naturaleza (parse_string_dict) ----------------
+# --- R10 (F-008 enmienda 1, R54): el forzado <emp>:<producto> -> naturaleza ----
 
 
 @pytest.mark.parametrize(
@@ -162,17 +162,17 @@ def test_f009_r10_empresas_obra_mal_escrita_no_arranca(valor: str) -> None:
         ("", {}),
         ("   ", {}),
         ("{}", {}),
-        ('{"MA9999": "MA99"}', {"MA9999": "MA99"}),
-        ('{" MA9999 ": " MA99 ", "QA9999": "QA99"}', {"MA9999": "MA99", "QA9999": "QA99"}),
-        ({"XA9999": "XA99"}, {"XA9999": "XA99"}),
+        ('{"1:MA9999": "MA99"}', {"1:MA9999": "MA99"}),
+        ('{" 1:MA9999 ": " MA99 ", "1:QA9999": "QA99"}', {"1:MA9999": "MA99", "1:QA9999": "QA99"}),
+        ({"1:XA9999": "XA99"}, {"1:XA9999": "XA99"}),
         ({}, {}),
     ],
 )
-def test_f009_r10_naturaleza_por_producto_objeto_json_de_textos(
+def test_f009_r10_naturaleza_forzada_objeto_json_de_textos(
     valor: object, esperado: dict[str, str]
 ) -> None:
-    settings = ajustes(SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO=valor)
-    assert settings.sigrid_albaran_naturaleza_por_producto == esperado
+    settings = ajustes(SIGRID_ALBARAN_NATURALEZA_FORZADA=valor)
+    assert settings.sigrid_albaran_naturaleza_forzada == esperado
 
 
 @pytest.mark.parametrize(
@@ -184,19 +184,19 @@ def test_f009_r10_naturaleza_por_producto_objeto_json_de_textos(
         "[]",                                       # lista vacía: no es un objeto
         '[["MA9999", "MA99"]]',
         '"MA99"',                                   # texto JSON suelto
-        "{MA9999: MA99}",                           # JSON roto
-        '{"MA9999": 99}',                           # valor que no es texto
-        '{"MA9999": null}',
-        '{"MA9999": ["MA99"]}',
-        '{"MA9999": ""}',                           # valor vacío
-        '{"MA9999": "   "}',
+        "{1:MA9999: MA99}",                           # JSON roto
+        '{"1:MA9999": 99}',                           # valor que no es texto
+        '{"1:MA9999": null}',
+        '{"1:MA9999": ["MA99"]}',
+        '{"1:MA9999": ""}',                           # valor vacío
+        '{"1:MA9999": "   "}',
         '{"": "MA99"}',                             # clave vacía
         '{" ": "MA99"}',
-        '{"MA9999": "MA99", "MA9999": "QA99"}',     # clave repetida
-        '{"MA9999": "MA99", " MA9999": "QA99"}',    # repetida tras recortar
+        '{"1:MA9999": "MA99", "1:MA9999": "QA99"}',     # clave repetida
+        '{"1:MA9999": "MA99", " 1:MA9999": "QA99"}',    # repetida tras recortar
         ["MA9999", "MA99"],
-        {"MA9999": 1},
-        {"MA9999": ""},
+        {"1:MA9999": 1},
+        {"1:MA9999": ""},
         {1: "MA99"},
         42,
     ],
@@ -205,19 +205,19 @@ def test_f009_r10_naturaleza_mal_escrita_no_arranca(valor: object) -> None:
     """Objeto JSON de textos no vacíos, o el proceso no arranca (design §Ficheros
     a modificar): un mapeo a medias abriría a medias las sin vincular."""
     with pytest.raises(ValidationError):
-        ajustes(SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO=valor)
+        ajustes(SIGRID_ALBARAN_NATURALEZA_FORZADA=valor)
 
 
 @pytest.mark.parametrize(
     "valor",
-    ["MA9999=MA99", '["MA9999"]', '{"MA9999": 1}', '{"MA9999": "MA99", "MA9999": "QA99"}'],
+    ["MA9999=MA99", '["MA9999"]', '{"1:MA9999": 1}', '{"1:MA9999": "MA99", "1:MA9999": "QA99"}'],
 )
 def test_f009_r10_naturaleza_mal_escrita_en_el_entorno_no_arranca(
     monkeypatch: pytest.MonkeyPatch, valor: str
 ) -> None:
     """Por el entorno (como llega la App Setting) tampoco arranca: o lo para el
     JSON de pydantic-settings o lo para el validador."""
-    monkeypatch.setenv("SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO", valor)
+    monkeypatch.setenv("SIGRID_ALBARAN_NATURALEZA_FORZADA", valor)
     with pytest.raises((ValidationError, SettingsError)):
         ajustes()
 
@@ -252,7 +252,7 @@ def test_f009_r10_el_fichero_de_ejemplo_declara_las_seis_claves_cerradas(
         "SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO": "[]",
         "SIGRID_ALBARAN_EMPRESAS_OBRA": "[]",
         "SIGRID_ALBARAN_MAX_LINEAS": "100",
-        "SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO": "{}",
+        "SIGRID_ALBARAN_NATURALEZA_FORZADA": "{}",
     }
     for clave in _CLAVES_NUEVAS:
         monkeypatch.setenv(clave, valores[clave])
@@ -262,4 +262,4 @@ def test_f009_r10_el_fichero_de_ejemplo_declara_las_seis_claves_cerradas(
     assert settings.sigrid_albaran_productos_sin_contrato == []
     assert settings.sigrid_albaran_empresas_obra == []
     assert settings.sigrid_albaran_max_lineas == 100
-    assert settings.sigrid_albaran_naturaleza_por_producto == {}
+    assert settings.sigrid_albaran_naturaleza_forzada == {}
