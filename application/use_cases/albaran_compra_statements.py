@@ -270,6 +270,12 @@ L15C_CUENTAS = (
     "SELECT c.ide, c.cod FROM dbo.con c JOIN dbo.cua a ON a.ide = c.ide "
     "WHERE c.emp = ? AND c.cod IN {marcadores}"
 )
+#: F-008 enmienda 1 (R49): la naturaleza de la FICHA del producto (`pro.natide`)
+#: con las columnas de L15A detras de `p.ide`; LEFT JOIN: sin `auxpronat`, NULL.
+L15D_NATURALEZA_DE_FICHA = (
+    "SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
+    "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN {marcadores}"
+)
 
 # --- Dentro de la transaccion (E1 = L11) ---------------------------------------------
 
@@ -614,6 +620,55 @@ def codigo_analitica(cod_obra: str, caagascod: str | None) -> str | None:
     `None` si el sufijo sale vacio (`analitica_no_resuelta`)."""
     sufijo = sufijo_analitica(caagascod)
     return f"{cod_obra.rstrip()}.{sufijo}" if sufijo else None
+
+
+#: F-008 enmienda 1 (R50): de donde sale la naturaleza de un producto.
+ORIGEN_FORZADA = "forzada"
+ORIGEN_FICHA = "ficha"
+
+
+def clave_forzada(emp: int, producto: str) -> str:
+    """R49, R54: la clave `<emp>:<producto>` del forzado (la de `Settings`)."""
+    return f"{emp}:{producto}"
+
+
+def naturalezas_elegidas(
+    productos: Mapping[str, int],
+    forzadas: Mapping[str, str],
+    por_cod: Mapping[str, Sequence[Sequence[Any]]],
+    por_proide: Mapping[int, Sequence[Any]],
+    *,
+    emp: int,
+) -> tuple[dict[str, Sequence[Any]], dict[str, str]]:
+    """
+    F-008 enmienda 1 (R49, R50, R53), una sola regla para `sigrid/albaran` y
+    `sigrid/factura`. `productos`: producto -> `proide` (de L7, ya validado).
+    Con `<emp>:<producto>` en `forzadas`, las candidatas son las filas de L15A
+    de ese `cod` (`por_cod`, por `cod` comparado como el ERP: la regla del
+    mapeo viejo); si no, la fila de L15D de su `proide` (`por_proide`) sin
+    `p.ide` (misma forma que L15A), descartada si `p.natide` es 0/NULL o no
+    tiene `auxpronat`. Valida = UNA candidata sin baja, `numemp` en {0, `emp`}
+    y `cuacomcod` informado. Devuelve las validas (filas de forma L15A) y el
+    origen (`forzada`/`ficha`) de TODOS, para el mensaje del rechazo.
+    """
+    validas: dict[str, Sequence[Any]] = {}
+    origenes: dict[str, str] = {}
+    for producto, proide in productos.items():
+        forzada = forzadas.get(clave_forzada(emp, producto))
+        if forzada is not None:
+            origenes[producto] = ORIGEN_FORZADA
+            candidatas = list(por_cod.get(str(forzada).strip().casefold(), []))
+        else:
+            origenes[producto] = ORIGEN_FICHA
+            fila = por_proide.get(proide)
+            candidatas = (
+                [tuple(fila[1:])] if fila is not None and int(fila[1] or 0) and fila[2] is not None
+                else []
+            )
+        aptas = [f for f in candidatas if not int(f[3] or 0) and int(f[2] or 0) in (0, emp)]
+        if len(aptas) == 1 and str(aptas[0][5] or "").strip():
+            validas[producto] = aptas[0]
+    return validas, origenes
 
 
 def _r2(valor: float | None) -> float:
@@ -1327,6 +1382,7 @@ class AlbaranCompraStatements:
             L15A_NATURALEZAS.format(marcadores=uno),
             L15B_ANALITICAS.format(marcadores=uno),
             L15C_CUENTAS.format(marcadores=uno),
+            L15D_NATURALEZA_DE_FICHA.format(marcadores=uno),
             E2_COD,
             E3_IDE_CON,
             E4_IDE_DCAPRO,
@@ -1440,6 +1496,10 @@ class AlbaranCompraStatements:
 
     def leer_cuentas(self, emp: int, codigos: Sequence[str]) -> tuple[str, list[Any]]:
         return self._con_lista(L15C_CUENTAS, codigos), [emp, *codigos]
+
+    def leer_naturalezas_de_ficha(self, proides: Sequence[int]) -> tuple[str, list[Any]]:
+        """F-008 enmienda 1 (R49, R53): L15D, solo con los no forzados."""
+        return self._con_lista(L15D_NATURALEZA_DE_FICHA, proides), [*proides]
 
     # --- Reservas bajo bloqueo (E2-E7, E11b) ----------------------------------------
 

@@ -585,3 +585,73 @@ def test_f008_r25_naturalezas_resueltas_con_la_analitica_del_centro() -> None:
     )
     assert resultado == {"MA9999": (51, 4001, 3001), "SM9999": "analitica_no_resuelta",
                          "ZZ": "analitica_no_resuelta", "SIN": "naturaleza_no_valida"}
+
+
+# --- Enmienda 1 · T27: forzada por `<emp>:<producto>` o la de la ficha ------------
+
+from application.use_cases.albaran_compra_statements import naturalezas_elegidas  # noqa: E402
+
+#: L15D: (p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod).
+_FICHA = {
+    31: (31, 15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000"),      # valida
+    32: (32, 0, None, None, None, None, None),                     # natide 0
+    33: (33, None, None, None, None, None, None),                  # natide NULL
+    34: (34, 77, None, None, None, None, None),                    # sin auxpronat
+    35: (35, 16, "BAJA", 0, 20200101, "X", "6000000000"),          # de baja
+    36: (36, 17, "AJENA", 2, 0, "X", "6000000000"),                # numemp ajeno
+    37: (37, 18, "SINCUA", 1, 0, "X", "  "),                       # sin cuacomcod
+    38: (38, 19, "PROPIA", 1, 0, "MOD.P", "6020000000"),           # numemp de la empresa
+}
+
+
+def test_f008_r49_forzada_de_la_empresa_manda_sobre_la_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31}, {"1:MA9999": "MA99"}, _NAT, _FICHA, emp=1,
+    )
+    assert validas == {"MA9999": _NAT["ma99"][0]}
+    assert origenes == {"MA9999": "forzada"}
+
+
+def test_f008_r49_forzada_de_otra_empresa_no_aplica_y_manda_la_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31}, {"31:MA9999": "MA99"}, _NAT, _FICHA, emp=1,
+    )
+    assert validas == {"MA9999": (15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000")}
+    assert origenes == {"MA9999": "ficha"}
+
+
+def test_f008_r49_r50_la_ficha_valida_o_rechazada_por_cada_motivo() -> None:
+    productos = {f"P{proide}": proide for proide in _FICHA}
+    validas, origenes = naturalezas_elegidas(productos, {}, _NAT, _FICHA, emp=1)
+    assert validas == {
+        "P31": (15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000"),
+        "P38": (19, "PROPIA", 1, 0, "MOD.P", "6020000000"),
+    }
+    assert origenes == {p: "ficha" for p in productos}
+
+
+def test_f008_r50_sin_fila_de_ficha_no_es_valida() -> None:
+    validas, origenes = naturalezas_elegidas({"X": 999}, {}, _NAT, _FICHA, emp=1)
+    assert (validas, origenes) == ({}, {"X": "ficha"})
+
+
+@pytest.mark.parametrize("forzada,esperada", [
+    ("SM99", 62),       # dos filas, una de la empresa: la de la empresa (regla del mapeo viejo, R53)
+    ("QA99", None),     # de baja
+    ("XA99", None),     # sin cuacomcod
+    ("REP", None),      # dos validas: ambigua
+    ("NADA", None),     # no existe
+    (" ma99 ", 51),     # comparada como el ERP
+])
+def test_f008_r53_la_forzada_sigue_la_regla_del_mapeo_viejo(forzada: str, esperada: int | None) -> None:
+    validas, origenes = naturalezas_elegidas({"P": 31}, {"1:P": forzada}, _NAT, _FICHA, emp=1)
+    assert ({p: f[0] for p, f in validas.items()}.get("P"), origenes) == (esperada, {"P": "forzada"})
+
+
+def test_f008_r49_mezcla_de_forzadas_y_de_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31, "SM370001": 38}, {"1:MA9999": "MA99", "34:SM370001": "SM37"}, _NAT, _FICHA,
+        emp=1,
+    )
+    assert {p: f[0] for p, f in validas.items()} == {"MA9999": 51, "SM370001": 19}
+    assert origenes == {"MA9999": "forzada", "SM370001": "ficha"}

@@ -714,3 +714,30 @@ def test_f008_r35_ningun_calculo_de_vencimiento() -> None:
     assert list(inspect.signature(lineas_puras.validar_vencimientos).parameters) == [
         "vencimientos", "fecha_factura", "totpag",
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Enmienda 1 · T27: la naturaleza de la ficha del producto (R49, R50, R53)
+# --------------------------------------------------------------------------- #
+
+from application.use_cases.albaran_compra_statements import (  # noqa: E402
+    L15D_NATURALEZA_DE_FICHA,
+    AlbaranCompraStatements,
+)
+
+F9 = AlbaranCompraStatements(database="ruesma")
+
+
+def test_f008_r49_naturaleza_de_la_ficha_por_proide() -> None:
+    assert F9.leer_naturalezas_de_ficha([31, 32]) == (
+        "SELECT p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod FROM dbo.pro p "
+        "LEFT JOIN dbo.auxpronat n ON n.ide = p.natide WHERE p.ide IN (?, ?)",
+        [31, 32],
+    )
+
+
+def test_f008_r49_la_lectura_de_ficha_es_constante_validada_y_sin_lista_vacia() -> None:
+    assert L15D_NATURALEZA_DE_FICHA.format(marcadores="(?)") in AlbaranCompraStatements.todas_las_sentencias()
+    assert "?" not in L15D_NATURALEZA_DE_FICHA.replace("{marcadores}", "")
+    with pytest.raises(ValueError, match="vacia"):
+        F9.leer_naturalezas_de_ficha([])

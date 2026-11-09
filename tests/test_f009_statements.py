@@ -560,7 +560,8 @@ _PROHIBIDOS = re.compile(
 def test_f009_r31_sin_delete_merge_ni_ddl(sentencias: AlbaranCompraStatements) -> None:
     todas = sentencias.todas_las_sentencias()
     # F-015 R24: + L16, L17, E6b, E12 de `dcarec` y los INSERT fijos de con, dca y dcarec.
-    assert len(todas) == len(set(todas)) == 47
+    # F-008 enmienda 1 (R49): + L15D, la naturaleza de la ficha (solo lectura).
+    assert len(todas) == len(set(todas)) == 48
     for sql in todas:
         assert not _PROHIBIDOS.search(sql), sql
         assert sql.startswith(("SELECT ", "INSERT INTO dbo.", "UPDATE dbo.")), sql

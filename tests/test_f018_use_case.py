@@ -360,9 +360,13 @@ def test_f018_r23_las_sentencias_son_las_de_dev() -> None:
     )
     from application.use_cases.proforma_statements import ProformaStatements
 
+    from application.use_cases.albaran_compra_statements import L15D_NATURALEZA_DE_FICHA
+
+    #: F-008 enmienda 1 (R49) añade L15D, solo lectura y ajena a F-018: fuera de la huella.
+    l15d = L15D_NATURALEZA_DE_FICHA.format(marcadores="(?)")
     for nombre, clase in (("albaran", AlbaranCompraStatements), ("proforma", ProformaStatements),
                           ("origen", ProformaOrigenStatements)):
-        sentencias = clase.todas_las_sentencias()
+        sentencias = [sql for sql in clase.todas_las_sentencias() if sql != l15d]
         huella = hashlib.sha256("\n".join(sentencias).encode()).hexdigest()
         assert (len(sentencias), huella) == _SQL_DE_DEV[nombre], nombre
 
