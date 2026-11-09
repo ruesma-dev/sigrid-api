@@ -79,3 +79,20 @@ FRGG, como prevé el aviso `cod_provisional`).
   `fecrea` 0; `dcfrec` 0, sin asiento y `regiva` 0.
 
 **Pendiente en el escritorio:** V2, V6, V3 y V4 sobre G1 (`FR26/11425`) y V7 sobre G2 (`FRGG26/2772`).
+
+## T34 · Despliegue de la enmienda 1 (2026-11-09)
+
+- **T34.0:** `albaranes` avisada y con acuse sin pegas (su código no lee naturaleza ni analítica).
+- **T34.1 (líder, lectura):** las dos `_POR_PRODUCTO` con los valores de D1, la de proformas con lo suyo, las `_FORZADA`
+  ausentes. Como esperaba el guion.
+- **T34.2 (humano):** `func azure functionapp publish` desde `dev` `7b7a2e1`, exit 0, 11 funciones.
+- **T34.3 (líder, todas `commit:false`, C0 de facturas y de albaranes igual antes y después de cada una):**
+  - ficha de `MA9999` en la empresa 1: `MA1501` (`natide` 274), `MOD.CDMA15`, cuenta `6000000000`;
+  - **PA** (FR, obra 0404, `MA9999`): `previsto`, `natide` 274, `cueide` 524871, `caaide` = `0404.CDMA15` (828982);
+  - **PB** (FR solo con cuenta y analítica de una FR real de la empresa 1): `previsto`, `proide`, `paride` y `natide` 0,
+    `cueide` y `caaide` iguales a la línea real. Primer intento con una FR de la **empresa 39** (también usa `FR26/`):
+    `analitica_no_valida`, correcto, porque la analítica era de otra empresa. Error de datos del líder;
+  - **PB ambigua** (producto y cuenta): 400 «Solicitud invalida.» con el mensaje de «ambigua»;
+  - **PC** (`sigrid/albaran`, `CTSU16/0206`, `MA9999`): `previsto`, `committed` false, `natide` 274 y `0404.CDMA15`.
+- **Pendiente:** T34.5 (borrar las dos viejas, humano). T34.4 no hace falta mientras no haya excepciones: la `_FORZADA`
+  ausente vale `{}`.
