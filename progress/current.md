@@ -25,7 +25,8 @@ cambian; R49-R54 nuevas (forzado por empresa en App Settings nuevas `_FORZADA`);
 `612d84b`; contrato de albaranes v8.5). `init.sh` en verde: 4364 passed, 1 skipped, cobertura 100 % (136/136); mutación,
 104 de 104 muertos tras 10 tests nuevos ([`mutacion_F-008_enmienda1.md`](mutacion_F-008_enmienda1.md)). Informe: sección
 «Enmienda 1» de [`impl_F-008.md`](impl_F-008.md). Siguiente: T35 (reviewer). Pendiente del humano: T34 (despliegue,
-avisando antes a `albaranes`: sin forzado, `MA9999` pasa a la naturaleza de su ficha, `MA1501`).
+avisando antes a `albaranes`: sin forzado, `MA9999` pasa a la naturaleza de su ficha, `MA1501`), con sus pasos y
+comandos en [`verificacion_manual.md` §T34](../specs/F-008-registrar-factura/verificacion_manual.md).
 
 ## F-016 cerrada (2026-10-30)
 
