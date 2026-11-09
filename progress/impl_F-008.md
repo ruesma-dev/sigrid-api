@@ -152,6 +152,7 @@ Medido sobre el código de `e2bc1f4` (el último commit con código; los posteri
 | `71706f5` | T32 | mutación y 10 tests nuevos (abajo) |
 | `e9ab2af` | T33 | `ARCHITECTURE.md`, contrato de albaranes **v8.5**, `tasks.md`; `azure-apps` **`612d84b`** (§4, §8.6, §8.11) |
 | `83f6b89` | T36 | ruff: los 9 avisos que añadió la enmienda, a 0 (vuelve a 104, los de antes) |
+| `f3ce85c`, `214418c` | revisión | B1: §D.1 superada y §T34 en `verificacion_manual.md`, enlazada desde `current.md`; M3: dos tests renombrados; M1: `azure-apps` **`8fca6a3`** |
 
 **Decisiones propias:**
 - clave forzada con dos `:` → no arranca (el producto no puede llevar `:`);
@@ -162,7 +163,7 @@ Medido sobre el código de `e2bc1f4` (el último commit con código; los posteri
 **Tests existentes ajustados (no borrados):** `f009_dobles.py` y `f008_dobles.py` (fichas, L15D, forzadas `1:…`);
 `test_f007_perfil.py`, `test_f007_settings.py`, `test_f009_settings.py` (nombres y claves nuevos); `test_f009_use_case.py`
 (r13b con ficha vacía, `el_mapeo_es_exacto` sin lectura de ficha, r11 con forzado `2:MA9999`);
-`test_f009_statements.py` y `test_f015_statements.py` (47 → 48 sentencias); `test_f018_use_case.py` (hash sin L15D).
+`test_f009_statements.py` y `test_f015_statements.py` (47 → 48 sentencias); `test_f018_use_case.py` (hash sin L15D en las tres clases: `ProformaStatements` también la lista porque comparte sentencias, pero las proformas nunca la lanzan; P23 intacta, M2).
 
 Sin tocar: `infrastructure/security/`, `.env`, `sigrid/albaran-directo` (P22) y proformas (P23).
 
@@ -197,7 +198,7 @@ era equivalente. Cada uno tiene un test nuevo, y aplicado a mano lo caza (`exit 
 ### Pendiente (no es del implementer)
 
 - **T34 (MANUAL, humano):** desplegar avisando antes a `albaranes`, porque su llave está abierta y desde ese momento
-  manda la ficha. Sin forzado, `MA9999` pasa de `MA99`/`CDSB37` a `MA1501`/`CDMA15`. Después:
+  manda la ficha. En la empresa 1 solo cambia `MA9999` (de `MA99`/`CDSB37` a `MA1501`/`CDMA15`). Pasos y comandos en `verificacion_manual.md` §T34:
   - previas FR con `MA9999`, FR solo con cuenta y una de `sigrid/albaran`;
   - borrar las dos `_POR_PRODUCTO` y cargar en las `_FORZADA` solo excepciones reales;
   - cada cambio, con su autorización expresa.
@@ -207,9 +208,9 @@ era equivalente. Cada uno tiene un test nuevo, y aplicado a mano lo caza (`exit 
 
 | Evidencia | Valor medido |
 |---|---|
-| `bash harness/init.sh` (HEAD `83f6b89`) | `ENTORNO LISTO. Puedes trabajar.` |
+| `bash harness/init.sh` (HEAD `214418c`, tras la revisión) | `ENTORNO LISTO. Puedes trabajar.` (antes, igual en `83f6b89`) |
 | Tests (suite completa) | **4364 passed, 1 skipped**, 0 fallos (antes de la enmienda, 4217) |
-| Tiempo de la suite | 124,04 s |
+| Tiempo de la suite | 111,94 s (`214418c`) |
 | Cobertura de líneas cambiadas | `PUERTA COBERTURA: 100.0% de 136 líneas cambiadas cubiertas (136/136, umbral 80%, nivel critico)` |
 | Mutantes generados / supervivientes | 104 / 10 → **0** tras T32 (los 10 con test nuevo, medidos) |
 | Tamaños | `requirements 150/150, design 250/250, review 133/140`; ruff 104 avisos (deuda previa) |
