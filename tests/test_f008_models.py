@@ -265,3 +265,71 @@ def test_f008_r25_paride_sin_partida_es_400() -> None:
     with pytest.raises(ValidationError, match="paride solo va con partida"):
         FacturaRequest.model_validate(cuerpo(origenes=[], cod_obra="0404", lineas=[linea]))
     FacturaRequest.model_validate(cuerpo(origenes=[], cod_obra="0404", lineas=[{**linea, "partida": "01"}]))
+
+
+# --------------------------------------------------------------------------- #
+# Enmienda 1 · T30: la linea FR con `cuenta` + `analitica`, sin producto (R23, R52)
+# --------------------------------------------------------------------------- #
+
+
+def _linea_fr_cuenta(**cambios: Any) -> dict[str, Any]:
+    return {"descripcion": "Portes", "cantidad": 1.0, "precio": 5.0, "iva": "I21",
+            "cuenta": "6290000000", "analitica": "0404.MAT", **cambios}
+
+
+def test_f008_r23_linea_fr_con_cuenta_y_analitica_se_admite() -> None:
+    peticion = FacturaRequest.model_validate(cuerpo(lineas=[_linea_fr_cuenta()]))
+    linea = peticion.lineas[0]
+    assert (linea.producto, linea.cuenta, linea.analitica) == (None, "6290000000", "0404.MAT")
+
+
+def test_f008_r23_linea_fr_con_cuenta_admite_unidad() -> None:
+    peticion = FacturaRequest.model_validate(cuerpo(lineas=[_linea_fr_cuenta(unidad="UD")]))
+    assert peticion.lineas[0].unidad == "UD"
+
+
+def test_f008_r52_fr_mezcla_lineas_con_producto_y_con_cuenta() -> None:
+    linea_producto = {"descripcion": "Material", "cantidad": 2.0, "precio": 10.0, "iva": "I21",
+                      "producto": "MA9999", "partida": "01", "paride": 3, "unidad": "UD"}
+    peticion = FacturaRequest.model_validate(cuerpo(origenes=["AC26/1"],
+                                                    lineas=[linea_producto, _linea_fr_cuenta()]))
+    assert [l.producto for l in peticion.lineas] == ["MA9999", None]
+
+
+@pytest.mark.parametrize("cambios", [
+    {"producto": "MA9999"},                                  # los dos juegos: ambigua
+    {"producto": "MA9999", "cuenta": None},                  # producto + analitica
+    {"producto": "MA9999", "analitica": None},               # producto + cuenta
+], ids=["producto_cuenta_analitica", "producto_analitica", "producto_cuenta"])
+def test_f008_r23_linea_fr_ambigua_es_400(cambios: dict[str, Any]) -> None:
+    linea = {k: v for k, v in _linea_fr_cuenta(**cambios).items() if v is not None}
+    with pytest.raises(ValidationError, match="ambigua"):
+        FacturaRequest.model_validate(cuerpo(lineas=[linea]))
+
+
+@pytest.mark.parametrize("falta", ["cuenta", "analitica"])
+def test_f008_r23_linea_fr_con_juego_de_cuenta_incompleto_es_400(falta: str) -> None:
+    linea = _linea_fr_cuenta()
+    del linea[falta]
+    with pytest.raises(ValidationError, match="cuenta y analitica"):
+        FacturaRequest.model_validate(cuerpo(lineas=[linea]))
+
+
+@pytest.mark.parametrize("cambios", [{"partida": "01"}, {"partida": "01", "paride": 5}],
+                         ids=["partida", "partida_paride"])
+def test_f008_r23_linea_fr_con_cuenta_y_partida_es_400(cambios: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError, match="solo va con producto"):
+        FacturaRequest.model_validate(cuerpo(lineas=[_linea_fr_cuenta(**cambios)]))
+
+
+def test_f008_r23_linea_fr_sin_ningun_juego_es_400() -> None:
+    linea = {"descripcion": "x", "cantidad": 1.0, "precio": 1.0, "iva": "I21", "unidad": "UD"}
+    with pytest.raises(ValidationError, match="producto o cuenta y analitica"):
+        FacturaRequest.model_validate(cuerpo(lineas=[linea]))
+
+
+@pytest.mark.parametrize("cambios", [{"partida": "01"}, {"paride": 5}], ids=["partida", "paride"])
+def test_f008_r23_linea_fr_solo_con_partida_es_400(cambios: dict[str, Any]) -> None:
+    linea = {"descripcion": "x", "cantidad": 1.0, "precio": 1.0, "iva": "I21", **cambios}
+    with pytest.raises(ValidationError):
+        FacturaRequest.model_validate(cuerpo(lineas=[linea]))

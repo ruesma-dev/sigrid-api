@@ -73,11 +73,11 @@ CODIGOS_LINEA_FACTURA: frozenset[str] = frozenset({
     "analitica_no_valida",
 })
 
-#: Campos de linea propios de cada serie (R23): uno de la otra serie es 400.
+#: Campos de linea propios de cada serie (R23): en FRGG, uno de FR es 400.
 CAMPOS_FR: tuple[str, ...] = ("producto", "partida", "paride", "unidad")
 CAMPOS_FRGG: tuple[str, ...] = ("cuenta", "analitica")
-#: Obligatorios por serie (R23, P19).
-OBLIGATORIOS: dict[str, tuple[str, ...]] = {"FR": ("producto",), "FRGG": CAMPOS_FRGG}
+#: Enmienda 1 (R23, R52): en FR, los que solo van con `producto`.
+CAMPOS_DEL_PRODUCTO: tuple[str, ...] = ("partida", "paride")
 
 
 def _fecha_real(valor: int) -> int:
@@ -178,18 +178,44 @@ class FacturaRequest(_Estricto):
             raise ValueError("a_origen solo va en modo origen.")
         if not self.origenes and self.cod_obra is None:
             raise ValueError("Sin origenes, cod_obra es obligatorio.")
-        ajenos = CAMPOS_FRGG if self.serie == "FR" else CAMPOS_FR
         for indice, linea in enumerate(self.lineas):
-            for campo in ajenos:
-                if getattr(linea, campo) is not None:
-                    raise ValueError(f"lineas[{indice}].{campo} no va en la serie {self.serie}.")
-            for campo in OBLIGATORIOS[self.serie]:
-                if getattr(linea, campo) is None:
-                    raise ValueError(f"lineas[{indice}].{campo} es obligatorio en la serie {self.serie}.")
+            if self.serie == "FRGG":
+                _linea_frgg(indice, linea)
+            else:
+                _linea_fr(indice, linea)
             # F-009 R14b: `paride` sin `partida` no se descarta en silencio (R25).
             if linea.paride is not None and linea.partida is None:
                 raise ValueError(f"lineas[{indice}].paride solo va con partida.")
         return self
+
+
+def _linea_frgg(indice: int, linea: LineaSinOrigen) -> None:
+    """R23, P19: en FRGG, `cuenta` y `analitica` y ningun campo de FR."""
+    for campo in CAMPOS_FR:
+        if getattr(linea, campo) is not None:
+            raise ValueError(f"lineas[{indice}].{campo} no va en la serie FRGG.")
+    for campo in CAMPOS_FRGG:
+        if getattr(linea, campo) is None:
+            raise ValueError(f"lineas[{indice}].{campo} es obligatorio en la serie FRGG.")
+
+
+def _linea_fr(indice: int, linea: LineaSinOrigen) -> None:
+    """Enmienda 1 (R23, R52): en FR, O `producto` (con `partida`, `paride` y
+    `unidad` opcionales) O `cuenta` y `analitica` (con `unidad` opcional)."""
+    de_cuenta = [campo for campo in CAMPOS_FRGG if getattr(linea, campo) is not None]
+    if linea.producto is not None:
+        if de_cuenta:
+            raise ValueError(
+                f"lineas[{indice}] lleva producto y {de_cuenta[0]}: ambigua (o producto, o cuenta y analitica)."
+            )
+        return
+    if not de_cuenta:
+        raise ValueError(f"lineas[{indice}] necesita producto o cuenta y analitica en la serie FR.")
+    if len(de_cuenta) != len(CAMPOS_FRGG):
+        raise ValueError(f"lineas[{indice}] sin producto lleva cuenta y analitica, las dos.")
+    for campo in CAMPOS_DEL_PRODUCTO:
+        if getattr(linea, campo) is not None:
+            raise ValueError(f"lineas[{indice}].{campo} solo va con producto.")
 
 
 class FalloLineaFactura(_Estricto):
