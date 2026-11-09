@@ -105,7 +105,9 @@ def test_f008_r49_r53_mezcla_la_ficha_se_lee_solo_con_los_no_forzados() -> None:
     (66, 505, "MA1501", 0, 20200101, "MOD.CDMA15", "6000005"),   # de baja
     (66, 505, "MA1501", 2, 0, "MOD.CDMA15", "6000005"),          # de otra empresa
     (66, 505, "MA1501", 0, 0, "MOD.CDMA15", " "),                # sin cuacomcod
-], ids=["natide_0", "natide_null", "sin_auxpronat", "de_baja", "otra_empresa", "sin_cuacomcod"])
+    (66, 0, "MA1501", 0, 0, "MOD.CDMA15", "6000005"),            # natide 0 con auxpronat 0 (T32)
+], ids=["natide_0", "natide_null", "sin_auxpronat", "de_baja", "otra_empresa", "sin_cuacomcod",
+        "natide_0_con_auxpronat"])
 def test_f008_r50_ficha_sin_naturaleza_valida_es_naturaleza_no_valida(ficha: tuple) -> None:
     fallos = _fallos([_sin_vincular()], forzada={}, lecturas={"naturalezas_de_ficha": [ficha]})
     assert [c for c, _m in fallos] == ["naturaleza_no_valida"]
@@ -171,5 +173,35 @@ def test_f008_r51_sin_ficha_fuera_del_mapa_sigue_siendo_naturaleza_no_valida() -
     fallos = _fallos([_sin_vincular()], caso=_CasoSinFicha,
                      settings=_SettingsConMapa(mapa_por_producto={}))
     assert fallos == [("naturaleza_no_valida",
-                       "La naturaleza del producto 'MA9999' (MAPA_POR_PRODUCTO) no existe, esta de baja, "
-                       "es de otra empresa o su cuenta no es unica.")]
+                       ("La naturaleza del producto 'MA9999' (MAPA_POR_PRODUCTO) no existe, esta de baja, "
+                        "es de otra empresa o su cuenta no es unica."))]
+
+
+# --- T32 (mutacion): la validez de la candidata, en la ficha y en el mapa --------
+
+
+def test_f008_r50_ficha_con_numemp_y_fecbaj_nulos_es_valida() -> None:
+    """`numemp` y `fecbaj` NULL valen 0 (de todas las empresas, sin baja): la
+    existencia de la naturaleza la dice `n.cod`, no `n.numemp`."""
+    ficha = (66, 505, "MA1501", None, None, "MOD.CDMA15", "6000005")
+    respuesta, _repo = _ejecutar([_sin_vincular()], forzada={}, lecturas={"naturalezas_de_ficha": [ficha]})
+    assert _nca(respuesta) == (505, 605, 705)
+
+
+@pytest.mark.parametrize("naturalezas", [
+    [(501, "MA99", 0, 20200101, "MOD.CDSB37", "6000001")],              # de baja, de todas
+    [(501, "MA99", 2, 0, "MOD.CDSB37", "6000001")],                     # de otra empresa
+    [(501, "MA99", 0, 0, "MOD.CDSB37", " ")],                           # sin cuacomcod
+    [(501, "MA99", 0, 0, "MOD.CDSB37", "6000001"),
+     (509, "MA99", 1, 0, "MOD.CDSB37", "6000001")],                     # dos candidatas
+], ids=["de_baja", "otra_empresa", "sin_cuacomcod", "dos_candidatas"])
+def test_f008_r51_sin_ficha_el_mapa_valida_la_candidata_como_siempre(naturalezas: list[tuple]) -> None:
+    fallos = _fallos([_sin_vincular()], caso=_CasoSinFicha, settings=_SettingsConMapa(),
+                     lecturas={"naturalezas": naturalezas})
+    assert [c for c, _m in fallos] == ["naturaleza_no_valida"]
+
+
+def test_f008_r53_l15d_es_una_lectura_de_lista_y_pide_el_tope() -> None:
+    _respuesta, repo = _ejecutar([_sin_vincular()], forzada={})
+    topes = {d[2] for t, d in repo.llamadas if t == "leer" and d[0] == "naturalezas_de_ficha"}
+    assert topes == {SettingsDoble().max_allowed_rows}

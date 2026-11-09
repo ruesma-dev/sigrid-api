@@ -181,6 +181,7 @@ def test_f008_r54_las_forzadas_arrancan_vacias(variable: str) -> None:
         ('{"1:MA9999": "MA99", "31:MA9999": "MA99", "34:SM370001": "SM37"}',
          {"1:MA9999": "MA99", "31:MA9999": "MA99", "34:SM370001": "SM37"}),
         (f'{{"1:{_LARGO}": "X"}}', {f"1:{_LARGO}": "X"}),
+        ('{"1:M": "MA99"}', {"1:M": "MA99"}),          # producto de 1 caracter (T32)
         ({"1:MA9999": "MA99"}, {"1:MA9999": "MA99"}),
     ],
 )
@@ -202,6 +203,7 @@ def test_f008_r54_forzada_valida_y_normalizada(
         '{"uno:MA9999": "MA99"}',                      # emp no entero
         '{"1.5:MA9999": "MA99"}',
         '{"+1:MA9999": "MA99"}',
+        '{"\u0661:MA9999": "MA99"}',                  # digito arabe: isdigit e int lo aceptan (T32)
         '{"1:": "MA99"}',                              # producto vacio
         '{"1: MA9999": "MA99"}',                       # producto con espacios
         '{"1:MA 9999": "MA99"}',

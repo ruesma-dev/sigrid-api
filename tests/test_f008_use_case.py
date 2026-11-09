@@ -720,3 +720,13 @@ def test_f008_r26_fr_con_cuenta_y_prefijos_vacios_no_vale() -> None:
                total_base=100.0, total_iva=21.0, total_factura=121.0,
                vencimientos=[{"fecha": 20261130, "importe": 121.0}])
     assert [f["codigo"] for f in e.details["lineas"]] == ["cuenta_no_valida"]
+
+
+def test_f008_r25_r53_producto_no_permitido_no_lee_naturalezas() -> None:
+    """T32: MA9999 existe y esta forzado, pero fuera de la lista blanca: ni
+    L15A ni L15D se lanzan para el."""
+    caso, repo = _caso(None, AjustesFactura(sigrid_factura_productos_sin_origen=["XA9999"]))
+    with pytest.raises(FacturaError) as error:
+        caso.run(FacturaRequest.model_validate(peticion(origenes=[], cod_obra="0404", lineas=[linea_fr()])))
+    assert [f["codigo"] for f in error.value.details["lineas"]] == ["producto_no_permitido"]
+    assert not {"naturalezas", "naturalezas_de_ficha"} & set(repo.nombres())
