@@ -1,27 +1,14 @@
 <!-- progress/impl_F-008.md -->
-# F-008 · Informe del implementer (T0-T20 y correcciones de la revisión T21)
+# F-008 · Informe del implementer (T0-T20, ronda T21 y enmienda 1: T26-T33, T36)
 
 Spec v3.1 (`specs/F-008-registrar-factura/`), rigor `critico`. Rama `feature/F-008-registrar-factura`.
 
 ## T0 · Esquema medido (solo `sys.columns` y agregados por `sql/read`, 2026-10-30)
 
-Ninguna columna es `IDENTITY`: todos los `ide` se reservan con `MAX + 1` bajo applock. Nulables: todas salvo `ide` (y
-`docide`/`docproide` en las hijas). Tipos de texto `text` (`tex`, `pagtex`, `pagfor`, `dir*`, `detinm`...) aceptan `NULL`.
-
-| Tabla | Cols | Lista blanca y vacíos fijados (lo no citado: 0 en numéricas, `''` en `varchar`) |
-|---|---|---|
-| `con` | 19 | `CON_COLUMNAS` de F-006; `tip` 15 o 25, `tex` NULL (`con` 25: NULL en 11 de 11) |
-| `dcf` | 145 | **Idénticas a `dca`** (mismo orden): `DCA_COLUMNAS` de F-009. `tipgar` -1 (10.857 de 11.408), `emptex` NULL, `cla` 1001 |
-| `dcfpro` | 73 | lista propia `DCFPRO_COLUMNAS`; `texcom`, `desesp`, `serdesdat`, `med` NULL (35 de 35 en REC/COM); `tex`, `pac`, `ico`, `refent` `''` |
-| `dcfrec` | 21 | **Idénticas a `dcarec`**: `DCAREC_COLUMNAS`; `pos` 64, `tex` `''` |
-| `pag` | 46 | lista propia; `remide`, `fecrea`, `blo*`, `natide`, `pun`, divisa 0; `cypref`, `retref`, `blores`, `cpa*` `''` |
-| `consii` | 50 | lista propia; `pos` 64, A0/F1/01, `emiter`/`facsimcua`/`facsinide`/`difplaenv` N, resto `''`/0, `detinm` NULL |
-| `dcaprodes` | 7 | `ide`, `docproide`, `can`, `docdestip` 15, `docdescod`, `docdeside`, `lindeside` |
-| `log` | 14 | `LOG_COLUMNAS` de F-006; alta de factura: `ope 1`, `tab con`, `tip 15`, `est 1`, `ori 0` (medido) |
-
-Identificación medida para las lecturas: IVA = `con.tip 23` por (`emp`, `cod`) con `iva.iva` (tasa) e `iva.sopded` (0 en
-los NDED); cuenta = `con.tip 17` + `cua.niv`; analítica = `con.tip 19` + `caa`, hoja = sin `caa.padide` que la apunte (0
-analíticas con hijas en 8.634 líneas FRGG26); obra `tip 42`; `conest` 14: CON 3, FAC 10; 15: REC 1, RECGG 20; 25: PDT 1.
+Ninguna columna es `IDENTITY` (todos los `ide`, `MAX + 1` bajo applock). `dcf` = columnas de `dca` y `dcfrec` = las de
+`dcarec`; `dcfpro`, `pag`, `consii` y `dcaprodes` con lista blanca propia (vacíos fijados en `factura_statements.py`,
+commit de T8). IVA `con.tip 23`, cuenta `tip 17` + `cua.niv`, analítica `tip 19` + `caa` (hoja = sin hijos), obra `tip
+42`; `conest` 14: CON 3, FAC 10; 15: REC 1, RECGG 20; 25: PDT 1. Tabla completa: historia de este fichero (`e2bc1f4`).
 
 ## Ficheros tocados (diff `0dcfcee..HEAD`; un commit por tarea salvo T9-T10 y T12-T14, ver desviación 7)
 
@@ -44,54 +31,27 @@ importa). Tests existentes sin cambios: en T17, el diff de las suites ajenas es 
 
 ## Decisiones de diseño
 
-- **La idempotencia va antes que los orígenes.** Si no, repetir una factura ya grabada encontraría sus orígenes
-  facturados por ella misma y daría `origen_ya_facturado` en vez de `idempotente`.
-- **Dos cambios en el orden de §7:**
-  - `retencion_no_soportada` va después de las líneas (R15-R28) y antes que los totales, porque los totales necesitan
-    la cuota (corregido en T21: antes iba en el paso 5; lo fijan los tres `test_f008_orden_*` de la retención);
-  - `abono_no_soportado` va antes de comparar totales (R30).
-- **Orígenes:** se buscan en la empresa de la obra o en las admitidas. Si un código existe en varias empresas y no
-  llega `cod_obra`, el error es `origen_no_encontrado`, con la pista de mandar `cod_obra`.
-- **Comprobaciones repetidas dentro de la transacción**, sobre las filas releídas con `UPDLOCK, HOLDLOCK`:
-  idempotencia, duplicadas, R14, R15, R22, totales y vencimientos. Si un origen bloqueado cambió o desapareció, el
-  error es `origen_no_encontrado`.
-- **Marcas verificadas por relectura.** Que cada UPDATE de marca toque su fila (R40) lo garantizan el
-  `UPDLOCK, HOLDLOCK` de EF1/EF2 y el `WHERE` condicionado al valor leído bajo ese bloqueo. La relectura comprueba el
-  **estado final** que exigen R40-R42 y R45, cosa que un recuento de filas afectadas no dice (`SELECT @@ROWCOUNT`
-  funcionaría aun con `NOCOUNT ON`; `cursor.rowcount` no). Se conservan las relecturas por eso:
-  - `ctrpro.canfac` se relee con tolerancia, contra lo leído bajo EF4 más `can`;
-  - `dca.fecfac` y `dca.horfac` toman la fecha y la hora del alta.
-- **`pag.ide` es el `ide` de su `con` 25.** `dcfrec` y `dcaprodes` solo reservan `ide` si hacen falta.
-- **Cabecera:**
-  - con orígenes, la del primero por `cod`;
-  - sin orígenes, la del proveedor, `auxpag` y la obra.
-- **Duplicadas:** no se filtran por empresa.
-- **Cambios de código en T20:**
-  - Se quitaron cuatro respaldos inalcanzables:
-    - el argumento `cuo`, que no influía en `totbas`;
-    - el `or 0` del vencimiento de garantía;
-    - el `(0, 0, 0)` de las sumas del contrato;
-    - el `if fila else 0` de `_contar`.
-  - `_fecha_real` pierde su tope superior, que era redundante: ahora exige ocho cifras y el resto lo decide `date`.
-  - Las conjunciones de los `assert` de tipo se parten en un `assert` por valor.
-  - Una línea de contrato que desaparece bajo bloqueo da `filas_afectadas_inesperadas` explícito, **antes** del UPDATE.
+- **La idempotencia va antes que los orígenes** (si no, una repetición vería sus orígenes facturados por ella misma).
+- **Orden de §7:** `retencion_no_soportada` tras las líneas y antes de los totales (los totales necesitan la cuota;
+  T21), y `abono_no_soportado` antes de comparar totales (R30).
+- **Orígenes** en la empresa de la obra o en las admitidas; un código en varias empresas sin `cod_obra` da
+  `origen_no_encontrado` con la pista. Dentro de la transacción, idempotencia, duplicadas, R14, R15, R22, totales y
+  vencimientos otra vez sobre filas con `UPDLOCK, HOLDLOCK`.
+- **Marcas verificadas por relectura** del estado final (R40-R42, R45), no por `rowcount`; la unicidad de la fila la
+  dan los bloqueos de EF1/EF2 y el `WHERE` condicionado. `pag.ide` = `ide` de su `con` 25.
+- **T20** quitó cuatro respaldos inalcanzables y el tope redundante de `_fecha_real`; una línea de contrato que
+  desaparece bajo bloqueo da `filas_afectadas_inesperadas` antes del UPDATE.
 
 ## Desviaciones respecto a la spec (justificadas)
 
-1. **No existe `.env.example` en el repositorio.** Los ajustes se documentan en `local.settings.sample.json` y en
-   `azure-apps/sigrid_api.md` §4; no se ha creado el fichero.
-2. **`linea_sin_origen` no recibe `tasa_iva`**, porque la tasa ya viaja en `LineaResuelta`.
-3. **Los valores de los UPDATE van parametrizados** (`estfac = ?`, …), porque la lista negativa de T15 prohíbe valores
-   literales en el SQL.
-4. **Se usan relecturas en vez de `rowcount`** para R40-R42 y R45: comprueban el estado final, y la unicidad de la
-   fila la dan los bloqueos de EF1/EF2 (ver decisiones; el motivo «`NOCOUNT ON`» de la primera versión era falso).
-5. **La ruta tiene su propio 400 de validación.** El `validation_error_response` compartido devuelve `input`, que con
-   un `model_validator` es el cuerpo entero (CIF, número, importes), y R1 lo prohíbe. La función compartida no se toca.
-6. **T15 recorre 53 constantes, no «≥ 60»** como estimaba la tarea. El umbral del test es 50 y el recorrido es exhaustivo.
-7. **Dos commits agrupan tareas** (hallazgo H1 de C1C2C5; no se reescribe la historia): `517ddd2` lleva T9 y T10
-   (lecturas y reserva de `cod`, en el mismo módulo y con el mismo RED de importación) y `1da3d67` lleva T12, T13 y
-   T14 (inserciones, marcas y relectura: una sola transacción, cuyos tests en rojo son comunes, ver la tabla RED). Son 18
-   commits para 21 tareas. **Aceptada por el humano el 2026-10-31** («ok a las 2», condición C1 de `review_F-008.md`).
+1. **No hay `.env.example`** en el repositorio: los ajustes, en `local.settings.sample.json` y `azure-apps` §4.
+2. **`linea_sin_origen` no recibe `tasa_iva`**: la tasa ya viaja en `LineaResuelta`.
+3. **Los UPDATE van parametrizados** (`estfac = ?`): la lista negativa de T15 prohíbe literales en el SQL.
+4. **Relecturas en vez de `rowcount`** para R40-R42 y R45 (ver decisiones).
+5. **400 de validación propio en la ruta**: el compartido devuelve `input` (el cuerpo entero), y R1 lo prohíbe.
+6. **T15 recorre 53 constantes, no «≥ 60»**: el umbral es 50 y el recorrido es exhaustivo.
+7. **Dos commits agrupan tareas**: `517ddd2` (T9-T10) y `1da3d67` (T12-T14). **Aceptado por el humano el
+   2026-10-31** (C1 de `review_F-008.md`).
 
 ## Fase RED (salida real del primer intento con `python -m pytest -q tests/<fichero>`)
 
@@ -140,10 +100,8 @@ tests/test_f008_use_case.py tests/test_f008_transaccion.py -k "r16b or origen_si
 Los tests de commit comprueban que no se abre la transacción ni se escribe nada (y, bajo bloqueo, ROLLBACK intacto).
 Mutantes de las líneas nuevas, uno a uno (`pytest -q -x tests -k f008`): `if not float(can or 0)`, `or 1`, `and 0`,
 `if True`, `in por_origen`, `if not vacios`, `if False`: **7 de 7 muertos** (exit 1). Restaurados copiando la copia
-previa; `python -m harness.mutacion --restaurar` confirma «no quedó ningún mutante aplicado».
-
-Documentos (sin código): `4824027` (`current.md`), `7438910` (`verificacion_manual.md`) y `92067d9` en
-`azure-apps` (§8.11, solo `sigrid_api.md`).
+previa; `python -m harness.mutacion --restaurar` confirma «no quedó ningún mutante aplicado». Documentos: `4824027`,
+`7438910` y `92067d9` en `azure-apps`.
 
 ## Verificaciones MANUAL pendientes (del humano, tras la revisión T21)
 
@@ -155,17 +113,9 @@ Documentos (sin código): `4824027` (`current.md`), `7438910` (`verificacion_man
 
 ## Fuera del alcance y avisos
 
-- **Fuera del alcance:**
-  - la contabilidad (asiento, `regiva`, `regirp`);
-  - los abonos;
-  - las retenciones de importe fijo o con IVA;
-  - sacar la factura de REC.
-- **Cambio ajeno en `azure-apps/sigrid_api.md`:** había una fila de Application Insights sin commitear, de otra persona.
-  No se ha tocado ni incluido en `a2127a6`, y sigue en el árbol de ese repositorio.
-- **No tocado en la ronda T21, por encargo:** las observaciones no bloqueantes (O1 ya no: el humano decidió, R16b). El hallazgo 6 de `docs` (códigos de línea y
-  `SIGRID_ALBARAN_EMPRESAS_OBRA` en §8.11) se hizo después, en `azure-apps` `654e7fd`, cotejado con el código.
-- **Sin datos reales:** ningún nombre de persona, proveedor ni CIF real en código, tests, specs ni progress. Los del
-  doble son ficticios.
+- **Fuera:** contabilidad (asiento, `regiva`, `regirp`), abonos, retenciones de importe fijo o con IVA, sacar de REC.
+- **Cambio ajeno en `azure-apps`** (fila de Application Insights sin commitear, de otra persona): no se ha tocado.
+- Hallazgo 6 de `docs` de T21, hecho en `azure-apps` `654e7fd`. **Sin datos reales** en código, tests ni progress.
 
 ## Evidencias
 
@@ -187,3 +137,81 @@ Medido sobre el código de `e2bc1f4` (el último commit con código; los posteri
   dio por vivos mientras yo medía en otro worktree. No he encontrado la causa y queda anotado para el reviewer.
 - **La campaña es anterior al código final de T20.** Los 16 mutantes de código muerto desaparecen con su línea, y los
   mutantes de las líneas nuevas se aplicaron y midieron uno a uno; no se ha relanzado la campaña entera (unas 5 h).
+
+## Enmienda 1 (spec v3.2, 2026-11-09): naturaleza de la ficha o forzada por empresa, FR con cuenta
+
+| Commit | Tarea | Qué |
+|---|---|---|
+| `226fcb7` | — | P22, P23 y D3 cerradas (design §9, `spec_F-008_enmienda1.md`, `current.md`) |
+| `61cad65` | T26 | `SIGRID_FACTURA_` y `SIGRID_ALBARAN_NATURALEZA_FORZADA` (`{"<emp>:<producto>": cod}`), `parse_naturaleza_forzada`; las dos `_POR_PRODUCTO` retiradas (la de proformas se queda) |
+| `892548c` | T27 | `L15D_NATURALEZA_DE_FICHA` (sentencia 48), `leer_naturalezas_de_ficha`, `naturalezas_elegidas` (regla común, con el origen) |
+| `f6d81f1` | T28 | `PerfilAlta.naturaleza_de_ficha` (albarán `True`, proforma `False`); mensaje con el origen |
+| `24ce6bb` | T29 | FR: `_lecturas_fr` con `naturalezas_elegidas`; `LecturasLineas.origenes_naturaleza` |
+| `34cff46` | T30 | `_linea_fr`: o `producto`, o `cuenta` + `analitica` («ambigua» con las dos) |
+| `66c7570` | T31 | resolvedor por línea; cada lectura solo con las líneas de su clase |
+| `71706f5` | T32 | mutación y 10 tests nuevos (abajo) |
+| `e9ab2af` | T33 | `ARCHITECTURE.md`, contrato de albaranes **v8.5**, `tasks.md`; `azure-apps` **`612d84b`** (§4, §8.6, §8.11) |
+| `83f6b89` | T36 | ruff: los 9 avisos que añadió la enmienda, a 0 (vuelve a 104, los de antes) |
+| `f3ce85c`, `214418c` | revisión | B1: §D.1 superada y §T34 en `verificacion_manual.md`, enlazada desde `current.md`; M3: dos tests renombrados; M1: `azure-apps` **`8fca6a3`** |
+
+**Decisiones propias:**
+- clave forzada con dos `:` → no arranca (el producto no puede llevar `:`);
+- emp con dígitos no ASCII (`١`) → no arranca;
+- L7, L15A y L15D solo para productos de la lista blanca, existentes y sin baja (R53);
+- L15D va con el tope de filas (`muchas=True`), como las demás lecturas de lista.
+
+**Tests existentes ajustados (no borrados):** `f009_dobles.py` y `f008_dobles.py` (fichas, L15D, forzadas `1:…`);
+`test_f007_perfil.py`, `test_f007_settings.py`, `test_f009_settings.py` (nombres y claves nuevos); `test_f009_use_case.py`
+(r13b con ficha vacía, `el_mapeo_es_exacto` sin lectura de ficha, r11 con forzado `2:MA9999`);
+`test_f009_statements.py` y `test_f015_statements.py` (47 → 48 sentencias); `test_f018_use_case.py` (hash sin L15D en las tres clases: `ProformaStatements` también la lista porque comparte sentencias, pero las proformas nunca la lanzan; P23 intacta, M2).
+
+Sin tocar: `infrastructure/security/`, `.env`, `sigrid/albaran-directo` (P22) y proformas (P23).
+
+### Fase RED (enmienda 1), salida real del primer intento
+
+| Tarea | Comando | Fallo pegado |
+|---|---|---|
+| T26 | `pytest -q tests/test_f008_settings.py` | `80 failed, 4 passed`; `AttributeError: 'Settings' object has no attribute 'sigrid_factura_naturaleza_forzada'` / `Failed: DID NOT RAISE ValidationError` / `KeyError: 'SIGRID_FACTURA_NATURALEZA_FORZADA'` |
+| T27 | `pytest -q tests/test_f008_statements.py tests/test_f008_lineas.py` | `2 errors during collection`; `ImportError: cannot import name 'L15D_NATURALEZA_DE_FICHA'` / `... 'naturalezas_elegidas'` |
+| T28 | `pytest -q tests/test_f008_naturaleza_albaran.py` | `TypeError: PerfilAlta.__init__() got an unexpected keyword argument 'naturaleza_de_ficha'`; con solo el campo: `13 failed, 5 passed` (`assert 'ficha' in "La naturaleza del producto 'MA9999' (SIGRID_ALBARAN_NATURALEZA_FORZADA)..."`, `assert ['naturaleza_no_valida'] == ['analitica_no_resuelta']`) |
+| T29 | `pytest -q tests/test_f008_lineas.py tests/test_f008_use_case.py` | `17 failed, 165 passed`; `AttributeError: 'AjustesFactura' object has no attribute 'sigrid_factura_naturaleza_por_producto'` / `TypeError: LecturasLineas.__init__() got an unexpected keyword argument 'origenes_naturaleza'` |
+| T30 | `pytest -q tests/test_f008_models.py` | `11 failed, 61 passed`; `Value error, lineas[0].cuenta no va en la serie FR.` / `Regex pattern did not match` (`ambigua`, `cuenta y analitica`, `solo va con producto`) |
+| T31 | `pytest -q tests/test_f008_use_case.py tests/test_f008_transaccion.py -k "r52 or r27_r52 or r26_fr"` | `5 failed`; `assert [(1, 'producto_no_permitido')] == [(1, 'cuenta_no_valida'), ...]` (la FR con cuenta iba al resolvedor FR) |
+| T32 | cada superviviente aplicado a mano | su test nuevo en rojo, `exit 1` (los 10, ver abajo) |
+
+### Mutación (T32): [`mutacion_F-008_enmienda1.md`](mutacion_F-008_enmienda1.md)
+
+`python -m harness.mutacion --feature F-008 --rama feature/F-008-registrar-factura --base dev --workers 1`, sobre
+`66c7570`, 315 líneas de 6 ficheros: **104 generados, 94 muertos, 10 supervivientes**, 0 timeouts, 2160,6 s. Ninguno
+era equivalente. Cada uno tiene un test nuevo, y aplicado a mano lo caza (`exit 1`). El original se restauró en un
+`finally` y `git status` de los fuentes quedó limpio. Huecos cubiertos:
+- ficha con `natide` 0 y `auxpronat` 0;
+- ficha con `numemp` NULL;
+- mapa de proformas: baja, otra empresa, sin `cuacomcod`, dos candidatas;
+- tope de filas de L15D;
+- producto no permitido sin lecturas de naturaleza;
+- dígito no ASCII;
+- producto de 1 carácter.
+
+**Total: 104 de 104 muertos.**
+
+### Pendiente (no es del implementer)
+
+- **T34 (MANUAL, humano):** desplegar avisando antes a `albaranes`, porque su llave está abierta y desde ese momento
+  manda la ficha. En la empresa 1 solo cambia `MA9999` (de `MA99`/`CDSB37` a `MA1501`/`CDMA15`). Pasos y comandos en `verificacion_manual.md` §T34:
+  - previas FR con `MA9999`, FR solo con cuenta y una de `sigrid/albaran`;
+  - borrar las dos `_POR_PRODUCTO` y cargar en las `_FORZADA` solo excepciones reales;
+  - cada cambio, con su autorización expresa.
+- **T35:** revisión del reviewer. Siguen pendientes T22-T24 de arriba.
+
+### Evidencias (enmienda 1)
+
+| Evidencia | Valor medido |
+|---|---|
+| `bash harness/init.sh` (HEAD `214418c`, tras la revisión) | `ENTORNO LISTO. Puedes trabajar.` (antes, igual en `83f6b89`) |
+| Tests (suite completa) | **4364 passed, 1 skipped**, 0 fallos (antes de la enmienda, 4217) |
+| Tiempo de la suite | 111,94 s (`214418c`) |
+| Cobertura de líneas cambiadas | `PUERTA COBERTURA: 100.0% de 136 líneas cambiadas cubiertas (136/136, umbral 80%, nivel critico)` |
+| Mutantes generados / supervivientes | 104 / 10 → **0** tras T32 (los 10 con test nuevo, medidos) |
+| Tamaños | `requirements 150/150, design 250/250, review 133/140`; ruff 104 avisos (deuda previa) |
+

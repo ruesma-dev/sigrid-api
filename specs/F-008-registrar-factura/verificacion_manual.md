@@ -1,7 +1,7 @@
 <!-- specs/F-008-registrar-factura/verificacion_manual.md -->
-# F-008 · Verificación manual (T22-T24)
+# F-008 · Verificación manual (T22-T24 y T34)
 
-Los pasos exactos de T22, T23 y T24, con el modelo de
+Los pasos exactos de T22, T23, T24 y T34 (despliegue de la enmienda 1), con el modelo de
 [`F-016/verificacion_manual.md`](../F-016-proforma-a-origen/verificacion_manual.md). Lo que salga de cada paso (salidas,
 tiempos, lo que no cuadre) se anota en `progress/verificacion_F-008.md`. Las V1-V7 son las de `progress/explore_F-008.md`.
 
@@ -63,6 +63,9 @@ Si falta alguno, G1 acaba en ROLLBACK con un 500 y no queda nada escrito; se ano
    - `FAC-` es el prefijo de la app `facturas` y **sigue pendiente de confirmar** con ella (P15).
    - Si alguno de los seis productos no está en `SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO`, se para y se pregunta al
      humano.
+   - **Superado por la enmienda 1 (spec v3.2):** `SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO` deja de leerse con el código
+     de la enmienda. Se cargó en D1 del 2026-11-01 (`progress/verificacion_F-008.md`); **no se vuelve a cargar**. La
+     naturaleza sale de la ficha o de `SIGRID_FACTURA_NATURALEZA_FORZADA`, y su despliegue va en **§T34**.
    - `SIGRID_FACTURA_WRITE_ENABLED` **no se carga** (ausente vale `false`) o se carga `false`: la llave, cerrada.
 2. **Publicar el código** (el humano, como en F-016).
 3. **Leer las App Settings** (solo lectura) y confirmar que `SIGRID_FACTURA_WRITE_ENABLED` está ausente o en `false`
@@ -176,3 +179,152 @@ albarán, `estfac = 1`, `antestfac = 3` y `con.est` del albarán = FAC.
 
 Si «Comprobar» o «Contabilizar» rechazan la factura, **no** se toca nada por la API: se anula en el escritorio, se anota
 el mensaje exacto y la feature vuelve a revisión.
+
+## T34 · Despliegue de la enmienda 1 (naturaleza de la ficha o forzada, FR con cuenta)
+
+**Cuándo y quién.** Tras el APROBADO del reviewer (T35). Las órdenes que **escriben** en Azure (publicar,
+`appsettings set` y `appsettings delete`) las lanza el **humano**, cada una con su **autorización expresa**. Las lanza
+en el prompt de la sesión con el prefijo `!` (corre en Git Bash) y tecleando él `<app>` y `<grupo>`. Las lecturas
+(`appsettings list`, `sql/read`) y las previas las lanza el líder, con autorización del humano para esa sesión.
+`MSYS_NO_PATHCONV=1` evita que Git Bash reescriba el `@<ruta>` y las rutas de las órdenes `az`.
+
+**Qué cambia al publicar, medido** (lectura de `dbo.pro` del líder, 2026-11-06). Las dos `_FORZADA` nacen vacías y las
+`_POR_PRODUCTO` de facturas y albaranes dejan de leerse: desde el primer minuto **manda la ficha**, en FR y en las sin
+vincular de `sigrid/albaran`. La llave de albaranes está **abierta**.
+- **Empresa 1** (la única de `SIGRID_ALBARAN_EMPRESAS_OBRA`):
+  - las fichas de `SM9999`, `SB9999` y `SM370001` dicen `SM99`, `SB99` y `SM37`, igual que el mapa viejo de facturas;
+  - `QA9999` y `XA9999` dicen `QA99` y `XA99` (H34 del contrato);
+  - **solo cambia `MA9999`**: de `MA99` (`<obra>.CDSB37`) a la de su ficha, **`MA1501`** (`<obra>.CDMA15`).
+- **Empresa 34:** la ficha de `SM370001` dice **`SM08`**, no `SM37`. Hoy no entra (no está en `EMPRESAS_OBRA`). Si
+  algún día entra, manda `SM08` salvo que se fuerce `34:SM370001`.
+
+**T34.0 · Aviso previo a `albaranes`** (el líder, por el humano), **antes** de publicar: desde ese momento, las sin
+vincular `MA9999` llevan `MA1501` y `<obra>.CDMA15`, salvo que el humano fuerce `1:MA9999` en T34.4. Se espera su
+acuse antes de seguir.
+
+**T34.1 · Lectura de App Settings** (solo lectura). La de proformas sale también y **no se toca** (P23):
+
+```bash
+! export MSYS_NO_PATHCONV=1; az functionapp config appsettings list -g <grupo> -n <app> --query "[?contains(name, 'NATURALEZA')].{n:name, v:value}" -o table
+```
+
+Esperado:
+- las dos `_POR_PRODUCTO` de facturas (seis productos) y de albaranes (tres), con los valores de D1;
+- las dos `_FORZADA`, ausentes;
+- `SIGRID_PROFORMA_NATURALEZA_POR_PRODUCTO`, con lo suyo.
+
+Si sale otra cosa, se para.
+
+**T34.2 · Publicar** (el humano, con autorización expresa) desde `dev` tras el merge de la rama revisada:
+
+```bash
+! func azure functionapp publish <app> --python
+```
+
+**T34.3 · Previas, solo `commit:false`** (el líder, con el Setup de §S). Antes y después de cada previa, **C0** de §T23 y
+el de albaranes: `Fila "SELECT (SELECT MAX(ide) FROM dbo.con), (SELECT COUNT(*) FROM dbo.con WHERE tip = 14)"`. Lo
+esperado se lee primero:
+
+```powershell
+$nat = Fila "SELECT n.ide, n.cod, n.caagascod, n.cuacomcod FROM dbo.con c JOIN dbo.pro p ON p.ide = c.ide JOIN dbo.auxpronat n ON n.ide = p.natide WHERE c.emp = ? AND c.tip = ? AND c.cod = ?" @(1, 3, "MA9999")
+$caa = Fila "SELECT c.ide, a.cenide FROM dbo.con c JOIN dbo.caa a ON a.ide = c.ide WHERE c.cod = ?" @("0404.CDMA15")
+$cif = (Fila "SELECT TOP 1 d.entcif FROM dbo.dcf d JOIN dbo.con c ON c.ide = d.ide WHERE c.tip = 15 AND c.cod LIKE ? ORDER BY c.ide DESC" @("FR26/%"))[0]
+$gg = Leer "SELECT TOP 5 p.docide, cu.cod, ca.cod FROM dbo.dcfpro p JOIN dbo.con c ON c.ide = p.docide JOIN dbo.con cu ON cu.ide = p.cueide JOIN dbo.con ca ON ca.ide = p.caaide WHERE c.tip = 15 AND c.cod LIKE ? AND p.proide = 0 AND p.docoritip = 0 ORDER BY p.docide DESC" @("FR26/%")
+```
+
+`$nat` debe ser `MA1501` y `MOD.CDMA15`; si no, se para (la ficha cambió desde la medición). Si `$caa` sale vacío,
+`0404.CDMA15` no existe. Entonces PA y PC dan `analitica_no_resuelta`, que es la regla y no un fallo: se anota.
+
+- **PA · FR con `MA9999` en la obra 0404.** Esperado:
+  - `previsto` y `cod_provisional`;
+  - `filas.dcfpro[0].natide` = `$nat[0]` y `caaide` = `$caa[0]`;
+  - `cueide` = la `cua` del `cuacomcod` de `$nat`.
+
+  ```powershell
+  $pa = @{ database = "ruesma"; usu = "prueba"; referencia_externa = "FAC-VERIF-F008-PA-1"; serie = "FR"
+           cif_proveedor = $cif; numero_factura = "VERIF-F008-PA-1"; fecha_factura = 20261109; cod_obra = "0404"
+           lineas = @(@{ descripcion = "Verificacion enmienda 1"; cantidad = 1.0; precio = 10.0; iva = "I21"; producto = "MA9999" })
+           vencimientos = @(@{ fecha = 20261209; importe = 12.1 }); total_base = 10.0; total_iva = 2.1; total_factura = 12.1
+           commit = $false }
+  $r = Factura $pa; $r.estado; $r.filas.dcfpro | Select-Object natide, cueide, caaide, cenide
+  ```
+- **PB · FR solo con cuenta y analítica.** Se usan la cuenta (`$gg.rows[0][1]`) y la analítica (`$gg.rows[0][2]`) de
+  una FR real sin producto, con el `cod_obra` de la obra de esa factura (como en P4). Es el cuerpo de PA sin `producto`
+  y con `cuenta`, `analitica`, `referencia_externa = "FAC-VERIF-F008-PB-1"` y `numero_factura = "VERIF-F008-PB-1"`.
+  Esperado:
+  - `previsto`, con `cod` `FR26/` y 5 cifras;
+  - `proide`, `paride` y `natide` a 0;
+  - `cueide` y `caaide` = los de esa línea real.
+
+  Con `producto` **y** `cuenta`: 400 «Solicitud invalida.» (ambigua).
+- **PC · `sigrid/albaran` con una sin vincular `MA9999`, SOLO `commit:false`.** La llave de albaranes está abierta, así
+  que **nunca** se manda `commit:true` y `commit = $false` va escrito en el cuerpo. Esperado:
+  - `estado` `previsto` y `committed` false;
+  - `filas.dcapro[0].natide` = `$nat[0]` y `caaide` = `$caa[0]`;
+  - C0 de albaranes igual.
+
+  ```powershell
+  $U = Fila "SELECT t.ide, t.entcif FROM dbo.ctr t JOIN dbo.con c ON c.ide = t.ide JOIN dbo.con o ON o.ide = t.obride WHERE c.tip = ? AND c.cod = ? AND o.tip = ? AND o.emp = ? AND o.cod = ?" @(44, "CTSU16/0206", 42, 1, "0404")
+  $pc = @{ database = "ruesma"; cod_obra = "0404"; cod_contrato = "CTSU16/0206"; cif_proveedor = $U[1]; usu = "prueba"
+           referencia_externa = "ALB-prueba-F008-E1-1"; su_referencia = "prueba-F008-E1-1"; fecha_albaran = 20261109
+           lineas = @(@{ referencia_linea = "1"; producto = "MA9999"; descripcion = "Verificacion enmienda 1"; unidad = "UD"; cantidad = 1.0; precio = 1.0 })
+           commit = $false }
+  $b = $pc | ConvertTo-Json -Depth 8
+  $a = Invoke-RestMethod -Uri "$base/api/sigrid/albaran" -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($b))
+  $a.estado; $a.committed; $a.filas.dcapro | Select-Object natide, cueide, caaide
+  ```
+
+**T34.4 · Cargar las `_FORZADA`** (el humano, con autorización expresa). Solo excepciones reales, y el humano decide
+cuáles a la vista de PA y PC. Por ejemplo, `{"1:MA9999":"MA99"}` conserva el criterio de H34; `{}` deja mandar la
+ficha. Fichero ASCII sin BOM, validado con `Settings` como en D1 de F-007 (el `python` debe imprimir los dos mapas;
+si falla, no se sube):
+
+```powershell
+$f = "$env:TEMP\f008_forzadas.json"
+@'
+[{"name":"SIGRID_FACTURA_NATURALEZA_FORZADA","value":"{}","slotSetting":false},
+ {"name":"SIGRID_ALBARAN_NATURALEZA_FORZADA","value":"{}","slotSetting":false}]
+'@ | Set-Content -Encoding ascii -NoNewline $f
+$env:F008_JSON = $f; $f
+@'
+import json, os
+for s in json.load(open(os.environ["F008_JSON"], encoding="ascii")):
+    os.environ[s["name"]] = s["value"]
+for k, v in {"SQL_DRIVER": "x", "SQL_SERVER_HOST": "x", "SQL_SERVER_PORT": "1",
+             "SQL_SERVER_USERNAME": "x", "SQL_SERVER_PASSWORD": "x"}.items():
+    os.environ[k] = v
+from config.settings import Settings
+s = Settings()
+print(s.sigrid_factura_naturaleza_forzada, s.sigrid_albaran_naturaleza_forzada)
+'@ | .venv\Scripts\python -
+```
+
+En el `{}` de cada `value` se escribe lo que decida el humano, con las comillas escapadas como en F-007. La ruta que
+imprime `$f`, con barras `/`, va en la orden:
+
+```bash
+! export MSYS_NO_PATHCONV=1; az functionapp config appsettings set -g <grupo> -n <app> --settings @<ruta de $f>
+```
+
+**T34.5 · Borrar las dos viejas** (el humano, con autorización expresa; la de proformas, **no**):
+
+```bash
+! export MSYS_NO_PATHCONV=1; az functionapp config appsettings delete -g <grupo> -n <app> --setting-names SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO
+```
+
+**T34.6 · Releer** con la orden de T34.1. Esperado:
+- las dos `_FORZADA`, con lo de T34.4;
+- ninguna `_POR_PRODUCTO` de facturas ni de albaranes;
+- la de proformas, intacta.
+
+Si algo se forzó, se repiten PA y PC (`-2` en las referencias): deben salir con la forzada.
+
+**Qué se anota** en `progress/verificacion_F-008.md`, sección «T34 · Enmienda 1»:
+- el acuse de `albaranes`;
+- las salidas de T34.1 y T34.6;
+- el commit publicado;
+- `$nat` y `$caa`;
+- de PA, PB y PC: estado, `natide`, `cueide` y `caaide`, y C0 antes y después, solo con `con.ide` y códigos (nunca CIF
+  ni nombres);
+- la decisión del humano sobre los forzados, con su fecha.
+

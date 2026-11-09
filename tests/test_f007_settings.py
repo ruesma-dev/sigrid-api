@@ -174,7 +174,7 @@ def test_f007_r4_ninguna_existente_cambia() -> None:
     assert settings.sigrid_albaran_productos_sin_contrato == []
     assert settings.sigrid_albaran_empresas_obra == []
     assert settings.sigrid_albaran_max_lineas == 100
-    assert settings.sigrid_albaran_naturaleza_por_producto == {}
+    assert settings.sigrid_albaran_naturaleza_forzada == {}
     assert settings.sigrid_albaran_empide == 2425207
     assert settings.allowed_write_databases == []
     assert settings.domain_write_max_retries == 3

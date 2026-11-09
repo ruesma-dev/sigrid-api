@@ -38,6 +38,7 @@ from application.use_cases.albaran_compra_statements import (
     GRUPO_BANCO,
     GRUPO_PAGO,
     L16_COLUMNAS,
+    ORIGEN_FORZADA,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
@@ -46,6 +47,7 @@ from application.use_cases.albaran_compra_statements import (
     SellosAlbaran,
     bruto_de_linea,
     calcular_retencion,
+    clave_forzada,
     codigo_analitica,
     construir_con,
     construir_ctrprodes,
@@ -60,6 +62,7 @@ from application.use_cases.albaran_compra_statements import (
     encadenar_balances,
     estados_contrato,
     importe_linea,
+    naturalezas_elegidas,
     numerar,
     pago_del_proveedor,
     porcentaje_de_dto,
@@ -131,6 +134,10 @@ class PerfilAlta:
     contrato y sus naturalezas, si una sin vincular puede llevar un producto
     del contrato (costura 4) y como se llaman sus documentos en los mensajes.
     `PERFIL_ALBARAN` son los literales de antes.
+
+    F-008 enmienda 1 (R49-R51): con `naturaleza_de_ficha`, `campo_naturalezas`
+    es el forzado por `<emp>:<producto>` y lo no forzado sale de la ficha del
+    producto; sin el (proformas, P23), el mapa por producto de siempre.
     """
 
     endpoint: str
@@ -146,6 +153,7 @@ class PerfilAlta:
     productos_del_contrato: bool
     error: type[AlbaranCompraError] = AlbaranCompraError
     documentos: str = "albaranes"
+    naturaleza_de_ficha: bool = False
 
 
 #: El modo extendido de `sigrid/albaran` tal como estaba antes de F-007.
@@ -159,8 +167,9 @@ PERFIL_ALBARAN = PerfilAlta(
     campo_prefijos="sigrid_albaran_prefijos_referencia",
     campo_max_lineas="sigrid_albaran_max_lineas",
     campo_productos="sigrid_albaran_productos_sin_contrato",
-    campo_naturalezas="sigrid_albaran_naturaleza_por_producto",
+    campo_naturalezas="sigrid_albaran_naturaleza_forzada",
     productos_del_contrato=False,
+    naturaleza_de_ficha=True,
 )
 
 
@@ -1349,6 +1358,10 @@ class _Catalogo:
         self._campo_naturalezas = perfil.campo_naturalezas.upper()
         self._lista_blanca: list[str] = list(getattr(settings, perfil.campo_productos))
         self._mapeo: dict[str, str] = dict(getattr(settings, perfil.campo_naturalezas))
+        # F-008 enmienda 1 (R49-R51): con ficha, `_mapeo` es el forzado
+        # `<emp>:<producto>` y `_origenes` dice de donde salio cada naturaleza.
+        self._de_ficha = perfil.naturaleza_de_ficha
+        self._origenes: dict[str, str] = {}
         lineas = request.lineas
         self._partidas = self._agrupar(
             self._s.leer_partidas, [l.partida for l in lineas if l.partida], cabecera.obra.ide, 1
@@ -1398,21 +1411,18 @@ class _Catalogo:
     def _leer_naturalezas(self, productos: Sequence[str]) -> dict[str, tuple[int, int, int] | str]:
         """
         R13b (H34): producto -> `(natide, cueide, caaide)` o el codigo del fallo.
-        Naturaleza = la del mapeo, UNA `auxpronat` con ese `cod`, sin baja y
-        `numemp` en {0, empresa}; cuenta = la UNICA `cua` de su `cuacomcod` en
-        la empresa; analitica = la `caa` `<obra>.<sufijo>` del centro (R15).
+        Naturaleza = UNA `auxpronat` sin baja y `numemp` en {0, empresa}; con
+        `naturaleza_de_ficha` (F-008 enmienda 1, R49), la forzada para
+        `<emp>:<producto>` o, si no la hay, la de la ficha del producto (L15D,
+        solo con los no forzados, R53); sin el (proformas, R51), la del mapa
+        por producto. Cuenta = la UNICA `cua` de su `cuacomcod` en la empresa;
+        analitica = la `caa` `<obra>.<sufijo>` del centro (R15).
         """
         emp = self._cab.obra.emp
-        mapeados = {p: self._mapeo[p] for p in productos if p in self._mapeo}
-        filas = self._agrupar(self._s.leer_naturalezas, list(mapeados.values()), None, 1)
-        validas: dict[str, tuple[Any, ...]] = {}
-        for producto, cod in mapeados.items():
-            candidatas = [
-                f for f in filas.get(_clave(cod), [])
-                if not _entero(f[3]) and _entero(f[2]) in (0, emp)
-            ]
-            if len(candidatas) == 1 and str(candidatas[0][5] or "").strip():
-                validas[producto] = candidatas[0]
+        validas = (
+            self._naturalezas_de_ficha(productos, emp) if self._de_ficha
+            else self._naturalezas_del_mapa(productos, emp)
+        )
         cuentas = self._agrupar(
             self._s.leer_cuentas, [str(f[5]).strip() for f in validas.values()], emp, 1
         )
@@ -1439,6 +1449,53 @@ class _Catalogo:
                 (int(nat[0]), int(cueide), int(caas[0][0])) if len(caas) == 1 else "analitica_no_resuelta"
             )
         return resultado
+
+    def _naturalezas_del_mapa(self, productos: Sequence[str], emp: int) -> dict[str, Sequence[Any]]:
+        """El mapa por producto de siempre (proformas, R51): L15A de su `cod`."""
+        mapeados = {p: self._mapeo[p] for p in productos if p in self._mapeo}
+        filas = self._agrupar(self._s.leer_naturalezas, list(mapeados.values()), None, 1)
+        validas: dict[str, Sequence[Any]] = {}
+        for producto, cod in mapeados.items():
+            candidatas = [
+                f for f in filas.get(_clave(cod), [])
+                if not _entero(f[3]) and _entero(f[2]) in (0, emp)
+            ]
+            if len(candidatas) == 1 and str(candidatas[0][5] or "").strip():
+                validas[producto] = candidatas[0]
+        return validas
+
+    def _naturalezas_de_ficha(self, productos: Sequence[str], emp: int) -> dict[str, Sequence[Any]]:
+        """F-008 enmienda 1 (R49, R50, R53): la regla comun `naturalezas_elegidas`
+        sobre los productos existentes y sin baja (L7). L15A solo con los
+        `cod` forzados y L15D solo con los `proide` no forzados."""
+        proides: dict[str, int] = {}
+        for producto in productos:
+            filas = self._productos.get(_clave(producto), [])
+            if filas and not _entero(filas[0][2]):
+                proides[producto] = int(filas[0][0])
+        forzados = [p for p in proides if clave_forzada(emp, p) in self._mapeo]
+        por_cod = self._agrupar(
+            self._s.leer_naturalezas, [self._mapeo[clave_forzada(emp, p)] for p in forzados], None, 1
+        )
+        sin_forzar = list(dict.fromkeys(proides[p] for p in proides if p not in forzados))
+        por_proide: dict[int, tuple[Any, ...]] = {}
+        if sin_forzar:
+            _c, filas = self._caso._leer(
+                self._request, self._s.leer_naturalezas_de_ficha(sin_forzar), muchas=True
+            )
+            por_proide = {int(f[0]): f for f in filas}
+        validas, self._origenes = naturalezas_elegidas(proides, self._mapeo, por_cod, por_proide, emp=emp)
+        return validas
+
+    def _mensaje_naturaleza_no_valida(self, producto: str) -> str:
+        """R50: el mismo codigo, diciendo si la naturaleza venia del forzado o
+        de la ficha; sin ficha (proformas), el mensaje de siempre."""
+        motivo = "no existe, esta de baja, es de otra empresa o su cuenta no es unica."
+        if not self._de_ficha:
+            return f"La naturaleza del producto '{producto}' ({self._campo_naturalezas}) {motivo}"
+        if self._origenes.get(producto) == ORIGEN_FORZADA:
+            return f"La naturaleza forzada del producto '{producto}' ({self._campo_naturalezas}) {motivo}"
+        return f"La ficha del producto '{producto}' no trae naturaleza, o su naturaleza {motivo}"
 
     # --- validacion de una linea -------------------------------------------------
     def resolver_origen(self, indice: int, linea: LineaAlbaranIn) -> _Linea:
@@ -1494,11 +1551,7 @@ class _Catalogo:
             )
         naturaleza = self._naturalezas[producto]
         if naturaleza == "naturaleza_no_valida":
-            raise _FalloDeLinea(
-                "naturaleza_no_valida",
-                f"La naturaleza del producto '{producto}' ({self._campo_naturalezas}) "
-                "no existe, esta de baja, es de otra empresa o su cuenta no es unica.",
-            )
+            raise _FalloDeLinea("naturaleza_no_valida", self._mensaje_naturaleza_no_valida(producto))
         if naturaleza == "analitica_no_resuelta":
             raise _FalloDeLinea(
                 "analitica_no_resuelta",

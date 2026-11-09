@@ -157,7 +157,10 @@ dorado y sus tests no se tocan):
 1. **`PerfilAlta`** (`PERFIL_ALBARAN` / `PERFIL_PROFORMA`): endpoint de la traza,
    prefijo y cifras de la serie, `cla`, la llave y su código, los nombres de las
    App Settings (prefijos, tope de líneas, productos y naturalezas) y la clase del
-   error (`AlbaranCompraError` / `ProformaError`).
+   error (`AlbaranCompraError` / `ProformaError`). `naturaleza_de_ficha` (F-008
+   enmienda 1): el albarán toma la naturaleza forzada por `<emp>:<producto>` o la de
+   la ficha (L15D) con `naturalezas_elegidas`; la proforma (`False`) sigue con su mapa
+   por producto.
 2. **Serie**: `prefijo_de_serie` y `sellos_del_alta` reciben el prefijo; las
    constantes SQL no cambian.
 3. **`_comprobar_dentro`**: gancho tras E1 bajo `SIGRID_REFEXT_14`, vacío en el
@@ -242,15 +245,21 @@ La API **registra y valida; no deduce**: serie, modo, `a_origen`, vencimientos,
 cuentas y analíticas los manda el llamante.
 
 - *domain*: `factura_models` — `FacturaRequest` (`extra="forbid"`, números estrictos;
-  campos de línea por serie: FR `producto`/`partida`/`paride`/`unidad`, FRGG
+  campos de línea por serie: FR **o** `producto`/`partida`/`paride`/`unidad` **o**
+  `cuenta`/`analitica` (enmienda 1; las dos cosas, «ambigua»), FRGG
   `cuenta`/`analitica`), `FacturaError` con `codigo` y `details`, `FacturaResultado`.
 - *application*: `factura_lineas` (puro: línea de origen copiada de su `dcapro`, de mes
   o a origen por la regla de M63, comparación con `a_origen`; un solo constructor de
   línea sin origen con dos resolvedores, FR con las reglas de F-009 y FRGG con cuenta y
-  analítica hoja; vencimientos), `factura_statements` (listas blancas de T0,
+  analítica hoja, elegidos **por línea**: una FR sin producto va por el de cuenta;
+  vencimientos), `factura_statements` (listas blancas de T0,
   constructores de filas, numeración y todo el SQL constante con `?`, validado con
   `DatabaseReferenceGuard`) y `create_factura_use_case` (orden de validación de design
   §7; idempotencia por `synckey` antes que los orígenes; previa solo con lecturas).
+  La naturaleza de una FR con producto es la de `naturalezas_elegidas`
+  (`albaran_compra_statements`, común con `sigrid/albaran`): forzada en
+  `SIGRID_FACTURA_NATURALEZA_FORZADA` para `<emp>:<producto>` (L15A solo con esos `cod`)
+  o la de la ficha (L15D solo con los `proide` no forzados).
 - **Transacción**: `run_in_write_transaction` con applocks en orden fijo
   (`SIGRID_REFEXT_15`, `SIGRID_SERIE_15`, `SIGRID_IDE_con`, `_dcfpro`, `_dcaprodes`,
   `_dcfrec`, `_pag`, `_consii`, `_log`); dentro, reentrante: idempotencia y duplicadas

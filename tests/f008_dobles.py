@@ -68,6 +68,7 @@ NOMBRES: dict[str, str] = {
         (_A.leer_proveedor_por_cif(1, "x")[0], "proveedor_por_cif"),
         (_A.leer_productos(1, ["x"])[0], "productos"),
         (_A.leer_naturalezas(["x"])[0], "naturalezas"),
+        (_A.leer_naturalezas_de_ficha([1])[0], "naturalezas_de_ficha"),
         (_A.leer_cuentas(1, ["x"])[0], "cuentas"),
         (_A.leer_analiticas(["x"])[0], "analiticas"),
         (_A.leer_partidas(1, ["x"])[0], "partidas"),
@@ -191,11 +192,18 @@ class Mundo:
     #: (ide, cod, numemp, fecbaj, caagascod, cuacomcod) de `auxpronat`
     naturalezas: list[tuple[int, str, int, int, str, str]] = field(default_factory=lambda: [
         (50, "MAT", 0, 0, "MAT", "6000000000"),
+        (55, "MA1501", 0, 0, "MOD.CDMA15", "6010000000"),
     ])
+    #: Enmienda 1: `pro.natide` de cada producto (su ficha). `MA9999` -> `MA1501` (M75, G1).
+    fichas: dict[int, int | None] = field(default_factory=lambda: {300: 55, 301: 55})
     #: (ide, emp, cod) de `cua`
-    cuentas: list[tuple[int, int, str]] = field(default_factory=lambda: [(600, 1, "6000000000")])
+    cuentas: list[tuple[int, int, str]] = field(default_factory=lambda: [
+        (600, 1, "6000000000"), (601, 1, "6010000000"),
+    ])
     #: (ide, cod, cenide) de `caa`
-    analiticas: list[tuple[int, str, int]] = field(default_factory=lambda: [(191, "0404.MAT", 80)])
+    analiticas: list[tuple[int, str, int]] = field(default_factory=lambda: [
+        (191, "0404.MAT", 80), (193, "0404.CDMA15", 80),
+    ])
     #: (ide, obride, cod, tip, tipdes, tipvis)
     partidas: list[tuple[int, int, str, int, int, int]] = field(default_factory=lambda: [
         (355, 4040, "01.01", 1, 0, 0),
@@ -321,6 +329,17 @@ class Mundo:
         cods = {_c(c) for c in p}
         return [n for n in self.naturalezas if _c(n[1]) in cods]
 
+    def _r_naturalezas_de_ficha(self, p: list[Any]) -> list[tuple[Any, ...]]:
+        """L15D: `pro` LEFT JOIN `auxpronat` por `p.ide`."""
+        filas: list[tuple[Any, ...]] = []
+        for proide in p:
+            if proide not in self.fichas:
+                continue
+            natide = self.fichas[proide]
+            nat = next((n for n in self.naturalezas if n[0] == natide), None)
+            filas.append((proide, natide, *(nat[1:] if nat else (None,) * 5)))
+        return filas
+
     def _r_cuentas(self, p: list[Any]) -> list[tuple[Any, ...]]:
         cods = {_c(c) for c in p[1:]}
         return [(c[0], c[2]) for c in self.cuentas if c[1] == p[0] and _c(c[2]) in cods]
@@ -369,8 +388,9 @@ class AjustesFactura:
     sigrid_factura_prefijos_referencia: list[str] = field(default_factory=lambda: ["FAC-"])
     sigrid_factura_max_lineas: int = 500
     sigrid_factura_productos_sin_origen: list[str] = field(default_factory=lambda: ["MA9999", "XA9999"])
-    sigrid_factura_naturaleza_por_producto: dict[str, str] = field(
-        default_factory=lambda: {"MA9999": "MAT", "XA9999": "MAT"}
+    # Enmienda 1 (R53): el forzado da lo que daba el mapeo viejo en la empresa 1.
+    sigrid_factura_naturaleza_forzada: dict[str, str] = field(
+        default_factory=lambda: {"1:MA9999": "MAT", "1:XA9999": "MAT"}
     )
     sigrid_factura_ivas: list[str] = field(default_factory=lambda: ["I21", "I10", "I21NDED"])
     sigrid_factura_cuentas_gasto_prefijos: list[str] = field(default_factory=lambda: ["6"])
@@ -439,6 +459,10 @@ class Repositorio:
 
     def nombres(self) -> list[str]:
         return [nombre for nombre, _p in self.lecturas]
+
+    def parametros_de(self, nombre: str) -> list[list[Any]]:
+        """Enmienda 1: los parametros de cada lectura con ese nombre, en orden."""
+        return [list(p) for n, p in self.lecturas if n == nombre]
 
 
 def peticion(**cambios: Any) -> dict[str, Any]:

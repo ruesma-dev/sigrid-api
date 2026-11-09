@@ -443,10 +443,12 @@ def test_f008_r28_serie_desconocida_falla() -> None:
 # T7 · linea propia FR con las reglas de F-009 (R25, R28)
 # --------------------------------------------------------------------------- #
 
+from application.use_cases.albaran_compra_statements import (
+    naturalezas_elegidas,
+)
 from application.use_cases.factura_lineas import (
     naturalezas_con_cuenta,
     naturalezas_resueltas,
-    naturalezas_validas,
     resolver_linea_fr,
     resolver_partida,
 )
@@ -509,6 +511,24 @@ def test_f008_r25_fallos_de_la_naturaleza(codigo: str) -> None:
     assert [c for c, _m in fallos] == [codigo]
 
 
+@pytest.mark.parametrize("origen,dice,no_dice", [
+    ("forzada", "SIGRID_FACTURA_NATURALEZA_FORZADA", "ficha"),
+    ("ficha", "ficha", "FORZADA"),
+])
+def test_f008_r50_naturaleza_no_valida_dice_de_donde_venia(origen: str, dice: str, no_dice: str) -> None:
+    _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(naturalezas={"MA9999": "naturaleza_no_valida"},
+                                                       origenes_naturaleza={"MA9999": origen}))
+    ((codigo, mensaje),) = fallos
+    assert codigo == "naturaleza_no_valida" and dice in mensaje and no_dice not in mensaje
+
+
+def test_f008_r50_analitica_no_resuelta_con_el_mensaje_de_siempre() -> None:
+    _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(naturalezas={"MA9999": "analitica_no_resuelta"},
+                                                       origenes_naturaleza={"MA9999": "ficha"}))
+    assert fallos == [("analitica_no_resuelta", ("La obra no tiene la cuenta analitica de la naturaleza "
+                                                 "del producto en su centro: alta a mano."))]
+
+
 def test_f008_r25_lista_blanca_vacia_no_admite_ninguno() -> None:
     _r, fallos = resolver_linea_fr(_fr(), _lecturas_fr(productos_permitidos=[]))
     assert [c for c, _m in fallos] == ["producto_no_permitido"]
@@ -563,9 +583,13 @@ _NAT = {  # (ide, cod, numemp, fecbaj, caagascod, cuacomcod), como L15A de F-009
 
 
 def test_f008_r25_naturalezas_validas_por_empresa_y_baja() -> None:
+    """Enmienda 1: `naturalezas_validas` desaparece en favor de la regla comun
+    `naturalezas_elegidas`; con todo forzado, la misma regla y el mismo resultado."""
     mapeados = {"MA9999": "MA99", "SM9999": "SM99", "QA9999": "QA99", "XA9999": "XA99",
                 "R": "REP", "N": "NADA"}
-    validas = naturalezas_validas(mapeados, _NAT, emp=1)
+    validas, _origenes = naturalezas_elegidas(
+        dict.fromkeys(mapeados, 1), {f"1:{p}": c for p, c in mapeados.items()}, _NAT, {}, emp=1,
+    )
     assert {p: f[0] for p, f in validas.items()} == {"MA9999": 51, "SM9999": 62}
 
 
@@ -585,3 +609,72 @@ def test_f008_r25_naturalezas_resueltas_con_la_analitica_del_centro() -> None:
     )
     assert resultado == {"MA9999": (51, 4001, 3001), "SM9999": "analitica_no_resuelta",
                          "ZZ": "analitica_no_resuelta", "SIN": "naturaleza_no_valida"}
+
+
+# --- Enmienda 1 · T27: forzada por `<emp>:<producto>` o la de la ficha ------------
+
+
+#: L15D: (p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod, n.cuacomcod).
+_FICHA = {
+    31: (31, 15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000"),      # valida
+    32: (32, 0, None, None, None, None, None),                     # natide 0
+    33: (33, None, None, None, None, None, None),                  # natide NULL
+    34: (34, 77, None, None, None, None, None),                    # sin auxpronat
+    35: (35, 16, "BAJA", 0, 20200101, "X", "6000000000"),          # de baja
+    36: (36, 17, "AJENA", 2, 0, "X", "6000000000"),                # numemp ajeno
+    37: (37, 18, "SINCUA", 1, 0, "X", "  "),                       # sin cuacomcod
+    38: (38, 19, "PROPIA", 1, 0, "MOD.P", "6020000000"),           # numemp de la empresa
+}
+
+
+def test_f008_r49_forzada_de_la_empresa_manda_sobre_la_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31}, {"1:MA9999": "MA99"}, _NAT, _FICHA, emp=1,
+    )
+    assert validas == {"MA9999": _NAT["ma99"][0]}
+    assert origenes == {"MA9999": "forzada"}
+
+
+def test_f008_r49_forzada_de_otra_empresa_no_aplica_y_manda_la_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31}, {"31:MA9999": "MA99"}, _NAT, _FICHA, emp=1,
+    )
+    assert validas == {"MA9999": (15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000")}
+    assert origenes == {"MA9999": "ficha"}
+
+
+def test_f008_r49_r50_la_ficha_valida_o_rechazada_por_cada_motivo() -> None:
+    productos = {f"P{proide}": proide for proide in _FICHA}
+    validas, origenes = naturalezas_elegidas(productos, {}, _NAT, _FICHA, emp=1)
+    assert validas == {
+        "P31": (15, "MA1501", 0, 0, "MOD.CDMA15", "6010000000"),
+        "P38": (19, "PROPIA", 1, 0, "MOD.P", "6020000000"),
+    }
+    assert origenes == {p: "ficha" for p in productos}
+
+
+def test_f008_r50_sin_fila_de_ficha_no_es_valida() -> None:
+    validas, origenes = naturalezas_elegidas({"X": 999}, {}, _NAT, _FICHA, emp=1)
+    assert (validas, origenes) == ({}, {"X": "ficha"})
+
+
+@pytest.mark.parametrize("forzada,esperada", [
+    ("SM99", 62),       # dos filas, una de la empresa: la de la empresa (regla del mapeo viejo, R53)
+    ("QA99", None),     # de baja
+    ("XA99", None),     # sin cuacomcod
+    ("REP", None),      # dos validas: ambigua
+    ("NADA", None),     # no existe
+    (" ma99 ", 51),     # comparada como el ERP
+])
+def test_f008_r53_la_forzada_sigue_la_regla_del_mapeo_viejo(forzada: str, esperada: int | None) -> None:
+    validas, origenes = naturalezas_elegidas({"P": 31}, {"1:P": forzada}, _NAT, _FICHA, emp=1)
+    assert ({p: f[0] for p, f in validas.items()}.get("P"), origenes) == (esperada, {"P": "forzada"})
+
+
+def test_f008_r49_mezcla_de_forzadas_y_de_ficha() -> None:
+    validas, origenes = naturalezas_elegidas(
+        {"MA9999": 31, "SM370001": 38}, {"1:MA9999": "MA99", "34:SM370001": "SM37"}, _NAT, _FICHA,
+        emp=1,
+    )
+    assert {p: f[0] for p, f in validas.items()} == {"MA9999": 51, "SM370001": 19}
+    assert origenes == {"MA9999": "forzada", "SM370001": "ficha"}

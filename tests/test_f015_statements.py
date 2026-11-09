@@ -920,7 +920,7 @@ def test_f015_r24_control_negativo_ningun_update_delete_merge_ni_ddl_nuevo() -> 
     import re
 
     todas = modulo.AlbaranCompraStatements.todas_las_sentencias()
-    assert len(todas) == len(set(todas)) == 47  # 40 de F-009 + L16, L17, E6b, E12 y 3 INSERT fijos
+    assert len(todas) == len(set(todas)) == 48  # 40 de F-009 + L16, L17, E6b, E12, 3 INSERT fijos y L15D (F-008 enm. 1)
     updates = [sql for sql in todas if "UPDATE" in sql.upper().replace("UPDLOCK", "")]
     assert updates == [modulo.E9_SERVIDO, modulo.E11_ESTADOS_CONTRATO]
     prohibidos = re.compile(r"\b(DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC)\b", re.IGNORECASE)
