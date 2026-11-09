@@ -132,14 +132,14 @@ def test_f008_p18_frgg_con_origenes_se_acepta() -> None:
     assert peticion.serie == "FRGG"
 
 
-def test_f008_r23_linea_fr_exige_producto() -> None:
+def test_f008_r23_linea_fr_exige_producto_o_cuenta_y_analitica() -> None:
     linea = {"descripcion": "x", "cantidad": 1.0, "precio": 1.0, "iva": "I21"}
     with pytest.raises(ValidationError, match="producto"):
         FacturaRequest.model_validate(cuerpo(lineas=[linea]))
 
 
 @pytest.mark.parametrize("campo", ["cuenta", "analitica"])
-def test_f008_r23_linea_fr_con_campo_de_frgg_es_400(campo: str) -> None:
+def test_f008_r23_linea_fr_con_producto_y_campo_de_cuenta_es_ambigua(campo: str) -> None:
     linea = {"descripcion": "x", "cantidad": 1.0, "precio": 1.0, "iva": "I21", "producto": "MA9999",
              campo: "6000000000"}
     with pytest.raises(ValidationError, match=campo):
