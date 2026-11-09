@@ -92,10 +92,11 @@ def test_f007_r31_perfil_albaran_con_los_literales_de_hoy() -> None:
         campo_prefijos="sigrid_albaran_prefijos_referencia",
         campo_max_lineas="sigrid_albaran_max_lineas",
         campo_productos="sigrid_albaran_productos_sin_contrato",
-        campo_naturalezas="sigrid_albaran_naturaleza_por_producto",
+        campo_naturalezas="sigrid_albaran_naturaleza_forzada",
         productos_del_contrato=False,
         error=AlbaranCompraError,
         documentos="albaranes",
+        naturaleza_de_ficha=True,
     )
     assert CreateAlbaranCompraUseCase.perfil is PERFIL_ALBARAN
 
@@ -121,7 +122,8 @@ class SettingsConOtrosNombres(SettingsDoble):
     otros_prefijos: list[str] = dataclasses.field(default_factory=lambda: ["OTR-"])
     otro_tope: int = 100
     otros_productos: list[str] = dataclasses.field(default_factory=lambda: ["MA9999"])
-    otras_naturalezas: dict[str, str] = dataclasses.field(default_factory=lambda: {"MA9999": "MA99"})
+    # F-008 enmienda 1: el forzado por `<emp>:<producto>` (la obra del doble es de la 1).
+    otras_naturalezas: dict[str, str] = dataclasses.field(default_factory=lambda: {"1:MA9999": "MA99"})
 
 
 class _ErrorAmpliado(AlbaranCompraError):
@@ -195,7 +197,7 @@ def test_f007_r31_el_mensaje_de_la_llave_del_albaran_es_el_de_hoy() -> None:
 
 def test_f007_r31_productos_y_naturalezas_por_el_perfil() -> None:
     settings = SettingsConOtrosNombres(sigrid_albaran_productos_sin_contrato=[],
-                                       sigrid_albaran_naturaleza_por_producto={})
+                                       sigrid_albaran_naturaleza_forzada={})
     respuesta = ejecutar_otro(settings, lineas=[sin_vincular(producto="MA9999")])
     assert respuesta.filas["dcapro"][0]["natide"] == 501
 

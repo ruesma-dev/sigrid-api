@@ -8,7 +8,6 @@ from typing import Annotated, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-
 #: F-008 enmienda 1 (R54): largo maximo del `producto` de una clave forzada.
 LARGO_MAXIMO_PRODUCTO = 24
 
