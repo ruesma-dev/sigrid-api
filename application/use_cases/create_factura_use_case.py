@@ -30,8 +30,10 @@ from application.use_cases.albaran_compra_statements import (
     TIP_CONTRATO,
     AlbaranCompraStatements,
     SellosAlbaran,
+    clave_forzada,
     codigo_analitica,
     estados_contrato,
+    naturalezas_elegidas,
     sellos_del_alta,
     siguiente_cod,
 )
@@ -44,7 +46,6 @@ from application.use_cases.factura_lineas import (
     linea_sin_origen,
     naturalezas_con_cuenta,
     naturalezas_resueltas,
-    naturalezas_validas,
     resolver_linea_fr,
     resolver_linea_gg,
     validar_vencimientos,
@@ -716,17 +717,32 @@ class CreateFacturaUseCase:
         comunes: Mapping[str, Any],
     ) -> LecturasLineas:
         """R25: producto, naturaleza, cuenta, analitica, partida y almacen con
-        las lecturas y reglas de F-009."""
+        las lecturas y reglas de F-009. Enmienda 1 (R49, R53): la naturaleza
+        forzada para `<emp>:<producto>` (L15A solo con esos `cod`) o la de la
+        ficha (L15D solo con los `proide` no forzados), por `naturalezas_elegidas`
+        y solo para los productos permitidos, existentes y sin baja."""
         almacen = self._almacen(leer, f9, obra)
         productos = _unicos([str(l.producto) for l in request.lineas])
-        mapa = self._settings.sigrid_factura_naturaleza_por_producto
-        mapeados = {p: mapa[p] for p in productos if p in mapa}
+        leidos = _agrupar(leer(f9.leer_productos(obra.emp, productos)))
+        permitidos = self._settings.sigrid_factura_productos_sin_origen
+        proides: dict[str, int] = {}
+        for producto in productos:
+            filas = leidos.get(clave(producto), [])
+            if producto in permitidos and filas and not _entero(filas[0][2]):
+                proides[producto] = _entero(filas[0][0])
+        forzadas = self._settings.sigrid_factura_naturaleza_forzada
+        forzados = [p for p in proides if clave_forzada(obra.emp, p) in forzadas]
+        cods = _unicos([forzadas[clave_forzada(obra.emp, p)] for p in forzados])
+        sin_forzar = list(dict.fromkeys(proides[p] for p in proides if p not in forzados))
         naturalezas: dict[str, tuple[int, int, int] | str] = {}
-        if mapeados:
-            validas = naturalezas_validas(
-                mapeados, _agrupar(leer(f9.leer_naturalezas(_unicos(list(mapeados.values()))))),
-                emp=obra.emp,
+        origenes: dict[str, str] = {}
+        if proides:
+            por_cod = _agrupar(leer(f9.leer_naturalezas(cods))) if cods else {}
+            por_proide = (
+                {_entero(f[0]): f for f in leer(f9.leer_naturalezas_de_ficha(sin_forzar))}
+                if sin_forzar else {}
             )
+            validas, origenes = naturalezas_elegidas(proides, forzadas, por_cod, por_proide, emp=obra.emp)
             cuacomcods = _unicos([str(f[5]).strip() for f in validas.values()])
             cuentas = _agrupar(leer(f9.leer_cuentas(obra.emp, cuacomcods))) if cuacomcods else {}
             con_cuenta = naturalezas_con_cuenta(validas, cuentas)
@@ -737,9 +753,10 @@ class CreateFacturaUseCase:
         partidas = _unicos([str(l.partida) for l in request.lineas if l.partida is not None])
         return LecturasLineas(
             **comunes,
-            productos_permitidos=self._settings.sigrid_factura_productos_sin_origen,
-            productos=_agrupar(leer(f9.leer_productos(obra.emp, productos))),
+            productos_permitidos=permitidos,
+            productos=leidos,
             naturalezas=naturalezas,
+            origenes_naturaleza=origenes,
             partidas=_agrupar(leer(f9.leer_partidas(obra.ide, partidas))) if partidas else {},
             obride=obra.ide,
             almacen=almacen,

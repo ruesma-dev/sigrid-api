@@ -611,3 +611,52 @@ def test_f008_orden_retencion_antes_que_totales() -> None:
     """Los totales necesitan la cuota de la retencion: por eso va antes (desviacion declarada)."""
     repo = _repo_con(retenciones=[_retencion(800, valfij=1)])
     assert _error(repo, total_base=1.0).codigo == "retencion_no_soportada"
+
+
+# --------------------------------------------------------------------------- #
+# Enmienda 1 · T29: naturaleza forzada por empresa o de la ficha (R25, R49, R50, R53)
+# --------------------------------------------------------------------------- #
+
+#: El caso G1 anonimo: `MA9999` en la obra 0404 de la empresa 1. Forzada a `MAT`
+#: (natide 50, cuenta 600, `0404.MAT` 191); su ficha es `MA1501` (55, 601, `0404.CDMA15` 193).
+_G1 = {"origenes": [], "cod_obra": "0404", "lineas": [linea_fr()], "total_base": 100.0,
+       "total_iva": 21.0, "total_factura": 121.0, "vencimientos": [{"fecha": 20261130, "importe": 121.0}]}
+
+
+def _nca(r: dict[str, Any]) -> tuple[int, int, int]:
+    (fila,) = r["filas"]["dcfpro"]
+    return fila["natide"], fila["cueide"], fila["caaide"]
+
+
+def test_f008_r49_g1_forzada_de_la_empresa_da_la_forzada_sin_leer_la_ficha() -> None:
+    r, repo = _previa(ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada={"1:MA9999": "MAT"}), **_G1)
+    assert _nca(r) == (50, 600, 191)
+    assert "naturalezas_de_ficha" not in repo.nombres()
+
+
+@pytest.mark.parametrize("forzada", [{}, {"31:MA9999": "MAT"}], ids=["sin_forzado", "de_otra_empresa"])
+def test_f008_r49_g1_sin_forzado_de_la_empresa_manda_la_ficha_y_su_analitica(forzada: dict) -> None:
+    r, repo = _previa(ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada=forzada), **_G1)
+    assert _nca(r) == (55, 601, 193)
+    assert repo.parametros_de("naturalezas_de_ficha") == [[300]]
+    assert "naturalezas" not in repo.nombres()
+
+
+def test_f008_r50_ficha_sin_naturaleza_es_naturaleza_no_valida_y_lo_dice() -> None:
+    repo = _repo_con(fichas={300: 0})
+    e = _error(repo, ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada={}), **_G1)
+    (fallo,) = e.details["lineas"]
+    assert fallo["codigo"] == "naturaleza_no_valida" and "ficha" in fallo["mensaje"]
+
+
+def test_f008_r50_forzada_no_valida_lo_dice() -> None:
+    e = _error(ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada={"1:MA9999": "NADA"}), **_G1)
+    (fallo,) = e.details["lineas"]
+    assert fallo["codigo"] == "naturaleza_no_valida"
+    assert "SIGRID_FACTURA_NATURALEZA_FORZADA" in fallo["mensaje"]
+
+
+def test_f008_r50_analitica_de_la_ficha_que_la_obra_no_tiene() -> None:
+    repo = _repo_con(analiticas=[(191, "0404.MAT", 80)])
+    e = _error(repo, ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada={}), **_G1)
+    assert [f["codigo"] for f in e.details["lineas"]] == ["analitica_no_resuelta"]
