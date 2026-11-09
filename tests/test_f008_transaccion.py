@@ -334,3 +334,19 @@ def test_f008_r16_solo_lineas_con_can_distinta_de_cero() -> None:
     assert [f["docproide"] for f in repo.mundo.insertadas["dcaprodes"]] == [8001]
     canfac = {l["ide"]: l["canfac"] for l in repo.mundo.lineas}
     assert (canfac[8001], canfac[8002]) == (2.0, 0.0)
+
+
+
+# --------------------------------------------------------------------------- #
+# Enmienda 1 · T31: FR con cuenta y analitica en la transaccion (R27, R52)
+# --------------------------------------------------------------------------- #
+
+
+def test_f008_r27_r52_fr_con_cuenta_graba_proide_paride_y_natide_cero() -> None:
+    r, repo = _commit(**{**_FRGG_SIN_ORIGEN, "serie": "FR"})
+    assert r["estado"] == "creado" and r["cod"] == "FR26/00042"
+    (fila,) = repo.mundo.insertadas["dcfpro"]
+    assert (fila["proide"], fila["paride"], fila["natide"]) == (0, 0, 0)
+    assert (fila["cueide"], fila["caaide"], fila["obride"], fila["cenide"]) == (629, 190, 9000, 81)
+    assert repo.mundo.insertadas["con"][0]["est"] == 1
+    _sin_marcas(repo)

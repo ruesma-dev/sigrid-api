@@ -660,3 +660,63 @@ def test_f008_r50_analitica_de_la_ficha_que_la_obra_no_tiene() -> None:
     repo = _repo_con(analiticas=[(191, "0404.MAT", 80)])
     e = _error(repo, ajustes=AjustesFactura(sigrid_factura_naturaleza_forzada={}), **_G1)
     assert [f["codigo"] for f in e.details["lineas"]] == ["analitica_no_resuelta"]
+
+
+# --------------------------------------------------------------------------- #
+# Enmienda 1 · T31: resolvedor por linea en FR (R26-R28, R52)
+# --------------------------------------------------------------------------- #
+
+
+def _linea_cuenta(**cambios: Any) -> dict[str, Any]:
+    """Una FR sin producto: `cuenta` y `analitica`, como la propia FRGG."""
+    return linea_gg(**cambios)
+
+
+def test_f008_r52_fr_solo_con_cuenta_no_lee_almacen_ni_productos() -> None:
+    r, repo = _previa(origenes=[], cod_obra="GG", lineas=[_linea_cuenta()],
+                      total_base=100.0, total_iva=21.0, total_factura=121.0,
+                      vencimientos=[{"fecha": 20261130, "importe": 121.0}])
+    (fila,) = r["filas"]["dcfpro"]
+    assert (fila["proide"], fila["paride"], fila["natide"]) == (0, 0, 0)
+    assert (fila["cueide"], fila["caaide"], fila["obride"], fila["cenide"]) == (629, 190, 9000, 81)
+    assert fila["almide"] == r["filas"]["dcf"]["almide"]
+    assert r["serie"] == "FR" and r["filas"]["con"]["est"] == 1
+    nombres = repo.nombres()
+    assert not {"almacenes", "productos", "naturalezas", "naturalezas_de_ficha", "partidas"} & set(nombres)
+    assert {"cuentas_gasto", "analiticas_gasto", "obras"} <= set(nombres)
+
+
+def test_f008_r52_fr_mixta_origen_producto_y_cuenta() -> None:
+    r, repo = _previa(
+        lineas=[linea_fr(), _linea_cuenta(analitica="0404.MAT")],
+        total_base=220.0, total_iva=46.2, total_factura=266.2,
+        vencimientos=[{"fecha": 20261130, "importe": 266.2}],
+    )
+    dcfpro = r["filas"]["dcfpro"]
+    assert [f["docoritip"] for f in dcfpro] == [14, 0, 0]
+    assert [(f["proide"], f["natide"], f["cueide"], f["caaide"]) for f in dcfpro[1:]] == [
+        (300, 50, 600, 191), (0, 0, 629, 191),
+    ]
+    assert dcfpro[2]["obride"] == 4040 and dcfpro[2]["cenide"] == 80
+    assert [l["clase"] for l in r["lineas"]] == ["origen", "sin_origen", "sin_origen"]
+    # Cada lectura, solo con las lineas de su clase.
+    assert repo.parametros_de("productos") == [[1, 3, "MA9999"]]
+    assert repo.parametros_de("cuentas_gasto") == [[17, 1, "6290000000"]]
+
+
+def test_f008_r26_r52_cuenta_y_analitica_no_validas_en_fr() -> None:
+    e = _error(origenes=[], cod_obra="0404",
+               lineas=[linea_fr(), _linea_cuenta(cuenta="4000000000", analitica="NADA.X"),
+                       _linea_cuenta(cuenta="6290", analitica="GG.PADRE")])
+    assert [(f["indice"], f["codigo"]) for f in e.details["lineas"]] == [
+        (1, "cuenta_no_valida"), (1, "analitica_no_valida"),
+        (2, "cuenta_no_valida"), (2, "analitica_no_valida"),
+    ]
+
+
+def test_f008_r26_fr_con_cuenta_y_prefijos_vacios_no_vale() -> None:
+    e = _error(ajustes=AjustesFactura(sigrid_factura_cuentas_gasto_prefijos=[]),
+               origenes=[], cod_obra="GG", lineas=[_linea_cuenta()],
+               total_base=100.0, total_iva=21.0, total_factura=121.0,
+               vencimientos=[{"fecha": 20261130, "importe": 121.0}])
+    assert [f["codigo"] for f in e.details["lineas"]] == ["cuenta_no_valida"]

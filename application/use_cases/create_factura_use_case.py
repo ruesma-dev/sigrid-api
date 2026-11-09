@@ -79,6 +79,7 @@ from domain.models.factura_models import (
     FacturaRequest,
     FacturaResultado,
     FalloLineaFactura,
+    LineaSinOrigen,
 )
 from domain.models.sql_models import SqlReadRequest
 
@@ -669,16 +670,22 @@ class CreateFacturaUseCase:
             clave(f[1]): (_entero(f[0]), float(f[2] or 0))
             for f in leer(fs.leer_ivas(emp, _unicos([l.iva for l in request.lineas])))
         }
-        comunes = {"ivas": ivas, "ivas_permitidos": settings.sigrid_factura_ivas}
-        if request.serie == "FRGG":
-            lecturas = self._lecturas_gg(request, leer, fs, emp, comunes)
-            resolver = resolver_linea_gg
-        else:
-            lecturas = self._lecturas_fr(request, leer, f9, obra, comunes)
-            resolver = resolver_linea_fr
+        # Enmienda 1 (R52): la LINEA elige el resolvedor. En FRGG, siempre el de
+        # cuenta; en FR, el de producto si lo trae y el de cuenta si no. Cada
+        # lectura va solo con las lineas de su clase y se funden en UNA.
+        con_producto = [request.serie == "FR" and l.producto is not None for l in request.lineas]
+        de_producto = [l for l, fr in zip(request.lineas, con_producto) if fr]
+        de_cuenta = [l for l, fr in zip(request.lineas, con_producto) if not fr]
+        lecturas = LecturasLineas(
+            ivas=ivas,
+            ivas_permitidos=settings.sigrid_factura_ivas,
+            **(self._lecturas_fr(de_producto, leer, f9, obra) if de_producto else {}),
+            **(self._lecturas_gg(de_cuenta, leer, fs, emp) if de_cuenta else {}),
+        )
         fallos: list[FalloLineaFactura] = []
         filas: list[dict[str, Any]] = []
-        for indice, linea in enumerate(request.lineas):
+        for indice, (linea, fr) in enumerate(zip(request.lineas, con_producto)):
+            resolver = resolver_linea_fr if fr else resolver_linea_gg
             resuelta, errores = resolver(linea, lecturas)
             if errores:
                 fallos.extend(FalloLineaFactura(indice=indice, codigo=c, mensaje=m) for c, m in errores)
@@ -695,34 +702,34 @@ class CreateFacturaUseCase:
         return filas
 
     def _lecturas_gg(
-        self, request: FacturaRequest, leer: Lector, fs: FacturaStatements, emp: int,
-        comunes: Mapping[str, Any],
-    ) -> LecturasLineas:
-        """R26: cuentas, analiticas y las obras de sus prefijos, de la empresa."""
-        cuentas = _unicos([str(l.cuenta) for l in request.lineas])
-        analiticas = _unicos([str(l.analitica) for l in request.lineas])
+        self, lineas: Sequence[LineaSinOrigen], leer: Lector, fs: FacturaStatements, emp: int,
+    ) -> dict[str, Any]:
+        """R26 (FRGG y FR con cuenta, R52): cuentas, analiticas y las obras de
+        sus prefijos, de la empresa, solo de `lineas`."""
+        cuentas = _unicos([str(l.cuenta) for l in lineas])
+        analiticas = _unicos([str(l.analitica) for l in lineas])
         prefijos = _unicos([a.split(".")[0] for a in analiticas if "." in a and a.split(".")[0]])
-        return LecturasLineas(
-            **comunes,
-            cuentas={clave(f[1]): (_entero(f[0]), _entero(f[2])) for f in leer(fs.leer_cuentas_gasto(emp, cuentas))},
-            prefijos_cuenta=self._settings.sigrid_factura_cuentas_gasto_prefijos,
-            analiticas={clave(f[1]): (_entero(f[0]), bool(_entero(f[2])))
-                        for f in leer(fs.leer_analiticas_gasto(emp, analiticas))},
-            obras=({clave(f[1]): (_entero(f[0]), _entero(f[2])) for f in leer(fs.leer_obras(emp, prefijos))}
-                   if prefijos else {}),
-        )
+        return {
+            "cuentas": {clave(f[1]): (_entero(f[0]), _entero(f[2]))
+                        for f in leer(fs.leer_cuentas_gasto(emp, cuentas))},
+            "prefijos_cuenta": self._settings.sigrid_factura_cuentas_gasto_prefijos,
+            "analiticas": {clave(f[1]): (_entero(f[0]), bool(_entero(f[2])))
+                           for f in leer(fs.leer_analiticas_gasto(emp, analiticas))},
+            "obras": ({clave(f[1]): (_entero(f[0]), _entero(f[2])) for f in leer(fs.leer_obras(emp, prefijos))}
+                      if prefijos else {}),
+        }
 
     def _lecturas_fr(
-        self, request: FacturaRequest, leer: Lector, f9: AlbaranCompraStatements, obra: _Obra,
-        comunes: Mapping[str, Any],
-    ) -> LecturasLineas:
+        self, lineas: Sequence[LineaSinOrigen], leer: Lector, f9: AlbaranCompraStatements, obra: _Obra,
+    ) -> dict[str, Any]:
         """R25: producto, naturaleza, cuenta, analitica, partida y almacen con
         las lecturas y reglas de F-009. Enmienda 1 (R49, R53): la naturaleza
         forzada para `<emp>:<producto>` (L15A solo con esos `cod`) o la de la
         ficha (L15D solo con los `proide` no forzados), por `naturalezas_elegidas`
-        y solo para los productos permitidos, existentes y sin baja."""
+        y solo para los productos permitidos, existentes y sin baja. Solo de
+        `lineas` (las FR con producto, R52)."""
         almacen = self._almacen(leer, f9, obra)
-        productos = _unicos([str(l.producto) for l in request.lineas])
+        productos = _unicos([str(l.producto) for l in lineas])
         leidos = _agrupar(leer(f9.leer_productos(obra.emp, productos)))
         permitidos = self._settings.sigrid_factura_productos_sin_origen
         proides: dict[str, int] = {}
@@ -750,17 +757,16 @@ class CreateFacturaUseCase:
             analiticas = _agrupar(leer(f9.leer_analiticas(codigos))) if codigos else {}
             naturalezas = naturalezas_resueltas(productos, con_cuenta, analiticas, cod_obra=obra.cod,
                                                 centro=almacen[1])
-        partidas = _unicos([str(l.partida) for l in request.lineas if l.partida is not None])
-        return LecturasLineas(
-            **comunes,
-            productos_permitidos=permitidos,
-            productos=leidos,
-            naturalezas=naturalezas,
-            origenes_naturaleza=origenes,
-            partidas=_agrupar(leer(f9.leer_partidas(obra.ide, partidas))) if partidas else {},
-            obride=obra.ide,
-            almacen=almacen,
-        )
+        partidas = _unicos([str(l.partida) for l in lineas if l.partida is not None])
+        return {
+            "productos_permitidos": permitidos,
+            "productos": leidos,
+            "naturalezas": naturalezas,
+            "origenes_naturaleza": origenes,
+            "partidas": _agrupar(leer(f9.leer_partidas(obra.ide, partidas))) if partidas else {},
+            "obride": obra.ide,
+            "almacen": almacen,
+        }
 
     @staticmethod
     def _almacen(leer: Lector, f9: AlbaranCompraStatements, obra: _Obra) -> tuple[int, int]:
