@@ -21,7 +21,11 @@ forzado, en FR y en las sin vincular de `sigrid/albaran`, y FR sin producto (`cu
 cambian; R49-R54 nuevas (forzado por empresa en App Settings nuevas `_FORZADA`); tareas T26-T36. Resumen, riesgos y preguntas en [`spec_F-008_enmienda1.md`](spec_F-008_enmienda1.md).
 **Decidido por el humano el 2026-11-09:** P22 (`albaran-directo` no se toca), P23 (proformas igual que hoy) y D3
 (se reutiliza `naturaleza_no_valida`). La sesión de `albaranes` está avisada y dio el ok al cambio del contrato (T33).
-**En curso: implementer de la enmienda 1 (T26-T33, T36).** Pendiente del humano: T34 (despliegue, avisando antes a `albaranes`).
+**Implementer de la enmienda 1 terminado (2026-11-09):** T26-T33 y T36 hechas (`226fcb7`..`83f6b89`; `azure-apps`
+`612d84b`; contrato de albaranes v8.5). `init.sh` en verde: 4364 passed, 1 skipped, cobertura 100 % (136/136); mutación,
+104 de 104 muertos tras 10 tests nuevos ([`mutacion_F-008_enmienda1.md`](mutacion_F-008_enmienda1.md)). Informe: sección
+«Enmienda 1» de [`impl_F-008.md`](impl_F-008.md). Siguiente: T35 (reviewer). Pendiente del humano: T34 (despliegue,
+avisando antes a `albaranes`: sin forzado, `MA9999` pasa a la naturaleza de su ficha, `MA1501`).
 
 ## F-016 cerrada (2026-10-30)
 
