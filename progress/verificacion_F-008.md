@@ -94,5 +94,8 @@ FRGG, como prevé el aviso `cod_provisional`).
     `analitica_no_valida`, correcto, porque la analítica era de otra empresa. Error de datos del líder;
   - **PB ambigua** (producto y cuenta): 400 «Solicitud invalida.» con el mensaje de «ambigua»;
   - **PC** (`sigrid/albaran`, `CTSU16/0206`, `MA9999`): `previsto`, `committed` false, `natide` 274 y `0404.CDMA15`.
-- **Pendiente:** T34.5 (borrar las dos viejas, humano). T34.4 no hace falta mientras no haya excepciones: la `_FORZADA`
-  ausente vale `{}`.
+- **T34.4:** no hace falta mientras no haya excepciones: la `_FORZADA` ausente vale `{}`.
+- **T34.5 (humano, 2026-11-11):** borradas las dos `_POR_PRODUCTO`; la de proformas sigue. Releído: llave de facturas
+  `false` (D4 `escritura_facturas_deshabilitada`), la de albaranes `true` sin tocar, y PA, PB, PB ambigua y PC repetidas
+  con el mismo resultado y C0 igual.
+- **Pendiente:** financiero aún no ha anulado `FR26/11425` (REC) ni `FRGG26/2772` (RECGG); después, G1 nueva.
