@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from harness.rigor import cargar_rigor, topes_tamano
+from harness.rigor import CLAVES_TAMANO, cargar_rigor, topes_tamano
 from harness.tamano import ETIQUETA, main, medir, slug_de_feature
 
 
@@ -46,11 +46,22 @@ def test_un_tope_absurdo_del_rigor_json_se_descarta() -> None:
     assert topes_tamano(rigor) == {}
 
 
-def test_el_rigor_json_del_repositorio_declara_los_cuatro_topes() -> None:
-    """150 / 250 / 220 / 140: los cuatro ficheros que se pagan por triplicado."""
-    topes = topes_tamano(cargar_rigor())
+def test_el_rigor_json_del_proyecto_declara_los_cuatro_topes_legibles() -> None:
+    """FORMA, no valores (F-038): los cuatro ficheros que se pagan por
+    triplicado tienen tope, y cada tope se puede leer.
 
-    assert topes == {"requirements": 150, "design": 250, "impl": 220, "review": 140}
+    Hasta F-038 fijaba 150 / 250 / 220 / 140, los números del fichero
+    entregado, y se ponía en rojo en cuanto un proyecto los adaptaba. Lo que
+    sigue sin poder pasar es un tope que `topes_tamano` descarte en silencio
+    (un "220" entre comillas, un 0): la puerta dejaría de medir ese fichero.
+    """
+    bloque = cargar_rigor()["tamano"]
+    declarados = {clave: bloque.get(clave) for clave in CLAVES_TAMANO}
+
+    assert topes_tamano(cargar_rigor()) == declarados, (
+        "algún tope de 'tamano' falta o no es un entero positivo, y la puerta "
+        "lo ignoraría"
+    )
 
 
 # --- R14, R16: la medición ---------------------------------------------------
