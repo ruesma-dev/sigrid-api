@@ -25,7 +25,7 @@ _Nada esperando revisión._
 
 | # | Feature | Spec aprobada | Prioridad | Rigor | Rama |
 |---|---|---|---|---|---|
-| F-008 | Endpoint de dominio para registrar facturas de compra | pendiente de tu aprobación | 10 | critico | `feature/F-008-registrar-factura` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 2026-10-30 | 10 | critico | `feature/F-008-registrar-factura` |
 
 ## To do
 
@@ -73,7 +73,7 @@ Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar:
 
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **spec lista** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **spec lista** · spec aprobada el 2026-10-30 · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 

@@ -162,6 +162,7 @@
         "bash harness/init.sh en verde"
       ],
       "status": "spec_ready",
+      "spec_aprobada": "2026-10-30",
       "sdd": true,
       "rigor": "critico",
       "priority": 10,

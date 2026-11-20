@@ -11,8 +11,22 @@ mano los seis adaptados (a tres bandas contra la 1.7.8 de `arnes-base`, commit `
 
 Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `ALTA_SIGRID_ENVIAR_DTO` cuando decida.
 
-## F-008 `in_progress` (2026-10-30): factura de compra, alta en REC sin contabilidad
+## F-008 `spec_ready` como aparcamiento (desde 2026-11-20): factura de compra, alta en REC sin contabilidad
 
+**Estado real: revisión APROBADA y desplegada; solo quedan tareas manuales.** Está en `spec_ready` únicamente porque
+la 1.10.1 admite una sola feature activa (`in_progress`, `in_review` o `human_review`) y la ocupa F-019. **Al cerrar
+F-019 se retoma directamente en `human_review`**: la spec (aprobada el 2026-10-30, `spec_aprobada` en
+`features.json`) **no se vuelve a presentar** y no hay revisión pendiente.
+
+- Revisión: T21 (v3.1, pasada 3, `8313ba0`) y T35 (enmienda 1, pasada 2, `fa0bfcf`), consolidadas en
+  [`review_F-008.md`](review_F-008.md) con «Veredicto: APPROVED» (`6483480`).
+- Despliegue: T34 (`625fb49`, previas PA-PC en verde) y T34.5 (`16a741c`, App Settings viejas borradas, previas
+  repetidas); detalle en [`verificacion_F-008.md`](verificacion_F-008.md) §T34.
+- **Pendiente (manual):** comprobaciones del escritorio V2-V7 sobre `FR26/11425` (G1) y `FRGG26/2772` (G2);
+  anulación de ambas por financiero (leído el 2026-11-20: siguen en Sigrid, REC y RECGG); G1 nueva con autorización
+  expresa; T25 (`init.sh` final).
+
+**Historia.**
 Rama `feature/F-008-registrar-factura`. Spec **v3.1** aprobada por el humano el 2026-10-30 (P1-P21, design §9);
 medición M52-M74 en [`explore_F-008.md`](explore_F-008.md). **Implementer terminado (T0-T20)**; informe, decisiones y
 desviaciones en [`impl_F-008.md`](impl_F-008.md). T21 (revisión troceada, siete trozos): mutación APROBADA, los otros
@@ -30,9 +44,7 @@ cambian; R49-R54 nuevas (forzado por empresa en App Settings nuevas `_FORZADA`);
 **Implementer de la enmienda 1 terminado (2026-11-09):** T26-T33 y T36 hechas (`226fcb7`..`83f6b89`; `azure-apps`
 `612d84b`; contrato de albaranes v8.5). `init.sh` en verde: 4364 passed, 1 skipped, cobertura 100 % (136/136); mutación,
 104 de 104 muertos tras 10 tests nuevos ([`mutacion_F-008_enmienda1.md`](mutacion_F-008_enmienda1.md)). Informe: sección
-«Enmienda 1» de [`impl_F-008.md`](impl_F-008.md). Siguiente: T35 (reviewer). Pendiente del humano: T34 (despliegue,
-avisando antes a `albaranes`: sin forzado, `MA9999` pasa a la naturaleza de su ficha, `MA1501`), con sus pasos y
-comandos en [`verificacion_manual.md` §T34](../specs/F-008-registrar-factura/verificacion_manual.md).
+«Enmienda 1» de [`impl_F-008.md`](impl_F-008.md). T35 y T34 ya hechos (arriba).
 
 ## F-016 cerrada (2026-10-30)
 
@@ -194,8 +206,8 @@ ajeno; lo borra el humano si quiere.
 ## Lo siguiente en el backlog
 
 **F-015 está `blocked`** hasta que
-Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). En curso: F-008 (facturas de
-compra, prioridad 10); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
+Administración anule `AC26/30670`. F-009 solo espera T24 (con F-053 en real). En curso: F-019 (arnés 1.10.1); F-008 (facturas de
+compra, prioridad 10, aparcada en `spec_ready`, a `human_review` al cerrar F-019); F-017 (partidas repetidas); F-001 (calentamiento); F-013 (`sql/read` fija el tope real de la
 consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actualizar `sigrid-api` a la versión de
 `arnes-base` cuando salga la del encargo del hook, y el diagnóstico de la mutación paralela.
 
@@ -203,6 +215,7 @@ consulta) y F-014 (el hueco residual del dry-run de dominio). Del arnés: actual
 
 > Lee `CLAUDE.md` y `progress/current.md`. F-018 y F-016 están cerradas. F-007 está cerrada; `PROF26/01360` sigue sin anular y no estorba. **F-015 está `blocked`** a la espera de
 > que Administración anule `AC26/30670` desde la UI. F-009 está desplegada con la llave abierta; solo queda T24.
-> **F-008 está `in_progress`** (rama `feature/F-008-registrar-factura`): en revisión (T21, pasada 2 tras las
-> correcciones); después, T22-T24 manuales según `specs/F-008-registrar-factura/verificacion_manual.md`, cada
-> grabación con autorización expresa del humano.
+> **F-019** (actualización del arnés a la 1.10.1) es la activa; al cerrarla, **F-008 pasa de `spec_ready`
+> (aparcamiento) a `human_review`**: revisión APROBADA (`6483480`) y desplegada (`625fb49`, `16a741c`); la spec no
+> se vuelve a presentar. Le quedan solo manuales: V2-V7 en el escritorio sobre `FR26/11425` y `FRGG26/2772`,
+> anulación de ambas por financiero, G1 nueva con autorización expresa y T25.
