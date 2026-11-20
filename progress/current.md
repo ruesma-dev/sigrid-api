@@ -1,6 +1,12 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
+## F-019 `in_progress` (2026-11-20): actualización del arnés 1.7.8 → 1.10.1
+
+Rama `feature/F-019-actualizar-arnes`. Instalador en modo `actualizar` aplicado por el líder; el implementer fusiona a
+mano los seis adaptados (a tres bandas contra la 1.7.8 de `arnes-base`, commit `685da06`). Informe:
+[`impl_F-019.md`](impl_F-019.md).
+
 ## F-018 cerrada (2026-10-30)
 
 Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `ALTA_SIGRID_ENVIAR_DTO` cuando decida.
