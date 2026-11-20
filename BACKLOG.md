@@ -3,11 +3,13 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **19 features**, 7 abiertas y 12 terminadas. Por columna: 0 en Review, 1 en Blocked, 1 en In progress, 1 en Spec aprobada, 0 en To do, 4 en Backlog y 12 en Done.
+Resumen: **19 features**, 7 abiertas y 12 terminadas. Por columna: 1 en Review, 1 en Blocked, 0 en In progress, 1 en Spec aprobada, 0 en To do, 4 en Backlog y 12 en Done.
 
 ## Review
 
-_Nada esperando revisión._
+| # | Feature | La tiene | Prioridad | Rigor | Rama |
+|---|---|---|---|---|---|
+| F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | humano | 1 | documental | `feature/F-019-actualizar-arnes` |
 
 ## Blocked
 
@@ -17,9 +19,7 @@ _Nada esperando revisión._
 
 ## In progress
 
-| # | Feature | La tiene | Prioridad | Rigor | Rama |
-|---|---|---|---|---|---|
-| F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | implementer | 1 | documental | `feature/F-019-actualizar-arnes` |
+_Ninguna feature en implementación._
 
 ## Spec aprobada
 
@@ -67,7 +67,7 @@ Feature trivial para validar el circuito completo del arnés en este repositorio
 
 ### F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base
 
-estado **en curso** · prioridad 1 · rigor `documental` · SDD no · rama `feature/F-019-actualizar-arnes`
+estado **en revisión humana** · prioridad 1 · rigor `documental` · SDD no · rama `feature/F-019-actualizar-arnes`
 
 Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.
 
