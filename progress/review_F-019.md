@@ -87,7 +87,6 @@ rastro lo dice. Lo que no vale es la incoherencia ni el destino equivocado.
    antes `spec_aprobada: "2026-10-30"` en su entrada de `features.json` (si no, `python -m harness.estados --avisos`
    avisará al activarla). La spec no se vuelve a presentar.
 4. Volver a pasar `bash harness/init.sh` completo tras 1 y anotar el resultado real en `impl_F-019.md`.
-
 ## Observaciones (no bloquean)
 
 - C3 dice «tope de 1.000 filas»; el despliegue sirve 500.000 (`CLAUDE.md` global). Texto previo: otra feature.
