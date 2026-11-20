@@ -61,7 +61,7 @@ improviso.
 
 `ENTORNO LISTO`, exit 0. **6162 passed, 47 skipped** en 1554,70 s (25 min 54 s). Cobertura N/A, tamaño, carril y
 e2e N/A u OK (nivel documental; sin `servicios.json`). Avisos no bloqueantes: F-015 `blocked`, ruff 113 (deuda
-previa). Tras regenerar `BACKLOG.md` (`python harness/backlog.py`, columnas nuevas) se repite al final.
+previa). Tras regenerar `BACKLOG.md` y escribir este informe (último commit) solo pasé el portero ligero (`ARNES_SALTAR_SUITES=1`): verde, tamaño impl 80/220. Ese commit no toca código ni tests.
 
 ## Commits
 
