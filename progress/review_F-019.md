@@ -18,9 +18,8 @@ Se perdieron 8 tests (R4 y R5 de F-004), entre ellos
 `ALLOWED_WRITE_DATABASES`, regla dura de `CLAUDE.md`) y `test_f004_r4_los_siete_ajustes_nuevos_arrancan_con_defecto_seguro`
 (las llaves de escritura documental apagadas por defecto). `grep "def test_f004_r[45]" tests/` → **0**: nada los cubre
 ya. El informe del implementer leyó sus 10 rojos de antes de la fusión como «de settings.json» y no lo detectó.
-
-Método: para cada fichero modificado o borrado en `30cfcb4..HEAD` comprobé si existía en el payload 1.7.8
-(`arnes-base` `685da06`). Solo dos no existían: `harness/ARNES_VERSION.md` (lo escribe el instalador, correcto) y este.
+Método: modificados/borrados en `30cfcb4..HEAD` que no existían en el payload 1.7.8 (`685da06`): solo este y
+`ARNES_VERSION.md` (del instalador).
 
 ## Lo demás de la fusión (correcto)
 
@@ -41,7 +40,6 @@ Método: para cada fichero modificado o borrado en `30cfcb4..HEAD` comprobé si 
   allowlist con `ARNES_SIN_CACHE=1 bash harness/init.sh`, los siete `harness.*`/`backlog.py` y `git checkout -b`;
   conserva SessionStart/SessionEnd (`despierto_hook.sh`) y el Stop ligero.
 - `harness/VERSION` y `ARNES_VERSION.md` = 1.10.1. `python harness/backlog.py --comprobar` → 0.
-
 ## F-008 y el estado (bloqueante, menor)
 
 `30cfcb4` pasó F-008 de `in_progress` a `spec_ready` y no tocó `progress/current.md`, que sigue titulando
@@ -51,8 +49,8 @@ Método: para cada fichero modificado o borrado en `30cfcb4..HEAD` comprobé si 
 T35 (reviewer de la enmienda 1); `human_review` exige el APROBADO del reviewer. Saltaría la revisión de una feature
 `critico` que escribe en producción.
 
-Valoración: aparcarla en un estado no activo es inevitable mientras F-019 ocupe la única activa, y `spec_ready` vale
-como aparcamiento **si el rastro lo dice**. Lo que no vale es la incoherencia ni el destino equivocado.
+Valoración: aparcarla fuera de los activos es inevitable mientras F-019 ocupe la única activa; `spec_ready` vale si el
+rastro lo dice. Lo que no vale es la incoherencia ni el destino equivocado.
 
 ## Checkpoints
 
@@ -92,17 +90,12 @@ como aparcamiento **si el rastro lo dice**. Lo que no vale es la incoherencia ni
 
 ## Observaciones (no bloquean)
 
-- C3 dice «tope de 1.000 filas por petición»; el despliegue sirve 500.000 (`CLAUDE.md` global). Texto propio previo:
-  otra feature.
-- `current.md` arrastra secciones de features cerradas (F-018, F-016, F-007, F-015): son pendientes operativos del
-  humano, práctica previa de este repositorio; C2 pide limpiarlo. Lo dejo al líder.
-- Fin de línea LF en los fusionados con `autocrlf=true`: sin efecto en las puertas.
+- C3 dice «tope de 1.000 filas»; el despliegue sirve 500.000 (`CLAUDE.md` global). Texto previo: otra feature.
+- `current.md` arrastra pendientes de features cerradas (F-018, F-016, F-007, F-015): práctica previa; lo decide el líder.
 
 ## Automejora (propuesta, no aplicada)
 
-- **`arnes-base`, instalador:** los tests del arnés se llaman por **feature del arnés** (`test_f004_*`, `test_f019_*`)
-  y chocan con los de cualquier proyecto que tenga esa F. `tests/**` como `arnes_puro` los pisa en silencio. Propuesta:
-  en `actualizar`, si el fichero destino existe y **no** estaba en el payload de la versión instalada, tratarlo como
-  propio (no pisar, abortar o avisar); a medio plazo, prefijar los tests del arnés (`test_arnes_f004_*`).
-- **`reviewer.md`:** añadir a la revisión de una actualización del arnés el barrido «fichero modificado que no existía
-  en el payload de la versión anterior», que es lo que lo ha cazado aquí.
+- **Instalador (`arnes-base`):** los tests del arnés se nombran por F del arnés (`test_f004_*`, `test_f019_*`) y
+  `tests/**` como `arnes_puro` pisa en silencio el homónimo de un proyecto. Si el destino existe y no estaba en el
+  payload de la versión instalada, es propio: no pisar y avisar. A medio plazo, prefijo `test_arnes_*`.
+- **`reviewer.md`:** en una actualización del arnés, barrer «modificado que no existía en el payload anterior».
