@@ -3,9 +3,9 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **18 features**, 6 abiertas, 12 terminadas.
+Resumen: **19 features**, 7 abiertas, 12 terminadas.
 
-En curso: **F-008**.
+En curso: **F-019**.
 
 Bloqueadas: **F-015**.
 
@@ -14,7 +14,8 @@ Bloqueadas: **F-015**.
 | # | Feature | Prioridad | Estado | Rigor | Rama |
 |---|---|---|---|---|---|
 | F-001 | Test de calentamiento: el guardia de escritura rechaza una base no permitida | 1 | pendiente | estandar | `feature/F-001-calentamiento` |
-| F-008 | Endpoint de dominio para registrar facturas de compra | 10 | en curso | critico | `feature/F-008-registrar-factura` |
+| F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | 1 | en curso | documental | `feature/F-019-actualizar-arnes` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | 10 | spec lista | critico | `feature/F-008-registrar-factura` |
 | F-013 | sql/read aplica timeout_seconds como tope de la consulta, no solo del login | 13 | pendiente | critico | `feature/F-013-sql-read-timeout` |
 | F-014 | Los dry-run de dominio validan la base contra ALLOWED_DATABASES | 14 | pendiente | critico | `feature/F-014-dry-run-valida-base` |
 | F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 15 | bloqueada | critico | `feature/F-015-albaran-plantilla-y-retencion` |
@@ -45,9 +46,15 @@ estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `featu
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
 
+### F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base
+
+estado **en curso** · prioridad 1 · rigor `documental` · SDD no · rama `feature/F-019-actualizar-arnes`
+
+Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.
+
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **en curso** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **spec lista** · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
