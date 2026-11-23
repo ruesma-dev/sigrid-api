@@ -3,13 +3,13 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **19 features**, 7 abiertas y 12 terminadas. Por columna: 1 en Review, 1 en Blocked, 0 en In progress, 1 en Spec aprobada, 0 en To do, 4 en Backlog y 12 en Done.
+Resumen: **19 features**, 6 abiertas y 13 terminadas. Por columna: 1 en Review, 1 en Blocked, 0 en In progress, 0 en Spec aprobada, 0 en To do, 4 en Backlog y 13 en Done.
 
 ## Review
 
 | # | Feature | La tiene | Prioridad | Rigor | Rama |
 |---|---|---|---|---|---|
-| F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | humano | 1 | documental | `feature/F-019-actualizar-arnes` |
+| F-008 | Endpoint de dominio para registrar facturas de compra | humano | 10 | critico | `feature/F-008-registrar-factura` |
 
 ## Blocked
 
@@ -23,9 +23,7 @@ _Ninguna feature en implementación._
 
 ## Spec aprobada
 
-| # | Feature | Spec aprobada | Prioridad | Rigor | Rama |
-|---|---|---|---|---|---|
-| F-008 | Endpoint de dominio para registrar facturas de compra | 2026-10-30 | 10 | critico | `feature/F-008-registrar-factura` |
+_Ninguna feature con la spec lista._
 
 ## To do
 
@@ -44,6 +42,7 @@ _Nada comprometido._
 
 | # | Feature | Cierre | OK humano | Prioridad | Rigor |
 |---|---|---|---|---|---|
+| F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | 2026-11-23 | 2026-11-23 | 1 | documental |
 | F-002 | Spike: viabilidad de escribir en la base documental ruesma_rep | sin fecha | sin anotar | 2 | critico |
 | F-003 | El guardia de escritura debe validar tambien las bases nombradas dentro del SQL | sin fecha | sin anotar | 3 | critico |
 | F-004 | Endpoint de dominio para adjuntar un documento a un concepto de Sigrid | sin fecha | sin anotar | 4 | critico |
@@ -65,15 +64,9 @@ estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `featu
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
 
-### F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base
-
-estado **en revisión humana** · prioridad 1 · rigor `documental` · SDD no · rama `feature/F-019-actualizar-arnes`
-
-Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.
-
 ### F-008 · Endpoint de dominio para registrar facturas de compra
 
-estado **spec lista** · spec aprobada el 2026-10-30 · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+estado **en revisión humana** · spec aprobada el 2026-10-30 · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
 
 Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
@@ -100,6 +93,12 @@ Alta del 2026-10-18 a petición del humano: O1 y O2 medidos por la spec de F-007
 estado **pendiente** · prioridad 16 · rigor `critico` · SDD sí · rama `feature/F-017-partidas-repetidas`
 
 Alta del 2026-10-28 por decisión del humano (V8 de F-007, punto 3). Una línea sin contrato de sigrid/proforma con un código de partida que la obra tiene repetido entre sus imputables da 400 partida_ambigua, y la petición no admite paride. Según el humano «no debería haber». Medido el 2026-10-28 (solo lectura): 4 de las 16 obras con PROF26 — 0677 (40.04.01 y 40.04.02, partidas distintas con compras), 0672 (20.02.05), 0692 (CI.6.1-CI.6.7 en los capítulos CI.6 y CI.06) y 0404 (pruebas, presupuesto cargado 5 veces). Las líneas de contrato no se ven afectadas (llevan el paride del ctrpro). La spec decide entre detectarlo y avisar para que se corrija en Sigrid, admitir paride o una regla de desempate, con Administración.
+
+### F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base
+
+estado **terminada** · cerrada el 2026-11-23 · OK del humano el 2026-11-23 · prioridad 1 · rigor `documental` · SDD no · rama `feature/F-019-actualizar-arnes`
+
+Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.
 
 ### F-002 · Spike: viabilidad de escribir en la base documental ruesma_rep
 

@@ -1,17 +1,16 @@
 <!-- progress/current.md -->
 # Trabajo en curso
 
-## F-019 `in_progress` (2026-11-20): actualización del arnés 1.7.8 → 1.10.1
+## F-019 cerrada (2026-11-23)
 
-Rama `feature/F-019-actualizar-arnes`. Instalador en modo `actualizar` aplicado por el líder; el implementer fusiona a
-mano los seis adaptados (a tres bandas contra la 1.7.8 de `arnes-base`, commit `685da06`). Informe:
-[`impl_F-019.md`](impl_F-019.md).
+Resumen en `history.md`. Arnés en la 1.10.1. Pendiente de decisión del humano: encargo a `arnes-base` por el
+instalador que pisa tests propios homónimos (`tests/**` como `arnes_puro`).
 
 ## F-018 cerrada (2026-10-30)
 
 Resumen en `history.md`. Pendiente solo fuera de la API: `albaranes` enciende `ALTA_SIGRID_ENVIAR_DTO` cuando decida.
 
-## F-008 `spec_ready` como aparcamiento (desde 2026-11-20): factura de compra, alta en REC sin contabilidad
+## F-008 `human_review` (desde 2026-11-23; aparcada en `spec_ready` del 2026-11-20 al 23): factura de compra, alta en REC sin contabilidad
 
 **Estado real: revisión APROBADA y desplegada; solo quedan tareas manuales.** Está en `spec_ready` únicamente porque
 la 1.10.1 admite una sola feature activa (`in_progress`, `in_review` o `human_review`) y la ocupa F-019. **Al cerrar

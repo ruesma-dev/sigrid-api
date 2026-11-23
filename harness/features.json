@@ -161,7 +161,7 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "spec_ready",
+      "status": "human_review",
       "spec_aprobada": "2026-10-30",
       "sdd": true,
       "rigor": "critico",
@@ -342,11 +342,13 @@
         ".claude/settings.json sin hook PostToolUse",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "human_review",
+      "status": "done",
       "sdd": false,
       "rigor": "documental",
       "priority": 1,
-      "branch": "feature/F-019-actualizar-arnes"
+      "branch": "feature/F-019-actualizar-arnes",
+      "ok_humano": "2026-11-23",
+      "fecha_cierre": "2026-11-23"
     }
   ]
 }

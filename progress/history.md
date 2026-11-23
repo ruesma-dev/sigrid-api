@@ -420,3 +420,27 @@ revisión del humano en la UI (`verificacion_F-016.md`). **Llave `SIGRID_PROFORM
 **Lecciones:**
 - La cadena mezcla series: una punta puede ser `AC`; no filtrar por `PROF`.
 - Abrir las llaves una a una deja probar el orden de R4 sin escribir, y el script cierra las dos pase lo que pase.
+
+## F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1
+
+**Cerrada el 2026-11-23** con el OK del humano. Rigor `documental`, `sdd: false`. Rama `feature/F-019-actualizar-arnes`
+(`30cfcb4`..), mergeada a `dev`. Revisión APROBADA en la pasada 2 (`review_F-019.md`); informe en `impl_F-019.md`.
+
+**Qué hizo:** `instalar_arnes.ps1 -Modo actualizar` (65 nuevos, 27 genéricos con backup en
+`%LOCALAPPDATA%rnes-baseackups\sigrid-api61120-215907`) y fusión a mano a tres bandas de los seis adaptados
+(`CLAUDE.md`, `CHECKPOINTS.md`, `harness/init.sh`, `docs/CONVENTIONS.md`, `docs/referencia/README.md`,
+`.claude/settings.json`), conservando todas las personalizaciones de `sigrid-api` (`RAMA_BASE=dev`, reglas duras de
+Sigrid, bloque de Ruesma). Fuera el hook `PostToolUse`; ocho estados de flujo, carriles, mutación por muestra en
+`critico`, `qa-e2e`, push siempre humano.
+
+**Verificado:** `init.sh` completo en verde, 6188 passed y 47 skipped; `ARNES_SIN_CACHE=1` en verde (reviewer).
+
+**Lecciones:**
+- El instalador aplica `tests/**` como `arnes_puro` y pisó en silencio `tests/test_f004_settings.py`, propio (8 tests
+  de F-004, entre ellos el de `ruesma_rep` fuera de `ALLOWED_WRITE_DATABASES`). Recuperados en
+  `tests/test_f004_settings_concepto_grafico.py`. En una actualización, barrer «modificado que no existía en el payload
+  anterior».
+- `human_review` cuenta como activa: una feature con solo manuales pendientes se aparca fuera mientras otra ocupa el
+  hueco.
+- `current.md` desactualizado engañó al reviewer (creyó T35 pendiente): el estado se contrasta con `review_*.md` y git.
+
