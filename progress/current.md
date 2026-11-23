@@ -34,7 +34,8 @@ con autorización expresa; T25 (`init.sh` final). Guion en
 ### Del arnés (van a `arnes-base`)
 
 - **El instalador pisa tests propios homónimos** (`tests/**` como `arnes_puro`; F-019 perdió los 8 tests de F-004).
-  Encargo en preparación (2026-11-23).
+  Encargado en `arnes-base` el 2026-11-23 (`ENCARGO_pendiente_instalador_pisa_tests_propios_homonimos.md`,
+  `48a0e7f`).
 - **`harness/mutacion_paralela.py`**: supervivientes no reproducibles en F-003, F-004 y F-006 (`exit 5` de pytest
   contado como verde). La 1.10.1 trae `INDETERMINADO` (F-023 de `arnes-base`): comprobar en la próxima campaña si
   queda resuelto.
