@@ -161,7 +161,8 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "in_progress",
+      "status": "human_review",
+      "spec_aprobada": "2026-10-30",
       "sdd": true,
       "rigor": "critico",
       "priority": 10,
@@ -330,6 +331,24 @@
       "rigor": "critico",
       "priority": 9,
       "branch": "feature/F-018-descuento-por-linea"
+    },
+    {
+      "id": "F-019",
+      "title": "Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base",
+      "description": "Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.",
+      "acceptance": [
+        "harness/ARNES_VERSION.md y harness/VERSION dicen 1.10.1",
+        "Los seis adaptados llevan los bloques nuevos del arnés y conservan lo propio de sigrid-api (RAMA_BASE=dev, mapa, reglas duras de Sigrid, bloque de Ruesma)",
+        ".claude/settings.json sin hook PostToolUse",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "done",
+      "sdd": false,
+      "rigor": "documental",
+      "priority": 1,
+      "branch": "feature/F-019-actualizar-arnes",
+      "ok_humano": "2026-11-23",
+      "fecha_cierre": "2026-11-23"
     }
   ]
 }
