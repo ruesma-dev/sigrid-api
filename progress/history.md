@@ -444,3 +444,24 @@ Sigrid, bloque de Ruesma). Fuera el hook `PostToolUse`; ocho estados de flujo, c
   hueco.
 - `current.md` desactualizado engañó al reviewer (creyó T35 pendiente): el estado se contrasta con `review_*.md` y git.
 
+
+## F-015 · El modo extendido de `sigrid/albaran` no hereda la cabecera de una proforma y escribe la retención
+
+**Cerrada el 2026-11-23** con el OK del humano. Rigor `critico`, `sdd`. Rama `feature/F-015-albaran-plantilla-y-retencion`,
+mergeada a `dev` (código desplegado el 2026-10-24 desde `60db955` en `func-sigridapi-dev-huyke`). Contrato con
+albaranes v8.3. Revisión APROBADA en la pasada 2 (`review_F-015.md`); informe en `impl_F-015.md`.
+
+**Qué hace:** la cabecera del modo extendido deja de clonarse. `con` y `dca` se escriben por lista blanca (forma de pago
+del contrato; el albarán anterior es solo respaldo, de la serie AC y nunca una proforma; sin él, el `prv`). Si el
+contrato tiene retención, una `dcarec` (`ctrrec` → `dcarec`) y `dca.tot` = `totpag` = `totdoc` − retención; `ctrrec`
+con `valpor` NULL → 400 `retencion_no_soportada`.
+
+**Verificado:** dry-runs V1-V4 en verde tras el despliegue y grabación V5 `AC26/30670` en la 0404 (`RET5`, neto 25,52,
+repetición `idempotente`), en `verificacion_F-015.md`.
+
+**Cerrada sin:** la revisión en la UI ni la anulación de `AC26/30670`: el humano la descarta el 2026-11-23 y el albarán se
+queda en Sigrid. T21 (limpieza de las ~60 altas anteriores) descartada el 2026-10-24.
+
+**Lecciones:**
+- Una feature que solo espera un trámite manual de otro departamento no debe quedarse un mes en `blocked`: se pregunta
+  al humano si el trámite condiciona el cierre.

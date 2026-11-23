@@ -129,8 +129,8 @@ evidencias: lo que se pierde es la medición automática, no la disciplina.
             escribe, se actualizan totales, `canser`, `estser/estfac` y el
             ledger `mov`/PMP, o se usa el endpoint de dominio que ya lo hace.
       - [ ] **Estados nunca hardcodeados**: se resuelven contra `dbo.conest`.
-      - [ ] **SQL parametrizado** con `?`, y agregación hecha en SQL (tope de
-            1.000 filas por petición).
+      - [ ] **SQL parametrizado** con `?`, y agregación hecha en SQL (la instancia desplegada sirve hasta
+            500.000 filas por petición, `MAX_ALLOWED_ROWS`; se comprueba siempre `truncated`).
 
 ## C3 bis — Los documentos que entran de fuera son seguros
 

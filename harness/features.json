@@ -277,11 +277,14 @@
         "Dry-run por defecto; ninguna grabación de prueba sin autorización expresa del humano",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "blocked",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 15,
-      "branch": "feature/F-015-albaran-plantilla-y-retencion"
+      "branch": "feature/F-015-albaran-plantilla-y-retencion",
+      "spec_aprobada": "2026-10-24",
+      "ok_humano": "2026-11-23",
+      "fecha_cierre": "2026-11-23"
     },
     {
       "id": "F-016",
