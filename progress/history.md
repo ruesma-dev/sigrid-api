@@ -336,3 +336,111 @@ datamart-seg-anual (F-139) y mcp-bbdd (F-023), verificada por el líder con lect
   (en grabación el caso pasa de `incierto` a `error`, como ya prometía su contrato §3.4).
 - **Lecciones:** la primera campaña corrió en paralelo con un informe que decía `--workers 1` (a `arnes-base`,
   `35b2749`). Un `!` al inicio de la segunda línea de un `! …` multilínea niega el código de salida en bash.
+
+---
+
+## F-007 · `POST /api/sigrid/proforma`: la proforma de mes del jefe de obra
+
+**Cerrada el 2026-10-28, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama
+`feature/F-007-registrar-proforma`, mergeada a `dev` (`0e9aa8d` y el commit de cierre). Spec v3.1, enmiendas 1 y 2
+(`spec_F-007_enmienda*.md`), contrato con `proformas` **v1.1** (`specs/F-007-registrar-proforma/contrato_proformas.md`).
+
+**Por qué:** `proformas` (su F-005) aprueba en su bandeja la hoja mensual del jefe de obra y tiene que registrarla en
+Sigrid. `facturas` lee lo registrado por `entref` `PROF<MMAA>_<cod_obra>`.
+
+**Qué hace:** registra UNA proforma **de mes** como `tip 14`, serie `PROF<aa>/` (5 cifras), `dca.cla 141`, solo con
+las partidas de MES ≠ 0. Las de contrato van vinculadas a su `ctrpro` (`docoritip 44`, `linoriide`), con la cuenta
+analítica y el IVA del contrato. Las nuevas van sin vincular, con producto de la lista `SM9999`/`SB9999`/`SM370001`
+o del contrato. El contrato lo resuelve la API (obra + proveedor y, con varios, las líneas) o lo fija
+`cod_contrato`. La línea sin `ctrpro_ide` se busca por partida + precio unitario; si hay varias, `linea_ambigua` con
+`candidatos`, y `proformas` desempata por la descripción (regla del humano: el producto no cuenta). Responde
+`existente` si la del contrato y mes ya está (±0,05), salvo `otra_del_mes`, e `idempotente` por `PRF-<id>`. Fecha
+según R18 y retención como F-015. Reutiliza el núcleo de F-009 con cinco costuras y un perfil, con los dorados de
+F-009 y F-015 intactos. Llave propia `SIGRID_PROFORMA_WRITE_ENABLED` (cerrada) y cuatro App Settings más en JSON.
+
+**Evidencias:** 3.393 tests; cobertura 100 % de 736 líneas cambiadas; mutación en serie 381 / 5 supervivientes, todos
+aceptados (uno, `cifras: int = 0`, por el humano). Revisión troceada en tres pasadas, APROBADO (`review_F-007.md`).
+Verificación en `verificacion_F-007.md`: dry-run de `sigrid/albaran` tras publicar; `existente` sobre las tres `AC`
+reales de la 0719; `otra_del_mes` y el respaldo por partida y precio con las mismas líneas de contrato y totales a
+±0,01. Grabación autorizada de una hoja sintética en la 0404: `PROF26/01360`, `creado`, repetida `idempotente`, con la
+llave abierta solo durante la prueba.
+
+**Decisiones de negocio (V8, 2026-10-28):** los productos sin contrato, confirmados. A origen o por meses según el
+jefe de obra → **F-016**. Códigos de partida repetidos («no debería haber»; 4 de 16 obras) → **F-017**.
+
+**Lecciones:**
+- Los guiones de verificación deben sacar los datos de la hoja real: `9.01` frente a `09.01` y la medición de
+  contrato no enviada parecían fallos de la API y eran del guion.
+- El clasificador de la sesión bloquea cualquier `commit:true` contra producción, aunque la llave esté cerrada. V1
+  va con la grabación autorizada.
+- La 0404 de pruebas tiene el presupuesto cargado cinco veces: no sirve para probar líneas sin contrato.
+
+**Queda (operativo, humano):** revisar `PROF26/01360` en la UI (ficha, impresión, paso a factura) y **anularla desde
+la UI**; después, lecturas (sin `con` 2861898, `canser` de los `ctrpro` 258782 y 258783 a 0). La llave de proformas
+sigue **cerrada**; abrirla es decisión del humano, y se avisa a `proformas`.
+
+## F-018 · Descuento por línea (`dto`) en `sigrid/albaran`, heredado por `sigrid/proforma`
+
+**Cerrada el 2026-10-30, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama
+`feature/F-018-descuento-por-linea`, mergeada a `dev` (`6339617`). Petición de `albaranes` (su F-110). Spec v1.2 (P1-P11),
+contratos v8.4 (albaranes) y v1.3 (proformas). Revisión troceada APROBADA en la pasada 3 (`review_F-018.md`).
+
+**Qué hace:** `lineas[].dto` opcional (0-100, hasta 2 decimales) en el modo extendido: `tar` bruto, `pre` neto = `tot`/`can`,
+`dto` «N,NN%», `tot` = ROUND_HALF_UP(`can`·`tar`·(1 − dto/100), 2), `impbru` bruto, `mov`/PMP al neto. La vinculada que casa
+por la opción C con un `ctrpro` con dto se escribe como Sigrid (R15), también en la proforma. Sin SQL nuevo.
+
+**Verificado:** 3.793 tests, cobertura 100 % de 102 líneas, mutación 66/66, T19 sin discrepancias y grabación real
+`AC26/31378` en la 0404, revisada en la UI y anulada por el humano (`verificacion_F-018.md`). **Sin confirmar:** abrir y
+cerrar la línea en la UI, y la repetición `idempotente` con `commit:true` (hecha en dry-run).
+
+**Conocido y aceptado:** a origen, la proforma se desvía varios céntimos por línea (forma de Sigrid, contrato v1.3 §3.1); el
+clásico y `albaran-directo` ignoran `dto` en silencio.
+
+**Lecciones:**
+- No restaurar un mutante sin comprobar que la campaña ha muerto: el `ps` de Git Bash no ve los python de Windows.
+- Los revisores en paralelo no cambian de rama en el árbol principal.
+- Una cota numérica corregida en un contrato se busca en todos los documentos hermanos.
+- Un `synckey` `ALB-…` delata que un albarán «del escritorio» nació por la API.
+
+## F-016 · Proforma a origen en `sigrid/proforma`
+
+**Cerrada el 2026-10-30, desplegada y grabada en real.** Rigor `critico`, `sdd`. Rama `feature/F-016-proforma-a-origen`,
+mergeada a `dev` (`6735a75`, desplegada el 2026-10-28). Contrato con `proformas` v1.2 (ampliado por la v1.3 de F-018).
+Revisión APROBADA (`review_F-016.md`).
+
+**Qué hace:** `modo: "origen"` con `proforma_anterior` o `primera_de_cadena` y `linea_anterior`. La API solo registra y
+valida; el modo, la anterior y las continuaciones las decide `proformas`. Sin `modo`, F-007 exacta.
+
+**Verificado:** T17 sobre dos cadenas reales sin discrepancias; T18, `PROF26/01386` y `PROF26/01387` en la 0404, con
+revisión del humano en la UI (`verificacion_F-016.md`). **Llave `SIGRID_PROFORMA_ORIGEN_ENABLED` cerrada**, igual que
+`SIGRID_PROFORMA_WRITE_ENABLED`: abrirlas es decisión del humano, y se avisa a `proformas`.
+
+**Queda (operativo, humano):** las dos proformas de prueba siguen sin anular por decisión suya.
+
+**Lecciones:**
+- La cadena mezcla series: una punta puede ser `AC`; no filtrar por `PROF`.
+- Abrir las llaves una a una deja probar el orden de R4 sin escribir, y el script cierra las dos pase lo que pase.
+
+## F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1
+
+**Cerrada el 2026-11-23** con el OK del humano. Rigor `documental`, `sdd: false`. Rama `feature/F-019-actualizar-arnes`
+(`30cfcb4`..), mergeada a `dev`. Revisión APROBADA en la pasada 2 (`review_F-019.md`); informe en `impl_F-019.md`.
+
+**Qué hizo:** `instalar_arnes.ps1 -Modo actualizar` (65 nuevos, 27 genéricos con backup en
+`%LOCALAPPDATA%/arnes-base/backups/sigrid-api/20261120-215907`) y fusión a mano a tres bandas de los seis adaptados
+(`CLAUDE.md`, `CHECKPOINTS.md`, `harness/init.sh`, `docs/CONVENTIONS.md`, `docs/referencia/README.md`,
+`.claude/settings.json`), conservando todas las personalizaciones de `sigrid-api` (`RAMA_BASE=dev`, reglas duras de
+Sigrid, bloque de Ruesma). Fuera el hook `PostToolUse`; ocho estados de flujo, carriles, mutación por muestra en
+`critico`, `qa-e2e`, push siempre humano.
+
+**Verificado:** `init.sh` completo en verde, 6188 passed y 47 skipped; `ARNES_SIN_CACHE=1` en verde (reviewer).
+
+**Lecciones:**
+- El instalador aplica `tests/**` como `arnes_puro` y pisó en silencio `tests/test_f004_settings.py`, propio (8 tests
+  de F-004, entre ellos el de `ruesma_rep` fuera de `ALLOWED_WRITE_DATABASES`). Recuperados en
+  `tests/test_f004_settings_concepto_grafico.py`. En una actualización, barrer «modificado que no existía en el payload
+  anterior».
+- `human_review` cuenta como activa: una feature con solo manuales pendientes se aparca fuera mientras otra ocupa el
+  hueco.
+- `current.md` desactualizado engañó al reviewer (creyó T35 pendiente): el estado se contrasta con `review_*.md` y git.
+

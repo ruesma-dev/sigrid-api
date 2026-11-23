@@ -125,7 +125,10 @@ def test_f009_r11_obra_solo_entre_las_empresas_admitidas() -> None:
 def test_f009_r11_con_emp_es_la_empresa_de_la_obra() -> None:
     repo = RepositorioDoble({"obra": [(OBRA, 2, "0404")]}, contratos=[{"ide": CTR, "obride": OBRA}])
     respuesta, repo = ejecutar(
-        [vinculada(), sin_vincular()], repo=repo, settings=SettingsDoble(sigrid_albaran_empresas_obra=[2])
+        [vinculada(), sin_vincular()], repo=repo,
+        # F-008 enmienda 1: el forzado es por empresa; el de la 2, para seguir en `MA99`.
+        settings=SettingsDoble(sigrid_albaran_empresas_obra=[2],
+                               sigrid_albaran_naturaleza_forzada={"2:MA9999": "MA99"}),
     )
     assert respuesta.filas["con"]["emp"] == 2
     assert {m["emp"] for m in respuesta.filas["mov"]} == {2}
@@ -358,7 +361,7 @@ def test_f009_r13b_numemp_de_la_empresa_de_la_obra_vale() -> None:
     ("lecturas", "mapeo"),
     [
         ({}, {}),
-        ({}, {"QA9999": "QA99"}),
+        ({}, {"1:QA9999": "QA99"}),
         ({"naturalezas": []}, None),
         ({"naturalezas": [(501, "MA99", 0, 20240101, "MOD.CDSB37", "6000001")]}, None),
         ({"naturalezas": [(501, "MA99", 2, 0, "MOD.CDSB37", "6000001")]}, None),
@@ -374,7 +377,9 @@ def test_f009_r13b_numemp_de_la_empresa_de_la_obra_vale() -> None:
 def test_f009_r13b_naturaleza_no_valida(lecturas: dict, mapeo: dict | None) -> None:
     settings = SettingsDoble()
     if mapeo is not None:
-        settings.sigrid_albaran_naturaleza_por_producto = mapeo
+        settings.sigrid_albaran_naturaleza_forzada = mapeo
+    # F-008 enmienda 1 (R50): sin forzado manda la ficha; aquí, sin ficha.
+    lecturas = {"naturalezas_de_ficha": [], **lecturas}
     repo = RepositorioDoble(lecturas)
     assert fallos([sin_vincular()], repo=repo, settings=settings) == [(0, "L2", "naturaleza_no_valida")]
 
@@ -1295,9 +1300,12 @@ def test_f009_r13b_el_mapeo_es_exacto() -> None:
     """`ma9999` en la lista blanca y en el maestro (sin mayúsculas), pero el mapeo
     solo tiene `MA9999`: sin entrada exacta no hay naturaleza."""
     settings = SettingsDoble(sigrid_albaran_productos_sin_contrato=["ma9999"],
-                             sigrid_albaran_naturaleza_por_producto={"MA9999": "MA99"})
-    assert fallos([sin_vincular(producto="ma9999")], settings=settings) == [
+                             sigrid_albaran_naturaleza_forzada={"1:MA9999": "MA99"})
+    # F-008 enmienda 1: sin clave exacta no está forzado y va a la ficha; aquí, sin ficha.
+    repo = RepositorioDoble({"naturalezas_de_ficha": []})
+    assert fallos([sin_vincular(producto="ma9999")], settings=settings, repo=repo) == [
         (0, "L2", "naturaleza_no_valida")]
+    assert "naturalezas" not in repo.lecturas_hechas()
 
 
 # =====================================================================================

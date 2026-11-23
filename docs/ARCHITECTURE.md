@@ -30,7 +30,8 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   compone las dependencias una sola vez (`build_dependencies()` + `lru_cache`).
   Rutas: `sql/read`, `sql/write`, `sigrid/contrato-lineas`, `sigrid/albaran`,
   `sigrid/albaran-directo`, `sigrid/concepto-grafico`,
-  `sigrid/partes-reclamacion`, `documents/read`, `diagnostics/tcp`.
+  `sigrid/partes-reclamacion`, `sigrid/proforma` (F-007; a origen, F-016),
+  `sigrid/factura` (F-008), `documents/read`, `diagnostics/tcp`.
   `build_dependencies()` devuelve una tupla de **ocho** posiciones (la 6 es el
   albarán clásico y la 7 el modo extendido, F-009); las rutas que no la usan
   entera la desempaquetan igual.
@@ -39,7 +40,10 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
     `sigrid_domain_models` (líneas de contrato), `albaran_domain_models`,
     `albaran_directo_models`, `albaran_compra_models` (modo extendido de
     `sigrid/albaran`, F-009), `concepto_grafico_models` (adjuntar documentos),
-    `parte_reclamacion_models` (alta en lote de partes de Posventa).
+    `parte_reclamacion_models` (alta en lote de partes de Posventa),
+    `proforma_models` (proforma de mes, F-007), `proforma_origen_models`
+    (códigos y respuesta de la proforma a origen, F-016), `factura_models`
+    (factura de compra FR y FRGG, F-008).
   - `ports/sql_repository.py`: interfaz `SqlRepository`.
 - **`application/use_cases/`** — un caso de uso por capacidad:
   `execute_sql_query_use_case`, `execute_sql_command_use_case`,
@@ -48,17 +52,22 @@ Hexagonal, con las dependencias apuntando siempre al dominio.
   `create_albaran_compra_use_case` (modo extendido de `sigrid/albaran`, con su
   constructor puro `albaran_compra_statements`; F-009),
   `create_partes_reclamacion_use_case` (una transacción por parte, con su
-  constructor puro de sentencias `parte_reclamacion_statements`).
+  constructor puro de sentencias `parte_reclamacion_statements`),
+  `create_proforma_use_case` (subclase del modo extendido, con su constructor
+  puro `proforma_statements`; F-007; y `proforma_origen_statements` para el
+  modo a origen, F-016), `create_factura_use_case` (alta de factura de compra, con
+  los puros `factura_statements` y `factura_lineas`; F-008).
 - **`infrastructure/`** — `repositories/sql_server_repository.py` (adaptador
   pyodbc, elige credencial de lectura o escritura según la operación),
   `security/` (guardias) y `serialization/json_encoder.py`.
 - **`interface_adapters/http/http_response_factory.py`** — construcción
-  uniforme de respuestas HTTP. El 400 de Pydantic de las 9 rutas lo construye
+  uniforme de respuestas HTTP. El 400 de Pydantic de las 10 rutas lo construye
   `validation_error_response(exc)` (F-012): `details = {type, validation}`, con
   `exc.errors()` pasado por `json.dumps(..., default=str)`, de modo que lo no
   serializable (la excepción de una regla con mensaje propio, en `ctx.error`)
   sale como texto en vez de un 500 y lo demás sale idéntico. No traza: la traza
-  de cada `except ValidationError` sigue en su ruta.
+  de cada `except ValidationError` sigue en su ruta. `sigrid/factura` (F-008) construye
+  el suyo con la misma forma pero sin `input` ni `ctx` (sin eco de valores, su R1).
 - **`config/settings.py`** — `Settings` (pydantic-settings) leído de `.env` en
   local y de App Settings en Azure.
 
@@ -107,6 +116,25 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
     `dca.tot` = `totpag` = `totdoc` − `cuo`; más de uno o uno raro, 400
     `retencion_no_soportada`. En el commit, su `ide` (E6b) va bajo el applock
     `SIGRID_IDE_dcarec`, el `INSERT` tras los `mov` y su relectura en E12.
+  - **Descuento por línea (F-018)**: `LineaAlbaranIn.dto` opcional (0-100, como
+    mucho 2 decimales; 0 o ausente = sin descuento, `con_dto`). Con `dto`
+    pedido, `precio` es el bruto: `dcapro.tar` = bruto, `dcapro.dto` = texto de
+    Sigrid (`40%`, `1,5%`), `tot` = `redondear_euros(can·tar·(1 − dto/100))`,
+    `pre` = `tot`/`can` (neto, el de `mov` y del PMP) e `ivacuo` sobre `tot`;
+    `dca.impbru` suma los brutos (sin ninguna línea con descuento, = `totbas`
+    como antes). Una vinculada **sin** `dto` que casa por la opción C con un
+    `ctrpro` de dto legible > 0 y `tar` ≠ 0 copia `tar`/`dto` como antes y
+    calcula `tot`/`pre`/`ivacuo` como Sigrid (R15). Con `dto` pedido, la
+    vinculada escribe lo pedido y avisa de cada diferencia con el `ctrpro`
+    (bruto frente a `tar`: `precio_distinto_del_contrato`; porcentaje:
+    `dto_distinto_del_contrato`). La línea de respuesta lleva `dto` y
+    `precio_bruto` solo con descuento (un serializador omite las dos claves
+    cuando valen `None`); la traza, `n_lineas_con_dto` si hay alguna. Sin SQL
+    nuevo. El clásico y `albaran-directo` **ignoran** `dto`: sus líneas
+    (`ReceivedLine`, `DirectLine`) no llevan `extra="forbid"`, así que la clave
+    se descarta en silencio. Riesgo: quien mande el bruto con `dto` a esas rutas
+    graba la línea sin descuento y sin error; solo el modo extendido lo aplica
+    (y `sigrid/proforma` lo rechaza con 400).
   - *infrastructure*: nada nuevo; reutiliza los métodos del repositorio.
 - **Ruta**: la guarda `SIGRID_ALBARAN_WRITE_ENABLED` (R8) va en `sigrid/albaran`
   (los dos modos) y en `sigrid/albaran-directo`, **después** de validar el modelo
@@ -117,6 +145,134 @@ a la vez (`lineas_recibidas` junto a ellas), 400 `peticion_mixta`.
   códigos y duración; nunca textos, precios ni datos bancarios). Lo que la ruta
   corta antes del caso de uso (`peticion_mixta`, Pydantic, R8) deja solo su
   `warning` de ruta, sin esa traza.
+
+### `sigrid/proforma` (F-007): el núcleo del modo extendido con otro perfil
+
+Alta idempotente de UNA proforma de mes de un subcontratista como albarán de compra
+(`con.tip` 14) de la serie `PROF<aa>/` (5 cifras) con `dca.cla` 141. No hay núcleo
+nuevo: `CreateProformaUseCase` **hereda** de `CreateAlbaranCompraUseCase` y cambia
+solo lo que pasan cinco costuras, que en el albarán valen lo de antes (R31; su
+dorado y sus tests no se tocan):
+
+1. **`PerfilAlta`** (`PERFIL_ALBARAN` / `PERFIL_PROFORMA`): endpoint de la traza,
+   prefijo y cifras de la serie, `cla`, la llave y su código, los nombres de las
+   App Settings (prefijos, tope de líneas, productos y naturalezas) y la clase del
+   error (`AlbaranCompraError` / `ProformaError`). `naturaleza_de_ficha` (F-008
+   enmienda 1): el albarán toma la naturaleza forzada por `<emp>:<producto>` o la de
+   la ficha (L15D) con `naturalezas_elegidas`; la proforma (`False`) sigue con su mapa
+   por producto.
+2. **Serie**: `prefijo_de_serie` y `sellos_del_alta` reciben el prefijo; las
+   constantes SQL no cambian.
+3. **`_comprobar_dentro`**: gancho tras E1 bajo `SIGRID_REFEXT_14`, vacío en el
+   albarán; en la proforma repite LP1 por el cursor (R28) y, si alguien registró la
+   del mes entre la previa y el commit, responde `existente` (o
+   `proforma_del_mes_existente`) sin escribir.
+4. **Catálogo**: con `productos_del_contrato`, una línea sin vincular admite además
+   los productos de las líneas del contrato (R17).
+5. **Códigos de clase**: `FalloLinea`, `AlbaranCompraError` y `AvisoAlbaran` validan
+   contra su `codigos`; las subclases de proforma los amplían.
+
+Lo propio de la proforma, por capa:
+
+- *domain*: `proforma_models` — `ProformaRequest` (`periodo` entero `AAAAMM`,
+  números estrictos, `extra="forbid"`), `LineaProformaIn` (`ctrpro_ide` o
+  `producto`, nunca juntos), `ProformaResponse` (la del modo extendido más
+  `existente`, `contrato` y `origen`), `ProformaError` (con `reparto` solo en
+  `hoja_de_varios_contratos`) y `FalloLineaProforma` (con `candidatos`).
+- *application*: `proforma_statements` — LP1-LP6, SQL constante con `?` validado con
+  `DatabaseReferenceGuard` (solo `SELECT`), y funciones puras: resolver el contrato
+  (R7-R9: por petición, por proveedor —el CIF manda sobre el nombre— o por las
+  líneas), identificar las líneas (R14), la fecha del periodo, cuadrar la hoja
+  (R19), anterior y origen sobre las proformas del contrato (R20-R22), buscar la del
+  mes (R24) y traducir la petición a un `AlbaranCompraRequest` del núcleo.
+  `create_proforma_use_case` orquesta: obra, referencia (R23), contrato, líneas,
+  existente o idempotente, y el resto por el flujo del núcleo; el contexto de R28
+  viaja en un `PrivateAttr` de una subclase interna de la petición del núcleo.
+- **Descuento (F-018)**: la petición de proforma **no** admite `dto` (400 sin
+  `codigo`), pero sus vinculadas se construyen con el núcleo, así que una línea
+  contra un `ctrpro` con dto legible hereda R15 (de mes y a origen, sin
+  interruptor ni cambio en `create_proforma_use_case`): `tot`/`pre` de Sigrid,
+  `dca.impbru` bruto, `dto` y `precio_bruto` en la línea de respuesta, y a origen
+  `importe_origen_cadena` con ese `pre`.
+- *infrastructure*: nada nuevo.
+- **Ruta**: la llave `SIGRID_PROFORMA_WRITE_ENABLED` (R5) solo con `commit`,
+  después de validar y antes del caso de uso; la de albaranes no la abre.
+  `ProformaError` → 400 `details:{type, codigo[, lineas][, reparto]}`. Una traza por
+  petición (R33) sin textos, nombres, CIF ni importes.
+
+### `sigrid/proforma` a origen (F-016): un modo de la misma ruta, sin tocar el núcleo
+
+Con `modo: "origen"` la proforma se registra a origen (`dca.docoritip` 1, `docoriide`
+= la anterior; por línea `canorilin` y `canoriori` acumulado). Sin `modo`, F-007
+exacta: cada rama nueva es inerte en mes y la respuesta no trae claves nuevas (R1).
+La API **registra y valida**; elegir el modo, la anterior y qué línea continúa cada
+una es del llamante (`proformas`), que lee Sigrid por `sql/read`
+(`contrato_proformas.md` v1.2 §2.3). No toca el núcleo de F-009 ni `proforma_statements`:
+
+- *domain*: `ProformaRequest` y `LineaProformaIn` ganan `modo`,
+  `proforma_anterior`, `primera_de_cadena` y `linea_anterior` (combinaciones de R3
+  → 400 sin `codigo`). `proforma_origen_models` amplía por **subclases** los códigos,
+  el error, el fallo de línea, el aviso y la respuesta (`cadena`, campos de línea);
+  los conjuntos y clases de F-007 no cambian.
+- *application*: `proforma_origen_statements` — LP7 (la anterior por `cod` en el
+  contrato), LP8 (sus sucesoras), LP9 (sus `dcapro`, `SELECT *` como plantilla),
+  constantes con `?` validadas con `DatabaseReferenceGuard`, y funciones puras
+  (validar la anterior y las continuaciones, aviso de R10, superponer las columnas a
+  origen, construir las **arrastradas**, cabecera a origen, la del mes a origen e
+  importe de cadena). `create_proforma_use_case` ramifica por `modo`: valida fuera
+  (LP7-LP9), en `_construir` superpone la cadena y añade las arrastradas **al final**
+  de `filas.dcapro` (así numeración, previa, `INSERT` y relectura E12 las cuentan sin
+  cambiar el núcleo; no generan `ctrprodes`, `mov` ni `UPDATE`), en
+  `_comprobar_dentro` relee LP8 por el cursor bajo el applock (R17) y en `_convertir`
+  devuelve `ProformaOrigenResponse`.
+- **Ruta**: tercera llave `SIGRID_PROFORMA_ORIGEN_ENABLED` (defecto `false`) solo con
+  `commit` y `modo: "origen"`, después de la de F-007 y antes del caso de uso. La
+  traza añade `modo`, `primera_de_cadena`, la anterior y los nº de continuadas y
+  arrastradas.
+
+### `sigrid/factura` (F-008): alta de la factura de compra, sin contabilidad
+
+Da de alta UNA factura de compra **FR** (en REC, `cod` `FR<aa>/` + 5 cifras) o **FRGG**
+(en RECGG, `FRGG<aa>/` + 4 cifras) con lo que arrastra el alta del escritorio: `con`
+15, `dcf` (`cla` 1001, `synckey` = `referencia_externa`), `dcfpro` ×N, `dcfrec` ×0-1,
+`con` 25 + `pag` por vencimiento (y el `pag cla 2` de la garantía), `consii`, `log` y,
+con orígenes, `dcaprodes` y las marcas de los albaranes o proformas (`dcapro.canfac`,
+`dca.estfac`/`fecfac`/`horfac`/`antestfac`, `con.est` CON → FAC, `ctrpro.canfac` y
+`ctr.estfac`). **No** escribe asiento, `regiva`, `regirp`, `mov`, `dcfproana`,
+`dcfpropar`, `dcfprodes`, `dcfproimp` ni `confir`, ni saca la factura de su estado
+inicial, ni borra nada: «Comprobar» y «Contabilizar» siguen en el escritorio (P1).
+La API **registra y valida; no deduce**: serie, modo, `a_origen`, vencimientos,
+cuentas y analíticas los manda el llamante.
+
+- *domain*: `factura_models` — `FacturaRequest` (`extra="forbid"`, números estrictos;
+  campos de línea por serie: FR **o** `producto`/`partida`/`paride`/`unidad` **o**
+  `cuenta`/`analitica` (enmienda 1; las dos cosas, «ambigua»), FRGG
+  `cuenta`/`analitica`), `FacturaError` con `codigo` y `details`, `FacturaResultado`.
+- *application*: `factura_lineas` (puro: línea de origen copiada de su `dcapro`, de mes
+  o a origen por la regla de M63, comparación con `a_origen`; un solo constructor de
+  línea sin origen con dos resolvedores, FR con las reglas de F-009 y FRGG con cuenta y
+  analítica hoja, elegidos **por línea**: una FR sin producto va por el de cuenta;
+  vencimientos), `factura_statements` (listas blancas de T0,
+  constructores de filas, numeración y todo el SQL constante con `?`, validado con
+  `DatabaseReferenceGuard`) y `create_factura_use_case` (orden de validación de design
+  §7; idempotencia por `synckey` antes que los orígenes; previa solo con lecturas).
+  La naturaleza de una FR con producto es la de `naturalezas_elegidas`
+  (`albaran_compra_statements`, común con `sigrid/albaran`): forzada en
+  `SIGRID_FACTURA_NATURALEZA_FORZADA` para `<emp>:<producto>` (L15A solo con esos `cod`)
+  o la de la ficha (L15D solo con los `proide` no forzados).
+- **Transacción**: `run_in_write_transaction` con applocks en orden fijo
+  (`SIGRID_REFEXT_15`, `SIGRID_SERIE_15`, `SIGRID_IDE_con`, `_dcfpro`, `_dcaprodes`,
+  `_dcfrec`, `_pag`, `_consii`, `_log`); dentro, reentrante: idempotencia y duplicadas
+  otra vez, orígenes y sus líneas releídos con `UPDLOCK, HOLDLOCK` (y R14, R15, R22,
+  totales y vencimientos otra vez), reserva de `cod` e `ide` (`pag` comparte `ide` con
+  su `con`), `INSERT`s por lista blanca, `UPDATE`s condicionados y relectura de cada
+  fila y cada marca antes del COMMIT (`NOCOUNT ON`: no se fía de `rowcount`).
+- **Ruta**: llave propia `SIGRID_FACTURA_WRITE_ENABLED` (defecto `false`), tras validar
+  el cuerpo y antes del caso de uso; ninguna otra la abre. Su 400 de validación es el
+  de F-012 **sin** `input` ni `ctx` (R1: sin eco de CIF, número ni importes). La traza
+  lleva obra, prefijo, `usu`, serie, modo, `commit`, estado, `cod`, nº de líneas por
+  clase y de vencimientos, códigos y duración; nunca textos, CIF, número, cuentas ni
+  importes.
 
 ## Semántica de dominio imprescindible
 
@@ -151,8 +307,11 @@ Reglas que **no** se deducen del código y que causan bugs si se ignoran:
    contra `dbo.conest` por `con.tip = conest.tip AND con.est = conest.est`.
 8. **`dca` es albarán y `dcf` es factura.** Confundir `dcapro` con líneas
    facturadas es el error más frecuente.
-9. **El facturado no es `canfac * pre`**: eso ignora el descuento de línea.
-   Se prorratea sobre el neto: `SUM(canfac / NULLIF(can,0) * tot)`.
+9. **El facturado se prorratea sobre `tot`**: `SUM(canfac / NULLIF(can,0) * tot)`.
+   `dcapro.pre` ya es el precio **neto** (`tot`/`can` sin redondear: el
+   descuento de línea está dentro; el bruto es `tar` y el porcentaje, el texto
+   `dto`), así que `canfac * pre` no ignora el descuento; prorratear sobre `tot`
+   sigue siendo la regla porque es exacta al céntimo (corregido en F-018).
 10. **Comparativo → contrato tiene doble vía** (`ctr.comide` y
     `comlin.ctride`): hay que deduplicar antes de sumar importes.
 

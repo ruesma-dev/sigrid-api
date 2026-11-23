@@ -250,7 +250,8 @@ def test_f012_r8_las_9_rutas_responden_con_la_funcion_comun(
 def test_f012_r8_function_app_ya_no_construye_el_400_a_mano() -> None:
     fuente = inspect.getsource(function_app)
     assert not re.search(r"details\s*=\s*\{[^}]*exc\.errors\(\)", fuente)
-    assert fuente.count("return validation_error_response(exc)") == 9
+    # F-007: diez rutas con `sigrid/proforma`.
+    assert fuente.count("return validation_error_response(exc)") == 10
     assert "validation_error_response" in function_app.__dict__
 
 

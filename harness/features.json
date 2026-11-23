@@ -134,7 +134,7 @@
     {
       "id": "F-007",
       "title": "Endpoint de dominio para registrar proformas",
-      "description": "Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Proforma = albarán proforma de subcontratista (manual de Postventa de Sigrid, «Documentos de compras»): trabajos realizados que se pueden facturar. Qué tipo de concepto, serie y tablas usa Sigrid, y su relación con el contrato y con la reclamación, los investiga la spec. Estudiar si reutiliza create_purchase_albaran_use_case.",
+      "description": "Alta del 2026-09-24 por petición del humano; spec v3 (2026-10-25) y enmienda 1 (2026-10-26). POST /api/sigrid/proforma registra UNA proforma de mes de un subcontratista —la hoja del jefe de obra ya leída y casada por el microservicio proformas (su F-005), que la llama desde su bandeja: previa antes de aprobar y grabación al aprobar— como un albarán de compra tip 14 de la serie PROF<aa>/ con dca.cla 141, solo con las partidas de MES ≠ 0: las de contrato vinculadas a su ctrpro (ctrpro_ide), las nuevas sin vincular con su producto. El contrato lo resuelve la API (obra + proveedor y, con varios, las líneas) o lo fija cod_contrato; cabecera y retención como F-015; existente si la proforma del contrato y mes ya está en Sigrid; idempotente por la referencia PRF-<id>. Reutiliza el núcleo del modo extendido de sigrid/albaran (F-009) con otro perfil, sin cambiar su conducta. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con su propia llave SIGRID_PROFORMA_WRITE_ENABLED y autorización expresa. facturas lee lo registrado por el entref PROF<MMAA>_<cod_obra>. Contrato: specs/F-007-registrar-proforma/contrato_proformas.md.",
       "acceptance": [
         "Spec aprobada por el humano con el modelo de filas medido en producción (solo lectura)",
         "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED y autorización expresa",
@@ -143,7 +143,7 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "pending",
+      "status": "done",
       "sdd": true,
       "rigor": "critico",
       "priority": 8,
@@ -161,10 +161,11 @@
         "azure-apps/sigrid_api.md actualizado en el mismo trabajo",
         "bash harness/init.sh en verde"
       ],
-      "status": "pending",
+      "status": "human_review",
+      "spec_aprobada": "2026-10-30",
       "sdd": true,
       "rigor": "critico",
-      "priority": 9,
+      "priority": 10,
       "branch": "feature/F-008-registrar-factura"
     },
     {
@@ -276,11 +277,78 @@
         "Dry-run por defecto; ninguna grabación de prueba sin autorización expresa del humano",
         "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "sdd": true,
       "rigor": "critico",
       "priority": 15,
       "branch": "feature/F-015-albaran-plantilla-y-retencion"
+    },
+    {
+      "id": "F-016",
+      "title": "sigrid/proforma registra también proformas a origen, según indique el jefe de obra",
+      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007): la proforma se tiene que poder registrar a origen o por meses según indique el jefe de obra en proformas; por defecto, por meses. F-007 (desplegada, solo de mes) queda como está y la petición sin el campo nuevo sigue igual. A origen (medido en progress/explore_F-007.md §M11 y §M16-M26, en la rama de F-007; diseño v2 superado): dca.docoritip 1 y docoriide = la anterior de la cadena del contrato (cadenas paralelas por partidas, serie mezclada PROF/AC), la proforma arrastra todas las líneas de la anterior (también con can 0), canorilin a la línea anterior del mismo ctrpro y canoriori acumulado. Spec v2 (cambio de alcance del humano, 2026-10-28): el modo, la anterior y qué línea continúa cada una los decide y los busca en Sigrid el llamante (proformas); la API solo registra y valida la integridad de la cadena. Cambios en el contrato con proformas: v1.2. Escritura de dominio en el ERP de producción: dry-run por defecto; commit:true con la llave SIGRID_PROFORMA_WRITE_ENABLED (y, a origen, SIGRID_PROFORMA_ORIGEN_ENABLED) y autorización expresa. Avisar a proformas (y a facturas si cambia lo que lee) antes del despliegue.",
+      "acceptance": [
+        "Spec aprobada por el humano con el modelo a origen medido en producción (solo lectura)",
+        "Sin el campo de modo, la petición se comporta exactamente como en F-007 (dorados de F-007, F-009 y F-015 intactos)",
+        "Una proforma a origen queda encadenada a su anterior y con sus líneas y cantidades a origen como las que deja Sigrid",
+        "Dry-run por defecto; commit:true exige SIGRID_DOMAIN_WRITE_ENABLED, SIGRID_PROFORMA_WRITE_ENABLED, a origen además SIGRID_PROFORMA_ORIGEN_ENABLED, y autorización expresa",
+        "contrato_proformas.md (v1.2) y azure-apps/sigrid_api.md actualizados y proformas avisado en el mismo trabajo",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "done",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 8,
+      "branch": "feature/F-016-proforma-a-origen"
+    },
+    {
+      "id": "F-017",
+      "title": "Partidas con el código repetido en la obra: líneas sin contrato de sigrid/proforma",
+      "description": "Alta del 2026-10-28 por decisión del humano (V8 de F-007, punto 3). Una línea sin contrato de sigrid/proforma con un código de partida que la obra tiene repetido entre sus imputables da 400 partida_ambigua, y la petición no admite paride. Según el humano «no debería haber». Medido el 2026-10-28 (solo lectura): 4 de las 16 obras con PROF26 — 0677 (40.04.01 y 40.04.02, partidas distintas con compras), 0672 (20.02.05), 0692 (CI.6.1-CI.6.7 en los capítulos CI.6 y CI.06) y 0404 (pruebas, presupuesto cargado 5 veces). Las líneas de contrato no se ven afectadas (llevan el paride del ctrpro). La spec decide entre detectarlo y avisar para que se corrija en Sigrid, admitir paride o una regla de desempate, con Administración.",
+      "acceptance": [
+        "Spec aprobada por el humano con el alcance decidido y medido en producción (solo lectura)",
+        "Las líneas de contrato y las obras sin códigos repetidos se comportan igual que antes",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "pending",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 16,
+      "branch": "feature/F-017-partidas-repetidas"
+    },
+    {
+      "id": "F-018",
+      "title": "Descuento por línea (dto) en el alta de albarán, heredado por sigrid/proforma",
+      "description": "Alta del 2026-10-28 a petición de la sesión albaranes (su F-110), con el sí del humano, que la fija como la siguiente feature tras F-016. Las líneas con descuento (albaranes de CECOIS, obra 0692) acaban en Sigrid con el unitario ya descontado porque sigrid/albaran (modo extendido, F-009/F-015) solo admite cantidad y precio y sv9 manda precio = importe / cantidad. Se pide lineas[].dto opcional (porcentaje 0-100, hasta 2 decimales, sin cascada): dcapro.pre = precio bruto, dcapro.dto = dto, importe de línea y totales de dca con el descuento aplicado como la UI de Sigrid; la previa devuelve dto e importe por línea; sin dto o con 0, todo igual que hoy. A decidir en la spec, midiendo antes en producción (solo lectura): formato de dcapro.dto (texto, admite cascada), tot y redondeo, impbru/totbas, precio del mov y PMP, ctrprodes y canser; en las vinculadas el ctrpro ya aporta pre/tar/dto si el precio cuadra (H14 C) y la inclinación es validar el dto de la línea contra el del ctrpro, no pisarlo; si aplica a sigrid/proforma. Al publicar el contrato, documentarlo en azure-apps/sigrid_api.md y avisar a albaranes (F-110). Decidido en la spec v1.2 (humano, P1-P11): tar bruto y pre neto = tot/can como Sigrid; la vinculada sin dto que casa por la opción C con un ctrpro con dto se escribe como Sigrid (P5, R15); sigrid/proforma no admite dto en la petición (R20) pero hereda R15 (P8 = a).",
+      "acceptance": [
+        "Spec aprobada por el humano con el comportamiento de Sigrid medido en producción (solo lectura)",
+        "Sin dto efectivo, sigrid/albaran (los dos modos), sigrid/albaran-directo y sigrid/proforma se comportan exactamente igual que antes (R7); únicas excepciones: la vinculada que casa por la opción C con un ctrpro con dto (R15, también en la proforma) y las tres líneas de tests de P9-P11",
+        "Contrato publicado en azure-apps/sigrid_api.md y aviso a albaranes",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "done",
+      "sdd": true,
+      "rigor": "critico",
+      "priority": 9,
+      "branch": "feature/F-018-descuento-por-linea"
+    },
+    {
+      "id": "F-019",
+      "title": "Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base",
+      "description": "Alta del 2026-11-20 a petición del humano. instalar_arnes.ps1 -Modo actualizar: lo genérico (arnes_puro) entra sin preguntar con backup; los seis adaptados (CLAUDE.md, CHECKPOINTS.md, harness/init.sh, docs/CONVENTIONS.md, docs/referencia/README.md, .claude/settings.json) se conservan y se fusionan a mano, bloque a bloque, según los resúmenes de GUIA_INSTALACION.md desde la 1.7.16, 1.8.0, 1.9.0 y 1.10.0, conservando lo propio de sigrid-api. Sin cambios de código de la API.",
+      "acceptance": [
+        "harness/ARNES_VERSION.md y harness/VERSION dicen 1.10.1",
+        "Los seis adaptados llevan los bloques nuevos del arnés y conservan lo propio de sigrid-api (RAMA_BASE=dev, mapa, reglas duras de Sigrid, bloque de Ruesma)",
+        ".claude/settings.json sin hook PostToolUse",
+        "bash harness/init.sh en verde y reviewer APROBADO contra CHECKPOINTS.md"
+      ],
+      "status": "done",
+      "sdd": false,
+      "rigor": "documental",
+      "priority": 1,
+      "branch": "feature/F-019-actualizar-arnes",
+      "ok_humano": "2026-11-23",
+      "fecha_cierre": "2026-11-23"
     }
   ]
 }

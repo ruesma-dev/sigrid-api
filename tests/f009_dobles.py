@@ -73,6 +73,8 @@ NOMBRES: dict[str, str] = {
     _S.leer_naturalezas(_UNO)[0]: "naturalezas",
     _S.leer_analiticas(_UNO)[0]: "analiticas",
     _S.leer_cuentas(1, _UNO)[0]: "cuentas",
+    # F-008 enmienda 1 (R49): L15D, la naturaleza de la ficha del producto.
+    _S.leer_naturalezas_de_ficha([1])[0]: "naturalezas_de_ficha",
     _S.reservar_cod(1, "x")[0]: "reservar_cod",
     _S.reservar_ide_con()[0]: "ide_con",
     _S.reservar_ide_dcapro()[0]: "ide_dcapro",
@@ -237,6 +239,15 @@ def plantilla_dcapro(proide: int, **extra: Any) -> dict[str, Any]:
     }
 
 
+#: F-008 enmienda 1: la ficha de cada producto (L15D). `MA9999` en la ficha es
+#: `MA1501` (como en la empresa 1, M75); `QA9999` y `XA9999`, los del mapeo viejo.
+FICHAS: dict[int, tuple[Any, ...]] = {
+    66: (66, 505, "MA1501", 0, 0, "MOD.CDMA15", "6000005"),
+    67: (67, 502, "QA99", 1, 0, "MOD.CDQA12", "6000002"),
+    68: (68, 503, "XA99", 0, 0, "CDXA01", "6000003"),
+}
+
+
 def lecturas_base() -> dict[str, Any]:
     """Respuesta de cada lectura: lista de filas o función de los parámetros."""
     plantillas = {55: plantilla_dcapro(55), 56: plantilla_dcapro(56), 66: plantilla_dcapro(66),
@@ -277,10 +288,13 @@ def lecturas_base() -> dict[str, Any]:
             (502, "QA99", 1, 0, "MOD.CDQA12", "6000002"),
             (503, "XA99", 0, 0, "CDXA01", "6000003"),
         ],
-        "cuentas": [(601, "6000001"), (602, "6000002"), (603, "6000003")],
+        # F-008 enmienda 1: L15D (p.ide, p.natide, n.cod, n.numemp, n.fecbaj, n.caagascod,
+        # n.cuacomcod) de los productos de la lista blanca; solo se lee sin forzado.
+        "naturalezas_de_ficha": lambda p: [FICHAS[i] for i in p if i in FICHAS],
+        "cuentas": [(601, "6000001"), (602, "6000002"), (603, "6000003"), (605, "6000005")],
         "analiticas": [
             (701, "0404.CDSB37", 80), (702, "0404.CDQA12", 80), (703, "0404.CDXA01", 80),
-            (799, "0404.CDSB37", 81),
+            (799, "0404.CDSB37", 81), (705, "0404.CDMA15", 80),
         ],
     }
 
@@ -317,8 +331,9 @@ class SettingsDoble:
     )
     sigrid_albaran_empresas_obra: list[int] = field(default_factory=lambda: [1])
     sigrid_albaran_max_lineas: int = 100
-    sigrid_albaran_naturaleza_por_producto: dict[str, str] = field(
-        default_factory=lambda: {"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}
+    # F-008 enmienda 1 (R53): el forzado da lo que daba el mapeo viejo en la empresa 1.
+    sigrid_albaran_naturaleza_forzada: dict[str, str] = field(
+        default_factory=lambda: {"1:MA9999": "MA99", "1:QA9999": "QA99", "1:XA9999": "XA99"}
     )
     sigrid_albaran_empide: int = 2425207
     max_allowed_rows: int = 1000

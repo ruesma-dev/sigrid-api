@@ -32,18 +32,22 @@ from decimal import Decimal
 from typing import Any
 
 from application.use_cases.albaran_compra_statements import (
+    _DCAPRO_SIN_PLANTILLA,
     APPLOCKS,
     EFECTOS_CON_BANCO,
     GRUPO_BANCO,
     GRUPO_PAGO,
     L16_COLUMNAS,
+    ORIGEN_FORZADA,
     TIP_CONTRATO,
     AlbaranCompraStatements,
     Balance,
     FilasAlbaran,
     RetencionNoSoportada,
     SellosAlbaran,
+    bruto_de_linea,
     calcular_retencion,
+    clave_forzada,
     codigo_analitica,
     construir_con,
     construir_ctrprodes,
@@ -53,17 +57,23 @@ from application.use_cases.albaran_compra_statements import (
     construir_dcarec,
     construir_log,
     construir_mov,
+    dto_coincide,
+    dto_del_contrato,
     encadenar_balances,
     estados_contrato,
     importe_linea,
+    naturalezas_elegidas,
     numerar,
     pago_del_proveedor,
+    porcentaje_de_dto,
+    precio_coincide,
     redondear_euros,
     resolver_cascada,
     resolver_retencion,
     sellos_del_alta,
     siguiente_cod,
     sumar_importes,
+    texto_de_dto,
     usa_precio_del_contrato,
 )
 from domain.models.albaran_compra_models import (
@@ -79,7 +89,6 @@ from domain.models.sql_models import SqlReadRequest
 
 logger = logging.getLogger(__name__)
 
-_ENDPOINT = "sigrid/albaran"
 _AVISO_PROVISIONAL = (
     "DRY-RUN: no se ha escrito nada. El cod y los ide son provisionales (MAX+1 sin "
     "reservar); en el commit se reservan bajo bloqueo."
@@ -113,6 +122,55 @@ class _FalloDeLinea(Exception):
         super().__init__(mensaje)
         self.codigo = codigo
         self.mensaje = mensaje
+
+
+@dataclass(frozen=True)
+class PerfilAlta:
+    """
+    Lo que distingue un alta `tip 14` de otra sobre el MISMO nucleo (F-007, D12,
+    costura 1): la ruta de la traza, la serie y su ancho, la clase de la `dca`,
+    el codigo y la clase del error de las guardas, los nombres de los campos de
+    `Settings` de la llave, los prefijos, el tope de lineas, los productos sin
+    contrato y sus naturalezas, si una sin vincular puede llevar un producto
+    del contrato (costura 4) y como se llaman sus documentos en los mensajes.
+    `PERFIL_ALBARAN` son los literales de antes.
+
+    F-008 enmienda 1 (R49-R51): con `naturaleza_de_ficha`, `campo_naturalezas`
+    es el forzado por `<emp>:<producto>` y lo no forzado sale de la ficha del
+    producto; sin el (proformas, P23), el mapa por producto de siempre.
+    """
+
+    endpoint: str
+    prefijo_serie: str
+    cifras_serie: int
+    cla: int
+    codigo_llave: str
+    campo_llave: str
+    campo_prefijos: str
+    campo_max_lineas: str
+    campo_productos: str
+    campo_naturalezas: str
+    productos_del_contrato: bool
+    error: type[AlbaranCompraError] = AlbaranCompraError
+    documentos: str = "albaranes"
+    naturaleza_de_ficha: bool = False
+
+
+#: El modo extendido de `sigrid/albaran` tal como estaba antes de F-007.
+PERFIL_ALBARAN = PerfilAlta(
+    endpoint="sigrid/albaran",
+    prefijo_serie="AC",
+    cifras_serie=0,
+    cla=0,
+    codigo_llave="escritura_albaranes_deshabilitada",
+    campo_llave="sigrid_albaran_write_enabled",
+    campo_prefijos="sigrid_albaran_prefijos_referencia",
+    campo_max_lineas="sigrid_albaran_max_lineas",
+    campo_productos="sigrid_albaran_productos_sin_contrato",
+    campo_naturalezas="sigrid_albaran_naturaleza_forzada",
+    productos_del_contrato=False,
+    naturaleza_de_ficha=True,
+)
 
 
 @dataclass(frozen=True)
@@ -196,6 +254,9 @@ class _Linea:
     ivaide: int | None = None
     iva: float = 0.0
     avisos: list[AvisoAlbaran] = field(default_factory=list)
+    # F-007 (costura 4, R17): sin vincular con un producto del contrato; su
+    # naturaleza, cuenta y analitica salen de la plantilla y su IVA, del `ctrpro`.
+    del_contrato: bool = False
 
     @property
     def vinculada(self) -> bool:
@@ -218,6 +279,9 @@ class _Construido:
 
 
 class CreateAlbaranCompraUseCase:
+    #: F-007 (costura 1): lo que cambia de un alta `tip 14` a otra.
+    perfil: PerfilAlta = PERFIL_ALBARAN
+
     def __init__(
         self,
         repository: Any,
@@ -240,7 +304,7 @@ class CreateAlbaranCompraUseCase:
         precios, importes ni datos bancarios: solo identificadores y codigos."""
         arranque = self._reloj()
         traza: dict[str, Any] = {
-            "endpoint": _ENDPOINT,
+            "endpoint": self.perfil.endpoint,
             "modo": "extendido",
             "database": request.database,
             "obra": request.cod_obra,
@@ -272,6 +336,11 @@ class CreateAlbaranCompraUseCase:
         if "n_retenciones" in respuesta.totales:
             # F-015 R19: cuantas, nunca `bas`, `cuo` ni `valpor` (no en `idempotente`).
             traza["n_retenciones"] = respuesta.totales["n_retenciones"]
+        # F-018 R18: cuantas lineas llevan descuento, solo si alguna; nunca el
+        # porcentaje, el bruto ni los importes.
+        con_dto = sum(1 for linea in respuesta.lineas if linea.dto is not None)
+        if con_dto:
+            traza["n_lineas_con_dto"] = con_dto
         self._trazar(traza, arranque)
         return respuesta
 
@@ -284,7 +353,9 @@ class CreateAlbaranCompraUseCase:
         self._comprobar_guardas(request)
         sentencias = AlbaranCompraStatements(database=request.database)
         # R22: un instante por peticion, fuera de cualquier transaccion.
-        sellos = sellos_del_alta(self._ahora_utc(), request.fecha_albaran)
+        sellos = sellos_del_alta(
+            self._ahora_utc(), request.fecha_albaran, self.perfil.prefijo_serie
+        )
 
         # 2. Cabecera; R30 sale ya si la referencia existe.
         cabecera = self._leer_cabecera(request, sentencias)
@@ -309,16 +380,19 @@ class CreateAlbaranCompraUseCase:
     # Guardas sin leer la base (R24, R29)
     # ------------------------------------------------------------------ #
     def _comprobar_guardas(self, request: AlbaranCompraRequest) -> None:
-        settings = self._settings
-        tope = settings.sigrid_albaran_max_lineas
+        """Por el perfil (F-007, costura 1): sus campos de `Settings`, el codigo
+        de su llave y la clase de su error."""
+        settings, perfil = self._settings, self.perfil
+        error = perfil.error
+        tope = getattr(settings, perfil.campo_max_lineas)
         if len(request.lineas) > tope:
-            raise AlbaranCompraError(
+            raise error(
                 f"El albaran trae {len(request.lineas)} lineas y el tope es {tope}: alta a mano.",
                 codigo="demasiadas_lineas",
             )
-        prefijos = settings.sigrid_albaran_prefijos_referencia
+        prefijos = getattr(settings, perfil.campo_prefijos)
         if not any(request.referencia_externa.startswith(prefijo) for prefijo in prefijos):
-            raise AlbaranCompraError(
+            raise error(
                 "La referencia externa no empieza por ningun prefijo admitido "
                 f"({', '.join(prefijos) or 'ninguno configurado'}).",
                 codigo="referencia_no_permitida",
@@ -327,18 +401,19 @@ class CreateAlbaranCompraUseCase:
             return
         if not (
             settings.sigrid_domain_write_enabled
-            and settings.sigrid_albaran_write_enabled
+            and getattr(settings, perfil.campo_llave)
             and settings.sql_server_write_username
             and settings.sql_server_write_password
         ):
-            raise AlbaranCompraError(
-                "Escritura de albaranes desactivada: hacen falta SIGRID_DOMAIN_WRITE_ENABLED, "
-                "SIGRID_ALBARAN_WRITE_ENABLED y credenciales de escritura.",
-                codigo="escritura_albaranes_deshabilitada",
+            raise error(
+                f"Escritura de {perfil.documentos} desactivada: hacen falta "
+                f"SIGRID_DOMAIN_WRITE_ENABLED, {perfil.campo_llave.upper()} y credenciales de "
+                "escritura.",
+                codigo=perfil.codigo_llave,
             )
         # Una lista VACIA no abre (al contrario que el modo clasico).
         if request.database not in settings.allowed_write_databases:
-            raise AlbaranCompraError(
+            raise error(
                 f"La base '{request.database}' no esta permitida para escritura.",
                 codigo="base_de_datos_no_permitida",
             )
@@ -562,16 +637,22 @@ class CreateAlbaranCompraUseCase:
                 f"Hay {len(de_la_obra)} contratos '{request.cod_contrato}' de la obra y el proveedor.",
                 codigo="contrato_ambiguo",
             )
-        ctr = (
-            self._fila_completa(request, "ctr", int(de_la_obra[0]["ide"])) if de_la_obra else None
-        )
-        if ctr is None:
+        contrato = self._cargar_contrato(request, int(de_la_obra[0]["ide"])) if de_la_obra else None
+        if contrato is None:
             raise AlbaranCompraError(
                 f"No hay un contrato '{request.cod_contrato}' de la obra '{request.cod_obra}' y ese "
                 "proveedor.",
                 codigo="contrato_no_encontrado",
             )
-        ctride = int(de_la_obra[0]["ide"])
+        return contrato
+
+    def _cargar_contrato(self, request: AlbaranCompraRequest, ctride: int) -> _Contrato | None:
+        """El `ctr` completo y sus `ctrpro` por `pos`, o `None` si el `ctr` no
+        esta. F-007 (costura): la proforma carga asi el contrato que ya ha
+        resuelto, sin volver a localizarlo por su CIF (O4)."""
+        ctr = self._fila_completa(request, "ctr", ctride)
+        if ctr is None:
+            return None
         columnas, filas = self._repo.read_rows_by(
             database=request.database, table="ctrpro", where_column="docide",
             where_value=ctride, order_by="pos",
@@ -676,13 +757,19 @@ class CreateAlbaranCompraUseCase:
             # E1: idempotencia bajo el applock de referencias, antes de reservar nada.
             _ejecutar(cursor, sentencias.buscar_referencia(request.referencia_externa))
             existente = self._resolver_referencia(list(cursor.fetchall()), cabecera)
+            # F-007 (costura 3): lo que un perfil comprueba bajo el applock de
+            # referencias antes de reservar nada, tambien con la fila de E1 antes
+            # de su salida idempotente (el albaran, nada).
+            self._comprobar_dentro(cursor, request, cabecera, existente)
             if existente is not None:
                 _ejecutar(cursor, sentencias.leer_lineas_de_albaran(int(existente[0])))
                 return {"idempotente": (existente, list(cursor.fetchall()))}
 
             # E2-E7 (R26): reservas y balances vigentes, todo bajo UPDLOCK, HOLDLOCK.
             _ejecutar(cursor, sentencias.reservar_cod(emp, sellos.prefijo))
-            cod = siguiente_cod(sellos.prefijo, cursor.fetchone()[0])
+            cod = siguiente_cod(
+                sellos.prefijo, cursor.fetchone()[0], cifras=self.perfil.cifras_serie
+            )
             ide_con = _reservar(cursor, sentencias.reservar_ide_con())
             ide_dcapro = _reservar(cursor, sentencias.reservar_ide_dcapro())
             ide_ctrprodes = _reservar(cursor, sentencias.reservar_ide_ctrprodes()) if vinculadas else None
@@ -789,6 +876,19 @@ class CreateAlbaranCompraUseCase:
             avisos=[*cabecera.avisos, *resultado["construido"].avisos],
         )
 
+    def _comprobar_dentro(
+        self,
+        cursor: Any,
+        request: AlbaranCompraRequest,
+        cabecera: _Cabecera,
+        existente: tuple[Any, ...] | None,
+    ) -> None:
+        """F-007 (costura 3): gancho de `work` tras E1, con el applock de
+        referencias tomado y antes de reservar nada; `existente` es la fila que
+        ha encontrado E1 (o `None`), antes de su salida idempotente. El albaran
+        no comprueba nada mas: no lee ni toca el cursor. Lo que un perfil lance
+        aqui revierte la transaccion sin escribir."""
+
     # ------------------------------------------------------------------ #
     # Lineas (R9, R12-R17)
     # ------------------------------------------------------------------ #
@@ -878,8 +978,12 @@ class CreateAlbaranCompraUseCase:
         dcapro: list[dict[str, Any]] = []
         ctrprodes: list[tuple[int, dict[str, Any]]] = []
         importes = []
+        # F-018 R8: el bruto de las lineas con descuento y el `tot` de las demas.
+        brutos: list[Decimal] = []
         for linea in lineas:
             datos = linea.linea
+            # F-018: el `dto` pedido, solo por nombre y solo si es > 0 (D6).
+            dto = datos.dto if datos.con_dto else None
             if linea.vinculada:
                 fila = construir_dcapro_vinculada(
                     linea.plantilla,
@@ -898,6 +1002,7 @@ class CreateAlbaranCompraUseCase:
                     paride=linea.paride,
                     iva=linea.iva,
                     prepma=0.0,
+                    dto=dto,
                 )
                 ctrprodes.append(
                     (linea.indice, construir_ctrprodes(ctrpro_ide=int(linea.ctrpro["ide"]),
@@ -922,10 +1027,22 @@ class CreateAlbaranCompraUseCase:
                     paride=linea.paride,
                     iva=linea.iva,
                     prepma=0.0,
+                    dto=dto,
                 )
-            # Importes del `pre` ESCRITO (opcion C): fila y totales coherentes.
-            importes.append(importe_linea(datos.cantidad, fila["pre"], linea.iva))
+            if _con_dto_efectivo(linea):
+                # F-018 (Flujo 2): los importes de la FILA; recalcularlos desde el
+                # `pre` neto moveria centimos.
+                importes.append((Decimal(repr(fila["tot"])), Decimal(repr(fila["ivacuo"]))))
+                brutos.append(bruto_de_linea(datos.cantidad, fila["tar"]))
+            else:
+                # Importes del `pre` ESCRITO (opcion C): fila y totales coherentes.
+                importes.append(importe_linea(datos.cantidad, fila["pre"], linea.iva))
+                brutos.append(importes[-1][0])
             dcapro.append(fila)
+        # R8: sin ninguna linea con descuento, `impbru` = `totbas` como antes.
+        impbru = (
+            float(sum(brutos, Decimal(0))) if any(_con_dto_efectivo(l) for l in lineas) else None
+        )
 
         # R19: `mov` si y solo si `pro.tipmov` = 1, con el `pre` escrito; los
         # balances se encadenan por (producto, almacen) en el orden del albaran.
@@ -980,6 +1097,7 @@ class CreateAlbaranCompraUseCase:
             totales=totales,
             cuo=cuo,
             referencia_externa=request.referencia_externa,
+            impbru=impbru,
         )
         con = construir_con(
             emp=cabecera.obra.emp, fec=sellos.fec, entres=dca["entres"],
@@ -1031,7 +1149,9 @@ class CreateAlbaranCompraUseCase:
         }
         filas = numerar(
             construido.filas,
-            cod=siguiente_cod(sellos.prefijo, maximo[0][0] if maximo else None),
+            cod=siguiente_cod(
+                sellos.prefijo, maximo[0][0] if maximo else None, cifras=self.perfil.cifras_serie
+            ),
             ide_con=peek["con"],
             ide_dcapro=peek["dcapro"],
             ide_ctrprodes=peek["ctrprodes"],
@@ -1093,6 +1213,9 @@ class CreateAlbaranCompraUseCase:
                     f"{linea.almide} en negativo: se admite.",
                 ))
             ctrpro_ide = int(linea.ctrpro["ide"]) if linea.ctrpro else 0
+            # F-018 R16: con descuento efectivo, el porcentaje escrito y el `tar`.
+            con_dto = _con_dto_efectivo(linea)
+            porcentaje = porcentaje_de_dto(fila["dto"]) if con_dto else None
             resultado.append(
                 LineaResultado(
                     indice=linea.indice,
@@ -1117,6 +1240,8 @@ class CreateAlbaranCompraUseCase:
                     pmp_anterior=balance.pmp_anterior if balance else None,
                     pmp_resultante=balance.almpma if balance else None,
                     avisos=avisos_linea,
+                    dto=float(porcentaje) if porcentaje is not None else None,
+                    precio_bruto=fila["tar"] if con_dto else None,
                 )
             )
         almide, _cenide = cabecera.almacen_cabecera
@@ -1151,6 +1276,21 @@ class CreateAlbaranCompraUseCase:
             avisos=avisos,
             filas=filas.como_dict(),
         )
+
+
+def _con_dto_efectivo(linea: _Linea) -> bool:
+    """F-018: la linea lleva descuento si lo pide (`con_dto`, R1, R11) o si es una
+    vinculada sin el que casa por la opcion C con un `ctrpro` de dto legible > 0
+    y `tar` != 0 (D9, R15): la MISMA regla que decide su fila."""
+    datos = linea.linea
+    if datos.con_dto:
+        return True
+    ctrpro = linea.ctrpro
+    return (
+        ctrpro is not None
+        and usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0)
+        and dto_del_contrato(ctrpro) is not None
+    )
 
 
 def _aviso_retencion(ctrrec: Mapping[str, Any], bas: Decimal, cuo: Decimal) -> AvisoAlbaran:
@@ -1213,18 +1353,44 @@ class _Catalogo:
         self._request = request
         self._s = sentencias
         self._cab = cabecera
-        settings = caso._settings
-        self._lista_blanca: list[str] = list(settings.sigrid_albaran_productos_sin_contrato)
-        self._mapeo: dict[str, str] = dict(settings.sigrid_albaran_naturaleza_por_producto)
+        settings, perfil = caso._settings, caso.perfil
+        self._campo_productos = perfil.campo_productos.upper()
+        self._campo_naturalezas = perfil.campo_naturalezas.upper()
+        self._lista_blanca: list[str] = list(getattr(settings, perfil.campo_productos))
+        self._mapeo: dict[str, str] = dict(getattr(settings, perfil.campo_naturalezas))
+        # F-008 enmienda 1 (R49-R51): con ficha, `_mapeo` es el forzado
+        # `<emp>:<producto>` y `_origenes` dice de donde salio cada naturaleza.
+        self._de_ficha = perfil.naturaleza_de_ficha
+        self._origenes: dict[str, str] = {}
         lineas = request.lineas
         self._partidas = self._agrupar(
             self._s.leer_partidas, [l.partida for l in lineas if l.partida], cabecera.obra.ide, 1
         )
-        permitidos = [
-            l.producto for l in lineas if l.producto is not None and l.producto in self._lista_blanca
-        ]
-        self._productos = self._agrupar(self._s.leer_productos, permitidos, cabecera.obra.emp, 1)
+        productos = [l.producto for l in lineas if l.producto is not None]
+        if perfil.productos_del_contrato:
+            # F-007 (costura 4, R16, R17): se leen todos; los del contrato se
+            # reconocen por el `proide` de alguna de sus lineas.
+            leidos = productos
+        else:
+            leidos = [p for p in productos if p in self._lista_blanca]
+        self._productos = self._agrupar(self._s.leer_productos, leidos, cabecera.obra.emp, 1)
+        self._del_contrato = self._productos_del_contrato(leidos) if perfil.productos_del_contrato else {}
+        permitidos = [p for p in leidos if p in self._lista_blanca and p not in self._del_contrato]
         self._naturalezas = self._leer_naturalezas(permitidos)
+
+    def _productos_del_contrato(self, productos: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """F-007 (R17): producto -> la PRIMERA linea del contrato (por `pos`) con
+        su `proide`, de la que sale el IVA. Sin contrato, ninguno."""
+        contrato = self._cab.contrato
+        por_proide: dict[int, dict[str, Any]] = {}
+        for ctrpro in (contrato.lineas.values() if contrato else ()):
+            por_proide.setdefault(_entero(ctrpro.get("proide")), ctrpro)
+        resultado: dict[str, dict[str, Any]] = {}
+        for producto in productos:
+            filas = self._productos.get(_clave(producto), [])
+            if filas and int(filas[0][0]) in por_proide:
+                resultado[producto] = por_proide[int(filas[0][0])]
+        return resultado
 
     # --- lecturas de lista -----------------------------------------------------
     def _agrupar(
@@ -1245,21 +1411,18 @@ class _Catalogo:
     def _leer_naturalezas(self, productos: Sequence[str]) -> dict[str, tuple[int, int, int] | str]:
         """
         R13b (H34): producto -> `(natide, cueide, caaide)` o el codigo del fallo.
-        Naturaleza = la del mapeo, UNA `auxpronat` con ese `cod`, sin baja y
-        `numemp` en {0, empresa}; cuenta = la UNICA `cua` de su `cuacomcod` en
-        la empresa; analitica = la `caa` `<obra>.<sufijo>` del centro (R15).
+        Naturaleza = UNA `auxpronat` sin baja y `numemp` en {0, empresa}; con
+        `naturaleza_de_ficha` (F-008 enmienda 1, R49), la forzada para
+        `<emp>:<producto>` o, si no la hay, la de la ficha del producto (L15D,
+        solo con los no forzados, R53); sin el (proformas, R51), la del mapa
+        por producto. Cuenta = la UNICA `cua` de su `cuacomcod` en la empresa;
+        analitica = la `caa` `<obra>.<sufijo>` del centro (R15).
         """
         emp = self._cab.obra.emp
-        mapeados = {p: self._mapeo[p] for p in productos if p in self._mapeo}
-        filas = self._agrupar(self._s.leer_naturalezas, list(mapeados.values()), None, 1)
-        validas: dict[str, tuple[Any, ...]] = {}
-        for producto, cod in mapeados.items():
-            candidatas = [
-                f for f in filas.get(_clave(cod), [])
-                if not _entero(f[3]) and _entero(f[2]) in (0, emp)
-            ]
-            if len(candidatas) == 1 and str(candidatas[0][5] or "").strip():
-                validas[producto] = candidatas[0]
+        validas = (
+            self._naturalezas_de_ficha(productos, emp) if self._de_ficha
+            else self._naturalezas_del_mapa(productos, emp)
+        )
         cuentas = self._agrupar(
             self._s.leer_cuentas, [str(f[5]).strip() for f in validas.values()], emp, 1
         )
@@ -1286,6 +1449,53 @@ class _Catalogo:
                 (int(nat[0]), int(cueide), int(caas[0][0])) if len(caas) == 1 else "analitica_no_resuelta"
             )
         return resultado
+
+    def _naturalezas_del_mapa(self, productos: Sequence[str], emp: int) -> dict[str, Sequence[Any]]:
+        """El mapa por producto de siempre (proformas, R51): L15A de su `cod`."""
+        mapeados = {p: self._mapeo[p] for p in productos if p in self._mapeo}
+        filas = self._agrupar(self._s.leer_naturalezas, list(mapeados.values()), None, 1)
+        validas: dict[str, Sequence[Any]] = {}
+        for producto, cod in mapeados.items():
+            candidatas = [
+                f for f in filas.get(_clave(cod), [])
+                if not _entero(f[3]) and _entero(f[2]) in (0, emp)
+            ]
+            if len(candidatas) == 1 and str(candidatas[0][5] or "").strip():
+                validas[producto] = candidatas[0]
+        return validas
+
+    def _naturalezas_de_ficha(self, productos: Sequence[str], emp: int) -> dict[str, Sequence[Any]]:
+        """F-008 enmienda 1 (R49, R50, R53): la regla comun `naturalezas_elegidas`
+        sobre los productos existentes y sin baja (L7). L15A solo con los
+        `cod` forzados y L15D solo con los `proide` no forzados."""
+        proides: dict[str, int] = {}
+        for producto in productos:
+            filas = self._productos.get(_clave(producto), [])
+            if filas and not _entero(filas[0][2]):
+                proides[producto] = int(filas[0][0])
+        forzados = [p for p in proides if clave_forzada(emp, p) in self._mapeo]
+        por_cod = self._agrupar(
+            self._s.leer_naturalezas, [self._mapeo[clave_forzada(emp, p)] for p in forzados], None, 1
+        )
+        sin_forzar = list(dict.fromkeys(proides[p] for p in proides if p not in forzados))
+        por_proide: dict[int, tuple[Any, ...]] = {}
+        if sin_forzar:
+            _c, filas = self._caso._leer(
+                self._request, self._s.leer_naturalezas_de_ficha(sin_forzar), muchas=True
+            )
+            por_proide = {int(f[0]): f for f in filas}
+        validas, self._origenes = naturalezas_elegidas(proides, self._mapeo, por_cod, por_proide, emp=emp)
+        return validas
+
+    def _mensaje_naturaleza_no_valida(self, producto: str) -> str:
+        """R50: el mismo codigo, diciendo si la naturaleza venia del forzado o
+        de la ficha; sin ficha (proformas), el mensaje de siempre."""
+        motivo = "no existe, esta de baja, es de otra empresa o su cuenta no es unica."
+        if not self._de_ficha:
+            return f"La naturaleza del producto '{producto}' ({self._campo_naturalezas}) {motivo}"
+        if self._origenes.get(producto) == ORIGEN_FORZADA:
+            return f"La naturaleza forzada del producto '{producto}' ({self._campo_naturalezas}) {motivo}"
+        return f"La ficha del producto '{producto}' no trae naturaleza, o su naturaleza {motivo}"
 
     # --- validacion de una linea -------------------------------------------------
     def resolver_origen(self, indice: int, linea: LineaAlbaranIn) -> _Linea:
@@ -1316,10 +1526,11 @@ class _Catalogo:
 
     def _sin_vincular(self, indice: int, linea: LineaAlbaranIn) -> _Linea:
         producto = linea.producto or ""
-        if producto not in self._lista_blanca:
+        ctrpro = self._del_contrato.get(producto)
+        if ctrpro is None and producto not in self._lista_blanca:
             raise _FalloDeLinea(
                 "producto_no_permitido",
-                f"El producto '{producto}' no esta en SIGRID_ALBARAN_PRODUCTOS_SIN_CONTRATO.",
+                f"El producto '{producto}' no esta en {self._campo_productos}.",
             )
         filas = self._productos.get(_clave(producto), [])
         if not filas or _entero(filas[0][2]):
@@ -1327,13 +1538,20 @@ class _Catalogo:
                 "producto_no_encontrado",
                 f"El producto '{producto}' no existe o esta de baja en la empresa de la obra.",
             )
+        # `_resolver_lineas` lo fija antes de validar ninguna sin vincular (R15).
+        assert self._cab.almacen_sin_vincular is not None
+        if ctrpro is not None:
+            # F-007 (R17): naturaleza, cuenta y analitica las pone `completar`
+            # desde su plantilla; el IVA es el de la linea del contrato.
+            almide, cenide = self._cab.almacen_sin_vincular
+            return _Linea(
+                indice=indice, linea=linea, proide=int(filas[0][0]), producto=producto,
+                ctrpro=None, almide=almide, cenide=cenide, tipmov=_entero(filas[0][3]),
+                ivaide=_entero(ctrpro.get("ivaide")), del_contrato=True,
+            )
         naturaleza = self._naturalezas[producto]
         if naturaleza == "naturaleza_no_valida":
-            raise _FalloDeLinea(
-                "naturaleza_no_valida",
-                f"La naturaleza del producto '{producto}' (SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO) "
-                "no existe, esta de baja, es de otra empresa o su cuenta no es unica.",
-            )
+            raise _FalloDeLinea("naturaleza_no_valida", self._mensaje_naturaleza_no_valida(producto))
         if naturaleza == "analitica_no_resuelta":
             raise _FalloDeLinea(
                 "analitica_no_resuelta",
@@ -1341,8 +1559,6 @@ class _Catalogo:
                 "en su centro: alta a mano.",
             )
         natide, cueide, caaide = naturaleza
-        # `_resolver_lineas` lo fija antes de validar ninguna sin vincular (R15).
-        assert self._cab.almacen_sin_vincular is not None
         almide, cenide = self._cab.almacen_sin_vincular
         return _Linea(
             indice=indice,
@@ -1440,20 +1656,46 @@ class _Catalogo:
             )
         if plantilla is None:
             plantilla = leer(self._s.leer_plantilla_linea(linea.proide), (linea.proide, False))
-            if plantilla is not None and not linea.vinculada:
+            # F-007 (R17): la del contrato no toma el IVA de la plantilla, asi que
+            # no hay IVA de otro proveedor que avisar.
+            if plantilla is not None and not linea.vinculada and not linea.del_contrato:
                 linea.avisos.append(_aviso(
                     "iva_de_otro_proveedor",
                     f"El producto {linea.producto} no tiene lineas previas de este proveedor: "
                     "IVA de la ultima de otro.",
                 ))
         if plantilla is None:
+            # F-007 (R17): la del contrato conserva el IVA de su linea de contrato.
+            que = (
+                "cuenta a 0 e IVA de su linea de contrato" if linea.del_contrato
+                else "cuenta e IVA a 0"
+            )
             linea.avisos.append(_aviso(
                 "producto_sin_historico",
-                f"El producto {linea.proide} no tiene lineas previas de albaran: cuenta e IVA a 0.",
+                f"El producto {linea.proide} no tiene lineas previas de albaran: {que}.",
             ))
         linea.plantilla = plantilla
-        if not linea.vinculada:
+        if linea.del_contrato:
+            self._de_la_plantilla_del_contrato(linea)
+        elif not linea.vinculada:
             linea.ivaide = _entero((plantilla or {}).get("ivaide"))
+
+    @staticmethod
+    def _de_la_plantilla_del_contrato(linea: _Linea) -> None:
+        """F-007 (R17, M34; enmienda 1, D1): naturaleza, cuenta y analitica de su
+        plantilla de linea (L8b o L8) y el IVA de la linea del contrato, haya o
+        no plantilla, tambien en la fila (`construir_dcapro_sin_vincular` lo
+        toma de la plantilla). Sin plantilla, la base de una sin vincular sin
+        historico (mismas columnas, a 0) con ese IVA."""
+        plantilla = linea.plantilla
+        if plantilla is None:
+            linea.natide = linea.cueide = linea.caaide = 0
+            linea.plantilla = {**dict.fromkeys(_DCAPRO_SIN_PLANTILLA, 0), "ivaide": linea.ivaide}
+            return
+        linea.natide = _entero(plantilla.get("natide"))
+        linea.cueide = _entero(plantilla.get("cueide"))
+        linea.caaide = _entero(plantilla.get("caaide"))
+        linea.plantilla = {**plantilla, "ivaide": linea.ivaide}
 
     def _avisos_de_contrato(self, lineas: Sequence[_Linea]) -> None:
         """R16, R17 y el seguimiento del `ctrpro`, en el orden de las lineas.
@@ -1477,8 +1719,11 @@ class _Catalogo:
                     "sin_partida_en_linea_con_partida",
                     "La linea va sin partida y la de contrato tiene partida.",
                 ))
+            if datos.con_dto:
+                # F-018 R12, R13: con `dto`, validar sin pisar (D3).
+                propios.extend(_avisos_de_dto(datos, ctrpro))
             # La MISMA regla que decide la fila (opcion C).
-            if not usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0):
+            elif not usa_precio_del_contrato(datos.cantidad, datos.precio, ctrpro.get("pre") or 0):
                 propios.append(_aviso(
                     "precio_distinto_del_contrato",
                     "El precio no es el de la linea de contrato: se escribe el pedido.",
@@ -1497,3 +1742,32 @@ class _Catalogo:
                     f"La devolucion deja lo servido de la linea de contrato {ide} en negativo: se admite.",
                 ))
             linea.avisos[:0] = propios
+
+
+def _avisos_de_dto(datos: LineaAlbaranIn, ctrpro: Mapping[str, Any]) -> list[AvisoAlbaran]:
+    """F-018 R12, R13 (D3): una vinculada con `dto` escribe lo pedido y avisa de
+    cada diferencia con el `ctrpro`: el bruto frente a su `tar` (H14) y el
+    porcentaje frente a su `dto` (sin dto, 0; no legible, distinto)."""
+    avisos: list[AvisoAlbaran] = []
+    if not precio_coincide(datos.precio, ctrpro.get("tar") or 0):
+        avisos.append(_aviso(
+            "precio_distinto_del_contrato",
+            "El precio bruto no es el de la linea de contrato (su P.Bruto): se escribe el pedido.",
+        ))
+    assert datos.dto is not None
+    pedido = texto_de_dto(datos.dto)
+    texto = ctrpro.get("dto")
+    coincide = dto_coincide(datos.dto, texto)
+    if coincide is None:
+        avisos.append(_aviso(
+            "dto_distinto_del_contrato",
+            f"El descuento de la linea de contrato ('{str(texto).strip()}') no se puede leer "
+            f"como un porcentaje: se escribe el pedido ({pedido}).",
+        ))
+    elif not coincide:
+        avisos.append(_aviso(
+            "dto_distinto_del_contrato",
+            f"El descuento pedido ({pedido}) no es el de la linea de contrato "
+            f"({texto_de_dto(porcentaje_de_dto(texto) or 0)}): se escribe el pedido.",
+        ))
+    return avisos

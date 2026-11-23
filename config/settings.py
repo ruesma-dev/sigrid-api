@@ -8,6 +8,9 @@ from typing import Annotated, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+#: F-008 enmienda 1 (R54): largo maximo del `producto` de una clave forzada.
+LARGO_MAXIMO_PRODUCTO = 24
+
 
 class _ParesJson(list):
     """Los pares `(clave, valor)` de un objeto JSON, en orden y con repeticiones,
@@ -111,7 +114,7 @@ class Settings(BaseSettings):
     # referencia se rechaza; sin productos ni naturalezas no hay lineas sin
     # vincular; sin empresas no se encuentra ninguna obra. Todo tambien en
     # dry-run. Despliegue (T19), SOLO en JSON: ["ALB-"], ["MA9999", "QA9999",
-    # "XA9999"], [1] y {"MA9999": "MA99", "QA9999": "QA99", "XA9999": "XA99"}.
+    # "XA9999"] y [1]; el forzado de naturalezas (F-008 enmienda 1), `{}` salvo excepciones.
     sigrid_albaran_write_enabled: bool = Field(False, alias="SIGRID_ALBARAN_WRITE_ENABLED")
     sigrid_albaran_prefijos_referencia: list[str] = Field(
         default_factory=list, alias="SIGRID_ALBARAN_PREFIJOS_REFERENCIA"
@@ -123,12 +126,64 @@ class Settings(BaseSettings):
         default_factory=list, alias="SIGRID_ALBARAN_EMPRESAS_OBRA"
     )
     sigrid_albaran_max_lineas: int = Field(100, alias="SIGRID_ALBARAN_MAX_LINEAS")
-    # Naturaleza (auxpronat.cod) de las lineas sin vincular, por producto (H34).
-    # `NoDecode`: el texto del entorno llega TAL CUAL a `parse_string_dict`; si
-    # lo decodificara pydantic-settings, un `{"A": "x", "A": "y"}` perderia la
+    # F-008 enmienda 1 (R49, R54): naturaleza (auxpronat.cod) FORZADA de las
+    # lineas sin vincular, por `"<emp>:<producto>"`; sin clave, la de la ficha
+    # del producto. Sustituye a SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO, que se
+    # deja de leer (si sigue en Azure, `extra="ignore"` la ignora y arranca).
+    # `NoDecode`: el texto del entorno llega TAL CUAL al validador; si lo
+    # decodificara pydantic-settings, un `{"A": "x", "A": "y"}` perderia la
     # clave repetida antes de que nadie pudiera rechazarlo.
-    sigrid_albaran_naturaleza_por_producto: Annotated[dict[str, str], NoDecode] = Field(
-        default_factory=dict, alias="SIGRID_ALBARAN_NATURALEZA_POR_PRODUCTO"
+    sigrid_albaran_naturaleza_forzada: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict, alias="SIGRID_ALBARAN_NATURALEZA_FORZADA"
+    )
+
+    # --- Registro de la proforma de mes del jefe de obra (F-007, R4) ---
+    # Los cinco defectos son CERRADOS, como los de albaranes: sin interruptor no
+    # hay commit; con los prefijos vacios toda referencia se rechaza (tambien en
+    # dry-run); sin productos ni naturalezas solo valen los productos del
+    # contrato. La obra se resuelve en SIGRID_ALBARAN_EMPRESAS_OBRA. Despliegue
+    # (D11), SOLO en JSON: ["PRF-"], ["SM9999", "SB9999", "SM370001"] y
+    # {"SM9999": "SM99", "SB9999": "SB99", "SM370001": "SM37"}.
+    sigrid_proforma_write_enabled: bool = Field(False, alias="SIGRID_PROFORMA_WRITE_ENABLED")
+    sigrid_proforma_prefijos_referencia: list[str] = Field(
+        default_factory=list, alias="SIGRID_PROFORMA_PREFIJOS_REFERENCIA"
+    )
+    sigrid_proforma_productos_sin_contrato: list[str] = Field(
+        default_factory=list, alias="SIGRID_PROFORMA_PRODUCTOS_SIN_CONTRATO"
+    )
+    # `NoDecode` por lo mismo que el mapeo de albaranes: claves repetidas visibles.
+    sigrid_proforma_naturaleza_por_producto: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict, alias="SIGRID_PROFORMA_NATURALEZA_POR_PRODUCTO"
+    )
+    sigrid_proforma_max_lineas: int = Field(500, alias="SIGRID_PROFORMA_MAX_LINEAS")
+    # F-016 (R4, D10): llave PROPIA del commit a origen, ademas de las de F-007.
+    # Con la de proformas abierta para el mes, el modo a origen no graba hasta
+    # verificarlo en la UI (V9). Defecto CERRADO.
+    sigrid_proforma_origen_enabled: bool = Field(False, alias="SIGRID_PROFORMA_ORIGEN_ENABLED")
+
+    # --- Alta de facturas de compra FR y FRGG, sin contabilidad (F-008) ---
+    # Defectos CERRADOS o vacios: sin la llave no hay commit (ninguna otra la
+    # abre, R4); sin prefijos toda referencia se rechaza (R6); sin productos,
+    # IVAs o prefijos de cuenta no vale ninguna linea sin origen de esa clase
+    # (R24-R26). La obra se resuelve en SIGRID_ALBARAN_EMPRESAS_OBRA. Despliegue
+    # (design §4), SOLO en JSON: ["FAC-"], los seis productos de F-009/F-007,
+    # los siete IVAs con los NDED y ["6"].
+    sigrid_factura_write_enabled: bool = Field(False, alias="SIGRID_FACTURA_WRITE_ENABLED")
+    sigrid_factura_prefijos_referencia: list[str] = Field(
+        default_factory=list, alias="SIGRID_FACTURA_PREFIJOS_REFERENCIA"
+    )
+    sigrid_factura_max_lineas: int = Field(500, alias="SIGRID_FACTURA_MAX_LINEAS")
+    sigrid_factura_productos_sin_origen: list[str] = Field(
+        default_factory=list, alias="SIGRID_FACTURA_PRODUCTOS_SIN_ORIGEN"
+    )
+    # Enmienda 1 (R54): forzado por `"<emp>:<producto>"`, como el de albaranes;
+    # sustituye a SIGRID_FACTURA_NATURALEZA_POR_PRODUCTO (ya no se lee).
+    sigrid_factura_naturaleza_forzada: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict, alias="SIGRID_FACTURA_NATURALEZA_FORZADA"
+    )
+    sigrid_factura_ivas: list[str] = Field(default_factory=list, alias="SIGRID_FACTURA_IVAS")
+    sigrid_factura_cuentas_gasto_prefijos: list[str] = Field(
+        default_factory=list, alias="SIGRID_FACTURA_CUENTAS_GASTO_PREFIJOS"
     )
 
     model_config = SettingsConfigDict(
@@ -145,6 +200,12 @@ class Settings(BaseSettings):
         "sigrid_reclamacion_prefijos_referencia",
         "sigrid_albaran_prefijos_referencia",
         "sigrid_albaran_productos_sin_contrato",
+        "sigrid_proforma_prefijos_referencia",
+        "sigrid_proforma_productos_sin_contrato",
+        "sigrid_factura_prefijos_referencia",
+        "sigrid_factura_productos_sin_origen",
+        "sigrid_factura_ivas",
+        "sigrid_factura_cuentas_gasto_prefijos",
         mode="before",
     )
     @classmethod
@@ -227,7 +288,7 @@ class Settings(BaseSettings):
                 ) from None
         return enteros
 
-    @field_validator("sigrid_albaran_naturaleza_por_producto", mode="before")
+    @field_validator("sigrid_proforma_naturaleza_por_producto", mode="before")
     @classmethod
     def parse_string_dict(cls, value: Any) -> dict[str, str]:
         """
@@ -282,6 +343,41 @@ class Settings(BaseSettings):
                 raise ValueError(f"Clave repetida en el mapeo: {clave_limpia!r}.")
             mapeo[clave_limpia] = valor_limpio
         return mapeo
+
+    @field_validator(
+        "sigrid_albaran_naturaleza_forzada",
+        "sigrid_factura_naturaleza_forzada",
+        mode="before",
+    )
+    @classmethod
+    def parse_naturaleza_forzada(cls, value: Any) -> dict[str, str]:
+        """
+        F-008 enmienda 1 (R54): el mapeo de `parse_string_dict` (objeto JSON de
+        textos no vacios, sin claves repetidas) con claves `<emp>:<producto>`:
+        `emp` en cifras y > 0, normalizado (`01:X` -> `1:X`), y `producto` de
+        1-24 caracteres sin espacios ni `:`. Una clave mal formada o dos que
+        coinciden tras normalizar hacen fallar el arranque, como todo mapeo.
+        """
+        forzado: dict[str, str] = {}
+        for clave, valor in cls.parse_string_dict(value).items():
+            emp, separador, producto = clave.partition(":")
+            if (
+                not separador
+                or not emp.isascii()
+                or not emp.isdigit()
+                or int(emp) <= 0
+                or not 1 <= len(producto) <= LARGO_MAXIMO_PRODUCTO
+                or ":" in producto
+                or any(caracter.isspace() for caracter in producto)
+            ):
+                raise ValueError(
+                    f"Clave de naturaleza forzada mal formada (debe ser '<emp>:<producto>'): {clave!r}."
+                )
+            normalizada = f"{int(emp)}:{producto}"
+            if normalizada in forzado:
+                raise ValueError(f"Clave repetida en el mapeo tras normalizar: {normalizada!r}.")
+            forzado[normalizada] = valor
+        return forzado
 
     @property
     def write_enabled(self) -> bool:
