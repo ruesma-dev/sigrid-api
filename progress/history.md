@@ -427,7 +427,7 @@ revisión del humano en la UI (`verificacion_F-016.md`). **Llave `SIGRID_PROFORM
 (`30cfcb4`..), mergeada a `dev`. Revisión APROBADA en la pasada 2 (`review_F-019.md`); informe en `impl_F-019.md`.
 
 **Qué hizo:** `instalar_arnes.ps1 -Modo actualizar` (65 nuevos, 27 genéricos con backup en
-`%LOCALAPPDATA%rnes-baseackups\sigrid-api61120-215907`) y fusión a mano a tres bandas de los seis adaptados
+`%LOCALAPPDATA%/arnes-base/backups/sigrid-api/20261120-215907`) y fusión a mano a tres bandas de los seis adaptados
 (`CLAUDE.md`, `CHECKPOINTS.md`, `harness/init.sh`, `docs/CONVENTIONS.md`, `docs/referencia/README.md`,
 `.claude/settings.json`), conservando todas las personalizaciones de `sigrid-api` (`RAMA_BASE=dev`, reglas duras de
 Sigrid, bloque de Ruesma). Fuera el hook `PostToolUse`; ocho estados de flujo, carriles, mutación por muestra en
