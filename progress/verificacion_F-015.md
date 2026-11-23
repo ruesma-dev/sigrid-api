@@ -43,6 +43,10 @@ en el scratchpad: dry-run primero con el mismo cuerpo y parada ante cualquier di
 `AC26/30670` desde la UI** por Administración (nunca `DELETE`); después, comprobar en lectura que no queda `con`, `dca`
 ni `dcarec` con `docide` 2860439 y que el `canser` de `ctrpro` 104172 vuelve a 69.
 
+**Cierre (2026-11-23):** el humano descarta la anulación («olvídate de ese albarán»). `AC26/30670` se queda en
+Sigrid tal cual, con su `dcarec` y el `canser` 70 de `ctrpro` 104172; no se hacen las lecturas de comprobación. La
+revisión en la UI tampoco se registró: se cierra sin ella.
+
 ## T21 · Limpieza: descartada
 
 El humano la descarta el 2026-10-24, como el de albaranes. Las ~60 altas anteriores al despliegue conservan la
