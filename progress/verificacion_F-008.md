@@ -99,3 +99,14 @@ FRGG, como prevé el aviso `cod_provisional`).
   `false` (D4 `escritura_facturas_deshabilitada`), la de albaranes `true` sin tocar, y PA, PB, PB ambigua y PC repetidas
   con el mismo resultado y C0 igual.
 - **Pendiente:** financiero aún no ha anulado `FR26/11425` (REC) ni `FRGG26/2772` (RECGG); después, G1 nueva.
+
+## Cierre (2026-11-24)
+
+- **Estado leído hoy** (`sql/read`): `FR26/11425` sigue en REC y `FRGG26/2772` en RECGG, las dos sin asiento ni
+  `regiva`; sus pagos `FR26/11425_01` (82,84) y `FRGG26/2772_01` (12,1) siguen en PDT a 20261202, `remide` 0. El
+  albarán 2035935 sigue facturado (`estfac` 1, `con.est` 10). Nadie ha hecho V2-V7 en el escritorio.
+- **Decisión del humano:** F-008 se cierra sin V2-V4, V6 ni V7 y sin G1 nueva, como F-015.
+- **Anulación:** el humano pidió anularlas por `sigrid-api`; no se puede (anular en Sigrid borra filas y revierte las
+  marcas del albarán; regla dura «nunca `DELETE`» y `user_rw` sin ese permiso). Se avisa a Financiero para que las anule
+  en el escritorio o bloquee los dos pagos antes del 2026-12-02.
+- **T25:** `bash harness/init.sh` en verde sobre `dev` `059bb71` (6.187 passed, 48 skipped).

@@ -465,3 +465,27 @@ queda en Sigrid. T21 (limpieza de las ~60 altas anteriores) descartada el 2026-1
 **Lecciones:**
 - Una feature que solo espera un trámite manual de otro departamento no debe quedarse un mes en `blocked`: se pregunta
   al humano si el trámite condiciona el cierre.
+
+## F-008 · `POST /api/sigrid/factura`: factura de compra FR o FRGG, alta sin contabilidad
+
+**Cerrada el 2026-11-24** con el OK del humano. Rigor `critico`, `sdd`, spec v3.2 (enmienda 1). Rama
+`feature/F-008-registrar-factura`, mergeada a `dev`. Desplegada el 2026-10-31 (`18c8c20`) y la enmienda 1 el 2026-11-09
+(`7b7a2e1`). Revisión APROBADA (pasada 3 y, la enmienda, pasada 2), consolidada en `review_F-008.md`.
+
+**Qué hace:** registra una factura de compra FR (con orígenes de mes o a origen, sin origen o mixta) o FRGG, sin
+contabilizar: `con`, `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `log` y las marcas de los orígenes, en una transacción,
+con `cod` e `ide` bajo applock e idempotencia por `synckey`. Asiento, `regiva` y `regirp` los hace «Contabilizar» en el
+escritorio. Llave `SIGRID_FACTURA_WRITE_ENABLED`, cerrada. Enmienda 1: la naturaleza sale de la ficha del producto (o
+de `_NATURALEZA_FORZADA`) y la FR admite líneas solo con cuenta y analítica.
+
+**Verificado** (`verificacion_F-008.md`): previas P1-P7 y PA-PC sobre datos reales con C0 igual; grabaciones G1
+`FR26/11425` y G2 `FRGG26/2772` releídas; `init.sh` en verde (T25).
+
+**Cerrada sin:** V2-V4, V6 y V7 en el escritorio ni G1 nueva, por decisión del humano. Las dos facturas siguen en
+Sigrid con sus pagos en PDT a 2026-12-02: el humano pidió anularlas por la API y no se puede (anular borra filas); se
+avisa a Financiero.
+
+**Lecciones:**
+- Una grabación de prueba en un circuito de pagos deja vencimientos reales: antes de grabar, quién la anula y en qué
+  plazo; si no se anula, avisar antes del vencimiento.
+- Anular en Sigrid es borrar (M17b de F-009): ninguna limpieza de pruebas cabe en `sql/write`.

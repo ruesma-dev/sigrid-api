@@ -25,10 +25,10 @@ No se empieza ninguna hasta que el humano apruebe la v3.1 (P1-P21 decididas, `de
 - [x] T19: Escribir `specs/F-008-registrar-factura/verificacion_manual.md` con los pasos exactos y las consultas de lectura posteriores, FR y FRGG  |  Verificación: revisión del reviewer
 - [x] T20: Campaña de mutación entera sobre `factura_*` y `create_factura_use_case`, supervivientes 0 o justificados por el humano  |  Verificación: `python -m harness.mutacion --rama feature/F-008-registrar-factura`
 - [x] T21: Revisión del reviewer contra `CHECKPOINTS.md`  |  Verificación: `progress/review_F-008.md` APROBADO (pasada 3, `8313ba0`; review consolidada en `6483480`)
-- [ ] T22: Comprobar los permisos de `user_rw` (V1) con quien administra Sigrid  |  Verificación: MANUAL (humano): `INSERT` en `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `dcaprodes` y `UPDATE` en `con`, `dca`, `dcapro`, `ctrpro`, `ctr`
-- [ ] T23: Desplegar con la llave cerrada y lanzar previas de mes, a origen, mixta, FR sin origen, FRGG sin origen y FRGG con albarán sobre facturas reales ya registradas en el escritorio  |  Verificación: MANUAL (humano): pasos de `verificacion_manual.md`, sin `commit`
-- [ ] T24: Una grabación FR en la obra 0404 y una FRGG, cada una solo con autorización expresa; «Comprobar» y «Contabilizar» en el escritorio y anularlas después (V2-V4, V6, V7)  |  Verificación: MANUAL (humano): asiento cuadrado, marcas revertidas o el resultado anotado
-- [ ] T25: Ejecutar `bash harness/init.sh` en verde  |  Verificación: `bash harness/init.sh`
+- [x] T22: Comprobar los permisos de `user_rw` (V1) con quien administra Sigrid  |  Verificación: MANUAL (humano): `INSERT` en `dcf`, `dcfpro`, `dcfrec`, `pag`, `consii`, `dcaprodes` y `UPDATE` en `con`, `dca`, `dcapro`, `ctrpro`, `ctr`
+- [x] T23: Desplegar con la llave cerrada y lanzar previas de mes, a origen, mixta, FR sin origen, FRGG sin origen y FRGG con albarán sobre facturas reales ya registradas en el escritorio  |  Verificación: MANUAL (humano): pasos de `verificacion_manual.md`, sin `commit`
+- [x] T24: Una grabación FR en la obra 0404 y una FRGG, cada una solo con autorización expresa; «Comprobar» y «Contabilizar» en el escritorio y anularlas después (V2-V4, V6, V7)  |  Verificación: MANUAL (humano): asiento cuadrado, marcas revertidas o el resultado anotado (hecho: G1 `FR26/11425` y G2 `FRGG26/2772` grabadas y releídas; V2-V4, V6 y V7 en el escritorio descartadas por el humano el 2026-11-24)
+- [x] T25: Ejecutar `bash harness/init.sh` en verde  |  Verificación: `bash harness/init.sh` (2026-11-24 sobre `dev` `059bb71`: 6.187 passed, 48 skipped)
 
 ## Enmienda 1 (v3.2): naturaleza de la ficha, forzado por empresa y FR sin producto
 
