@@ -3,18 +3,15 @@
 
 Limpiado el 2026-11-23: las secciones de features cerradas están en `history.md`. Por decisión del humano
 (2026-11-23), **los documentos de prueba que siguen en Sigrid ya no se persiguen**: `AC26/30670` (F-015),
-`PROF26/01360` (F-007), `PROF26/01386` y `PROF26/01387` (F-016), `FR26/11425` y `FRGG26/2772` (F-008), el parte
-`RS26.09/0439` (F-006) y el adjunto `202609060933388219.prueba` (F-004). Nadie los anula ni los borra desde aquí.
+`PROF26/01360` (F-007), `PROF26/01386` y `PROF26/01387` (F-016), `FR26/11425` y `FRGG26/2772` (F-008, con el aviso de
+abajo), el parte `RS26.09/0439` (F-006) y el adjunto `202609060933388219.prueba` (F-004). Nadie los anula ni los borra
+desde aquí.
 
-## F-008 `human_review`: factura de compra, alta en REC sin contabilidad
+## Sin feature activa
 
-Revisión APROBADA ([`review_F-008.md`](review_F-008.md), `6483480`) y desplegada (T34 `625fb49`, T34.5 `16a741c`;
-[`verificacion_F-008.md`](verificacion_F-008.md)). Spec v3.2 aprobada; **no se vuelve a presentar**. Rama
-`feature/F-008-registrar-factura`.
-
-**Pendiente (manual):** comprobaciones del escritorio V2-V7 sobre `FR26/11425` (G1) y `FRGG26/2772` (G2); G1 nueva solo
-con autorización expresa; T25 (`init.sh` final). Guion en
-[`verificacion_manual.md`](../specs/F-008-registrar-factura/verificacion_manual.md).
+F-008 cerrada el 2026-11-24 (en `history.md`). **Aviso abierto:** las dos facturas de prueba de F-008,
+`FR26/11425` y `FRGG26/2772`, tienen pagos en PDT a **2026-12-02** (82,84 y 12,1). Financiero las anula en el escritorio
+o bloquea los pagos; desde la API no se puede (anular borra filas).
 
 ## Llaves y avisos que esperan al humano
 
@@ -49,9 +46,6 @@ con autorización expresa; T25 (`init.sh` final). Guion en
 
 ### De configuración y de la base
 
-- **`local.settings.json` está versionado con dos contraseñas reales** desde el primer commit (`e903394`, 2026-04-16),
-  en `origin/main` y `origin/dev`. Lo que cierra el hueco es **rotarlas** en Sigrid y en el Key Vault; después
-  `git rm --cached local.settings.json` y `.gitignore`.
 - **`sql/read` no aplica `timeout_seconds` como tope de la consulta** (solo el del login): una lectura que el balanceador
   corta a 230 s sigue corriendo en producción. Es **F-013**. Mientras tanto, no relanzar una lectura justo después de un
   corte.
@@ -70,12 +64,12 @@ con autorización expresa; T25 (`init.sh` final). Guion en
 
 ## Lo siguiente en el backlog
 
-Activa: **F-008** (`human_review`, solo manuales). Sin nada en `todo`; en `pending`, por prioridad: F-001
-(calentamiento), F-013 (tope real de `sql/read`), F-014 (dry-run de dominio) y F-017 (partidas con código repetido en
-`sigrid/proforma`). Comprometer cualquiera es decisión del humano.
+Ninguna feature activa ni en `todo`. En `pending`, por prioridad: F-001 (calentamiento), F-013 (tope real de
+`sql/read`), F-014 (dry-run de dominio) y F-017 (partidas con código repetido en `sigrid/proforma`). Comprometer
+cualquiera es decisión del humano.
 
 ## Prompt para retomar
 
-> Lee `CLAUDE.md` y `progress/current.md`. La única feature activa es **F-008** (`human_review`): revisada y desplegada,
-> le quedan V2-V7 en el escritorio, G1 nueva con autorización expresa y T25. Los documentos de prueba que siguen en
-> Sigrid no se persiguen (decisión del 2026-11-23). En `pending`: F-001, F-013, F-014 y F-017.
+> Lee `CLAUDE.md` y `progress/current.md`. No hay feature activa. Aviso abierto: los pagos de `FR26/11425` y
+> `FRGG26/2772` vencen el 2026-12-02 y los tiene que anular o bloquear Financiero. En `pending`: F-001, F-013, F-014 y
+> F-017.

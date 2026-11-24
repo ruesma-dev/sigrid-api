@@ -3,13 +3,11 @@
 
 **Fichero generado por `harness/backlog.py` a partir de `harness/features.json`. No lo edites a mano**: edita el JSON y vuelve a generarlo (lo hace solo `bash harness/init.sh`).
 
-Resumen: **19 features**, 5 abiertas y 14 terminadas. Por columna: 1 en Review, 0 en Blocked, 0 en In progress, 0 en Spec aprobada, 0 en To do, 4 en Backlog y 14 en Done.
+Resumen: **19 features**, 4 abiertas y 15 terminadas. Por columna: 0 en Review, 0 en Blocked, 0 en In progress, 0 en Spec aprobada, 0 en To do, 4 en Backlog y 15 en Done.
 
 ## Review
 
-| # | Feature | La tiene | Prioridad | Rigor | Rama |
-|---|---|---|---|---|---|
-| F-008 | Endpoint de dominio para registrar facturas de compra | humano | 10 | critico | `feature/F-008-registrar-factura` |
+_Nada esperando revisión._
 
 ## Blocked
 
@@ -40,6 +38,7 @@ _Nada comprometido._
 
 | # | Feature | Cierre | OK humano | Prioridad | Rigor |
 |---|---|---|---|---|---|
+| F-008 | Endpoint de dominio para registrar facturas de compra | 2026-11-24 | 2026-11-24 | 10 | critico |
 | F-019 | Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base | 2026-11-23 | 2026-11-23 | 1 | documental |
 | F-015 | El modo extendido de sigrid/albaran no hereda la cabecera de una proforma y escribe la retención del contrato | 2026-11-23 | 2026-11-23 | 15 | critico |
 | F-002 | Spike: viabilidad de escribir en la base documental ruesma_rep | sin fecha | sin anotar | 2 | critico |
@@ -63,12 +62,6 @@ estado **pendiente** · prioridad 1 · rigor `estandar` · SDD no · rama `featu
 
 Feature trivial para validar el circuito completo del arnés en este repositorio (rama, acceptance, implementer, reviewer, cierre). Anade un test unitario sobre SqlWriteGuard que fije por escrito la regla que hoy solo vive en configuracion: una peticion de escritura contra una base fuera de ALLOWED_WRITE_DATABASES (p.ej. ruesma_rep) se rechaza.
 
-### F-008 · Endpoint de dominio para registrar facturas de compra
-
-estado **en revisión humana** · spec aprobada el 2026-10-30 · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
-
-Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
-
 ### F-013 · sql/read aplica timeout_seconds como tope de la consulta, no solo del login
 
 estado **pendiente** · prioridad 13 · rigor `critico` · SDD sí · rama `feature/F-013-sql-read-timeout`
@@ -86,6 +79,12 @@ Alta del 2026-10-18 a petición del humano: residual de F-011 (progress/review_F
 estado **pendiente** · prioridad 16 · rigor `critico` · SDD sí · rama `feature/F-017-partidas-repetidas`
 
 Alta del 2026-10-28 por decisión del humano (V8 de F-007, punto 3). Una línea sin contrato de sigrid/proforma con un código de partida que la obra tiene repetido entre sus imputables da 400 partida_ambigua, y la petición no admite paride. Según el humano «no debería haber». Medido el 2026-10-28 (solo lectura): 4 de las 16 obras con PROF26 — 0677 (40.04.01 y 40.04.02, partidas distintas con compras), 0672 (20.02.05), 0692 (CI.6.1-CI.6.7 en los capítulos CI.6 y CI.06) y 0404 (pruebas, presupuesto cargado 5 veces). Las líneas de contrato no se ven afectadas (llevan el paride del ctrpro). La spec decide entre detectarlo y avisar para que se corrija en Sigrid, admitir paride o una regla de desempate, con Administración.
+
+### F-008 · Endpoint de dominio para registrar facturas de compra
+
+estado **terminada** · cerrada el 2026-11-24 · spec aprobada el 2026-10-30 · OK del humano el 2026-11-24 · prioridad 10 · rigor `critico` · SDD sí · rama `feature/F-008-registrar-factura`
+
+Alta del 2026-09-24 por petición del humano, anotada sin estudiar todavía. Escritura de dominio en el ERP de producción: dry-run por defecto, commit:true solo con autorización expresa, una transacción, reserva de ide y de código de serie bajo applock, idempotencia frente a reintentos. La spec mide antes en producción (solo lectura) qué filas escribe Sigrid al hacerlo desde la UI. Relación con postventa-incidencias (F-046/F-047: coste de la posventa y vínculo de la incidencia con la proforma, el coste y la venta). Facturas de COMPRA (de proveedor, las que imputan coste): decidido por el humano el 2026-09-24. Una factura en Sigrid arrastra contabilidad y estados de los documentos de origen (albaranes, proformas): la spec decide qué recalcula el endpoint y qué deja a Sigrid, y si cabe en este microservicio.
 
 ### F-019 · Actualizar el arnés de la 1.7.8 a la 1.10.1 desde arnes-base
 

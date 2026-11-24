@@ -51,3 +51,6 @@ coverage.json
 # Salidas de los scripts de consulta: datos de negocio y de contacto de
 # proveedores. No entran al repositorio.
 *.csv
+
+# Configuración local de Azure Functions: lleva secretos (la plantilla es local.settings.sample.json)
+local.settings.json
